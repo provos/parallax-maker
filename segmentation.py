@@ -86,7 +86,7 @@ def generate_simple_thresholds(depth_map, num_slices=5):
     return thresholds
 
 
-def generate_image_slices(image, depth_map, thresholds):
+def generate_image_slices(image, depth_map, thresholds, num_expand=50):
     """Generate image slices based on the depth map and thresholds, including an alpha channel."""
 
     slices = []
@@ -100,16 +100,25 @@ def generate_image_slices(image, depth_map, thresholds):
         if prev_mask is not None:
             mask = cv2.bitwise_and(mask, cv2.bitwise_not(prev_mask))
 
+        # Expand the mask
+        kernel = np.ones((num_expand, num_expand), np.uint8)
+        expanded_mask = cv2.dilate(mask, kernel, iterations=1)
+
+        # Feather the expanded mask
+        feathered_mask = cv2.GaussianBlur(
+            expanded_mask, (num_expand * 2 + 1, num_expand * 2 + 1), 0)
+
         # Create a 4-channel image (RGBA)
         masked_image = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
 
-        # Set alpha channel values based on the mask
-        masked_image[:, :, 3] = mask
+        # Set alpha channel values based on the feathered mask
+        masked_image[:, :, 3] = feathered_mask
 
         slices.append(masked_image)
         prev_mask = mask
 
     return slices
+
 
 def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_distance=100.0, focal_length=1000.0):
     """Set up the camera and cards in 3D space."""
@@ -178,6 +187,34 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
 
     return rendered_image
 
+
+def render_image_sequence(output_path, image_slices, card_corners_3d_list, camera_matrix, camera_position):
+    """
+    Renders a sequence of images with varying camera positions.
+
+    Args:
+        output_path (str): The path to the output directory where the rendered images will be saved.
+        image_slices (list): A list of image slices.
+        camera_matrix (numpy.ndarray): The camera matrix.
+        card_corners_3d_list (list): A list of 3D card corners.
+        camera_position (list): The initial camera position.
+
+    Returns:
+        None
+    """
+    for i in range(100):
+        # Update the camera position
+        camera_position[2] += 1
+
+        # Render the view
+        rendered_image = render_view(
+            image_slices, camera_matrix, card_corners_3d_list, camera_position)
+
+        image_name = f'rendered_image_{i:03d}.png'
+        output_image_path = output_path / image_name
+        
+        cv2.imwrite(str(output_image_path), cv2.cvtColor(
+            rendered_image, cv2.COLOR_RGBA2BGR))
 
 def process_image(image_path, output_path, num_slices=5,
                   use_simple_thresholds=False,
@@ -255,19 +292,8 @@ def process_image(image_path, output_path, num_slices=5,
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     
-    for i in range(50):
-        # Update the camera position
-        camera_position[2] += 1
-
-        # Render the view
-        rendered_image = render_view(
-            image_slices, camera_matrix, card_corners_3d_list, camera_position)
-
-        # Display the rendered image
-        cv2.imshow("Rendered Image", cv2.cvtColor(
-            rendered_image, cv2.COLOR_RGBA2BGR))
-        cv2.waitKey(35)
-
+    render_image_sequence(output_path, image_slices,
+                          card_corners_3d_list, camera_matrix, camera_position)
 
 def main():
     # Parse command line arguments
