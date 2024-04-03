@@ -85,8 +85,10 @@ def generate_simple_thresholds(depth_map, num_slices=5):
         thresholds.append(threshold)
     return thresholds
 
+
 def generate_image_slices(image, depth_map, thresholds):
-    """Generate image slices based on the depth map and thresholds."""
+    """Generate image slices based on the depth map and thresholds, including an alpha channel."""
+
     slices = []
 
     prev_mask = None
@@ -97,12 +99,17 @@ def generate_image_slices(image, depth_map, thresholds):
         mask = cv2.inRange(depth_map, threshold_min, threshold_max)
         if prev_mask is not None:
             mask = cv2.bitwise_and(mask, cv2.bitwise_not(prev_mask))
-        masked_image = cv2.bitwise_and(image, image, mask=mask)
+
+        # Create a 4-channel image (RGBA)
+        masked_image = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
+
+        # Set alpha channel values based on the mask
+        masked_image[:, :, 3] = mask
+
         slices.append(masked_image)
         prev_mask = mask
 
     return slices
-
 
 def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_distance=100.0, focal_length=1000.0):
     """Set up the camera and cards in 3D space."""
@@ -137,7 +144,10 @@ def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_
 def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position):
     """Render the current view of the camera."""
     num_slices = len(image_slices)
-    rendered_image = np.zeros_like(image_slices[0])
+    # Start with a blank image with an alpha channel
+    rendered_image = np.zeros(
+        (image_slices[0].shape[0], image_slices[0].shape[1], 4), dtype=np.uint8)
+    rendered_image[:, :, 3] = 1
 
     for i in range(num_slices):
         # Transform the card corners based on the camera position
@@ -155,11 +165,19 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
             np.float32(card_corners_2d)
         ), (rendered_image.shape[1], rendered_image.shape[0]))
 
-        # Blend the warped slice with the rendered image
-        mask = np.any(warped_slice != 0, axis=-1)
-        rendered_image[mask] = warped_slice[mask]
+        # Alpha Compositing of the warped slice with the rendered image
+        alpha = warped_slice[:, :, 3] / 255.0
+        rendered_image[:, :, 0] = (
+            1 - alpha) * rendered_image[:, :, 0] + alpha * warped_slice[:, :, 0]
+        rendered_image[:, :, 1] = (
+            1 - alpha) * rendered_image[:, :, 1] + alpha * warped_slice[:, :, 1]
+        rendered_image[:, :, 2] = (
+            1 - alpha) * rendered_image[:, :, 2] + alpha * warped_slice[:, :, 2]
+        rendered_image[:, :, 3] = np.maximum(
+            rendered_image[:, :, 3], warped_slice[:, :, 3])
 
     return rendered_image
+
 
 def process_image(image_path, output_path, num_slices=5,
                   use_simple_thresholds=False,
@@ -211,14 +229,14 @@ def process_image(image_path, output_path, num_slices=5,
         for i, slice_image in enumerate(image_slices):
             output_image_path = output_path / f"image_slice_{i}.png"
             cv2.imwrite(str(output_image_path), cv2.cvtColor(
-                slice_image, cv2.COLOR_RGB2BGR))
+                slice_image, cv2.COLOR_RGBA2BGRA))
     else:
         # Load the image slices
         image_slices = []
         for i in range(num_slices):
             input_image_path = output_path / f"image_slice_{i}.png"
-            slice_image = cv2.imread(str(input_image_path))
-            slice_image = cv2.cvtColor(slice_image, cv2.COLOR_BGR2RGB)
+            slice_image = cv2.imread(str(input_image_path), cv2.IMREAD_UNCHANGED)
+            slice_image = cv2.cvtColor(slice_image, cv2.COLOR_BGRA2RGBA)
             image_slices.append(slice_image)
         
     # Set up the camera and cards
@@ -233,13 +251,13 @@ def process_image(image_path, output_path, num_slices=5,
         image_slices, camera_matrix, card_corners_3d_list, camera_position)
     # Display the rendered image
     cv2.imshow("Rendered Image", cv2.cvtColor(
-        rendered_image, cv2.COLOR_RGB2BGR))
+        rendered_image, cv2.COLOR_RGBA2BGR))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
     
     for i in range(50):
         # Update the camera position
-        camera_position[2] += 0.5
+        camera_position[2] += 1
 
         # Render the view
         rendered_image = render_view(
@@ -247,7 +265,7 @@ def process_image(image_path, output_path, num_slices=5,
 
         # Display the rendered image
         cv2.imshow("Rendered Image", cv2.cvtColor(
-            rendered_image, cv2.COLOR_RGB2BGR))
+            rendered_image, cv2.COLOR_RGBA2BGR))
         cv2.waitKey(35)
 
 
