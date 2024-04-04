@@ -1,3 +1,9 @@
+# (c) 2024 Niels Provos
+#
+# This file contains functions for creating and exporting glTF files.
+# We generate a glTF file representing a 3D scene with a camera, cards, and image slices.
+# The resulting file can be opened in a 3D application like Blender, Houdini or Unreal.
+#
 import base64
 import numpy as np
 import pygltflib as gltf
