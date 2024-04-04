@@ -12,6 +12,9 @@ from torchvision.transforms import Compose
 import argparse
 import pathlib
 
+# for exporting a 3d scene
+from gltf import export_gltf
+
 
 def generate_depth_map(image):
     """
@@ -58,6 +61,7 @@ def generate_depth_map(image):
                               cv2.NORM_MINMAX, cv2.CV_8U)
     return depth_map
 
+
 def analyze_depth_histogram(depth_map, num_slices=5):
     """Analyze the histogram of the depth map and determine thresholds for segmentation."""
     hist, _ = np.histogram(depth_map.flatten(), 256, [0, 256])
@@ -72,6 +76,7 @@ def analyze_depth_histogram(depth_map, num_slices=5):
             thresholds.append(i)
             current_sum = 0
     return thresholds
+
 
 def generate_simple_thresholds(depth_map, num_slices=5):
     """Generate simple thresholds based on the depth map."""
@@ -195,8 +200,8 @@ def render_image_sequence(output_path, image_slices, card_corners_3d_list, camer
     Args:
         output_path (str): The path to the output directory where the rendered images will be saved.
         image_slices (list): A list of image slices.
-        camera_matrix (numpy.ndarray): The camera matrix.
         card_corners_3d_list (list): A list of 3D card corners.
+        camera_matrix (numpy.ndarray): The camera matrix.
         camera_position (list): The initial camera position.
 
     Returns:
@@ -212,14 +217,16 @@ def render_image_sequence(output_path, image_slices, card_corners_3d_list, camer
 
         image_name = f'rendered_image_{i:03d}.png'
         output_image_path = output_path / image_name
-        
+
         cv2.imwrite(str(output_image_path), cv2.cvtColor(
             rendered_image, cv2.COLOR_RGBA2BGR))
+
 
 def process_image(image_path, output_path, num_slices=5,
                   use_simple_thresholds=False,
                   create_depth_map=True,
-                  create_image_slices=True):
+                  create_image_slices=True,
+                  create_image_animation=True):
     """
     Process the input image to generate a depth map and image slices.
 
@@ -272,16 +279,17 @@ def process_image(image_path, output_path, num_slices=5,
         image_slices = []
         for i in range(num_slices):
             input_image_path = output_path / f"image_slice_{i}.png"
-            slice_image = cv2.imread(str(input_image_path), cv2.IMREAD_UNCHANGED)
+            slice_image = cv2.imread(
+                str(input_image_path), cv2.IMREAD_UNCHANGED)
             slice_image = cv2.cvtColor(slice_image, cv2.COLOR_BGRA2RGBA)
             image_slices.append(slice_image)
-        
+
     # Set up the camera and cards
     camera_distance = 100.0
     max_distance = 500.0
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         image_slices, thresholds, camera_distance, max_distance)
-    
+
     # Render the initial view
     camera_position = np.array([0, 0, -100], dtype=np.float32)
     rendered_image = render_view(
@@ -291,9 +299,14 @@ def process_image(image_path, output_path, num_slices=5,
         rendered_image, cv2.COLOR_RGBA2BGR))
     cv2.waitKey(0)
     cv2.destroyAllWindows()
-    
-    render_image_sequence(output_path, image_slices,
-                          card_corners_3d_list, camera_matrix, camera_position)
+
+    if create_image_animation:
+        render_image_sequence(output_path, image_slices,
+                              card_corners_3d_list, camera_matrix, camera_position)
+
+    image_paths = [output_path / f"image_slice_{i}.png" for i in range(num_slices)]
+    export_gltf(output_path, camera_matrix, card_corners_3d_list, image_paths)
+
 
 def main():
     # Parse command line arguments
@@ -308,9 +321,11 @@ def main():
     parser.add_argument('-s', '--use_simple_thresholds', action='store_true',
                         help='Use simple thresholds for image slices')
     parser.add_argument('-d', '--skip_depth_map', action='store_true',
-                        help='Generate the depth map')
+                        help='Skip generating the depth map')
     parser.add_argument('-g', '--skip_image_slices', action='store_true',
-                        help='Generate the image slices')
+                        help='Slip generating the image slices')
+    parser.add_argument('-a', '--skip_image_animation', action='store_true',
+                        help='Skip generating the animated images')
     args = parser.parse_args()
 
     # Check if image path is provided
@@ -322,12 +337,14 @@ def main():
         use_simple_thresholds = args.use_simple_thresholds
         generate_depth_map = not args.skip_depth_map
         generate_image_slices = not args.skip_image_slices
+        generate_image_animation = not args.skip_image_animation
         process_image(
             image_path, output_path,
             num_slices=num_slices,
             use_simple_thresholds=use_simple_thresholds,
             create_depth_map=generate_depth_map,
-            create_image_slices=generate_image_slices)
+            create_image_slices=generate_image_slices,
+            create_image_animation=generate_image_animation)
     else:
         print('Please provide the path to the input image using --image or -i option.')
 
