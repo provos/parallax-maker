@@ -15,18 +15,7 @@ import pathlib
 # for exporting a 3d scene
 from gltf import export_gltf
 
-
-def generate_depth_map(image):
-    """
-    Generate a depth map from the input image using MiDaS.
-
-    Args:
-        image (numpy.ndarray): The input image.
-
-    Returns:
-        numpy.ndarray: The grayscale depth map.
-    """
-
+def midas_depth_map(image):
     # Load the MiDaS v2.1 model
     model_type = "DPT_Large"
     midas = torch.hub.load("intel-isl/MiDaS", model_type)
@@ -44,7 +33,7 @@ def generate_depth_map(image):
     # Set the device (CPU or GPU)
     device = torch.device(
         "cuda") if torch.cuda.is_available() else torch.device("cpu")
-
+    midas.to(device)
     input_batch = transforms(image).to(device)
     with torch.no_grad():
         prediction = midas(input_batch)
@@ -57,6 +46,46 @@ def generate_depth_map(image):
         ).squeeze()
 
     depth_map = prediction.cpu().numpy()
+    return depth_map
+
+def zoedepth_depth_map(image):
+    # Triggers fresh download of MiDaS repo
+    torch.hub.help("intel-isl/MiDaS", "DPT_BEiT_L_384", force_reload=True)
+    
+    # Zoe_NK
+    model_zoe_nk = torch.hub.load(
+        "isl-org/ZoeDepth", "ZoeD_NK", pretrained=True)
+
+    # Set the device (CPU or GPU)
+    device = torch.device(
+        "cuda") if torch.cuda.is_available() else torch.device("cpu")
+    model_zoe_nk.to(device)
+    
+    depth_map = model_zoe_nk.infer_pil(image)  # as numpy
+
+    # invert the depth map since we are expecting the farthest objects to be black
+    depth_map = 255 - depth_map
+    
+    return depth_map
+
+def generate_depth_map(image, model="midas"):
+    """
+    Generate a depth map from the input image using MiDaS.
+
+    Args:
+        image (numpy.ndarray): The input image.
+
+    Returns:
+        numpy.ndarray: The grayscale depth map.
+    """
+
+    if model == "midas":
+        depth_map = midas_depth_map(image)
+    elif model == "zoedepth":
+        depth_map = zoedepth_depth_map(image)
+    else:
+        raise ValueError(f"Unknown model: {model}")
+    
     depth_map = cv2.normalize(depth_map, None, 0, 255,
                               cv2.NORM_MINMAX, cv2.CV_8U)
     return depth_map
@@ -66,7 +95,7 @@ def analyze_depth_histogram(depth_map, num_slices=5):
     """Analyze the histogram of the depth map and determine thresholds for segmentation."""
     hist, _ = np.histogram(depth_map.flatten(), 256, [0, 256])
     total_pixels = depth_map.shape[0] * depth_map.shape[1]
-    target_pixels_per_slice = total_pixels // num_slices
+    target_pixels_per_slice = total_pixels // (num_slices+1)
 
     thresholds = [0]
     current_sum = 0
@@ -153,8 +182,9 @@ def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_
 
     # Set up the card corners in 3D space
     card_corners_3d_list = []
+    # The thresholds start with 0 and end with 255. We want the closest card to be at 0.
     for i in range(num_slices):
-        z = max_distance * ((255 - thresholds[i]) / 255.0)
+        z = max_distance * ((255 - thresholds[i+1]) / 255.0)
 
         # Calculate the 3D points of the card corners
         card_width = (image_width * (z + camera_distance)) / focal_length_px
@@ -243,7 +273,8 @@ def process_image(image_path, output_path, num_slices=5,
                   use_simple_thresholds=False,
                   create_depth_map=True,
                   create_image_slices=True,
-                  create_image_animation=True):
+                  create_image_animation=True,
+                  depth_model="midas"):
     """
     Process the input image to generate a depth map and image slices.
 
@@ -268,7 +299,7 @@ def process_image(image_path, output_path, num_slices=5,
     depth_map_path = output_path / "depth_map.png"
     if create_depth_map:
         # Generate the depth map
-        depth_map = generate_depth_map(image)
+        depth_map = generate_depth_map(image, model=depth_model)
 
         # save the depth map to a file
         cv2.imwrite(str(depth_map_path), depth_map)
@@ -289,6 +320,7 @@ def process_image(image_path, output_path, num_slices=5,
         # Save the image slices
         for i, slice_image in enumerate(image_slices):
             output_image_path = output_path / f"image_slice_{i}.png"
+            print(f"Saving image slice: {output_image_path}")
             cv2.imwrite(str(output_image_path), cv2.cvtColor(
                 slice_image, cv2.COLOR_RGBA2BGRA))
     else:
@@ -296,6 +328,7 @@ def process_image(image_path, output_path, num_slices=5,
         image_slices = []
         for i in range(num_slices):
             input_image_path = output_path / f"image_slice_{i}.png"
+            print(f"Loading image slice: {input_image_path}")
             slice_image = cv2.imread(
                 str(input_image_path), cv2.IMREAD_UNCHANGED)
             slice_image = cv2.cvtColor(slice_image, cv2.COLOR_BGRA2RGBA)
@@ -346,25 +379,26 @@ def main():
                         help='Slip generating the image slices')
     parser.add_argument('-a', '--skip_image_animation', action='store_true',
                         help='Skip generating the animated images')
+    parser.add_argument('--depth_model', type=str, default="midas",
+                        help='Depth model to use (midas or zoedepth). Default is midas and tends to work better.')
     args = parser.parse_args()
 
     # Check if image path is provided
     if args.image:
         # Call the function with the image path
-        image_path = args.image
-        output_path = args.output
-        num_slices = args.num_slices
         use_simple_thresholds = args.use_simple_thresholds
         generate_depth_map = not args.skip_depth_map
         generate_image_slices = not args.skip_image_slices
         generate_image_animation = not args.skip_image_animation
         process_image(
-            image_path, output_path,
-            num_slices=num_slices,
+            args.image,
+            args.output,
+            num_slices=args.num_slices,
             use_simple_thresholds=use_simple_thresholds,
             create_depth_map=generate_depth_map,
             create_image_slices=generate_image_slices,
-            create_image_animation=generate_image_animation)
+            create_image_animation=generate_image_animation,
+            depth_model=args.depth_model)
     else:
         print('Please provide the path to the input image using --image or -i option.')
 
