@@ -70,13 +70,18 @@ def zoedepth_depth_map(image):
 
 def generate_depth_map(image, model="midas"):
     """
-    Generate a depth map from the input image using MiDaS.
+    Generate a depth map from the input image using the specified model.
 
     Args:
         image (numpy.ndarray): The input image.
+        model (str, optional): The depth estimation model to use. 
+            Supported models are "midas" and "zoedepth". 
+            Defaults to "midas".
 
     Returns:
         numpy.ndarray: The grayscale depth map.
+    Raises:
+        ValueError: If an unknown model is specified.
     """
 
     if model == "midas":
