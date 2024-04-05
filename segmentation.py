@@ -125,24 +125,40 @@ def generate_image_slices(image, depth_map, thresholds, num_expand=50):
     return slices
 
 
-def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_distance=100.0, focal_length=1000.0):
-    """Set up the camera and cards in 3D space."""
+def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_distance=100.0, focal_length=100.0, sensor_width=35.0):
+    """
+    Set up the camera intrinsic parameters and the card corners in 3D space.
+
+    Args:
+        image_slices (list): A list of image slices.
+        thresholds (list): A list of threshold values for each image slice.
+        camera_distance (float, optional): The distance between the camera and the cards. Defaults to 100.0.
+        max_distance (float, optional): The maximum distance for the cards. Defaults to 100.0.
+        focal_length (float, optional): The focal length of the camera. Defaults to 100.0.
+        sensor_width (float, optional): The width of the camera sensor. Defaults to 35.0.
+
+    Returns:
+        tuple: A tuple containing the camera matrix and a list of card corners in 3D space.
+    """
     num_slices = len(image_slices)
     image_height, image_width, _ = image_slices[0].shape
 
+    # Calculate the focal length in pixels
+    focal_length_px = (image_width * focal_length) / sensor_width
+
     # Set up the camera intrinsic parameters
-    camera_matrix = np.array([[focal_length, 0, image_width / 2],
-                              [0, focal_length, image_height / 2],
+    camera_matrix = np.array([[focal_length_px, 0, image_width / 2],
+                              [0, focal_length_px, image_height / 2],
                               [0, 0, 1]], dtype=np.float32)
 
     # Set up the card corners in 3D space
     card_corners_3d_list = []
     for i in range(num_slices):
-        z = max_distance * ((255-thresholds[i]) / 255.0)
+        z = max_distance * ((255 - thresholds[i]) / 255.0)
 
         # Calculate the 3D points of the card corners
-        card_width = (image_width * (z + camera_distance)) / focal_length
-        card_height = (image_height * (z + camera_distance)) / focal_length
+        card_width = (image_width * (z + camera_distance)) / focal_length_px
+        card_height = (image_height * (z + camera_distance)) / focal_length_px
 
         card_corners_3d = np.array([
             [-card_width / 2, -card_height / 2, z],
@@ -153,6 +169,7 @@ def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_
         card_corners_3d_list.append(card_corners_3d)
 
     return camera_matrix, card_corners_3d_list
+
 
 
 def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position):
@@ -287,8 +304,9 @@ def process_image(image_path, output_path, num_slices=5,
     # Set up the camera and cards
     camera_distance = 100.0
     max_distance = 500.0
+    focal_length = 100.0
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-        image_slices, thresholds, camera_distance, max_distance)
+        image_slices, thresholds, camera_distance, max_distance, focal_length)
 
     # Render the initial view
     camera_position = np.array([0, 0, -100], dtype=np.float32)
@@ -305,7 +323,9 @@ def process_image(image_path, output_path, num_slices=5,
                               card_corners_3d_list, camera_matrix, camera_position)
 
     image_paths = [output_path / f"image_slice_{i}.png" for i in range(num_slices)]
-    export_gltf(output_path, camera_matrix, card_corners_3d_list, image_paths)
+    # fix it
+    aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
+    export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, image_paths)
 
 
 def main():

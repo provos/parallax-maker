@@ -8,6 +8,72 @@ import base64
 import numpy as np
 import pygltflib as gltf
 
+
+def rotation_quaternion_y(y_rot_degrees):
+    """Calculates the rotation quaternion for a rotation around the y-axis.
+
+    Args:
+        y_rot_degrees: The rotation angle in degrees.
+
+    Returns:
+        A NumPy array representing the rotation quaternion (x, y, z, w).
+    """
+
+    # Convert to radians and half the angle
+    theta = np.radians(y_rot_degrees) / 2
+    axis = np.array([0, 1, 0])  # Rotation around the y-axis
+
+    quaternion = np.zeros(4)
+    quaternion[:3] = axis * np.sin(theta)
+    quaternion[3] = np.cos(theta)
+
+    return quaternion.tolist()
+
+
+def create_camera(gltf_obj, focal_length, aspect_ratio, translation, rotation_quarternion):
+    """
+    Creates a camera in the glTF object with the specified parameters.
+
+    Args:
+        gltf_obj (gltf.Gltf): The glTF object to add the camera to.
+        focal_length (float): The focal length of the camera.
+        aspect_ratio (float): The aspect ratio of the camera.
+        translation (List[float]): The translation of the camera node.
+        rotation_quarternion (List[float]): The rotation of the camera node as a quaternion.
+
+    Returns:
+        int: The index of the created camera.
+
+    """
+    camera_index = len(gltf_obj.cameras)
+
+    sensor_width = 35.0  # Sensor width in mm
+    sensor_height = sensor_width / aspect_ratio
+
+    # Create the camera object
+    camera = gltf.Camera(
+        type="perspective",
+        name=f"Camera_{camera_index}",
+        perspective=gltf.Perspective(
+            aspectRatio=aspect_ratio,
+            yfov=2*np.arctan(sensor_height / focal_length),
+            znear=0.01,
+            zfar=10000
+        )
+    )
+    gltf_obj.cameras.append(camera)
+
+    # Create the camera node
+    camera_node = gltf.Node(
+        translation=translation,
+        rotation=rotation_quarternion,
+        camera=camera_index
+    )
+    gltf_obj.nodes.append(camera_node)
+
+    return camera_index
+
+
 def create_buffer_and_view(gltf_obj, data, target=gltf.ARRAY_BUFFER):
     """
     Creates a buffer and buffer view in a glTF object.
@@ -39,13 +105,14 @@ def create_buffer_and_view(gltf_obj, data, target=gltf.ARRAY_BUFFER):
     return tmp_buffer_view_index
 
 
-def export_gltf(output_path, camera_matrix, card_corners_3d_list, image_paths):
+def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, image_paths):
     """
     Export the camera, cards, and image slices to a glTF file.
 
     Args:
         output_path (str): The path to save the glTF file.
-        camera_matrix (numpy.ndarray): The camera matrix.
+        aspect_ratio (float): The aspect ratio of the camera.
+        focal_length (float): The focal length of the camera.
         card_corners_3d_list (list): List of 3D corner coordinates for each card.
         image_paths (list): List of file paths for each image slice.
     """
@@ -58,35 +125,24 @@ def export_gltf(output_path, camera_matrix, card_corners_3d_list, image_paths):
     scene = gltf.Scene()
     gltf_obj.scenes.append(scene)
 
-    # Create the camera object
-    camera = gltf.Camera(
-        type="perspective",
-        name="Camera",
-        perspective=gltf.Perspective(
-            aspectRatio=1.0,
-            yfov=np.arctan(0.5 / camera_matrix[1, 1]) * 2,
-            znear=0.01,
-        )
-    )
-    gltf_obj.cameras.append(camera)
-
-    # Create the camera node
-    camera_node = gltf.Node(
-        translation=[0, 0, -100],  # fix the camera position
-        camera=0
-    )
-    gltf_obj.nodes.append(camera_node)
-
+    camera_index = create_camera(gltf_obj,
+                                 focal_length,
+                                 aspect_ratio,
+                                 [0, 0, -100], rotation_quaternion_y(180))
     # Add the camera node to the scene
-    scene.nodes.append(len(gltf_obj.nodes)-1)
+    scene.nodes.append(camera_index)
 
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
         # Set the vertices and indices for the plane
+        
+        # negate the y coordinates of corners_3d
         vertices = np.array(corners_3d, dtype=np.float32)
+        vertices[:, 1] = -vertices[:, 1]
+        
         tex_coords = np.array(
             [[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
-        indices = np.array([[0, 1, 2], [0, 2, 3]], dtype=np.uint32)
+        indices = np.array([[0, 1, 2], [2, 3, 0]], dtype=np.uint32)
 
         # Create the buffer and buffer view for vertices
         vertex_bufferview_index = create_buffer_and_view(
@@ -158,8 +214,14 @@ def export_gltf(output_path, camera_matrix, card_corners_3d_list, image_paths):
                     index=i
                 )
             ),
+            # Set the emissive color (RGB values)
+            emissiveFactor=[1.0, 1.0, 1.0],
+            emissiveTexture=gltf.TextureInfo(
+                index=i
+            ),
             alphaMode="MASK",
-            alphaCutoff=0.5
+            alphaCutoff=0.5,
+            doubleSided=True
         )
 
         image = gltf.Image(uri=str(image_paths[i]))
