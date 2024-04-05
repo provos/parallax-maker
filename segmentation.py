@@ -93,17 +93,26 @@ def generate_depth_map(image, model="midas"):
 
 def analyze_depth_histogram(depth_map, num_slices=5):
     """Analyze the histogram of the depth map and determine thresholds for segmentation."""
-    hist, _ = np.histogram(depth_map.flatten(), 256, [0, 256])
-    total_pixels = depth_map.shape[0] * depth_map.shape[1]
-    target_pixels_per_slice = total_pixels // (num_slices+1)
-
-    thresholds = [0]
-    current_sum = 0
-    for i in range(256):
-        current_sum += hist[i]
-        if current_sum >= target_pixels_per_slice or i == 255:
-            thresholds.append(i)
-            current_sum = 0
+    def calculate_thresholds(depth_map, num_slices):
+        thresholds = [0]
+        hist, _ = np.histogram(depth_map.flatten(), 256, [0, 256])
+        total_pixels = depth_map.shape[0] * depth_map.shape[1]
+        target_pixels_per_slice = total_pixels // (num_slices+1)
+        current_sum = 0
+        for i in range(256):
+            current_sum += hist[i]
+            if current_sum >= target_pixels_per_slice or i == 255:
+                thresholds.append(i)
+                current_sum = 0
+        return thresholds
+    
+    # this is a terrible hack to make sure we get the right number of thresholds
+    thresholds = calculate_thresholds(depth_map, num_slices - 1)
+    print(len(thresholds))
+    if (len(thresholds) != num_slices + 1):
+        thresholds = calculate_thresholds(depth_map, num_slices)
+        print(len(thresholds))
+    assert len(thresholds) == num_slices + 1
     return thresholds
 
 
@@ -240,7 +249,12 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
     return rendered_image
 
 
-def render_image_sequence(output_path, image_slices, card_corners_3d_list, camera_matrix, camera_position):
+def render_image_sequence(output_path,
+                          image_slices,
+                          card_corners_3d_list,
+                          camera_matrix,
+                          camera_position,
+                          push_distance=100):
     """
     Renders a sequence of images with varying camera positions.
 
@@ -254,9 +268,10 @@ def render_image_sequence(output_path, image_slices, card_corners_3d_list, camer
     Returns:
         None
     """
-    for i in range(100):
+    num_frames = 100
+    for i in range(num_frames):
         # Update the camera position
-        camera_position[2] += 1
+        camera_position[2] += float(push_distance)/num_frames
 
         # Render the view
         rendered_image = render_view(
@@ -274,6 +289,7 @@ def process_image(image_path, output_path, num_slices=5,
                   create_depth_map=True,
                   create_image_slices=True,
                   create_image_animation=True,
+                  push_distance=100,
                   depth_model="midas"):
     """
     Process the input image to generate a depth map and image slices.
@@ -353,7 +369,8 @@ def process_image(image_path, output_path, num_slices=5,
 
     if create_image_animation:
         render_image_sequence(output_path, image_slices,
-                              card_corners_3d_list, camera_matrix, camera_position)
+                              card_corners_3d_list, camera_matrix, camera_position,
+                              push_distance=push_distance)
 
     image_paths = [output_path / f"image_slice_{i}.png" for i in range(num_slices)]
     # fix it
@@ -379,6 +396,8 @@ def main():
                         help='Slip generating the image slices')
     parser.add_argument('-a', '--skip_image_animation', action='store_true',
                         help='Skip generating the animated images')
+    parser.add_argument('-p', '--push_distance', type=int, default=100,
+                        help='Distance to push the camera in the animation')
     parser.add_argument('--depth_model', type=str, default="midas",
                         help='Depth model to use (midas or zoedepth). Default is midas and tends to work better.')
     args = parser.parse_args()
@@ -398,6 +417,7 @@ def main():
             create_depth_map=generate_depth_map,
             create_image_slices=generate_image_slices,
             create_image_animation=generate_image_animation,
+            push_distance=args.push_distance,
             depth_model=args.depth_model)
     else:
         print('Please provide the path to the input image using --image or -i option.')
