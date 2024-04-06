@@ -21,6 +21,7 @@ depthMapData = None
 
 # Utility functions - XXX refactor to a separate module
 
+
 def find_pixel_from_click(img_data, x, y, width, height):
     """Find the pixel coordinates in the image from the click coordinates."""
     img_width, img_height = img_data.size
@@ -149,33 +150,38 @@ app.layout = html.Div([
                      'borderStyle': 'dashed',
                      'borderRadius': '5px',
                      'margin': '10px'}),
-        html.Button('Generate Depth Map', id='generate-button', n_clicks=0,
-                    style={'horizontalAlign': 'center', 'margin': '10px'}),
     ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
     html.Div([
         html.Div([
-            html.Label('Number of Slices'),
-            dcc.Slider(
-                id='num-slices-slider',
-                min=2,
-                max=10,
-                step=1,
-                value=5,
-                marks={i: str(i) for i in range(2, 11)}
-            )
-        ], style={'margin': '10px'}),
-        html.Div([
-            html.Label('Depth Module Algorithm'),
-            dcc.Dropdown(
-                id='depth-module-dropdown',
-                options=[
-                    {'label': 'MiDaS', 'value': 'midas'},
-                    {'label': 'ZoeDepth', 'value': 'zoedepth'}
-                ],
-                value='midas'
-            )
-        ], style={'margin': '10px'})
-    ], style={'display': 'inline-block', 'verticalAlign': 'top', 'width': '300px', 'borderWidth': '1px', 'borderStyle': 'dashed', 'borderRadius': '5px', 'padding': '10px'}),
+            html.Div([
+                html.Label('Number of Slices'),
+                dcc.Slider(
+                    id='num-slices-slider',
+                    min=2,
+                    max=10,
+                    step=1,
+                    value=5,
+                    marks={i: str(i) for i in range(2, 11)}
+                )
+            ], style={'margin': '10px'}),
+            html.Div([
+                html.Label('Depth Module Algorithm'),
+                dcc.Dropdown(
+                    id='depth-module-dropdown',
+                    options=[
+                        {'label': 'MiDaS', 'value': 'midas'},
+                        {'label': 'ZoeDepth', 'value': 'zoedepth'}
+                    ],
+                    value='midas'
+                )
+            ], style={'margin': '10px'})
+        ], style={
+            'width': '300px',
+            'borderWidth': '1px',
+            'borderStyle': 'dashed',
+            'borderRadius': '5px',
+            'margin': '10px'}),
+    ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     html.Div([
         html.Div(id="log",
@@ -277,12 +283,12 @@ def click_event(n_events, e, rect_data):
 
 
 @app.callback(Output('output-image-container', 'children'),
-              Input('generate-button', 'n_clicks'),
-              State('upload-image', 'contents'))
-def update_output_image(n_clicks, contents):
+              Input('upload-image', 'contents'),
+              State('depth-module-dropdown', 'value'),)
+def generate_depth_map_callback(contents, model):
     global depthMapData
 
-    if n_clicks > 0 and contents is not None:
+    if contents is not None:
         content_type, content_string = contents.split(',')
         decoded = base64.b64decode(content_string)
         PIL_image = Image.open(io.BytesIO(decoded))
@@ -291,7 +297,7 @@ def update_output_image(n_clicks, contents):
             PIL_image = PIL_image.convert('RGB')
 
         np_image = np.array(PIL_image)
-        depthMapData = generate_depth_map(np_image)
+        depthMapData = generate_depth_map(np_image, model=model)
         depth_map_pil = Image.fromarray(depthMapData)
 
         buffered = io.BytesIO()
