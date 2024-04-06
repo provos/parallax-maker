@@ -9,7 +9,7 @@ import numpy as np
 from segmentation import generate_depth_map, mask_from_depth, feather_mask, analyze_depth_histogram
 
 import dash
-from dash import dcc, html
+from dash import dcc, html, Patch
 from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
@@ -19,6 +19,7 @@ from dash.exceptions import PreventUpdate
 imgData = None
 imgThresholds = None
 depthMapData = None
+logsData = []
 
 # Progress tracking variables
 current_progress = 0
@@ -209,6 +210,8 @@ app.layout = html.Div([
     ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     html.Div([
+        dcc.Interval(id='logs-interval', interval=500, n_intervals=0),
+        html.Div(id='hidden-div', style={'display': 'none'}),
         html.Div(id="log",
                  style={
                      'width': '800px',
@@ -216,9 +219,11 @@ app.layout = html.Div([
                      'borderWidth': '1px',
                      'borderStyle': 'dashed',
                      'borderRadius': '5px',
-                     'padding': '2px',
+                     'padding': '5px',
                      'margin': '10px',
-                     'overflowY': 'scroll'
+                     'overflow': 'auto',
+                     'display': 'flex',
+                     'flex-direction': 'column-reverse',
                  })]),
 ])
 
@@ -230,6 +235,16 @@ app.clientside_callback(
     Output('rect-data', 'data'),
     Input('image', 'src')
 )
+
+# Callback for the logs
+
+
+@app.callback(Output('log', 'children'),
+              Input('logs-interval', 'n_intervals'),
+              prevent_initial_call=True)
+def update_logs(n):
+    structured_logs = [html.Div(log) for log in logsData[-3:]]
+    return structured_logs
 
 # Callback to update progress bar
 
@@ -279,7 +294,6 @@ def update_input_image(contents):
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
-              Output("log", "children", allow_duplicate=True),
               Input("el", "n_events"),
               State("el", "event"),
               State('rect-data', 'data'),
@@ -327,7 +341,11 @@ def click_event(n_events, e, rect_data):
     else:
         img_data = to_image_url(imgData)
 
-    return img_data, f"Click event at ({clientX}, {clientY}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
+    logsData.append(
+        f"Click event at ({clientX}, {clientY}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
+    )
+
+    return img_data
 
 
 @app.callback(Output('depth-map-container', 'children'),
@@ -346,7 +364,8 @@ def generate_depth_map_callback(contents, model):
             PIL_image = PIL_image.convert('RGB')
 
         np_image = np.array(PIL_image)
-        depthMapData = generate_depth_map(np_image, model=model, progress_callback=progress_callback)
+        depthMapData = generate_depth_map(
+            np_image, model=model, progress_callback=progress_callback)
         depth_map_pil = Image.fromarray(depthMapData)
 
         buffered = io.BytesIO()
@@ -362,20 +381,23 @@ def generate_depth_map_callback(contents, model):
             id='depthmap-image')
 
 
-@app.callback(Output('log', 'children'),
+@app.callback(Output('hidden-div', 'children', allow_duplicate=True),
               Input('depth-map-container', 'children'),
               Input('num-slices-slider', 'value'),
-              preventInitialCall=True)
+              prevent_initial_call=True)
 def compute_thresholds(children, num_slices):
     global depthMapData
     global imgThresholds
 
     if depthMapData is None:
-        return 'No depth map available'
+        logsData.append('No depth map available')
+        return ''
 
     imgThresholds = analyze_depth_histogram(
         depthMapData, num_slices=num_slices)
-    return f"Thresholds: {imgThresholds}"
+
+    logsData.append(f"Thresholds: {imgThresholds}")
+    return ''
 
 
 if __name__ == '__main__':
