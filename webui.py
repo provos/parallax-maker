@@ -6,7 +6,7 @@ import cv2
 import io
 from PIL import Image
 import numpy as np
-from segmentation import generate_depth_map, mask_from_depth, feather_mask
+from segmentation import generate_depth_map, mask_from_depth, feather_mask, analyze_depth_histogram
 
 import dash
 from dash import dcc, html
@@ -17,6 +17,7 @@ from dash.exceptions import PreventUpdate
 
 # Global State
 imgData = None
+imgThresholds = None
 depthMapData = None
 
 # Utility functions - XXX refactor to a separate module
@@ -112,6 +113,8 @@ app.layout = html.Div([
         }
     ),
     html.Div([
+        html.Label('Input Image', style={
+                   'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
         dcc.Upload(
             id='upload-image',
             children=html.Div([
@@ -142,7 +145,9 @@ app.layout = html.Div([
         ),
     ], style={'display': 'inline-block', 'verticalAlign': 'top', 'marginRight': '20px'}),
     html.Div([
-        html.Div(id='output-image-container',
+        html.Label('Depth Map', style={
+                   'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+        html.Div(id='depth-map-container',
                  style={
                      'width': '400px',
                      'height': '400px',
@@ -152,6 +157,8 @@ app.layout = html.Div([
                      'margin': '10px'}),
     ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
     html.Div([
+        html.Label('Configuration', style={
+                   'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
         html.Div([
             html.Div([
                 html.Label('Number of Slices'),
@@ -209,7 +216,7 @@ app.clientside_callback(
 
 @app.callback(Output('image', 'src'),
               Output('image', 'style'),
-              Output('output-image-container',
+              Output('depth-map-container',
                      'children', allow_duplicate=True),
               Input('upload-image', 'contents'),
               prevent_initial_call=True)
@@ -238,7 +245,7 @@ def update_input_image(contents):
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
-              Output("log", "children"),
+              Output("log", "children", allow_duplicate=True),
               Input("el", "n_events"),
               State("el", "event"),
               State('rect-data', 'data'),
@@ -247,6 +254,7 @@ def update_input_image(contents):
 def click_event(n_events, e, rect_data):
     global imgData
     global depthMapData
+    global imgThresholds
 
     if e is None or rect_data is None:
         raise PreventUpdate()
@@ -265,11 +273,17 @@ def click_event(n_events, e, rect_data):
         imgData, x, y, rectWidth, rectHeight)
     depth = 0
     mask = None
-    if depthMapData is not None:
+    if depthMapData is not None and imgThresholds is not None:
         depth = depthMapData[pixel_y, pixel_x]
-        depth_range = 10
-        threshold_min = int(max(0, depth - depth_range))
-        threshold_max = int(min(255, depth + depth_range))
+        # find the depth that is bracketed by imgThresholds
+        for i, threshold in enumerate(imgThresholds):
+            if depth <= threshold:
+                threshold_min = int(imgThresholds[i-1])
+                threshold_max = int(threshold)
+                break
+        else:
+            threshold_min = int(imgThresholds[-2])
+            threshold_max = int(imgThresholds[-1])
         mask = mask_from_depth(depthMapData, threshold_min, threshold_max)
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
@@ -282,11 +296,12 @@ def click_event(n_events, e, rect_data):
     return img_data, f"Click event at ({clientX}, {clientY}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
 
 
-@app.callback(Output('output-image-container', 'children'),
+@app.callback(Output('depth-map-container', 'children'),
               Input('upload-image', 'contents'),
               State('depth-module-dropdown', 'value'),)
 def generate_depth_map_callback(contents, model):
     global depthMapData
+    global imgThresholds
 
     if contents is not None:
         content_type, content_string = contents.split(',')
@@ -299,7 +314,7 @@ def generate_depth_map_callback(contents, model):
         np_image = np.array(PIL_image)
         depthMapData = generate_depth_map(np_image, model=model)
         depth_map_pil = Image.fromarray(depthMapData)
-
+        
         buffered = io.BytesIO()
         depth_map_pil.save(buffered, format="PNG")
         img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -312,6 +327,20 @@ def generate_depth_map_callback(contents, model):
                 'objectFit': 'contain'},
             id='depthmap-image')
 
+
+@app.callback(Output('log', 'children'),
+              Input('depth-map-container', 'children'),
+              Input('num-slices-slider', 'value'),
+              preventInitialCall=True)
+def compute_thresholds(children, num_slices):
+    global depthMapData
+    global imgThresholds
+
+    if depthMapData is None:
+        return 'No depth map available'
+    
+    imgThresholds = analyze_depth_histogram(depthMapData, num_slices=num_slices)
+    return f"Thresholds: {imgThresholds}"
 
 if __name__ == '__main__':
     app.run_server(debug=True)
