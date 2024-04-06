@@ -16,10 +16,13 @@ import pathlib
 from gltf import export_gltf
 
 
-def midas_depth_map(image):
+def midas_depth_map(image, progress_callback=None):
+    progress_callback(0, 100)
     # Load the MiDaS v2.1 model
     model_type = "DPT_Large"
     midas = torch.hub.load("intel-isl/MiDaS", model_type)
+
+    progress_callback(30, 100)
 
     # Set the model to evaluation mode
     midas.eval()
@@ -30,6 +33,8 @@ def midas_depth_map(image):
         transforms = midas_transforms.dpt_transform
     else:
         transforms = midas_transforms.small_transform
+
+    progress_callback(50, 100)
 
     # Set the device (CPU or GPU)
     device = torch.device(
@@ -46,11 +51,16 @@ def midas_depth_map(image):
             align_corners=False,
         ).squeeze()
 
+    progress_callback(90, 100)
+
     depth_map = prediction.cpu().numpy()
+
+    progress_callback(100, 100)
+
     return depth_map
 
 
-def zoedepth_depth_map(image):
+def zoedepth_depth_map(image, progress_callback=None):
     # Triggers fresh download of MiDaS repo
     torch.hub.help("intel-isl/MiDaS", "DPT_BEiT_L_384", force_reload=True)
 
@@ -71,7 +81,7 @@ def zoedepth_depth_map(image):
     return depth_map
 
 
-def generate_depth_map(image, model="midas"):
+def generate_depth_map(image, model="midas", progress_callback=None):
     """
     Generate a depth map from the input image using the specified model.
 
@@ -88,9 +98,10 @@ def generate_depth_map(image, model="midas"):
     """
 
     if model == "midas":
-        depth_map = midas_depth_map(image)
+        depth_map = midas_depth_map(image, progress_callback=progress_callback)
     elif model == "zoedepth":
-        depth_map = zoedepth_depth_map(image)
+        depth_map = zoedepth_depth_map(
+            image, progress_callback=progress_callback)
     else:
         raise ValueError(f"Unknown model: {model}")
 
@@ -116,10 +127,8 @@ def analyze_depth_histogram(depth_map, num_slices=5):
 
     # this is a terrible hack to make sure we get the right number of thresholds
     thresholds = calculate_thresholds(depth_map, num_slices - 1)
-    print(len(thresholds))
     if (len(thresholds) != num_slices + 1):
         thresholds = calculate_thresholds(depth_map, num_slices)
-        print(len(thresholds))
     assert len(thresholds) == num_slices + 1
     return thresholds
 
@@ -143,6 +152,7 @@ def mask_from_depth(depth_map, threshold_min, threshold_max, prev_mask=None):
     if prev_mask is not None:
         mask = cv2.bitwise_and(mask, cv2.bitwise_not(prev_mask))
     return mask
+
 
 def feather_mask(mask, num_expand=50):
     """

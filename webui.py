@@ -20,6 +20,16 @@ imgData = None
 imgThresholds = None
 depthMapData = None
 
+# Progress tracking variables
+current_progress = 0
+total_progress = 100
+
+
+def progress_callback(current, total):
+    global current_progress, total_progress
+    current_progress = (current / total) * 100
+    total_progress = 100
+
 # Utility functions - XXX refactor to a separate module
 
 
@@ -155,6 +165,14 @@ app.layout = html.Div([
                      'borderStyle': 'dashed',
                      'borderRadius': '5px',
                      'margin': '10px'}),
+        dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
+        dcc.Loading(
+            id='loading',
+            type='default',
+            children=html.Div(id='loading-output')
+        ),
+        html.Div(id='progress-bar-container', style={'width': '400px', 'height': '30px',
+                 'backgroundColor': '#f0f0f0', 'borderRadius': '5px', 'margin': '10px'}),
     ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
     html.Div([
         html.Label('Configuration', style={
@@ -213,11 +231,27 @@ app.clientside_callback(
     Input('image', 'src')
 )
 
+# Callback to update progress bar
+
+
+@app.callback(
+    Output('progress-bar-container', 'children'),
+    Output('progress-interval', 'disabled', allow_duplicate=True),
+    Input('progress-interval', 'n_intervals'),
+    prevent_initial_call=True
+)
+def update_progress(n):
+    progress_bar = html.Div(style={'width': f'{current_progress}%',
+                            'height': '100%', 'backgroundColor': '#4CAF50', 'borderRadius': '5px'})
+    interval_disabled = current_progress >= total_progress
+    return progress_bar, interval_disabled
+
 
 @app.callback(Output('image', 'src'),
               Output('image', 'style'),
               Output('depth-map-container',
                      'children', allow_duplicate=True),
+              Output('progress-interval', 'disabled', allow_duplicate=True),
               Input('upload-image', 'contents'),
               prevent_initial_call=True)
 def update_input_image(contents):
@@ -241,7 +275,7 @@ def update_input_image(contents):
         # encode img_data as base64 ascii
         img_data = base64.b64encode(img_data).decode('ascii')
         img_data = f"data:image/png;base64,{img_data}"
-        return img_data, style, html.Img(id='depthmap-image')
+        return img_data, style, html.Img(id='depthmap-image'), False
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
@@ -312,9 +346,9 @@ def generate_depth_map_callback(contents, model):
             PIL_image = PIL_image.convert('RGB')
 
         np_image = np.array(PIL_image)
-        depthMapData = generate_depth_map(np_image, model=model)
+        depthMapData = generate_depth_map(np_image, model=model, progress_callback=progress_callback)
         depth_map_pil = Image.fromarray(depthMapData)
-        
+
         buffered = io.BytesIO()
         depth_map_pil.save(buffered, format="PNG")
         img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
@@ -338,9 +372,11 @@ def compute_thresholds(children, num_slices):
 
     if depthMapData is None:
         return 'No depth map available'
-    
-    imgThresholds = analyze_depth_histogram(depthMapData, num_slices=num_slices)
+
+    imgThresholds = analyze_depth_histogram(
+        depthMapData, num_slices=num_slices)
     return f"Thresholds: {imgThresholds}"
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
