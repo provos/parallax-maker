@@ -15,6 +15,7 @@ import pathlib
 # for exporting a 3d scene
 from gltf import export_gltf
 
+
 def midas_depth_map(image):
     # Load the MiDaS v2.1 model
     model_type = "DPT_Large"
@@ -48,10 +49,11 @@ def midas_depth_map(image):
     depth_map = prediction.cpu().numpy()
     return depth_map
 
+
 def zoedepth_depth_map(image):
     # Triggers fresh download of MiDaS repo
     torch.hub.help("intel-isl/MiDaS", "DPT_BEiT_L_384", force_reload=True)
-    
+
     # Zoe_NK
     model_zoe_nk = torch.hub.load(
         "isl-org/ZoeDepth", "ZoeD_NK", pretrained=True)
@@ -60,13 +62,14 @@ def zoedepth_depth_map(image):
     device = torch.device(
         "cuda") if torch.cuda.is_available() else torch.device("cpu")
     model_zoe_nk.to(device)
-    
+
     depth_map = model_zoe_nk.infer_pil(image)  # as numpy
 
     # invert the depth map since we are expecting the farthest objects to be black
     depth_map = 255 - depth_map
-    
+
     return depth_map
+
 
 def generate_depth_map(image, model="midas"):
     """
@@ -90,7 +93,7 @@ def generate_depth_map(image, model="midas"):
         depth_map = zoedepth_depth_map(image)
     else:
         raise ValueError(f"Unknown model: {model}")
-    
+
     depth_map = cv2.normalize(depth_map, None, 0, 255,
                               cv2.NORM_MINMAX, cv2.CV_8U)
     return depth_map
@@ -110,7 +113,7 @@ def analyze_depth_histogram(depth_map, num_slices=5):
                 thresholds.append(i)
                 current_sum = 0
         return thresholds
-    
+
     # this is a terrible hack to make sure we get the right number of thresholds
     thresholds = calculate_thresholds(depth_map, num_slices - 1)
     print(len(thresholds))
@@ -134,6 +137,34 @@ def generate_simple_thresholds(depth_map, num_slices=5):
     return thresholds
 
 
+def mask_from_depth(depth_map, threshold_min, threshold_max, prev_mask=None):
+    """Generate a mask based on the depth map and thresholds."""
+    mask = cv2.inRange(depth_map, threshold_min, threshold_max)
+    if prev_mask is not None:
+        mask = cv2.bitwise_and(mask, cv2.bitwise_not(prev_mask))
+    return mask
+
+def feather_mask(mask, num_expand=50):
+    """
+    Expand and feather a mask.
+
+    Args:
+        mask (numpy.ndarray): The input mask.
+        num_expand (int, optional): The number of times to expand the mask. Defaults to 50.
+
+    Returns:
+        numpy.ndarray: The expanded and feathered mask.
+    """
+    # Expand the mask
+    kernel = np.ones((num_expand, num_expand), np.uint8)
+    expanded_mask = cv2.dilate(mask, kernel, iterations=1)
+
+    # Feather the expanded mask
+    feathered_mask = cv2.GaussianBlur(
+        expanded_mask, (num_expand * 2 + 1, num_expand * 2 + 1), 0)
+    return feathered_mask
+
+
 def generate_image_slices(image, depth_map, thresholds, num_expand=50):
     """Generate image slices based on the depth map and thresholds, including an alpha channel."""
 
@@ -144,17 +175,9 @@ def generate_image_slices(image, depth_map, thresholds, num_expand=50):
         threshold_min = thresholds[i]
         threshold_max = thresholds[i + 1]
 
-        mask = cv2.inRange(depth_map, threshold_min, threshold_max)
-        if prev_mask is not None:
-            mask = cv2.bitwise_and(mask, cv2.bitwise_not(prev_mask))
-
-        # Expand the mask
-        kernel = np.ones((num_expand, num_expand), np.uint8)
-        expanded_mask = cv2.dilate(mask, kernel, iterations=1)
-
-        # Feather the expanded mask
-        feathered_mask = cv2.GaussianBlur(
-            expanded_mask, (num_expand * 2 + 1, num_expand * 2 + 1), 0)
+        mask = mask_from_depth(depth_map, threshold_min, threshold_max,
+                               prev_mask=prev_mask)
+        feathered_mask = feather_mask(mask, num_expand=num_expand)
 
         # Create a 4-channel image (RGBA)
         masked_image = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
@@ -213,7 +236,6 @@ def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_
         card_corners_3d_list.append(card_corners_3d)
 
     return camera_matrix, card_corners_3d_list
-
 
 
 def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position):
@@ -377,10 +399,12 @@ def process_image(image_path, output_path, num_slices=5,
                               card_corners_3d_list, camera_matrix, camera_position,
                               push_distance=push_distance)
 
-    image_paths = [output_path / f"image_slice_{i}.png" for i in range(num_slices)]
+    image_paths = [output_path /
+                   f"image_slice_{i}.png" for i in range(num_slices)]
     # fix it
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
-    export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, image_paths)
+    export_gltf(output_path, aspect_ratio, focal_length,
+                card_corners_3d_list, image_paths)
 
 
 def main():
