@@ -4,7 +4,6 @@ numpy=1.26.4
 pillow=10.2.0
 pygltflib=1.16.2
 torchvision=0.17.2
-libopencv=4.9.0
 opencv=4.9.0
 py-opencv=4.9.0
 pytorch=2.2.2
