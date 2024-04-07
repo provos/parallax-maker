@@ -91,7 +91,7 @@ def apply_mask(img_data, mask):
     # Invert the mask
     inverted_mask = cv2.bitwise_not(mask)
 
-    grayscale = apply_color_tint(grayscale, (0, 0, 255), 0.1)
+    grayscale = apply_color_tint(grayscale, (0, 0, 150), 0.1)
 
     # Apply the inverted mask to the grayscale image
     masked_grayscale = cv2.bitwise_and(
