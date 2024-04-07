@@ -103,95 +103,64 @@ def apply_mask(img_data, mask):
     return result
 
 
-app = dash.Dash(__name__)
+# call the ability to add external scripts
+external_scripts = [
+    # add the tailwind cdn url hosting the files with the utility classes
+    {'src': 'https://cdn.tailwindcss.com'}
+]
+
+app = dash.Dash(__name__,
+                external_scripts=external_scripts)
 
 # JavaScript event(s) that we want to listen to and what properties to collect.
 event = {"event": "click", "props": [
     "clientX", "clientY", "offsetX", "offsetY"]}
 
 app.layout = html.Div([
-    html.Div(
-        html.H2("Parallax Maker", style={'padding': '0', 'margin': '0'}),
-        style={
-            'background-color': '#333',
-            'color': '#fff',
-            'padding': '10px 5px',
-            'text-align': 'center',
-            'font-size': '24px',
-            'font-weight': 'bold',
-            'margin-bottom': '10px',
-            'line-height': '1'
-        }
-    ),
+    html.H2("Parallax Maker",
+            className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Div([
-        html.Label('Input Image', style={
-                   'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+        html.Label('Input Image', className='font-bold mb-2 ml-3'),
         dcc.Upload(
             id='upload-image',
             children=html.Div([
                 # 'Drag and Drop or ',
                 # html.A('Select Files'),
                 EventListener(
-                    html.Img(style={
-                             'width': '800px',
-                             'padding': '0px'  # Add this line to remove padding
-                             },
-                             id="image"),
+                    html.Img(
+                        className='w-full h-full p-0 object-scale-down', id="image"),
                     events=[event], logging=True, id="el"
                 )
             ]),
-            style={
-                'width': '800px',
-                'height': '800px',
-                'lineHeight': '800px',
-                'borderWidth': '1px',
-                'borderStyle': 'dashed',
-                'borderRadius': '5px',
-                'textAlign': 'center',
-                'padding': '2px',
-                'margin': '10px',
-            },
+            className='flex-auto grow min-h-80 border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
             disable_click=True,
             multiple=False
         ),
-    ], style={'display': 'inline-block', 'verticalAlign': 'top', 'marginRight': '20px'}),
+    ], className='inline-block w-1/2 h-1/2 mr-8'
+    ),
     html.Div([
         html.Div([
-            html.Label('Depth Map', style={
-                'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+            html.Label('Depth Map', className='font-bold mb-2 ml-3'),
             html.Div(id='depth-map-container',
-                     style={
-                         'width': '400px',
-                         'height': '400px',
-                         'borderWidth': '1px',
-                         'borderStyle': 'dashed',
-                         'borderRadius': '5px',
-                         'margin': '10px'}),
+                     className='w-full h-full min-h-80 flex-auto flex-col justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
+                     ),
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
             dcc.Loading(
                 id='loading',
                 type='default',
                 children=html.Div(id='loading-output')
             ),
-            html.Div(id='progress-bar-container', style={'width': '400px', 'height': '30px',
-                                                         'backgroundColor': '#f0f0f0', 'borderRadius': '5px', 'margin': '10px'}),
-        ], style={'verticalAlign': 'top'}),
+            html.Div(id='progress-bar-container',
+                     className='h-3 w-full bg-gray-200 rounded-lg m-3'),
+        ], className='inline-block w-full'),
         html.Div([
-            html.Label('Thresholds', style={
-                'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+            html.Label('Thresholds', className='font-bold mb-2 ml-3'),
             html.Div(id='thresholds-container',
-                     style={
-                         'width': '400px',
-                         'borderWidth': '1px',
-                         'borderStyle': 'dashed',
-                         'paddingTop': '10px',
-                         'borderRadius': '5px',
-                         'margin': '10px'}),
-        ], style={'verticalAlign': 'top'}),
-    ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
+                     className='w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md m-3'),
+        ], className='inline-block w-full'),
+    ], className='inline-block align-top w-1/4 mr-8'),
     html.Div([
-        html.Label('Configuration', style={
-                   'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+        html.Label('Configuration', className='font-bold mb-2 ml-3'),
         html.Div([
             html.Div([
                 html.Label('Number of Slices'),
@@ -203,7 +172,7 @@ app.layout = html.Div([
                     value=5,
                     marks={i: str(i) for i in range(2, 11)}
                 )
-            ], style={'margin': '10px'}),
+            ], className='m-3'),
             html.Div([
                 html.Label('Depth Module Algorithm'),
                 dcc.Dropdown(
@@ -214,31 +183,17 @@ app.layout = html.Div([
                     ],
                     value='midas'
                 )
-            ], style={'margin': '10px'})
-        ], style={
-            'width': '300px',
-            'borderWidth': '1px',
-            'borderStyle': 'dashed',
-            'borderRadius': '5px',
-            'margin': '10px'}),
-    ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
+            ], className='m-3')
+        ], className='h-40 w-full border-dashed border-2 border-blue-400 rounded-md m-3')
+    ], className='inline-block align-top'),
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     html.Div([
         dcc.Interval(id='logs-interval', interval=500, n_intervals=0),
         html.Div(id='hidden-div', style={'display': 'none'}),
         html.Div(id="log",
-                 style={
-                     'width': '800px',
-                     'height': '50px',
-                     'borderWidth': '1px',
-                     'borderStyle': 'dashed',
-                     'borderRadius': '5px',
-                     'padding': '5px',
-                     'margin': '10px',
-                     'overflow': 'auto',
-                     'display': 'flex',
-                     'flex-direction': 'column-reverse',
-                 })]),
+                 className='flex-auto flex-col h-24 w-1/2 border-dashed border-2 border-blue-400 rounded-md m-3 p-2 overflow-y-auto')
+    ], className='inline-block w-full align-bottom'
+    ),
 ])
 
 app.scripts.config.serve_locally = True
@@ -270,8 +225,8 @@ def update_logs(n):
     prevent_initial_call=True
 )
 def update_progress(n):
-    progress_bar = html.Div(style={'width': f'{current_progress}%',
-                            'height': '100%', 'backgroundColor': '#4CAF50', 'borderRadius': '5px'})
+    progress_bar = html.Div(className='w-0 h-full bg-green-500 rounded-lg transition-all',
+                            style={'width': f'{current_progress}%'})
     interval_disabled = current_progress >= total_progress
     return progress_bar, interval_disabled
 
@@ -287,7 +242,7 @@ def update_threshold_values(threshold_values, num_slices):
     # make sure that threshold values are monotonically increasing
     if threshold_values[0] <= 0:
         threshold_values[0] = 1
-    
+
     for i in range(1, num_slices-1):
         if threshold_values[i] < threshold_values[i-1]:
             threshold_values[i] = threshold_values[i-1] + 1
@@ -297,11 +252,11 @@ def update_threshold_values(threshold_values, num_slices):
         threshold_values[-1] = 254
 
     # num slices is the number of thresholds + 1, so the largest index is num_slices - 2
-    # and the second largest index is num_slices - 3        
-    for i in range(num_slices-3, -1, -1):        
+    # and the second largest index is num_slices - 3
+    for i in range(num_slices-3, -1, -1):
         if threshold_values[i] >= threshold_values[i+1]:
             threshold_values[i] = threshold_values[i+1] - 1
-            
+
     imgThresholds[1:-1] = threshold_values
     return threshold_values
 
@@ -315,7 +270,7 @@ def update_thresholds(contents, num_slices):
     global depthMapData
     global imgThresholds
     global logsData
-    
+
     if depthMapData is None:
         logsData.append("No depth map data available")
         imgThresholds = [0]
@@ -325,7 +280,7 @@ def update_thresholds(contents, num_slices):
         imgThresholds = analyze_depth_histogram(
             depthMapData, num_slices=num_slices)
         logsData.append(f"Thresholds: {imgThresholds}")
-        
+
     thresholds = []
     for i in range(1, num_slices):
         threshold = html.Div([
@@ -338,12 +293,12 @@ def update_thresholds(contents, num_slices):
                 marks=None,
                 tooltip={'always_visible': True, 'placement': 'bottom'}
             )
-        ], style={'margin': '5px'})
+        ], className='m-2')
         thresholds.append(threshold)
     return thresholds
 
+
 @app.callback(Output('image', 'src'),
-              Output('image', 'style'),
               Output('depth-map-container',
                      'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
@@ -360,17 +315,11 @@ def update_input_image(contents):
         imgData = Image.open(io.BytesIO(base64.b64decode(content_string)))
         depthMapData = None
 
-        width, height = imgData.size
-        if width < height and height > 800:
-            style = {'height': '800px'}
-        else:
-            style = {'width': '800px'}
-
         img_data = base64.b64decode(content_string)
         # encode img_data as base64 ascii
         img_data = base64.b64encode(img_data).decode('ascii')
         img_data = f"data:image/png;base64,{img_data}"
-        return img_data, style, html.Img(id='depthmap-image'), False
+        return img_data, html.Img(id='depthmap-image', className='w-full h-full p-0 object-scale-down'), False
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
@@ -384,8 +333,9 @@ def click_event(n_events, e, rect_data):
     global depthMapData
     global imgThresholds
 
-    if e is None or rect_data is None:
+    if e is None or rect_data is None or imgData is None:
         raise PreventUpdate()
+
     clientX = e["clientX"]
     clientY = e["clientY"]
 
@@ -400,6 +350,8 @@ def click_event(n_events, e, rect_data):
     pixel_x, pixel_y = find_pixel_from_click(
         imgData, x, y, rectWidth, rectHeight)
     mask = None
+
+    depth = -1  # for log below
     if depthMapData is not None and imgThresholds is not None:
         depth = depthMapData[pixel_y, pixel_x]
         # find the depth that is bracketed by imgThresholds
@@ -450,11 +402,9 @@ def generate_depth_map_callback(contents, model):
 
         return html.Img(
             src='data:image/png;base64,{}'.format(img_str),
-            style={
-                'width': '400px',
-                'height': '400px',
-                'objectFit': 'contain'},
+            className='object-contain',
             id='depthmap-image')
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
