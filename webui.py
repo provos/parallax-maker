@@ -10,7 +10,7 @@ from segmentation import generate_depth_map, mask_from_depth, feather_mask, anal
 
 import dash
 from dash import dcc, html, Patch
-from dash.dependencies import Input, Output, State, ClientsideFunction
+from dash.dependencies import ALL, Input, Output, State, ClientsideFunction
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
 
@@ -156,24 +156,38 @@ app.layout = html.Div([
         ),
     ], style={'display': 'inline-block', 'verticalAlign': 'top', 'marginRight': '20px'}),
     html.Div([
-        html.Label('Depth Map', style={
-                   'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
-        html.Div(id='depth-map-container',
-                 style={
-                     'width': '400px',
-                     'height': '400px',
-                     'borderWidth': '1px',
-                     'borderStyle': 'dashed',
-                     'borderRadius': '5px',
-                     'margin': '10px'}),
-        dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
-        dcc.Loading(
-            id='loading',
-            type='default',
-            children=html.Div(id='loading-output')
-        ),
-        html.Div(id='progress-bar-container', style={'width': '400px', 'height': '30px',
-                 'backgroundColor': '#f0f0f0', 'borderRadius': '5px', 'margin': '10px'}),
+        html.Div([
+            html.Label('Depth Map', style={
+                'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+            html.Div(id='depth-map-container',
+                     style={
+                         'width': '400px',
+                         'height': '400px',
+                         'borderWidth': '1px',
+                         'borderStyle': 'dashed',
+                         'borderRadius': '5px',
+                         'margin': '10px'}),
+            dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
+            dcc.Loading(
+                id='loading',
+                type='default',
+                children=html.Div(id='loading-output')
+            ),
+            html.Div(id='progress-bar-container', style={'width': '400px', 'height': '30px',
+                                                         'backgroundColor': '#f0f0f0', 'borderRadius': '5px', 'margin': '10px'}),
+        ], style={'verticalAlign': 'top'}),
+        html.Div([
+            html.Label('Thresholds', style={
+                'fontWeight': 'bold', 'marginBottom': '5px', 'marginLeft': '10px'}),
+            html.Div(id='thresholds-container',
+                     style={
+                         'width': '400px',
+                         'borderWidth': '1px',
+                         'borderStyle': 'dashed',
+                         'paddingTop': '10px',
+                         'borderRadius': '5px',
+                         'margin': '10px'}),
+        ], style={'verticalAlign': 'top'}),
     ], style={'display': 'inline-block', 'verticalAlign': 'top'}),
     html.Div([
         html.Label('Configuration', style={
@@ -262,6 +276,88 @@ def update_progress(n):
     return progress_bar, interval_disabled
 
 
+@app.callback(
+    Output({'type': 'threshold-value', 'index': ALL}, 'children'),
+    Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
+    Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
+    State('num-slices-slider', 'value')
+)
+def update_threshold_values(threshold_values, num_slices):
+    global imgThresholds
+
+    # make sure that threshold values are monotonically increasing
+    for i in range(1, num_slices-1):
+        if threshold_values[i] < threshold_values[i-1]:
+            threshold_values[i] = threshold_values[i-1] + 1
+
+    # go through the list in reverse order to make sure that the thresholds are monotonically decreasing
+    if threshold_values[-1] >= 255:
+        threshold_values[-1] = 254
+
+    # num slices is the number of thresholds + 1, so the largest index is num_slices - 2
+    # and the second largest index is num_slices - 3        
+    for i in range(num_slices-3, -1, -1):        
+        if threshold_values[i] >= threshold_values[i+1]:
+            threshold_values[i] = threshold_values[i+1] - 1
+            
+    imgThresholds[1:-1] = threshold_values
+    print('After update:', imgThresholds)
+    return [f'{value}' for value in threshold_values], threshold_values
+
+
+@app.callback(
+    Output('thresholds-container', 'children'),
+    Input('depth-map-container', 'children'),
+    Input('num-slices-slider', 'value')
+)
+def update_thresholds(contents, num_slices):
+    global depthMapData
+    global imgThresholds
+    global logsData
+    
+    if depthMapData is None:
+        logsData.append("No depth map data available")
+        imgThresholds = [0]
+        imgThresholds.extend([i * (255 // (num_slices - 1))
+                              for i in range(1, num_slices)])
+    else:
+        imgThresholds = analyze_depth_histogram(
+            depthMapData, num_slices=num_slices)
+        print('Before update:', imgThresholds)
+        logsData.append(f"Thresholds: {imgThresholds}")
+        
+    thresholds = [
+        html.Div([
+            html.Label(f'Threshold 0: 0')
+        ], style={'margin': '5px'})
+    ]
+
+    for i in range(1, num_slices):
+        threshold = html.Div([
+            html.Div([
+                html.Label(f'Threshold {i}'),
+                html.Div(id={'type': 'threshold-value', 'index': i},
+                         style={'display': 'inline-block', 'marginLeft': '10px'})
+            ], style={'display': 'flex', 'alignItems': 'center'}),
+            dcc.Slider(
+                id={'type': 'threshold-slider', 'index': i},
+                min=0,
+                max=255,
+                step=1,
+                value=imgThresholds[i],
+                marks=None
+            )
+        ], style={'margin': '5px'})
+        thresholds.append(threshold)
+
+    thresholds.append(
+        html.Div([
+            html.Label(f'Threshold {num_slices}: 255')
+        ], style={'margin': '5px'})
+    )
+
+    return thresholds
+
 @app.callback(Output('image', 'src'),
               Output('image', 'style'),
               Output('depth-map-container',
@@ -319,9 +415,9 @@ def click_event(n_events, e, rect_data):
 
     pixel_x, pixel_y = find_pixel_from_click(
         imgData, x, y, rectWidth, rectHeight)
-    depth = 0
     mask = None
     if depthMapData is not None and imgThresholds is not None:
+        print('Thresholds:', imgThresholds)
         depth = depthMapData[pixel_y, pixel_x]
         # find the depth that is bracketed by imgThresholds
         for i, threshold in enumerate(imgThresholds):
@@ -329,9 +425,7 @@ def click_event(n_events, e, rect_data):
                 threshold_min = int(imgThresholds[i-1])
                 threshold_max = int(threshold)
                 break
-        else:
-            threshold_min = int(imgThresholds[-2])
-            threshold_max = int(imgThresholds[-1])
+        print(f"Thresholds: {threshold_min}, {threshold_max}")
         mask = mask_from_depth(depthMapData, threshold_min, threshold_max)
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
@@ -379,26 +473,6 @@ def generate_depth_map_callback(contents, model):
                 'height': '400px',
                 'objectFit': 'contain'},
             id='depthmap-image')
-
-
-@app.callback(Output('hidden-div', 'children', allow_duplicate=True),
-              Input('depth-map-container', 'children'),
-              Input('num-slices-slider', 'value'),
-              prevent_initial_call=True)
-def compute_thresholds(children, num_slices):
-    global depthMapData
-    global imgThresholds
-
-    if depthMapData is None:
-        logsData.append('No depth map available')
-        return ''
-
-    imgThresholds = analyze_depth_histogram(
-        depthMapData, num_slices=num_slices)
-
-    logsData.append(f"Thresholds: {imgThresholds}")
-    return ''
-
 
 if __name__ == '__main__':
     app.run_server(debug=True)
