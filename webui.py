@@ -329,7 +329,6 @@ def update_thresholds(contents, num_slices):
     thresholds = []
     for i in range(1, num_slices):
         threshold = html.Div([
-            html.Label(f'Threshold {i}'),
             dcc.Slider(
                 id={'type': 'threshold-slider', 'index': i},
                 min=0,
