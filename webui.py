@@ -277,7 +277,6 @@ def update_progress(n):
 
 
 @app.callback(
-    Output({'type': 'threshold-value', 'index': ALL}, 'children'),
     Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
     Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
     State('num-slices-slider', 'value')
@@ -286,6 +285,9 @@ def update_threshold_values(threshold_values, num_slices):
     global imgThresholds
 
     # make sure that threshold values are monotonically increasing
+    if threshold_values[0] <= 0:
+        threshold_values[0] = 1
+    
     for i in range(1, num_slices-1):
         if threshold_values[i] < threshold_values[i-1]:
             threshold_values[i] = threshold_values[i-1] + 1
@@ -301,8 +303,7 @@ def update_threshold_values(threshold_values, num_slices):
             threshold_values[i] = threshold_values[i+1] - 1
             
     imgThresholds[1:-1] = threshold_values
-    print('After update:', imgThresholds)
-    return [f'{value}' for value in threshold_values], threshold_values
+    return threshold_values
 
 
 @app.callback(
@@ -323,39 +324,23 @@ def update_thresholds(contents, num_slices):
     else:
         imgThresholds = analyze_depth_histogram(
             depthMapData, num_slices=num_slices)
-        print('Before update:', imgThresholds)
         logsData.append(f"Thresholds: {imgThresholds}")
         
-    thresholds = [
-        html.Div([
-            html.Label(f'Threshold 0: 0')
-        ], style={'margin': '5px'})
-    ]
-
+    thresholds = []
     for i in range(1, num_slices):
         threshold = html.Div([
-            html.Div([
-                html.Label(f'Threshold {i}'),
-                html.Div(id={'type': 'threshold-value', 'index': i},
-                         style={'display': 'inline-block', 'marginLeft': '10px'})
-            ], style={'display': 'flex', 'alignItems': 'center'}),
+            html.Label(f'Threshold {i}'),
             dcc.Slider(
                 id={'type': 'threshold-slider', 'index': i},
                 min=0,
                 max=255,
                 step=1,
                 value=imgThresholds[i],
-                marks=None
+                marks=None,
+                tooltip={'always_visible': True, 'placement': 'bottom'}
             )
         ], style={'margin': '5px'})
         thresholds.append(threshold)
-
-    thresholds.append(
-        html.Div([
-            html.Label(f'Threshold {num_slices}: 255')
-        ], style={'margin': '5px'})
-    )
-
     return thresholds
 
 @app.callback(Output('image', 'src'),
@@ -417,7 +402,6 @@ def click_event(n_events, e, rect_data):
         imgData, x, y, rectWidth, rectHeight)
     mask = None
     if depthMapData is not None and imgThresholds is not None:
-        print('Thresholds:', imgThresholds)
         depth = depthMapData[pixel_y, pixel_x]
         # find the depth that is bracketed by imgThresholds
         for i, threshold in enumerate(imgThresholds):
@@ -425,7 +409,6 @@ def click_event(n_events, e, rect_data):
                 threshold_min = int(imgThresholds[i-1])
                 threshold_max = int(threshold)
                 break
-        print(f"Thresholds: {threshold_min}, {threshold_max}")
         mask = mask_from_depth(depthMapData, threshold_min, threshold_max)
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
