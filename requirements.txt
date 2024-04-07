@@ -1,9 +1,8 @@
-dash=2.16.1
-dash-extensions=1.0.14
-numpy=1.26.4
-pillow=10.2.0
-pygltflib=1.16.2
-torchvision=0.17.2
-opencv=4.9.0
-py-opencv=4.9.0
-pytorch=2.2.2
+dash==2.16.1
+dash_extensions==1.0.14
+numpy==1.26.4
+Pillow==10.3.0
+pygltflib==1.16.2
+torch==2.2.2
+torchvision==0.17.2
+opencv-python==4.9.0
