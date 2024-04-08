@@ -8,6 +8,8 @@ import numpy as np
 
 
 class AppState:
+    cache = {}
+    
     def __init__(self):
         self.imgData = None
         self.imgThresholds = None
@@ -18,10 +20,22 @@ class AppState:
             file.write(self.to_json())
             
     @staticmethod
+    def from_cache(file_path):
+        if file_path in AppState.cache:
+            return AppState.cache[file_path]
+        state = AppState.from_file(file_path)
+        AppState.cache[file_path] = state
+        return state
+            
+    @staticmethod
     def from_file_or_new(file_path):
         if file_path is None:
-            return AppState(), AppState.random_filename()
-        return AppState.from_file(file_path), file_path
+            state = AppState()
+            file_path = AppState.random_filename()
+        else:
+            state = AppState.from_file(file_path)
+        AppState.cache[file_path] = state
+        return state, file_path
             
     @staticmethod
     def random_filename():

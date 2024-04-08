@@ -180,7 +180,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_file(filename)
+    state = AppState.from_cache(filename)
 
     # make sure that threshold values are monotonically increasing
     if threshold_values[0] <= 0:
@@ -201,7 +201,6 @@ def update_threshold_values(threshold_values, num_slices, filename):
             threshold_values[i] = threshold_values[i+1] - 1
 
     state.imgThresholds[1:-1] = threshold_values
-    state.to_file(filename)
 
     return threshold_values
 
@@ -219,7 +218,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_file(filename)
+    state = AppState.from_cache(filename)
 
     if state.depthMapData is None:
         logs_data.append("No depth map data available")
@@ -245,8 +244,6 @@ def update_thresholds(contents, num_slices, filename, logs_data):
             )
         ], className='m-2')
         thresholds.append(threshold)
-
-    state.to_file(filename)
 
     return thresholds, logs_data
 
@@ -274,8 +271,6 @@ def update_input_image(contents):
     img_data = base64.b64encode(img_data).decode('ascii')
     img_data = f"data:image/png;base64,{img_data}"
 
-    state.to_file(filename)
-
     return filename, img_data, html.Img(
         id='depthmap-image',
         className='w-full p-0 object-scale-down'), False
@@ -291,7 +286,10 @@ def update_input_image(contents):
               prevent_initial_call=True
               )
 def click_event(n_events, e, rect_data, filename, logs_data):
-    state, filename = AppState.from_file_or_new(filename)
+    if filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
 
     if e is None or rect_data is None or state.imgData is None:
         raise PreventUpdate()
@@ -334,8 +332,6 @@ def click_event(n_events, e, rect_data, filename, logs_data):
         f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
     )
 
-    state.to_file(filename)
-
     return img_data, logs_data
 
 
@@ -348,7 +344,7 @@ def generate_depth_map_callback(filename, model):
         raise PreventUpdate()
 
     print('Received application-state-filename:', filename)
-    state = AppState.from_file(filename)
+    state = AppState.from_cache(filename)
 
     PIL_image = state.imgData
 
@@ -363,8 +359,6 @@ def generate_depth_map_callback(filename, model):
     buffered = io.BytesIO()
     depth_map_pil.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
-
-    state.to_file(filename)
 
     return html.Img(
         src='data:image/png;base64,{}'.format(img_str),
