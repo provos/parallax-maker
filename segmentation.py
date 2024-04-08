@@ -16,13 +16,24 @@ import pathlib
 from gltf import export_gltf
 
 
+def torch_get_device():
+    if torch.cuda.is_available():
+        return torch.device("cuda")
+    elif torch.backends.mps.is_available():
+        return torch.device("mps")
+    return torch.device("cpu")
+
+
 def midas_depth_map(image, progress_callback=None):
-    progress_callback(0, 100)
+    if progress_callback:
+        progress_callback(0, 100)
+
     # Load the MiDaS v2.1 model
     model_type = "DPT_Large"
     midas = torch.hub.load("intel-isl/MiDaS", model_type)
 
-    progress_callback(30, 100)
+    if progress_callback:
+        progress_callback(30, 100)
 
     # Set the model to evaluation mode
     midas.eval()
@@ -34,11 +45,11 @@ def midas_depth_map(image, progress_callback=None):
     else:
         transforms = midas_transforms.small_transform
 
-    progress_callback(50, 100)
+    if progress_callback:
+        progress_callback(50, 100)
 
     # Set the device (CPU or GPU)
-    device = torch.device(
-        "cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch_get_device()
     midas.to(device)
     input_batch = transforms(image).to(device)
     with torch.no_grad():
@@ -51,11 +62,13 @@ def midas_depth_map(image, progress_callback=None):
             align_corners=False,
         ).squeeze()
 
-    progress_callback(90, 100)
+    if progress_callback:
+        progress_callback(90, 100)
 
     depth_map = prediction.cpu().numpy()
 
-    progress_callback(100, 100)
+    if progress_callback:
+        progress_callback(100, 100)
 
     return depth_map
 
@@ -69,8 +82,7 @@ def zoedepth_depth_map(image, progress_callback=None):
         "isl-org/ZoeDepth", "ZoeD_NK", pretrained=True)
 
     # Set the device (CPU or GPU)
-    device = torch.device(
-        "cuda") if torch.cuda.is_available() else torch.device("cpu")
+    device = torch_get_device()
     model_zoe_nk.to(device)
 
     depth_map = model_zoe_nk.infer_pil(image)  # as numpy
