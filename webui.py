@@ -7,6 +7,7 @@ import io
 from PIL import Image
 import numpy as np
 from segmentation import generate_depth_map, mask_from_depth, feather_mask, analyze_depth_histogram
+from controller import AppState
 
 import dash
 from dash import dcc, html, Patch
@@ -14,12 +15,6 @@ from dash.dependencies import ALL, Input, Output, State, ClientsideFunction
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
 
-
-# Global State
-imgData = None
-imgThresholds = None
-depthMapData = None
-logsData = []
 
 # Progress tracking variables
 current_progress = 0
@@ -117,6 +112,8 @@ event = {"event": "click", "props": [
     "clientX", "clientY", "offsetX", "offsetY"]}
 
 app.layout = html.Div([
+    # dcc.Store stores all application state
+    dcc.Store(id='application-state-filename'),
     html.H2("Parallax Maker",
             className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Div([
@@ -124,11 +121,11 @@ app.layout = html.Div([
         dcc.Upload(
             id='upload-image',
             children=html.Div([
-                # 'Drag and Drop or ',
-                # html.A('Select Files'),
                 EventListener(
                     html.Img(
-                        className='w-full h-full p-0 object-scale-down', id="image"),
+                        className='w-full h-full p-0 object-scale-down object-left-top',
+                        style={'height': '75vh'},
+                        id="image"),
                     events=[event], logging=True, id="el"
                 )
             ]),
@@ -142,7 +139,7 @@ app.layout = html.Div([
         html.Div([
             html.Label('Depth Map', className='font-bold mb-2 ml-3'),
             html.Div(id='depth-map-container',
-                     className='w-full h-full min-h-80 flex-auto flex-col justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
+                     className='w-full min-h-80 flex-auto flex-col justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
                      ),
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
             dcc.Loading(
@@ -187,9 +184,8 @@ app.layout = html.Div([
         ], className='h-40 w-full border-dashed border-2 border-blue-400 rounded-md m-3')
     ], className='inline-block align-top'),
     dcc.Store(id='rect-data'),  # Store for rect coordinates
+    dcc.Store(id='logs-data', data=[]),  # Store for logs
     html.Div([
-        dcc.Interval(id='logs-interval', interval=500, n_intervals=0),
-        html.Div(id='hidden-div', style={'display': 'none'}),
         html.Div(id="log",
                  className='flex-auto flex-col h-24 w-1/2 border-dashed border-2 border-blue-400 rounded-md m-3 p-2 overflow-y-auto')
     ], className='inline-block w-full align-bottom'
@@ -209,10 +205,10 @@ app.clientside_callback(
 
 
 @app.callback(Output('log', 'children'),
-              Input('logs-interval', 'n_intervals'),
+              Input('logs-data', 'data'),
               prevent_initial_call=True)
-def update_logs(n):
-    structured_logs = [html.Div(log) for log in logsData[-3:]]
+def update_logs(data):
+    structured_logs = [html.Div(log) for log in data[-3:]]
     return structured_logs
 
 # Callback to update progress bar
@@ -234,10 +230,14 @@ def update_progress(n):
 @app.callback(
     Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
     Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
-    State('num-slices-slider', 'value')
+    State('num-slices-slider', 'value'),
+    State('application-state-filename', 'data'),
 )
-def update_threshold_values(threshold_values, num_slices):
-    global imgThresholds
+def update_threshold_values(threshold_values, num_slices, filename):
+    if filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_file(filename)
 
     # make sure that threshold values are monotonically increasing
     if threshold_values[0] <= 0:
@@ -257,29 +257,36 @@ def update_threshold_values(threshold_values, num_slices):
         if threshold_values[i] >= threshold_values[i+1]:
             threshold_values[i] = threshold_values[i+1] - 1
 
-    imgThresholds[1:-1] = threshold_values
+    state.imgThresholds[1:-1] = threshold_values
+    state.to_file(filename)
+    
     return threshold_values
 
 
 @app.callback(
     Output('thresholds-container', 'children'),
+    Output('logs-data', 'data', allow_duplicate=True),
     Input('depth-map-container', 'children'),
-    Input('num-slices-slider', 'value')
+    Input('num-slices-slider', 'value'),
+    State('application-state-filename', 'data'),
+    State('logs-data', 'data'),
+    prevent_initial_call=True
 )
-def update_thresholds(contents, num_slices):
-    global depthMapData
-    global imgThresholds
-    global logsData
+def update_thresholds(contents, num_slices, filename, logs_data):
+    if filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_file(filename)
 
-    if depthMapData is None:
-        logsData.append("No depth map data available")
-        imgThresholds = [0]
-        imgThresholds.extend([i * (255 // (num_slices - 1))
+    if state.depthMapData is None:
+        logs_data.append("No depth map data available")
+        state.imgThresholds = [0]
+        state.imgThresholds.extend([i * (255 // (num_slices - 1))
                               for i in range(1, num_slices)])
     else:
-        imgThresholds = analyze_depth_histogram(
-            depthMapData, num_slices=num_slices)
-        logsData.append(f"Thresholds: {imgThresholds}")
+        state.imgThresholds = analyze_depth_histogram(
+            state.depthMapData, num_slices=num_slices)
+        logs_data.append(f"Thresholds: {state.imgThresholds}")
 
     thresholds = []
     for i in range(1, num_slices):
@@ -289,51 +296,62 @@ def update_thresholds(contents, num_slices):
                 min=0,
                 max=255,
                 step=1,
-                value=imgThresholds[i],
+                value=state.imgThresholds[i],
                 marks=None,
                 tooltip={'always_visible': True, 'placement': 'bottom'}
             )
         ], className='m-2')
         thresholds.append(threshold)
-    return thresholds
+    
+    state.to_file(filename)
+    
+    return thresholds, logs_data
 
 
-@app.callback(Output('image', 'src'),
-              Output('depth-map-container',
-                     'children', allow_duplicate=True),
+@app.callback(Output('application-state-filename', 'data'), 
+              Output('image', 'src'),
+              Output('depth-map-container', 'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
               Input('upload-image', 'contents'),
               prevent_initial_call=True)
 def update_input_image(contents):
-    global imgData
-    global depthMapData
+    if not contents:
+        raise PreventUpdate()
+    
+    state, filename = AppState.from_file_or_new(None)
 
-    if contents:
-        content_type, content_string = contents.split(',')
+    content_type, content_string = contents.split(',')
 
-        # get the dimensions of the image
-        imgData = Image.open(io.BytesIO(base64.b64decode(content_string)))
-        depthMapData = None
+    # get the dimensions of the image
+    state.imgData = Image.open(io.BytesIO(base64.b64decode(content_string)))
+    state.depthMapData = None
 
-        img_data = base64.b64decode(content_string)
-        # encode img_data as base64 ascii
-        img_data = base64.b64encode(img_data).decode('ascii')
-        img_data = f"data:image/png;base64,{img_data}"
-        return img_data, html.Img(id='depthmap-image', className='w-full h-full p-0 object-scale-down'), False
+    img_data = base64.b64decode(content_string)
+    # encode img_data as base64 ascii
+    img_data = base64.b64encode(img_data).decode('ascii')
+    img_data = f"data:image/png;base64,{img_data}"
+    
+    state.to_file(filename)
+    
+    return filename, img_data, html.Img(
+        id='depthmap-image',
+        className='w-full p-0 object-scale-down',
+        style={'height': '35vh'}), False
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
+              Output('logs-data', 'data'),
               Input("el", "n_events"),
               State("el", "event"),
               State('rect-data', 'data'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
               prevent_initial_call=True
               )
-def click_event(n_events, e, rect_data):
-    global imgData
-    global depthMapData
-    global imgThresholds
+def click_event(n_events, e, rect_data, filename, logs_data):
+    state, filename = AppState.from_file_or_new(filename)
 
-    if e is None or rect_data is None or imgData is None:
+    if e is None or rect_data is None or state.imgData is None:
         raise PreventUpdate()
 
     clientX = e["clientX"]
@@ -348,62 +366,67 @@ def click_event(n_events, e, rect_data):
     y = clientY - rectTop
 
     pixel_x, pixel_y = find_pixel_from_click(
-        imgData, x, y, rectWidth, rectHeight)
+        state.imgData, x, y, rectWidth, rectHeight)
     mask = None
 
     depth = -1  # for log below
-    if depthMapData is not None and imgThresholds is not None:
-        depth = depthMapData[pixel_y, pixel_x]
+    if state.depthMapData is not None and state.imgThresholds is not None:
+        depth = state.depthMapData[pixel_y, pixel_x]
         # find the depth that is bracketed by imgThresholds
-        for i, threshold in enumerate(imgThresholds):
+        for i, threshold in enumerate(state.imgThresholds):
             if depth <= threshold:
-                threshold_min = int(imgThresholds[i-1])
+                threshold_min = int(state.imgThresholds[i-1])
                 threshold_max = int(threshold)
                 break
-        mask = mask_from_depth(depthMapData, threshold_min, threshold_max)
+        mask = mask_from_depth(state.depthMapData, threshold_min, threshold_max)
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
     if mask is not None:
-        result = apply_mask(imgData, mask)
+        result = apply_mask(state.imgData, mask)
         img_data = to_image_url(result)
     else:
-        img_data = to_image_url(imgData)
+        img_data = to_image_url(state.imgData)
 
-    logsData.append(
+    logs_data.append(
         f"Click event at ({clientX}, {clientY}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
     )
+    
+    state.to_file(filename)
 
-    return img_data
+    return img_data, logs_data
 
 
 @app.callback(Output('depth-map-container', 'children'),
-              Input('upload-image', 'contents'),
-              State('depth-module-dropdown', 'value'),)
-def generate_depth_map_callback(contents, model):
-    global depthMapData
-    global imgThresholds
+              Input('application-state-filename', 'data'),
+              State('depth-module-dropdown', 'value'),
+              prevent_initial_call=True)
+def generate_depth_map_callback(filename, model):
+    if filename is None:
+        raise PreventUpdate()
 
-    if contents is not None:
-        content_type, content_string = contents.split(',')
-        decoded = base64.b64decode(content_string)
-        PIL_image = Image.open(io.BytesIO(decoded))
+    print('Received application-state-filename:', filename)
+    state = AppState.from_file(filename)
+    
+    PIL_image = state.imgData
 
-        if PIL_image.mode == 'RGBA':
-            PIL_image = PIL_image.convert('RGB')
+    if PIL_image.mode == 'RGBA':
+        PIL_image = PIL_image.convert('RGB')
 
-        np_image = np.array(PIL_image)
-        depthMapData = generate_depth_map(
-            np_image, model=model, progress_callback=progress_callback)
-        depth_map_pil = Image.fromarray(depthMapData)
+    np_image = np.array(PIL_image)
+    state.depthMapData = generate_depth_map(
+        np_image, model=model, progress_callback=progress_callback)
+    depth_map_pil = Image.fromarray(state.depthMapData)
 
-        buffered = io.BytesIO()
-        depth_map_pil.save(buffered, format="PNG")
-        img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+    buffered = io.BytesIO()
+    depth_map_pil.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-        return html.Img(
-            src='data:image/png;base64,{}'.format(img_str),
-            className='object-contain',
-            id='depthmap-image')
+    state.to_file(filename)
+
+    return html.Img(
+        src='data:image/png;base64,{}'.format(img_str),
+        className='object-contain',
+        id='depthmap-image')
 
 
 if __name__ == '__main__':
