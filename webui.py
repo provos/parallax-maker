@@ -108,10 +108,11 @@ app = dash.Dash(__name__,
                 external_scripts=external_scripts)
 
 # JavaScript event(s) that we want to listen to and what properties to collect.
-event = {"event": "click", "props": [
-    "clientX", "clientY", "offsetX", "offsetY"]}
+eventClick = {"event": "click", "props": ["type", "clientX", "clientY", "offsetX", "offsetY"]}
+eventScroll = {"event": "scroll", "props": ["type", "scrollLeft", "scrollTop"]}
 
 app.layout = html.Div([
+    EventListener(events=[eventScroll], logging=True, id="evScroll"),
     # dcc.Store stores all application state
     dcc.Store(id='application-state-filename'),
     html.H2("Parallax Maker",
@@ -123,10 +124,10 @@ app.layout = html.Div([
             children=html.Div([
                 EventListener(
                     html.Img(
-                        className='w-full h-full p-0 object-scale-down object-left-top',
+                        className='w-full h-full p-0 object-scale-down',
                         style={'height': '75vh'},
                         id="image"),
-                    events=[event], logging=True, id="el"
+                    events=[eventClick], logging=True, id="el"
                 )
             ]),
             className='flex-auto grow min-h-80 border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
@@ -139,7 +140,7 @@ app.layout = html.Div([
         html.Div([
             html.Label('Depth Map', className='font-bold mb-2 ml-3'),
             html.Div(id='depth-map-container',
-                     className='w-full min-h-80 flex-auto flex-col justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
+                     className='w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2 m-3',
                      ),
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
             dcc.Loading(
@@ -198,7 +199,8 @@ app.clientside_callback(
     ClientsideFunction(namespace='clientside',
                        function_name='store_rect_coords'),
     Output('rect-data', 'data'),
-    Input('image', 'src')
+    Input('image', 'src'),
+    Input('evScroll', 'n_events'),
 )
 
 # Callback for the logs
@@ -335,8 +337,7 @@ def update_input_image(contents):
     
     return filename, img_data, html.Img(
         id='depthmap-image',
-        className='w-full p-0 object-scale-down',
-        style={'height': '35vh'}), False
+        className='w-full p-0 object-scale-down'), False
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
@@ -388,7 +389,7 @@ def click_event(n_events, e, rect_data, filename, logs_data):
         img_data = to_image_url(state.imgData)
 
     logs_data.append(
-        f"Click event at ({clientX}, {clientY}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
+        f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
     )
     
     state.to_file(filename)
@@ -425,7 +426,8 @@ def generate_depth_map_callback(filename, model):
 
     return html.Img(
         src='data:image/png;base64,{}'.format(img_str),
-        className='object-contain',
+        className='w-full h-full object-contain',
+        style={'height': '45vh'},
         id='depthmap-image')
 
 
