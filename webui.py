@@ -124,11 +124,24 @@ app.layout = html.Div([
         components.make_input_image_container(
             upload_id='upload-image', image_id='image', event_id='el'),
         html.Div([
-            components.make_depth_map_container(
-                depth_map_id='depth-map-container'),
-            components.make_thresholds_container(
-                thresholds_id='thresholds-container'),
-        ], className='w-full'),
+            components.make_label_container(
+                'segmentation',
+                html.Div([
+                    components.make_depth_map_container(
+                        depth_map_id='depth-map-container'),
+                    components.make_thresholds_container(
+                        thresholds_id='thresholds-container'),
+                ], className='w-full', id='depth-map-column')),
+            components.make_label_container(
+                'slice',
+                html.Div([
+                    html.Button('Generate Image Slices',
+                                id='generate-slice-button',
+                                className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+                    html.Div(id='slice-generation-container',
+                         className='min-h-8 w-full border-dashed border-2 border-blue-500 rounded-md p-2'),
+                ], className='w-full', id='slick-generation-column'))
+        ]),
         components.make_configuration_container(),
     ], className='grid grid-cols-4 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
@@ -143,6 +156,11 @@ app.clientside_callback(
     Input('image', 'src'),
     Input('evScroll', 'n_events'),
 )
+
+# Callbacks for collapsible sections
+for label in ['segmentation', 'slice', 'configuration']:
+    components.make_label_container_callback(app, label)
+
 
 # Callback for the logs
 
@@ -288,7 +306,7 @@ def update_input_image(contents):
 def click_event(n_events, e, rect_data, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
 
     if e is None or rect_data is None or state.imgData is None:
