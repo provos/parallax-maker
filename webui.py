@@ -115,16 +115,22 @@ app.layout = html.Div([
     EventListener(events=[eventScroll], logging=True, id="evScroll"),
     # dcc.Store stores all application state
     dcc.Store(id='application-state-filename'),
-    html.H2("Parallax Maker",
-            className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
-    components.make_input_image_container(upload_id='upload-image', image_id='image', event_id='el'),
-    html.Div([
-        components.make_depth_map_container(depth_map_id='depth-map-container'),
-        components.make_thresholds_container(thresholds_id='thresholds-container'),
-    ], className='inline-block align-top w-1/4 mr-8'),
-    components.make_configuration_container(),
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     dcc.Store(id='logs-data', data=[]),  # Store for logs
+    # App Layout
+    html.H2("Parallax Maker",
+            className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
+    html.Div([
+        components.make_input_image_container(
+            upload_id='upload-image', image_id='image', event_id='el'),
+        html.Div([
+            components.make_depth_map_container(
+                depth_map_id='depth-map-container'),
+            components.make_thresholds_container(
+                thresholds_id='thresholds-container'),
+        ], className='w-full'),
+        components.make_configuration_container(),
+    ], className='grid grid-cols-4 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
 ])
 
@@ -173,7 +179,7 @@ def update_progress(n):
 def update_threshold_values(threshold_values, num_slices, filename):
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_file(filename)
 
     # make sure that threshold values are monotonically increasing
@@ -196,7 +202,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     state.imgThresholds[1:-1] = threshold_values
     state.to_file(filename)
-    
+
     return threshold_values
 
 
@@ -212,14 +218,14 @@ def update_threshold_values(threshold_values, num_slices, filename):
 def update_thresholds(contents, num_slices, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_file(filename)
 
     if state.depthMapData is None:
         logs_data.append("No depth map data available")
         state.imgThresholds = [0]
         state.imgThresholds.extend([i * (255 // (num_slices - 1))
-                              for i in range(1, num_slices)])
+                                    for i in range(1, num_slices)])
     else:
         state.imgThresholds = analyze_depth_histogram(
             state.depthMapData, num_slices=num_slices)
@@ -239,13 +245,13 @@ def update_thresholds(contents, num_slices, filename, logs_data):
             )
         ], className='m-2')
         thresholds.append(threshold)
-    
+
     state.to_file(filename)
-    
+
     return thresholds, logs_data
 
 
-@app.callback(Output('application-state-filename', 'data'), 
+@app.callback(Output('application-state-filename', 'data'),
               Output('image', 'src'),
               Output('depth-map-container', 'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
@@ -254,7 +260,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
 def update_input_image(contents):
     if not contents:
         raise PreventUpdate()
-    
+
     state, filename = AppState.from_file_or_new(None)
 
     content_type, content_string = contents.split(',')
@@ -267,9 +273,9 @@ def update_input_image(contents):
     # encode img_data as base64 ascii
     img_data = base64.b64encode(img_data).decode('ascii')
     img_data = f"data:image/png;base64,{img_data}"
-    
+
     state.to_file(filename)
-    
+
     return filename, img_data, html.Img(
         id='depthmap-image',
         className='w-full p-0 object-scale-down'), False
@@ -314,7 +320,8 @@ def click_event(n_events, e, rect_data, filename, logs_data):
                 threshold_min = int(state.imgThresholds[i-1])
                 threshold_max = int(threshold)
                 break
-        mask = mask_from_depth(state.depthMapData, threshold_min, threshold_max)
+        mask = mask_from_depth(
+            state.depthMapData, threshold_min, threshold_max)
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
     if mask is not None:
@@ -326,7 +333,7 @@ def click_event(n_events, e, rect_data, filename, logs_data):
     logs_data.append(
         f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
     )
-    
+
     state.to_file(filename)
 
     return img_data, logs_data
@@ -342,7 +349,7 @@ def generate_depth_map_callback(filename, model):
 
     print('Received application-state-filename:', filename)
     state = AppState.from_file(filename)
-    
+
     PIL_image = state.imgData
 
     if PIL_image.mode == 'RGBA':
