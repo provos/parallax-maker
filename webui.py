@@ -12,7 +12,8 @@ import components
 
 import dash
 from dash import dcc, html
-from dash.dependencies import ALL, Input, Output, State, ClientsideFunction
+from dash.dependencies import Input, Output, State, ClientsideFunction
+from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
 
@@ -118,9 +119,9 @@ app.layout = html.Div([
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     dcc.Store(id='logs-data', data=[]),  # Store for logs
     # App Layout
-    html.H2("Parallax Maker",
+    html.Header("Parallax Maker",
             className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
-    html.Div([
+    html.Main([
         components.make_input_image_container(
             upload_id='upload-image', image_id='image', event_id='el'),
         html.Div([
@@ -138,7 +139,7 @@ app.layout = html.Div([
                     html.Button('Generate Image Slices',
                                 id='generate-slice-button',
                                 className='bg-blue-500 text-white p-2 rounded-md mb-2'),
-                    html.Div(id='slice-container',
+                    html.Div(id='slice-img-container',
                          className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2'),
                 ], className='w-full', id='slice-generation-column'))
         ]),
@@ -190,9 +191,11 @@ def update_progress(n):
 
 @app.callback(
     Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
+    Output('slice-img-container', 'children', allow_duplicate=True),
     Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
     State('num-slices-slider', 'value'),
     State('application-state-filename', 'data'),
+    prevent_initial_call=True
 )
 def update_threshold_values(threshold_values, num_slices, filename):
     if filename is None:
@@ -220,7 +223,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     state.imgThresholds[1:-1] = threshold_values
 
-    return threshold_values
+    return threshold_values, None
 
 
 @app.callback(
@@ -267,7 +270,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
 
 
 @app.callback(Output('application-state-filename', 'data'),
-              Output('image', 'src'),
+              Output('image', 'src', allow_duplicate=True),
               Output('depth-map-container', 'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
               Input('upload-image', 'contents'),
@@ -381,10 +384,10 @@ def generate_depth_map_callback(filename, model):
     return html.Img(
         src='data:image/png;base64,{}'.format(img_str),
         className='w-full h-full object-contain',
-        style={'height': '45vh'},
+        style={'height': '35vh'},
         id='depthmap-image')
     
-@app.callback(Output('slice-container', 'children'),
+@app.callback(Output('slice-img-container', 'children'),
               Input('generate-slice-button', 'n_clicks'),
               State('application-state-filename', 'data'),)
 def generate_slices(n_clicks, filename):
@@ -397,7 +400,7 @@ def generate_slices(n_clicks, filename):
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
-        num_expand=50)
+        num_expand=5)
     
     img_container = []
     for i, img_slice in enumerate(slices):
@@ -406,10 +409,28 @@ def generate_slices(n_clicks, filename):
             html.Img(
                 src=img_data,
                 className='w-full h-full object-contain border-solid border-2 border-slate-500',
-                id=f'slice-{i}')
+                id={'type': 'slice', 'index': i},)
         )
     
     return img_container
+
+@app.callback(Output('image', 'src'),
+              Output({'type': 'slice', 'index': ALL}, 'n_clicks'),
+              Input({'type': 'slice', 'index': ALL}, 'n_clicks'),
+              State({'type': 'slice', 'index': ALL}, 'id'),
+              State({'type': 'slice', 'index': ALL}, 'src'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
+def display_slice(n_clicks, id, src, filename):
+    if filename is None or n_clicks is None or any(n_clicks) is False:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    print('Click event on slice:', n_clicks, id)
+    
+    index = n_clicks.index(1)
+    
+    return src[index], [None]*len(n_clicks)
 
 
 if __name__ == '__main__':
