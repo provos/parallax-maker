@@ -21,12 +21,12 @@ def make_input_image_container(
             children=html.Div([
                 EventListener(
                     html.Img(
-                        style={'height': '75vh'},
+                        style={'height': '70vh'},
                         id=image_id),
                     events=[eventClick], logging=True, id=event_id
                 )
             ], className='w-full h-full p-0 object-scale-down'),
-            className='min-h-80 border-dashed border-2 border-blue-500 rounded-md p-2',
+            className='min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2',
             disable_click=True,
             multiple=False
         ),
@@ -38,7 +38,7 @@ def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
     return html.Div([
         html.Label('Depth Map', className='font-bold mb-2 ml-3'),
         html.Div(id=depth_map_id,
-                 className='w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
+                 className='w-full min-h-60 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
                  ),
         html.Div([
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
