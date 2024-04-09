@@ -6,7 +6,7 @@ import cv2
 import io
 from PIL import Image
 import numpy as np
-from segmentation import generate_depth_map, mask_from_depth, feather_mask, analyze_depth_histogram
+from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices
 from controller import AppState
 import components
 
@@ -138,9 +138,9 @@ app.layout = html.Div([
                     html.Button('Generate Image Slices',
                                 id='generate-slice-button',
                                 className='bg-blue-500 text-white p-2 rounded-md mb-2'),
-                    html.Div(id='slice-generation-container',
-                         className='min-h-8 w-full border-dashed border-2 border-blue-500 rounded-md p-2'),
-                ], className='w-full', id='slick-generation-column'))
+                    html.Div(id='slice-container',
+                         className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2'),
+                ], className='w-full', id='slice-generation-column'))
         ]),
         components.make_configuration_container(),
     ], className='grid grid-cols-4 gap-4 p-2'),
@@ -383,6 +383,33 @@ def generate_depth_map_callback(filename, model):
         className='w-full h-full object-contain',
         style={'height': '45vh'},
         id='depthmap-image')
+    
+@app.callback(Output('slice-container', 'children'),
+              Input('generate-slice-button', 'n_clicks'),
+              State('application-state-filename', 'data'),)
+def generate_slices(n_clicks, filename):
+    if n_clicks is None or filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
+    
+    slices = generate_image_slices(
+        np.array(state.imgData),
+        state.depthMapData,
+        state.imgThresholds,
+        num_expand=50)
+    
+    img_container = []
+    for i, img_slice in enumerate(slices):
+        img_data = to_image_url(img_slice)
+        img_container.append(
+            html.Img(
+                src=img_data,
+                className='w-full h-full object-contain border-solid border-2 border-slate-500',
+                id=f'slice-{i}')
+        )
+    
+    return img_container
 
 
 if __name__ == '__main__':
