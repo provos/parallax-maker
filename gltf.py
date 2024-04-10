@@ -136,6 +136,10 @@ def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, i
     for i, corners_3d in enumerate(card_corners_3d_list):
         # Set the vertices and indices for the plane
         
+        # Translaton hack
+        z_transform = corners_3d[0][2]
+        corners_3d[:, 2] = 0
+        
         # negate the y coordinates of corners_3d
         vertices = np.array(corners_3d, dtype=np.float32)
         vertices[:, 1] = -vertices[:, 1]
@@ -237,6 +241,7 @@ def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, i
         # Create the card node and add it to the scene
         card_node = gltf.Node(
             mesh=i,
+            translation=[0, 0, int(z_transform)]
         )
         gltf_obj.nodes.append(card_node)
         scene.nodes.append(len(gltf_obj.nodes)-1)
@@ -244,3 +249,5 @@ def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, i
     # Save the glTF file
     gltf_obj.convert_images(gltf.ImageFormat.DATAURI)
     gltf_obj.save(str(output_path / "model.gltf"))
+    
+    return str(output_path / "model.gltf")
