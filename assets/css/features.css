@@ -1,0 +1,26 @@
+.text-overlay {
+    position: absolute;
+    /* Overlap the image */
+    bottom: 0;
+    /* Position at bottom */
+    right: 0;
+    /* Position at right corner */
+    padding: 3px;
+    /* Add some padding */
+    background-color: rgba(0, 0, 0, 0.5);
+    /* Semi-transparent black background */
+    color: white;
+    /* White text color */
+}
+
+.checkerboard {
+    background-image:
+        linear-gradient(45deg, #ccc 25%, transparent 25%),
+        linear-gradient(135deg, #ccc 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #ccc 75%),
+        linear-gradient(135deg, transparent 75%, #ccc 75%);
+    background-size: 25px 25px;
+    /* Must be a square */
+    background-position: 0 0, 12.5px 0, 12.5px -12.5px, 0px 12.5px;
+    /* Must be half of one side of the square */
+}

@@ -4,6 +4,7 @@
 import base64
 import cv2
 import io
+from pathlib import Path
 from PIL import Image
 import numpy as np
 from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices
@@ -396,20 +397,26 @@ def generate_slices(n_clicks, filename):
     
     state = AppState.from_cache(filename)
     
-    slices = generate_image_slices(
+    state.image_slices = generate_image_slices(
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
         num_expand=5)
     
+    state.to_file(filename)
+    
     img_container = []
-    for i, img_slice in enumerate(slices):
+    for i, img_slice in enumerate(state.image_slices):
         img_data = to_image_url(img_slice)
+        slice_name = Path(state.image_slices_filenames[i]).stem
         img_container.append(
-            html.Img(
-                src=img_data,
-                className='w-full h-full object-contain border-solid border-2 border-slate-500',
-                id={'type': 'slice', 'index': i},)
+            html.Div([
+                html.Img(
+                    src=img_data,
+                    className='w-full h-full object-contain border-solid border-2 border-slate-500',
+                    id={'type': 'slice', 'index': i},),
+                html.Div(children=slice_name, className='text-center text-overlay')
+            ], style={'position': 'relative'})
         )
     
     return img_container
@@ -426,7 +433,8 @@ def display_slice(n_clicks, id, src, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    print('Click event on slice:', n_clicks, id)
+
+    # XXX use the state?
     
     index = n_clicks.index(1)
     
