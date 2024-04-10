@@ -73,7 +73,8 @@ def make_configuration_container():
                 step=1,
                 value=5,
                 marks={i: str(i) for i in range(2, 11)}
-            )
+            ),
+            dcc.Store('num-slices-slider-update') # to trigger an update
         ], className='w-full'),
             html.Div([
                 html.Label('Depth Module Algorithm'),
@@ -85,7 +86,7 @@ def make_configuration_container():
                     ],
                     value='midas'
                 )
-            ], className='w-full')
+            ], className='w-full'),
         ])
 
 def make_3d_export_container():

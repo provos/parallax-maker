@@ -230,11 +230,27 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     return threshold_values, None
 
+@app.callback(
+    Output('generate-slice-request', 'data', allow_duplicate=True),
+    Input('num-slices-slider-update', 'data'),
+    State('application-state-filename', 'data'),
+    prevent_initial_call=True)
+def update_num_slices(value, filename):
+    """Updates the slices only if we have them already."""
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if len(state.image_slices) == 0:
+        raise PreventUpdate()
+    
+    return True
+
 
 @app.callback(
     Output('thresholds-container', 'children'),
     Output('logs-data', 'data', allow_duplicate=True),
-    Output('generate-slice-request', 'data', allow_duplicate=True),
+    Output('num-slices-slider-update', 'data'), # triggers regeneration of slices if we have them already
     Input('depth-map-container', 'children'),
     Input('num-slices-slider', 'value'),
     State('application-state-filename', 'data'),
@@ -404,7 +420,7 @@ def generate_slices_request(n_clicks):
               Input('generate-slice-request', 'data'),
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
-def generate_slices(n_clicks, filename):
+def generate_slices(ignored_data, filename):
     if filename is None:
         raise PreventUpdate()
     
@@ -417,6 +433,7 @@ def generate_slices(n_clicks, filename):
         state.depthMapData,
         state.imgThresholds,
         num_expand=5)
+    state.image_slices_filenames = []
     
     state.to_file(filename)
     
