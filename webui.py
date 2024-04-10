@@ -490,7 +490,7 @@ def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, foca
         state.imgThresholds, camera_distance, max_distance, focal_length)
     
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
-    gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length,
+    gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length, camera_distance,
                 card_corners_3d_list, state.image_slices_filenames)
     
     return dcc.send_file(gltf_path, filename='scene.gltf')

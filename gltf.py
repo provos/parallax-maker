@@ -105,7 +105,7 @@ def create_buffer_and_view(gltf_obj, data, target=gltf.ARRAY_BUFFER):
     return tmp_buffer_view_index
 
 
-def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, image_paths):
+def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_corners_3d_list, image_paths):
     """
     Export the camera, cards, and image slices to a glTF file.
 
@@ -113,6 +113,7 @@ def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, i
         output_path (str): The path to save the glTF file.
         aspect_ratio (float): The aspect ratio of the camera.
         focal_length (float): The focal length of the camera.
+        camera_distance (float): The distance of the camera from the origin.
         card_corners_3d_list (list): List of 3D corner coordinates for each card.
         image_paths (list): List of file paths for each image slice.
     """
@@ -128,7 +129,7 @@ def export_gltf(output_path, aspect_ratio, focal_length, card_corners_3d_list, i
     camera_index = create_camera(gltf_obj,
                                  focal_length,
                                  aspect_ratio,
-                                 [0, 0, -100], rotation_quaternion_y(180))
+                                 [0, 0, -camera_distance], rotation_quaternion_y(180))
     # Add the camera node to the scene
     scene.nodes.append(camera_index)
 
