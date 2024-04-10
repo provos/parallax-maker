@@ -88,6 +88,34 @@ def make_configuration_container():
             ], className='w-full')
         ])
 
+def make_3d_export_container():
+    return make_label_container(
+        '3D Export',
+        html.Div([
+            html.Button("Export glTF Scene", id="gltf-export",
+                        className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+            make_slider('camera-distance-slider',
+                        'Camera Distance', 0, 5000, 1, 100),
+            make_slider('max-distance-slider', 'Max Distance', 0, 5000, 1, 500),
+            make_slider('focal-length-slider', 'Focal Length', 0, 5000, 1, 100),
+            dcc.Download(id="download-gltf")
+        ])
+    )
+
+def make_slider(slider_id: str, label: str, min_value: int, max_value: int, step: int, value: int):
+    return html.Div([
+        html.P(label),
+        dcc.Slider(
+            id=slider_id,
+            min=min_value,
+            max=max_value,
+            step=step,
+            value=value,
+            marks=None,
+            tooltip={"placement": "bottom",
+                     "always_visible": True}
+        )
+    ])
 
 def make_logs_container(logs_id: str = 'log'):
     return html.Div([
@@ -98,18 +126,20 @@ def make_logs_container(logs_id: str = 'log'):
 
 
 def make_label_container(label: str, children: list):
+    norm_label = label.lower().replace(' ', '')
     return html.Div([
-        html.Label(label.capitalize(),
-                   className='font-bold mb-2 ml-3', id=f'{label}-label'),
+        html.Label(label,
+                   className='font-bold mb-2 ml-3', id=f'{norm_label}-label'),
         html.Div(
             children,
-            id=f"{label}-container",
+            id=f"{norm_label}-container",
             className='w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
         )
     ], className='w-full')
 
 
 def make_label_container_callback(app, label: str):
+    label = label.lower().replace(' ', '')
     @app.callback(
         Output(f'{label}-container', 'className'),
         Input(f'{label}-label', 'n_clicks'),

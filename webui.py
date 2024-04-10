@@ -7,7 +7,7 @@ import io
 from pathlib import Path
 from PIL import Image
 import numpy as np
-from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices
+from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices, setup_camera_and_cards, export_gltf
 from controller import AppState
 import components
 
@@ -20,7 +20,7 @@ from dash.exceptions import PreventUpdate
 
 
 # Progress tracking variables
-current_progress = 0
+current_progress = -1
 total_progress = 100
 
 
@@ -127,7 +127,7 @@ app.layout = html.Div([
             upload_id='upload-image', image_id='image', event_id='el'),
         html.Div([
             components.make_label_container(
-                'segmentation',
+                'Segmentation',
                 html.Div([
                     components.make_depth_map_container(
                         depth_map_id='depth-map-container'),
@@ -135,14 +135,16 @@ app.layout = html.Div([
                         thresholds_id='thresholds-container'),
                 ], className='w-full', id='depth-map-column')),
             components.make_label_container(
-                'slice',
+                'Slice Generation',
                 html.Div([
+                    dcc.Store(id='generate-slice-request'),
                     html.Button('Generate Image Slices',
                                 id='generate-slice-button',
                                 className='bg-blue-500 text-white p-2 rounded-md mb-2'),
                     html.Div(id='slice-img-container',
                          className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2'),
-                ], className='w-full', id='slice-generation-column'))
+                ], className='w-full', id='slice-generation-column')),
+            components.make_3d_export_container(),
         ]),
         components.make_configuration_container(),
     ], className='grid grid-cols-4 gap-4 p-2'),
@@ -160,7 +162,7 @@ app.clientside_callback(
 )
 
 # Callbacks for collapsible sections
-for label in ['segmentation', 'slice', 'configuration']:
+for label in ['segmentation', 'Slice Generation', '3D Export', 'configuration']:
     components.make_label_container_callback(app, label)
 
 
@@ -185,8 +187,8 @@ def update_logs(data):
 )
 def update_progress(n):
     progress_bar = html.Div(className='w-0 h-full bg-green-500 rounded-lg transition-all',
-                            style={'width': f'{current_progress}%'})
-    interval_disabled = current_progress >= total_progress
+                            style={'width': f'{max(0, current_progress)}%'})
+    interval_disabled = current_progress >= total_progress or current_progress == -1
     return progress_bar, interval_disabled
 
 
@@ -223,6 +225,8 @@ def update_threshold_values(threshold_values, num_slices, filename):
             threshold_values[i] = threshold_values[i+1] - 1
 
     state.imgThresholds[1:-1] = threshold_values
+    state.image_slices = []
+    state.image_slices_filenames = []
 
     return threshold_values, None
 
@@ -230,6 +234,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
 @app.callback(
     Output('thresholds-container', 'children'),
     Output('logs-data', 'data', allow_duplicate=True),
+    Output('generate-slice-request', 'data', allow_duplicate=True),
     Input('depth-map-container', 'children'),
     Input('num-slices-slider', 'value'),
     State('application-state-filename', 'data'),
@@ -267,7 +272,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
         ], className='m-2')
         thresholds.append(threshold)
 
-    return thresholds, logs_data
+    return thresholds, logs_data, True
 
 
 @app.callback(Output('application-state-filename', 'data'),
@@ -388,14 +393,24 @@ def generate_depth_map_callback(filename, model):
         style={'height': '35vh'},
         id='depthmap-image')
     
+@app.callback(Output('generate-slice-request', 'data'),
+              Input('generate-slice-button', 'n_clicks'))
+def generate_slices_request(n_clicks):
+    if n_clicks is None:
+        raise PreventUpdate()
+    return n_clicks
+    
 @app.callback(Output('slice-img-container', 'children'),
-              Input('generate-slice-button', 'n_clicks'),
-              State('application-state-filename', 'data'),)
+              Input('generate-slice-request', 'data'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
 def generate_slices(n_clicks, filename):
-    if n_clicks is None or filename is None:
+    if filename is None:
         raise PreventUpdate()
     
     state = AppState.from_cache(filename)
+    if state.depthMapData is None:
+        raise PreventUpdate()
     
     state.image_slices = generate_image_slices(
         np.array(state.imgData),
@@ -440,6 +455,29 @@ def display_slice(n_clicks, id, src, filename):
     
     return src[index], [None]*len(n_clicks)
 
+@app.callback(Output('download-gltf', 'data'),
+              Input('gltf-export', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('camera-distance-slider', 'value'),
+              State('max-distance-slider', 'value'),
+              State('focal-length-slider', 'value'),
+              )
+def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, focal_length):
+    if n_clicks is None or filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
+    
+    camera_matrix, card_corners_3d_list = setup_camera_and_cards(
+        state.image_slices,
+        state.imgThresholds, camera_distance, max_distance, focal_length)
+    
+    aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
+    gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length,
+                card_corners_3d_list, state.image_slices_filenames)
+    
+    return dcc.send_file(gltf_path, filename='scene.gltf')
+              
 
 if __name__ == '__main__':
     app.run_server(debug=True)
