@@ -3,7 +3,7 @@
 import dash
 from dash import dcc, html
 from dash_extensions import EventListener
-from dash.dependencies import Input, Output, State
+from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 
 
@@ -153,3 +153,63 @@ def make_label_container_callback(app, label: str):
             # remove hidden from current class
             return current_class.replace(' hidden', '')
         return current_class + ' hidden'
+    
+
+def make_tabs(tab_id: str, tab_names: list, tab_contents: list):
+    assert len(tab_names) == len(tab_contents)
+    headers = []
+    label_class_name = 'font-bold mb-2 ml-3'
+    for i, tab_name in enumerate(tab_names):
+        class_name = label_class_name
+        if i == 0:
+            class_name += ' underline'
+        headers.append(html.Label(
+            tab_name,
+            id={'type': f'tab-label-{tab_id}', 'index': i},
+            className=class_name,
+        ))
+        
+    contents = []
+    container_class_name = 'w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2'
+    for i, tab_content in enumerate(tab_contents):
+        class_name = container_class_name
+        if i > 0:
+            class_name += ' hidden'
+        contents.append(html.Div(
+            tab_content,
+            id={'type': f'tab-content-{tab_id}', 'index': i},
+            className=class_name
+        ))
+    
+    return html.Div([
+        html.Div(headers, className='w-full flex justify-start'),
+        html.Div(contents, className='w-full')
+    ], className='w-full')
+    
+
+def make_tabs_callback(app, tab_id: str):
+    @app.callback(
+        Output({'type': f'tab-label-{tab_id}', 'index': ALL}, 'n_clicks'),
+        Output({'type': f'tab-label-{tab_id}', 'index': ALL}, 'className'),
+        Output({'type': f'tab-content-{tab_id}', 'index': ALL}, 'className'),
+        Input({'type': f'tab-label-{tab_id}', 'index': ALL}, 'n_clicks'),
+        State({'type': f'tab-label-{tab_id}', 'index': ALL}, 'className'),
+        State({'type': f'tab-content-{tab_id}', 'index': ALL}, 'className'),
+        prevent_initial_call=True
+    )
+    def toggle_tab_container(n_clicks, label_class, content_class):
+        if n_clicks is None:
+            raise PreventUpdate()
+
+        clicked_id = n_clicks.index(1)
+        assert clicked_id is not None and clicked_id >= 0 and clicked_id < len(n_clicks)
+        
+        for i in range(len(n_clicks)):
+            if i == clicked_id:
+                label_class[i] += ' underline'
+                content_class[i] = content_class[i].replace(' hidden', '')
+            else:
+                label_class[i] = label_class[i].replace(' underline', '')
+                content_class[i] = content_class[i] + ' hidden'
+
+        return [None] * len(n_clicks), label_class, content_class

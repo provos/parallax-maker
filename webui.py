@@ -121,31 +121,39 @@ app.layout = html.Div([
     dcc.Store(id='logs-data', data=[]),  # Store for logs
     # App Layout
     html.Header("Parallax Maker",
-            className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
+                className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Main([
         components.make_input_image_container(
             upload_id='upload-image', image_id='image', event_id='el'),
-        html.Div([
-            components.make_label_container(
-                'Segmentation',
-                html.Div([
-                    components.make_depth_map_container(
-                        depth_map_id='depth-map-container'),
-                    components.make_thresholds_container(
-                        thresholds_id='thresholds-container'),
-                ], className='w-full', id='depth-map-column')),
-            components.make_label_container(
-                'Slice Generation',
+        components.make_tabs(
+            'main',
+            ['Segmentation', 'Slice Generation', '3D Export'],
+            [html.Div([
+                components.make_depth_map_container(
+                    depth_map_id='depth-map-container'),
+                components.make_thresholds_container(
+                    thresholds_id='thresholds-container'),
+            ], className='w-full', id='depth-map-column'),
                 html.Div([
                     dcc.Store(id='generate-slice-request'),
                     html.Button('Generate Image Slices',
                                 id='generate-slice-button',
                                 className='bg-blue-500 text-white p-2 rounded-md mb-2'),
                     html.Div(id='slice-img-container',
-                         className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2'),
-                ], className='w-full', id='slice-generation-column')),
-            components.make_3d_export_container(),
-        ]),
+                             className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2'),
+                ], className='w-full', id='slice-generation-column'),
+                html.Div([
+                    html.Button("Export glTF Scene", id="gltf-export",
+                                className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+                    components.make_slider('camera-distance-slider',
+                                'Camera Distance', 0, 5000, 1, 100),
+                    components.make_slider('max-distance-slider',
+                                'Max Distance', 0, 5000, 1, 500),
+                    components.make_slider('focal-length-slider',
+                                'Focal Length', 0, 5000, 1, 100),
+                    dcc.Download(id="download-gltf")
+                ])]
+        ),
         components.make_configuration_container(),
     ], className='grid grid-cols-4 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
@@ -162,8 +170,8 @@ app.clientside_callback(
 )
 
 # Callbacks for collapsible sections
-for label in ['segmentation', 'Slice Generation', '3D Export', 'configuration']:
-    components.make_label_container_callback(app, label)
+components.make_label_container_callback(app, 'configuration')
+components.make_tabs_callback(app, 'main')
 
 
 # Callback for the logs
@@ -230,6 +238,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     return threshold_values, None
 
+
 @app.callback(
     Output('generate-slice-request', 'data', allow_duplicate=True),
     Input('num-slices-slider-update', 'data'),
@@ -243,14 +252,15 @@ def update_num_slices(value, filename):
     state = AppState.from_cache(filename)
     if len(state.image_slices) == 0:
         raise PreventUpdate()
-    
+
     return True
 
 
 @app.callback(
     Output('thresholds-container', 'children'),
     Output('logs-data', 'data', allow_duplicate=True),
-    Output('num-slices-slider-update', 'data'), # triggers regeneration of slices if we have them already
+    # triggers regeneration of slices if we have them already
+    Output('num-slices-slider-update', 'data'),
     Input('depth-map-container', 'children'),
     Input('num-slices-slider', 'value'),
     State('application-state-filename', 'data'),
@@ -408,14 +418,16 @@ def generate_depth_map_callback(filename, model):
         className='w-full h-full object-contain',
         style={'height': '35vh'},
         id='depthmap-image')
-    
+
+
 @app.callback(Output('generate-slice-request', 'data'),
               Input('generate-slice-button', 'n_clicks'))
 def generate_slices_request(n_clicks):
     if n_clicks is None:
         raise PreventUpdate()
     return n_clicks
-    
+
+
 @app.callback(Output('slice-img-container', 'children'),
               Input('generate-slice-request', 'data'),
               State('application-state-filename', 'data'),
@@ -423,20 +435,20 @@ def generate_slices_request(n_clicks):
 def generate_slices(ignored_data, filename):
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
     if state.depthMapData is None:
         raise PreventUpdate()
-    
+
     state.image_slices = generate_image_slices(
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
         num_expand=5)
     state.image_slices_filenames = []
-    
+
     state.to_file(filename)
-    
+
     img_container = []
     for i, img_slice in enumerate(state.image_slices):
         img_data = to_image_url(img_slice)
@@ -447,11 +459,13 @@ def generate_slices(ignored_data, filename):
                     src=img_data,
                     className='w-full h-full object-contain border-solid border-2 border-slate-500',
                     id={'type': 'slice', 'index': i},),
-                html.Div(children=slice_name, className='text-center text-overlay')
+                html.Div(children=slice_name,
+                         className='text-center text-overlay')
             ], style={'position': 'relative'})
         )
-    
+
     return img_container
+
 
 @app.callback(Output('image', 'src'),
               Output({'type': 'slice', 'index': ALL}, 'n_clicks'),
@@ -467,10 +481,11 @@ def display_slice(n_clicks, id, src, filename):
     state = AppState.from_cache(filename)
 
     # XXX use the state?
-    
+
     index = n_clicks.index(1)
-    
+
     return src[index], [None]*len(n_clicks)
+
 
 @app.callback(Output('download-gltf', 'data'),
               Input('gltf-export', 'n_clicks'),
@@ -482,19 +497,19 @@ def display_slice(n_clicks, id, src, filename):
 def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, focal_length):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
-    
+
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.imgThresholds, camera_distance, max_distance, focal_length)
-    
+
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length, camera_distance,
-                card_corners_3d_list, state.image_slices_filenames)
-    
+                            card_corners_3d_list, state.image_slices_filenames)
+
     return dcc.send_file(gltf_path, filename='scene.gltf')
-              
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
