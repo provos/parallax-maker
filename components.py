@@ -63,7 +63,7 @@ def make_thresholds_container(thresholds_id: str = 'thresholds-container'):
 
 def make_configuration_container():
     return make_label_container(
-        'configuration',
+        'Configuration',
         [html.Div([
             html.Label('Number of Slices'),
             dcc.Slider(

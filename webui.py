@@ -157,6 +157,7 @@ app.layout = html.Div([
         components.make_configuration_container(),
     ], className='grid grid-cols-4 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
+    html.Footer('© 2024 Niels Provos', className='text-center text-gray-500 p-2'),
 ])
 
 app.scripts.config.serve_locally = True
