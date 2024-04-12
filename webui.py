@@ -12,7 +12,7 @@ from controller import AppState
 import components
 
 import dash
-from dash import dcc, html
+from dash import dcc, html, ctx
 from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
@@ -137,6 +137,8 @@ app.layout = html.Div([
             ], className='w-full', id='depth-map-column'),
                 html.Div([
                     dcc.Store(id='generate-slice-request'),
+                    dcc.Store(id='update-slice-request'),
+                    dcc.Download(id='download-image'),
                     html.Button(
                         html.Div([
                             html.Label('Generate Image Slices'),
@@ -426,8 +428,39 @@ def generate_slices_request(n_clicks):
         raise PreventUpdate()
     return n_clicks
 
-
 @app.callback(Output('slice-img-container', 'children'),
+              Input('update-slice-request', 'data'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
+def update_slices(ignored_data, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.depthMapData is None:
+        raise PreventUpdate()
+
+    img_container = []
+    for i, img_slice in enumerate(state.image_slices):
+        img_data = to_image_url(img_slice)
+        slice_name = html.Div([
+            html.I(className="fa-solid fa-download pr-1"),
+            Path(state.image_slices_filenames[i]).stem])
+        img_container.append(
+            html.Div([
+                html.Img(
+                    src=img_data,
+                    className='w-full h-full object-contain border-solid border-2 border-slate-500',
+                    id={'type': 'slice', 'index': i},),
+                html.Div(children=slice_name,
+                         id={'type': 'slice-info', 'index': i},
+                         className='text-center text-overlay p-1')
+            ], style={'position': 'relative'})
+        )
+
+    return img_container
+
+@app.callback(Output('update-slice-request', 'data'),
               Input('generate-slice-request', 'data'),
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
@@ -447,25 +480,8 @@ def generate_slices(ignored_data, filename):
     state.image_slices_filenames = []
 
     state.to_file(filename)
-
-    img_container = []
-    for i, img_slice in enumerate(state.image_slices):
-        img_data = to_image_url(img_slice)
-        slice_name = html.Div([
-            html.I(className="fa-solid fa-download pr-1"),
-            Path(state.image_slices_filenames[i]).stem])
-        img_container.append(
-            html.Div([
-                html.Img(
-                    src=img_data,
-                    className='w-full h-full object-contain border-solid border-2 border-slate-500',
-                    id={'type': 'slice', 'index': i},),
-                html.Div(children=slice_name,
-                         className='text-center text-overlay')
-            ], style={'position': 'relative'})
-        )
-
-    return img_container
+    
+    return True
 
 
 @app.callback(Output('image', 'src'),
@@ -511,6 +527,25 @@ def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, foca
 
     return dcc.send_file(gltf_path, filename='scene.gltf')
 
+@app.callback(Output('download-image', 'data'),
+              Input({'type': 'slice-info', 'index': ALL}, 'n_clicks'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
+def download_image(n_clicks, filename):
+    if filename is None or n_clicks is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    index = ctx.triggered_id['index']
+    if n_clicks[index] is None:
+        raise PreventUpdate()
+    
+    #print(n_clicks, index, ctx.triggered)
+    
+    image_path = state.image_slices_filenames[index]
+
+    return dcc.send_file(image_path, Path(state.image_slices_filenames[index]).name)
 
 if __name__ == '__main__':
     app.run_server(debug=True)
