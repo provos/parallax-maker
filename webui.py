@@ -428,6 +428,7 @@ def generate_slices_request(n_clicks):
         raise PreventUpdate()
     return n_clicks
 
+
 @app.callback(Output('slice-img-container', 'children'),
               Input('update-slice-request', 'data'),
               State('application-state-filename', 'data'),
@@ -447,18 +448,23 @@ def update_slices(ignored_data, filename):
             html.I(className="fa-solid fa-download pr-1"),
             Path(state.image_slices_filenames[i]).stem])
         img_container.append(
-            html.Div([
-                html.Img(
-                    src=img_data,
-                    className='w-full h-full object-contain border-solid border-2 border-slate-500',
-                    id={'type': 'slice', 'index': i},),
-                html.Div(children=slice_name,
-                         id={'type': 'slice-info', 'index': i},
-                         className='text-center text-overlay p-1')
-            ], style={'position': 'relative'})
+            dcc.Upload(
+                html.Div([
+                    html.Img(
+                        src=img_data,
+                        className='w-full h-full object-contain border-solid border-2 border-slate-500',
+                        id={'type': 'slice', 'index': i},),
+                    html.Div(children=slice_name,
+                             id={'type': 'slice-info', 'index': i},
+                             className='text-center text-overlay p-1')
+                ], style={'position': 'relative'}),
+                id={'type': 'slice-upload', 'index': i},
+                disable_click=True,
+            )
         )
 
     return img_container
+
 
 @app.callback(Output('update-slice-request', 'data'),
               Input('generate-slice-request', 'data'),
@@ -480,7 +486,7 @@ def generate_slices(ignored_data, filename):
     state.image_slices_filenames = []
 
     state.to_file(filename)
-    
+
     return True
 
 
@@ -527,6 +533,7 @@ def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, foca
 
     return dcc.send_file(gltf_path, filename='scene.gltf')
 
+
 @app.callback(Output('download-image', 'data'),
               Input({'type': 'slice-info', 'index': ALL}, 'n_clicks'),
               State('application-state-filename', 'data'),
@@ -540,12 +547,61 @@ def download_image(n_clicks, filename):
     index = ctx.triggered_id['index']
     if n_clicks[index] is None:
         raise PreventUpdate()
-    
-    #print(n_clicks, index, ctx.triggered)
-    
+
+    # print(n_clicks, index, ctx.triggered)
+
     image_path = state.image_slices_filenames[index]
 
     return dcc.send_file(image_path, Path(state.image_slices_filenames[index]).name)
+
+
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
+              Input({'type': 'slice-upload', 'index': ALL}, 'contents'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+                prevent_initial_call=True)
+def slice_upload(contents, filename, logs):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if len(state.image_slices) == 0:
+        raise PreventUpdate()
+
+    index = ctx.triggered_id['index']
+    if contents[index] is None:
+        raise PreventUpdate()   
+
+    content = contents[index]
+    image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))
+    state.image_slices[index] = np.array(image)
+    
+    # add a version number to the filename and increase if it already exists
+    image_filename = filename_add_version(state.image_slices_filenames[index])    
+    
+    state.image_slices_filenames[index] = image_filename
+
+    logs.append(f"Received image slice upload for slice {index} at {image_filename}")
+
+    state.to_file(filename)
+
+    return True, logs
+
+
+def filename_add_version(filename):
+    filename = Path(filename)
+    last_component = filename.stem.split('_')[-1]
+    if last_component.startswith('v'):
+        stem = '_'.join(filename.stem.split('_')[:-1])
+        version = int(last_component[1:])
+        version += 1
+        image_filename = filename.parent / f"{stem}_v{version}.png"
+    else:
+        image_filename = f"{filename.stem}_v2.png"
+        
+    return str(filename.parent / image_filename)
+
 
 if __name__ == '__main__':
     app.run_server(debug=True)
