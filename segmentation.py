@@ -284,17 +284,30 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
         ), (rendered_image.shape[1], rendered_image.shape[0]))
 
         # Alpha Compositing of the warped slice with the rendered image
-        alpha = warped_slice[:, :, 3] / 255.0
-        rendered_image[:, :, 0] = (
-            1 - alpha) * rendered_image[:, :, 0] + alpha * warped_slice[:, :, 0]
-        rendered_image[:, :, 1] = (
-            1 - alpha) * rendered_image[:, :, 1] + alpha * warped_slice[:, :, 1]
-        rendered_image[:, :, 2] = (
-            1 - alpha) * rendered_image[:, :, 2] + alpha * warped_slice[:, :, 2]
-        rendered_image[:, :, 3] = np.maximum(
-            rendered_image[:, :, 3], warped_slice[:, :, 3])
+        blend_with_alpha(rendered_image, warped_slice)
 
     return rendered_image
+
+def blend_with_alpha(target_image, merge_image):
+    """
+    Blends the merge_image with the target_image using alpha blending.
+
+    Parameters:
+    target_image (numpy.ndarray): The target image to blend with.
+    merge_image (numpy.ndarray): The image to be merged with the target image.
+
+    Returns:
+    None
+    """
+    alpha = merge_image[:, :, 3] / 255.0
+    target_image[:, :, 0] = (
+        1 - alpha) * target_image[:, :, 0] + alpha * merge_image[:, :, 0]
+    target_image[:, :, 1] = (
+        1 - alpha) * target_image[:, :, 1] + alpha * merge_image[:, :, 1]
+    target_image[:, :, 2] = (
+        1 - alpha) * target_image[:, :, 2] + alpha * merge_image[:, :, 2]
+    target_image[:, :, 3] = np.maximum(
+        target_image[:, :, 3], merge_image[:, :, 3])
 
 
 def render_image_sequence(output_path,

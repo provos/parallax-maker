@@ -7,7 +7,7 @@ import io
 from pathlib import Path
 from PIL import Image
 import numpy as np
-from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices, setup_camera_and_cards, export_gltf
+from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices, setup_camera_and_cards, export_gltf, blend_with_alpha
 from controller import AppState
 import components
 
@@ -578,9 +578,13 @@ def slice_upload(contents, filename, logs):
     state.image_slices[index] = np.array(image)
     
     # add a version number to the filename and increase if it already exists
-    image_filename = filename_add_version(state.image_slices_filenames[index])    
-    
+    image_filename = filename_add_version(state.image_slices_filenames[index])
     state.image_slices_filenames[index] = image_filename
+    
+    composed_image = state.image_slices[0].copy()
+    for i, slice_image in enumerate(state.image_slices[1:]):
+        blend_with_alpha(composed_image, slice_image)
+    state.imgData = Image.fromarray(composed_image)
 
     logs.append(f"Received image slice upload for slice {index} at {image_filename}")
 

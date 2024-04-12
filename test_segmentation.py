@@ -1,6 +1,5 @@
 import unittest
-from segmentation import generate_simple_thresholds
-from segmentation import analyze_depth_histogram
+from segmentation import analyze_depth_histogram, blend_with_alpha, generate_simple_thresholds
 import numpy as np
 
 
@@ -71,6 +70,35 @@ class TestGenerateSimpleThresholds(unittest.TestCase):
         # Assert that the result is as expected
         np.testing.assert_array_equal(result, expected_result)
 
+
+class TestBlendWithAlpha(unittest.TestCase):
+    def test_blend_with_alpha(self):
+        # Create target image
+        target_image = np.array([
+            [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255]],
+            [[255, 255, 0, 255], [255, 0, 255, 255], [0, 255, 255, 255]],
+            [[255, 255, 255, 255], [0, 0, 0, 255], [128, 128, 128, 255]]
+        ])
+
+        # Create merge image
+        merge_image = np.array([
+            [[0, 0, 0, 128], [128, 128, 128, 128], [255, 255, 255, 128]],
+            [[128, 0, 0, 128], [0, 128, 0, 128], [0, 0, 128, 128]],
+            [[128, 128, 0, 128], [128, 0, 128, 128], [0, 128, 128, 128]]
+        ])
+
+        # Call the function
+        blend_with_alpha(target_image, merge_image)
+
+        # Define the expected result
+        expected_result = np.array([
+            [[127, 0, 0, 255], [64, 191, 64, 255], [128, 128, 255, 255]],
+            [[191, 127, 0, 255], [127, 64, 127, 255], [0, 127, 191, 255]],
+            [[191, 191, 127, 255], [64, 0, 64, 255], [63, 128, 128, 255]]
+        ])
+
+        # Assert that the result is as expected
+        np.testing.assert_array_equal(target_image, expected_result)
 
 
 if __name__ == '__main__':
