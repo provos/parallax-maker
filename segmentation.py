@@ -128,20 +128,19 @@ def analyze_depth_histogram(depth_map, num_slices=5):
         thresholds = [0]
         hist, _ = np.histogram(depth_map.flatten(), 256, [0, 256])
         total_pixels = depth_map.shape[0] * depth_map.shape[1]
-        target_pixels_per_slice = total_pixels // (num_slices+1)
-        current_sum = 0
-        for i in range(256):
-            current_sum += hist[i]
-            if current_sum >= target_pixels_per_slice or i == 255:
+        target_pixels_per_slice = float(total_pixels) / (num_slices+1)
+        total_sum = 0
+        for i in range(1, 256):
+            total_sum += hist[i]
+            if total_sum >= target_pixels_per_slice*len(thresholds) or i == 255:
                 thresholds.append(i)
-                current_sum = 0
         return thresholds
 
     # this is a terrible hack to make sure we get the right number of thresholds
     thresholds = calculate_thresholds(depth_map, num_slices - 1)
     if (len(thresholds) != num_slices + 1):
         thresholds = calculate_thresholds(depth_map, num_slices)
-    assert len(thresholds) == num_slices + 1
+    assert len(thresholds) == num_slices + 1, f"Expected {num_slices + 1} thresholds, got {len(thresholds)}"
     return thresholds
 
 
