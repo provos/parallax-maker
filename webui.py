@@ -128,7 +128,7 @@ app.layout = html.Div([
             upload_id='upload-image', image_id='image', event_id='el', outer_class_name='w-full col-span-3'),
         components.make_tabs(
             'main',
-            ['Segmentation', 'Slice Generation', '3D Export', 'Configuration'],
+            ['Segmentation', 'Slice Generation', 'Export', 'Configuration'],
             [html.Div([
                 components.make_depth_map_container(
                     depth_map_id='depth-map-container'),
@@ -150,7 +150,12 @@ app.layout = html.Div([
                              style={'height': '65vh'},
                              className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
                 ], className='w-full', id='slice-generation-column'),
-                components.make_3d_export_div(),
+                html.Div([
+                    components.make_3d_export_div(),
+                    components.make_animation_export_div(),
+                ],
+                    className='w-full'
+            ),
                 components.make_configuration_div()
             ],
             outer_class_name='w-full col-span-2'
@@ -220,7 +225,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
         threshold_values[0] = 1
 
     for i in range(1, num_slices-1):
-        if threshold_values[i] < threshold_values[i-1]:
+        if threshold_values[i] <= threshold_values[i-1]:
             threshold_values[i] = threshold_values[i-1] + 1
 
     # go through the list in reverse order to make sure that the thresholds are monotonically decreasing
@@ -560,7 +565,7 @@ def download_image(n_clicks, filename):
               Input({'type': 'slice-upload', 'index': ALL}, 'contents'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
-                prevent_initial_call=True)
+              prevent_initial_call=True)
 def slice_upload(contents, filename, logs):
     if filename is None:
         raise PreventUpdate()
@@ -571,22 +576,23 @@ def slice_upload(contents, filename, logs):
 
     index = ctx.triggered_id['index']
     if contents[index] is None:
-        raise PreventUpdate()   
+        raise PreventUpdate()
 
     content = contents[index]
     image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))
     state.image_slices[index] = np.array(image)
-    
+
     # add a version number to the filename and increase if it already exists
     image_filename = filename_add_version(state.image_slices_filenames[index])
     state.image_slices_filenames[index] = image_filename
-    
+
     composed_image = state.image_slices[0].copy()
     for i, slice_image in enumerate(state.image_slices[1:]):
         blend_with_alpha(composed_image, slice_image)
     state.imgData = Image.fromarray(composed_image)
 
-    logs.append(f"Received image slice upload for slice {index} at {image_filename}")
+    logs.append(
+        f"Received image slice upload for slice {index} at {image_filename}")
 
     state.to_file(filename)
 
@@ -603,7 +609,7 @@ def filename_add_version(filename):
         image_filename = filename.parent / f"{stem}_v{version}.png"
     else:
         image_filename = f"{filename.stem}_v2.png"
-        
+
     return str(filename.parent / image_filename)
 
 

@@ -108,7 +108,25 @@ def make_3d_export_div():
         make_slider('max-distance-slider', 'Max Distance', 0, 5000, 1, 500),
         make_slider('focal-length-slider', 'Focal Length', 0, 5000, 1, 100),
         dcc.Download(id="download-gltf")
-    ])
+    ],
+        className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md p-2 mb-2'
+    )
+
+
+def make_animation_export_div():
+    return html.Div([
+        html.Button(
+            html.Div([
+                html.Label('Export Animation'),
+                html.I(className='fa-solid fa-download pl-1')]),
+            id="gltf-export",
+            className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+        make_slider('number-of-frames-slider',
+                    'Number of Frames', 0, 300, 1, 100),
+        dcc.Download(id="download-animation")
+    ],
+        className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md p-2 mb-2'
+    )
 
 
 def make_slider(slider_id: str, label: str, min_value: int, max_value: int, step: int, value: int):
