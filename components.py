@@ -10,7 +10,8 @@ from dash.exceptions import PreventUpdate
 def make_input_image_container(
         upload_id: str = 'upload-image',
         image_id: str = 'image',
-        event_id: str = 'el',):
+        event_id: str = 'el',
+        outer_class_name: str = 'w-full col-span-2'):
     eventClick = {"event": "click", "props": [
         "type", "clientX", "clientY", "offsetX", "offsetY"]}
 
@@ -30,7 +31,7 @@ def make_input_image_container(
             disable_click=True,
             multiple=False
         ),
-    ], className='w-full col-span-2'
+    ], className=outer_class_name
     )
 
 
@@ -64,44 +65,51 @@ def make_thresholds_container(thresholds_id: str = 'thresholds-container'):
 def make_configuration_container():
     return make_label_container(
         'Configuration',
-        [html.Div([
-            html.Label('Number of Slices'),
-            dcc.Slider(
-                id='num-slices-slider',
-                min=2,
-                max=10,
-                step=1,
-                value=5,
-                marks={i: str(i) for i in range(2, 11)}
-            ),
-            dcc.Store('num-slices-slider-update') # to trigger an update
-        ], className='w-full'),
-            html.Div([
-                html.Label('Depth Module Algorithm'),
-                dcc.Dropdown(
-                    id='depth-module-dropdown',
-                    options=[
-                        {'label': 'MiDaS', 'value': 'midas'},
-                        {'label': 'ZoeDepth', 'value': 'zoedepth'}
-                    ],
-                    value='midas'
-                )
-            ], className='w-full'),
-        ])
+        make_configuration_div())
 
-def make_3d_export_container():
-    return make_label_container(
-        '3D Export',
+
+def make_configuration_div():
+    return html.Div([html.Div([
+        html.Label('Number of Slices'),
+        dcc.Slider(
+            id='num-slices-slider',
+            min=2,
+            max=10,
+            step=1,
+            value=5,
+            marks={i: str(i) for i in range(2, 11)}
+        ),
+        dcc.Store('num-slices-slider-update')  # to trigger an update
+    ], className='w-full'),
         html.Div([
-            html.Button("Export glTF Scene", id="gltf-export",
-                        className='bg-blue-500 text-white p-2 rounded-md mb-2'),
-            make_slider('camera-distance-slider',
-                        'Camera Distance', 0, 5000, 1, 100),
-            make_slider('max-distance-slider', 'Max Distance', 0, 5000, 1, 500),
-            make_slider('focal-length-slider', 'Focal Length', 0, 5000, 1, 100),
-            dcc.Download(id="download-gltf")
-        ])
-    )
+            html.Label('Depth Module Algorithm'),
+            dcc.Dropdown(
+                id='depth-module-dropdown',
+                options=[
+                    {'label': 'MiDaS', 'value': 'midas'},
+                    {'label': 'ZoeDepth', 'value': 'zoedepth'}
+                ],
+                value='midas'
+            )
+        ], className='w-full'),
+    ])
+
+
+def make_3d_export_div():
+    return html.Div([
+        html.Button(
+            html.Div([
+                html.Label('Export glTF Scene'),
+                html.I(className='fa-solid fa-download pl-1')]),
+            id="gltf-export",
+            className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+        make_slider('camera-distance-slider',
+                    'Camera Distance', 0, 5000, 1, 100),
+        make_slider('max-distance-slider', 'Max Distance', 0, 5000, 1, 500),
+        make_slider('focal-length-slider', 'Focal Length', 0, 5000, 1, 100),
+        dcc.Download(id="download-gltf")
+    ])
+
 
 def make_slider(slider_id: str, label: str, min_value: int, max_value: int, step: int, value: int):
     return html.Div([
@@ -117,6 +125,7 @@ def make_slider(slider_id: str, label: str, min_value: int, max_value: int, step
                      "always_visible": True}
         )
     ])
+
 
 def make_logs_container(logs_id: str = 'log'):
     return html.Div([
@@ -141,6 +150,7 @@ def make_label_container(label: str, children: list):
 
 def make_label_container_callback(app, label: str):
     label = label.lower().replace(' ', '')
+
     @app.callback(
         Output(f'{label}-container', 'className'),
         Input(f'{label}-label', 'n_clicks'),
@@ -153,9 +163,9 @@ def make_label_container_callback(app, label: str):
             # remove hidden from current class
             return current_class.replace(' hidden', '')
         return current_class + ' hidden'
-    
 
-def make_tabs(tab_id: str, tab_names: list, tab_contents: list):
+
+def make_tabs(tab_id: str, tab_names: list, tab_contents: list, outer_class_name: str = 'w-full'):
     assert len(tab_names) == len(tab_contents)
     headers = []
     label_class_name = 'font-bold mb-2 ml-3'
@@ -168,7 +178,7 @@ def make_tabs(tab_id: str, tab_names: list, tab_contents: list):
             id={'type': f'tab-label-{tab_id}', 'index': i},
             className=class_name,
         ))
-        
+
     contents = []
     container_class_name = 'w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2'
     for i, tab_content in enumerate(tab_contents):
@@ -180,12 +190,12 @@ def make_tabs(tab_id: str, tab_names: list, tab_contents: list):
             id={'type': f'tab-content-{tab_id}', 'index': i},
             className=class_name
         ))
-    
+
     return html.Div([
         html.Div(headers, className='w-full flex justify-start'),
         html.Div(contents, className='w-full')
-    ], className='w-full')
-    
+    ], className=outer_class_name)
+
 
 def make_tabs_callback(app, tab_id: str):
     @app.callback(
@@ -202,8 +212,9 @@ def make_tabs_callback(app, tab_id: str):
             raise PreventUpdate()
 
         clicked_id = n_clicks.index(1)
-        assert clicked_id is not None and clicked_id >= 0 and clicked_id < len(n_clicks)
-        
+        assert clicked_id is not None and clicked_id >= 0 and clicked_id < len(
+            n_clicks)
+
         for i in range(len(n_clicks)):
             if i == clicked_id:
                 label_class[i] += ' underline'

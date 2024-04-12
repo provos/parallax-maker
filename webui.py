@@ -104,7 +104,8 @@ def apply_mask(img_data, mask):
 # call the ability to add external scripts
 external_scripts = [
     # add the tailwind cdn url hosting the files with the utility classes
-    {'src': 'https://cdn.tailwindcss.com'}
+    {'src': 'https://cdn.tailwindcss.com'},
+    {'src': 'https://kit.fontawesome.com/48f728cfc9.js'}
 ]
 
 app = dash.Dash(__name__,
@@ -124,10 +125,10 @@ app.layout = html.Div([
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Main([
         components.make_input_image_container(
-            upload_id='upload-image', image_id='image', event_id='el'),
+            upload_id='upload-image', image_id='image', event_id='el', outer_class_name='w-full col-span-3'),
         components.make_tabs(
             'main',
-            ['Segmentation', 'Slice Generation', '3D Export'],
+            ['Segmentation', 'Slice Generation', '3D Export', 'Configuration'],
             [html.Div([
                 components.make_depth_map_container(
                     depth_map_id='depth-map-container'),
@@ -136,28 +137,26 @@ app.layout = html.Div([
             ], className='w-full', id='depth-map-column'),
                 html.Div([
                     dcc.Store(id='generate-slice-request'),
-                    html.Button('Generate Image Slices',
-                                id='generate-slice-button',
-                                className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+                    html.Button(
+                        html.Div([
+                            html.Label('Generate Image Slices'),
+                            html.I(className='fa-solid fa-images pl-1')]),
+                        id='generate-slice-button',
+                        className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                    ),
                     html.Div(id='slice-img-container',
-                             className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2'),
+                             style={'height': '65vh'},
+                             className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
                 ], className='w-full', id='slice-generation-column'),
-                html.Div([
-                    html.Button("Export glTF Scene", id="gltf-export",
-                                className='bg-blue-500 text-white p-2 rounded-md mb-2'),
-                    components.make_slider('camera-distance-slider',
-                                'Camera Distance', 0, 5000, 1, 100),
-                    components.make_slider('max-distance-slider',
-                                'Max Distance', 0, 5000, 1, 500),
-                    components.make_slider('focal-length-slider',
-                                'Focal Length', 0, 5000, 1, 100),
-                    dcc.Download(id="download-gltf")
-                ])]
+                components.make_3d_export_div(),
+                components.make_configuration_div()
+            ],
+            outer_class_name='w-full col-span-2'
         ),
-        components.make_configuration_container(),
-    ], className='grid grid-cols-4 gap-4 p-2'),
+    ], className='grid grid-cols-5 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
-    html.Footer('© 2024 Niels Provos', className='text-center text-gray-500 p-2'),
+    html.Footer('© 2024 Niels Provos',
+                className='text-center text-gray-500 p-2'),
 ])
 
 app.scripts.config.serve_locally = True
@@ -171,7 +170,6 @@ app.clientside_callback(
 )
 
 # Callbacks for collapsible sections
-components.make_label_container_callback(app, 'configuration')
 components.make_tabs_callback(app, 'main')
 
 
@@ -453,7 +451,9 @@ def generate_slices(ignored_data, filename):
     img_container = []
     for i, img_slice in enumerate(state.image_slices):
         img_data = to_image_url(img_slice)
-        slice_name = Path(state.image_slices_filenames[i]).stem
+        slice_name = html.Div([
+            html.I(className="fa-solid fa-download pr-1"),
+            Path(state.image_slices_filenames[i]).stem])
         img_container.append(
             html.Div([
                 html.Img(
