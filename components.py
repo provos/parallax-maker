@@ -119,8 +119,9 @@ def make_animation_export_div():
             html.Div([
                 html.Label('Export Animation'),
                 html.I(className='fa-solid fa-download pl-1')]),
-            id="gltf-export",
+            id="animation-export",
             className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+        dcc.Loading(id='animation-loading', children=html.Div(id='gen-animation-output')),
         make_slider('number-of-frames-slider',
                     'Number of Frames', 0, 300, 1, 100),
         dcc.Download(id="download-animation")

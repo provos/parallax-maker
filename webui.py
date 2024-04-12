@@ -7,8 +7,16 @@ import io
 from pathlib import Path
 from PIL import Image
 import numpy as np
-from segmentation import generate_depth_map, mask_from_depth, analyze_depth_histogram, generate_image_slices, setup_camera_and_cards, export_gltf, blend_with_alpha
-from controller import AppState
+from segmentation import (
+    generate_depth_map,
+    mask_from_depth,
+    analyze_depth_histogram,
+    generate_image_slices,
+    setup_camera_and_cards,
+    export_gltf,
+    blend_with_alpha,
+    render_image_sequence
+)
 import components
 
 import dash
@@ -17,6 +25,7 @@ from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
+from controller import AppState
 
 
 # Progress tracking variables
@@ -146,6 +155,7 @@ app.layout = html.Div([
                         id='generate-slice-button',
                         className='bg-blue-500 text-white p-2 rounded-md mb-2'
                     ),
+                    dcc.Loading(id="generate-slices", children=html.Div(id="gen-slice-output")),
                     html.Div(id='slice-img-container',
                              style={'height': '65vh'},
                              className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
@@ -472,6 +482,7 @@ def update_slices(ignored_data, filename):
 
 
 @app.callback(Output('update-slice-request', 'data'),
+              Output('gen-slice-output', 'children'),
               Input('generate-slice-request', 'data'),
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
@@ -492,7 +503,7 @@ def generate_slices(ignored_data, filename):
 
     state.to_file(filename)
 
-    return True
+    return True, ""
 
 
 @app.callback(Output('image', 'src'),
@@ -611,6 +622,36 @@ def filename_add_version(filename):
         image_filename = f"{filename.stem}_v2.png"
 
     return str(filename.parent / image_filename)
+
+@app.callback(Output('logs-data', 'data', allow_duplicate=True),
+              Output('gen-animation-output', 'children'),
+              Input('animation-export', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('number-of-frames-slider', 'value'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def export_animation(n_clicks, filename, num_frames, logs):
+    if n_clicks is None or filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    camera_distance = 100.0
+    max_distance = 500.0
+    focal_length = 100.0
+    camera_matrix, card_corners_3d_list = setup_camera_and_cards(
+        state.image_slices, state.imgThresholds, camera_distance, max_distance, focal_length)
+
+    # Render the initial view
+    camera_position = np.array([0, 0, -100], dtype=np.float32)
+    render_image_sequence(
+        filename,
+        state.image_slices, card_corners_3d_list, camera_matrix, camera_position,
+        num_frames=num_frames)
+    
+    logs.append(f"Exported {num_frames} frames to animation")
+
+    return logs, ""
 
 
 if __name__ == '__main__':

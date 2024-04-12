@@ -10,7 +10,7 @@ import numpy as np
 import torch
 from torchvision.transforms import Compose
 import argparse
-import pathlib
+from pathlib import Path
 
 # for exporting a 3d scene
 from gltf import export_gltf
@@ -315,7 +315,9 @@ def render_image_sequence(output_path,
                           card_corners_3d_list,
                           camera_matrix,
                           camera_position,
-                          push_distance=100):
+                          push_distance=100,
+                          num_frames=100,
+                          progress_callback=None):
     """
     Renders a sequence of images with varying camera positions.
 
@@ -329,7 +331,11 @@ def render_image_sequence(output_path,
     Returns:
         None
     """
-    num_frames = 100
+    
+    if progress_callback:
+        progress_callback(0, num_frames)
+    
+    output_path = Path(output_path)
     for i in range(num_frames):
         # Update the camera position
         camera_position[2] += float(push_distance)/num_frames
@@ -343,6 +349,9 @@ def render_image_sequence(output_path,
 
         cv2.imwrite(str(output_image_path), cv2.cvtColor(
             rendered_image, cv2.COLOR_RGBA2BGR))
+        
+        if progress_callback:
+            progress_callback(i+1, num_frames)
 
 
 def process_image(image_path, output_path, num_slices=5,
@@ -372,7 +381,7 @@ def process_image(image_path, output_path, num_slices=5,
 
     print("Image shape:", image.shape)
 
-    output_path = pathlib.Path(output_path)
+    output_path = Path(output_path)
     depth_map_path = output_path / "depth_map.png"
     if create_depth_map:
         # Generate the depth map
