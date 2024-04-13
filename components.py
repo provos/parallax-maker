@@ -41,13 +41,13 @@ def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
         html.Div(id=depth_map_id,
                  className='w-full min-h-60 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
                  ),
+        dcc.Loading(
+            id='loading',
+            type='default',
+            children=html.Div(id='gen-depthmap-output')
+        ),
         html.Div([
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
-            dcc.Loading(
-                id='loading',
-                type='default',
-                children=html.Div(id='loading-output')
-            ),
             html.Div(id='progress-bar-container',
                      className='h-3 w-full bg-gray-200 rounded-lg'),
         ], className='p-4'),

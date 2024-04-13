@@ -405,6 +405,7 @@ def click_event(n_events, e, rect_data, filename, logs_data):
 
 
 @app.callback(Output('depth-map-container', 'children'),
+              Output('gen-depthmap-output', 'children'),
               Input('application-state-filename', 'data'),
               State('depth-module-dropdown', 'value'),
               prevent_initial_call=True)
@@ -433,7 +434,7 @@ def generate_depth_map_callback(filename, model):
         src='data:image/png;base64,{}'.format(img_str),
         className='w-full h-full object-contain',
         style={'height': '35vh'},
-        id='depthmap-image')
+        id='depthmap-image'), ""
 
 
 @app.callback(Output('generate-slice-request', 'data'),
