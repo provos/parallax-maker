@@ -445,6 +445,7 @@ def generate_slices_request(n_clicks):
 
 
 @app.callback(Output('slice-img-container', 'children'),
+              Output('gen-slice-output', 'children', allow_duplicate=True),
               Input('update-slice-request', 'data'),
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
@@ -478,7 +479,7 @@ def update_slices(ignored_data, filename):
             )
         )
 
-    return img_container
+    return img_container, ""
 
 
 @app.callback(Output('update-slice-request', 'data'),
