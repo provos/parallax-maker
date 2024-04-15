@@ -487,7 +487,7 @@ def update_slices(ignored_data, filename):
     return img_container, ""
 
 
-@app.callback(Output('update-slice-request', 'data'),
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('gen-slice-output', 'children'),
               Input('generate-slice-request', 'data'),
               State('application-state-filename', 'data'),
@@ -662,6 +662,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
 @app.callback(
     Output('application-state-filename', 'data'),
     Output('image', 'src', allow_duplicate=True),
+    Output('update-slice-request', 'data'),
     Output('logs-data', 'data', allow_duplicate=True),
     Input('upload-state', 'contents'),
     State('logs-data', 'data'),
@@ -674,6 +675,11 @@ def restore_state(contents, logs):
     content_type, content_string = contents.split(',')
     decoded_contents = base64.b64decode(content_string).decode('utf-8')
     state = AppState.from_json(decoded_contents)
+    
+    # XXX: Consider whether the image slices should be read in from_json
+    state.read_image_slices(state.filename)
+
+    
     logs.append(f"Restored state from {state.filename}")
 
     buffered = io.BytesIO()
@@ -681,7 +687,7 @@ def restore_state(contents, logs):
     img_data = base64.b64encode(buffered.getvalue()).decode('utf-8')
     img_data = f"data:image/png;base64,{img_data}"
 
-    return state.filename, img_data, logs
+    return state.filename, img_data, True, logs
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Input('save-state', 'n_clicks'),
