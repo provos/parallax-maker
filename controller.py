@@ -18,6 +18,7 @@ class AppState:
 
     def __init__(self):
         self.filename = None
+        self.num_slices = 5
         self.imgData = None
         self.imgThresholds = None
         self.depthMapData = None
@@ -142,6 +143,7 @@ class AppState:
         """
         data = {
             'filename': self.filename,
+            'num_slices': self.num_slices,
             'imgData': self._serialize_image(self.imgData),
             'imgThresholds': self.imgThresholds,
             'depthMapData': self._serialize_ndarray(self.depthMapData),
@@ -167,6 +169,7 @@ class AppState:
         data = json.loads(json_data)
 
         state.filename = data['filename']
+        state.num_slices = data['num_slices'] if 'num_slices' in data else 5
         state.imgData = AppState._deserialize_image(data['imgData'])
         state.imgThresholds = data['imgThresholds']
         state.depthMapData = AppState._deserialize_ndarray(data['depthMapData'])

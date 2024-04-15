@@ -295,7 +295,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
         state.imgThresholds = [0]
         state.imgThresholds.extend([i * (255 // (num_slices - 1))
                                     for i in range(1, num_slices)])
-    elif state.imgThresholds is None:
+    elif state.imgThresholds is None or len(state.imgThresholds) != num_slices:
         state.imgThresholds = analyze_depth_histogram(
             state.depthMapData, num_slices=num_slices)
     
@@ -663,6 +663,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
     Output('application-state-filename', 'data'),
     Output('image', 'src', allow_duplicate=True),
     Output('update-slice-request', 'data'),
+    Output('num-slices-slider', 'value'),
     Output('logs-data', 'data', allow_duplicate=True),
     Input('upload-state', 'contents'),
     State('logs-data', 'data'),
@@ -678,7 +679,6 @@ def restore_state(contents, logs):
     
     # XXX: Consider whether the image slices should be read in from_json
     state.read_image_slices(state.filename)
-
     
     logs.append(f"Restored state from {state.filename}")
 
@@ -687,7 +687,7 @@ def restore_state(contents, logs):
     img_data = base64.b64encode(buffered.getvalue()).decode('utf-8')
     img_data = f"data:image/png;base64,{img_data}"
 
-    return state.filename, img_data, True, logs
+    return state.filename, img_data, True, state.num_slices, logs
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Input('save-state', 'n_clicks'),
