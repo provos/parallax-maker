@@ -17,6 +17,7 @@ class AppState:
     cache = {}
 
     def __init__(self):
+        self.filename = None
         self.imgData = None
         self.imgThresholds = None
         self.depthMapData = None
@@ -116,6 +117,7 @@ class AppState:
         if file_path is None:
             state = AppState()
             file_path = AppState.random_filename()
+            state.filename = file_path
         else:
             state = AppState.from_file(file_path)
         AppState.cache[file_path] = state
@@ -139,6 +141,7 @@ class AppState:
             str: The JSON string representation of the state.
         """
         data = {
+            'filename': self.filename,
             'imgData': self._serialize_image(self.imgData),
             'imgThresholds': self.imgThresholds,
             'depthMapData': self._serialize_ndarray(self.depthMapData),
@@ -163,6 +166,7 @@ class AppState:
 
         data = json.loads(json_data)
 
+        state.filename = data['filename']
         state.imgData = AppState._deserialize_image(data['imgData'])
         state.imgThresholds = data['imgThresholds']
         state.depthMapData = AppState._deserialize_ndarray(data['depthMapData'])
@@ -232,4 +236,4 @@ class AppState:
         """
         if array_list is None:
             return None
-        return np.array(array_list)
+        return np.array(array_list, dtype=np.uint8)

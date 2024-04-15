@@ -4,6 +4,7 @@
 import base64
 import cv2
 import io
+import os
 from pathlib import Path
 from PIL import Image
 import numpy as np
@@ -294,10 +295,11 @@ def update_thresholds(contents, num_slices, filename, logs_data):
         state.imgThresholds = [0]
         state.imgThresholds.extend([i * (255 // (num_slices - 1))
                                     for i in range(1, num_slices)])
-    else:
+    elif state.imgThresholds is None:
         state.imgThresholds = analyze_depth_histogram(
             state.depthMapData, num_slices=num_slices)
-        logs_data.append(f"Thresholds: {state.imgThresholds}")
+    
+    logs_data.append(f"Thresholds: {state.imgThresholds}")
 
     thresholds = []
     for i in range(1, num_slices):
@@ -317,7 +319,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
     return thresholds, logs_data, True
 
 
-@app.callback(Output('application-state-filename', 'data'),
+@app.callback(Output('application-state-filename', 'data', allow_duplicate=True),
               Output('image', 'src', allow_duplicate=True),
               Output('depth-map-container', 'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
@@ -421,9 +423,11 @@ def generate_depth_map_callback(filename, model):
     if PIL_image.mode == 'RGBA':
         PIL_image = PIL_image.convert('RGB')
 
-    np_image = np.array(PIL_image)
-    state.depthMapData = generate_depth_map(
-        np_image, model=model, progress_callback=progress_callback)
+    if state.depthMapData is None:
+        np_image = np.array(PIL_image)
+        state.depthMapData = generate_depth_map(
+            np_image, model=model, progress_callback=progress_callback)
+        state.imgThresholds = None
     depth_map_pil = Image.fromarray(state.depthMapData)
 
     buffered = io.BytesIO()
@@ -655,6 +659,47 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
     return logs, ""
 
+@app.callback(
+    Output('application-state-filename', 'data'),
+    Output('image', 'src', allow_duplicate=True),
+    Output('logs-data', 'data', allow_duplicate=True),
+    Input('upload-state', 'contents'),
+    State('logs-data', 'data'),
+    prevent_initial_call=True)
+def restore_state(contents, logs):
+    if contents is None:
+        raise PreventUpdate()
+
+    # decode the contents into json
+    content_type, content_string = contents.split(',')
+    decoded_contents = base64.b64decode(content_string).decode('utf-8')
+    state = AppState.from_json(decoded_contents)
+    logs.append(f"Restored state from {state.filename}")
+
+    buffered = io.BytesIO()
+    state.imgData.save(buffered, format="PNG")
+    img_data = base64.b64encode(buffered.getvalue()).decode('utf-8')
+    img_data = f"data:image/png;base64,{img_data}"
+
+    return state.filename, img_data, logs
+
+@app.callback(Output('logs-data', 'data', allow_duplicate=True),
+              Input('save-state', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def save_state(n_clicks, filename, logs):
+    if n_clicks is None or filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    state.to_file(filename)
+
+    logs.append(f"Saved state to {filename}")
+
+    return logs
 
 if __name__ == '__main__':
+    os.environ['DISABLE_TELEMETRY'] = 'YES'
+    os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
     app.run_server(debug=True)

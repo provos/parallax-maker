@@ -69,18 +69,19 @@ def make_configuration_container():
 
 
 def make_configuration_div():
-    return html.Div([html.Div([
-        html.Label('Number of Slices'),
-        dcc.Slider(
-            id='num-slices-slider',
-            min=2,
-            max=10,
-            step=1,
-            value=5,
-            marks={i: str(i) for i in range(2, 11)}
-        ),
-        dcc.Store('num-slices-slider-update')  # to trigger an update
-    ], className='w-full'),
+    return html.Div([
+        html.Div([
+            html.Label('Number of Slices'),
+            dcc.Slider(
+                id='num-slices-slider',
+                min=2,
+                max=10,
+                step=1,
+                value=5,
+                marks={i: str(i) for i in range(2, 11)}
+            ),
+            dcc.Store('num-slices-slider-update')  # to trigger an update
+        ], className='w-full'),
         html.Div([
             html.Label('Depth Module Algorithm'),
             dcc.Dropdown(
@@ -92,6 +93,27 @@ def make_configuration_div():
                 value='midas'
             )
         ], className='w-full'),
+        html.Div([
+            html.Label('Export/Import State'),
+            dcc.Upload(
+                children=html.Button(
+                    html.Div([
+                        html.Label('Load State'),
+                        html.I(className='fa-solid fa-upload pl-1')]),
+                    className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+                id='upload-state',
+                multiple=False,
+
+            ),
+            html.Button(
+                html.Div([
+                    html.Label('Save State'),
+                    html.I(className='fa-solid fa-download pl-1')]),
+                id='save-state',
+                className='w-auto bg-blue-500 text-white p-2 rounded-md mb-2')
+        ],
+            className='w-full mt-2',
+        ),
     ])
 
 
@@ -121,7 +143,8 @@ def make_animation_export_div():
                 html.I(className='fa-solid fa-download pl-1')]),
             id="animation-export",
             className='bg-blue-500 text-white p-2 rounded-md mb-2'),
-        dcc.Loading(id='animation-loading', children=html.Div(id='gen-animation-output')),
+        dcc.Loading(id='animation-loading',
+                    children=html.Div(id='gen-animation-output')),
         make_slider('number-of-frames-slider',
                     'Number of Frames', 0, 300, 1, 100),
         dcc.Download(id="download-animation")
