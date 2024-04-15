@@ -93,25 +93,33 @@ def make_configuration_div():
                 value='midas'
             )
         ], className='w-full'),
-        html.Div([
-            html.Label('Export/Import State'),
-            dcc.Upload(
-                children=html.Button(
-                    html.Div([
-                        html.Label('Load State'),
-                        html.I(className='fa-solid fa-upload pl-1')]),
-                    className='bg-blue-500 text-white p-2 rounded-md mb-2'),
-                id='upload-state',
-                multiple=False,
-
-            ),
-            html.Button(
-                html.Div([
-                    html.Label('Save State'),
-                    html.I(className='fa-solid fa-download pl-1')]),
-                id='save-state',
-                className='w-auto bg-blue-500 text-white p-2 rounded-md mb-2')
-        ],
+        html.Div(
+            [
+                html.Label('Export/Import State'),
+                html.Div(
+                    [
+                        dcc.Upload(
+                            html.Button(
+                                html.Div([
+                                    html.Label('Load State'),
+                                    html.I(className='fa-solid fa-upload pl-1')]),
+                                className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                            ),
+                            id='upload-state',
+                            multiple=False,
+                        ),
+                        html.Button(
+                            html.Div([
+                                html.Label('Save State'),
+                                html.I(className='fa-solid fa-download pl-1')],
+                                className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                            ),
+                            id='save-state'
+                        )
+                    ],
+                    className='flex flex-row gap-4'
+                )
+            ],
             className='w-full mt-2',
         ),
     ])
