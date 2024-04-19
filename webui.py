@@ -141,7 +141,10 @@ app.layout = html.Div([
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Main([
         components.make_input_image_container(
-            upload_id='upload-image', image_id='image', event_id='el', outer_class_name='w-full col-span-3'),
+            upload_id='upload-image',
+            image_id='image', event_id='el',
+            canvas_id='canvas',
+            outer_class_name='w-full col-span-3'),
         components.make_tabs(
             'main',
             ['Segmentation', 'Slice Generation', 'Export', 'Configuration'],
@@ -247,26 +250,30 @@ components.make_tabs_callback(app, 'main')
 @app.callback(
     Output('canvas', 'className'),
     Output('image', 'className'),
+    Output('canvas-buttons', 'className'),
     Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
     State('canvas', 'className'),
     State('image', 'className'),
+    State('canvas-buttons', 'className'),
     )
-def update_events(tab_class_names, canvas_class_name, image_class_name):
+def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_class_name):
     if tab_class_names is None:
         raise PreventUpdate()
 
     canvas_class_name = canvas_class_name.replace(' z-10', '').replace(' z-0', '')
     image_class_name = image_class_name.replace(' z-10', '').replace(' z-0', '')
+    buttons_class_name = buttons_class_name.replace(' hidden', '')
 
-    if 'hidden' in tab_class_names[0]:
-        print('Segmentation tab is hidden')
-        canvas_class_name += ' z-10'
-        image_class_name += ' z-0'
-    else:
-        print('Segmentation tab is visible')
+    # we paint on the canvas if the Segmentation tab is active
+    if 'hidden' in tab_class_names[1]:
         canvas_class_name += ' z-0'
         image_class_name += ' z-10'
-    return canvas_class_name, image_class_name
+        buttons_class_name += ' hidden'
+    else:
+        canvas_class_name += ' z-10'
+        image_class_name += ' z-0'
+        
+    return canvas_class_name, image_class_name, buttons_class_name
 
 
 # Callback for the logs

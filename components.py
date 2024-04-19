@@ -14,14 +14,17 @@ def get_canvas_paint_events():
         events.append({"event": event, "props": props})
     return events
 
+
 def get_image_click_event():
     return {"event": "click", "props": [
         "type", "clientX", "clientY", "offsetX", "offsetY"]}
+
 
 def make_input_image_container(
         upload_id: str = 'upload-image',
         image_id: str = 'image',
         event_id: str = 'el',
+        canvas_id: str = 'canvas',
         outer_class_name: str = 'w-full col-span-2'):
 
     return html.Div([
@@ -39,7 +42,7 @@ def make_input_image_container(
                     ),
                     EventListener(
                         html.Canvas(
-                            id='canvas',
+                            id=canvas_id,
                             className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-10'),
                         id='canvas-paint', events=get_canvas_paint_events(), logging=False
                     ),
@@ -57,35 +60,8 @@ def make_input_image_container(
             html.Button('Get', id='get-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
         ],
-                 className='flex flex-row gap-2 p-2 bg-gray-200 rounded-md mt-1'
-        ),
-    ], className=outer_class_name
-    )
-
-
-def make_input_image_container_old(
-        upload_id: str = 'upload-image',
-        image_id: str = 'image',
-        event_id: str = 'el',
-        outer_class_name: str = 'w-full col-span-2'):
-    eventClick = {"event": "click", "props": [
-        "type", "clientX", "clientY", "offsetX", "offsetY"]}
-
-    return html.Div([
-        html.Label('Input Image', className='font-bold mb-2 ml-3'),
-        dcc.Upload(
-            id=upload_id,
-            children=html.Div([
-                EventListener(
-                    html.Img(
-                        style={'height': '70vh'},
-                        id=image_id),
-                    events=[eventClick], logging=True, id=event_id
-                )
-            ], className='w-full h-full p-0 object-scale-down'),
-            className='min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2',
-            disable_click=True,
-            multiple=False
+            id='canvas-buttons',
+            className='flex flex-row gap-2 p-2 bg-gray-200 rounded-md mt-1 hidden'
         ),
     ], className=outer_class_name
     )
