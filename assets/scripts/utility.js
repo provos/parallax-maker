@@ -94,12 +94,12 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 className = 'bg-red-500 text-white p-2 rounded-md';
                 ctx.globalCompositeOperation = 'destination-out';
                 ctx.strokeStyle = 'rgba(0,0,0,1)';
-                ctx.lineWidth = 20;
+                ctx.lineWidth = 40;
                 ctx.lineCap = 'round';
             } else {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = 'red';
-                ctx.lineWidth = 15;
+                ctx.lineWidth = 25;
                 ctx.lineCap = 'round';
             }
             console.log('isErasing', isErasing);
