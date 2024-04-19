@@ -2,6 +2,7 @@ console.log('utility.js loaded');
 
 // Initialize variables
 let isDrawing = false;
+let isErasing = false;
 let lastX = 0;
 let lastY = 0;
 let ctx = null;
@@ -81,6 +82,30 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             ctx = null;
             return '';
         },
+        canvas_toggle_erase: function () {
+            className = 'bg-blue-500 text-white p-2 rounded-md';
+            if (ctx === null) {
+                isErasing = false;
+                console.log('No context found');
+                return className;
+            }
+            isErasing = !isErasing;
+            if (isErasing) {
+                className = 'bg-red-500 text-white p-2 rounded-md';
+                ctx.globalCompositeOperation = 'destination-out';
+                ctx.strokeStyle = 'rgba(0,0,0,1)';
+                ctx.lineWidth = 20;
+                ctx.lineCap = 'round';
+            } else {
+                ctx.globalCompositeOperation = 'source-over';
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 15;
+                ctx.lineCap = 'round';
+            }
+            console.log('isErasing', isErasing);
+
+            return className;
+        },
         canvas_draw: function (event) {
             if (event === null) {
                 console.log('No event found');
@@ -98,6 +123,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 props = getImageSize(image);
                 ctx.canvas.width = props.width;
                 ctx.canvas.height = props.height;
+
+                isDrawing = false;
+                isErasing = false;
 
                 console.log('canvas_draw', image.clientWidth, image.clientHeight);
 

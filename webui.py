@@ -41,12 +41,14 @@ def progress_callback(current, total):
 
 # Utility functions - XXX refactor to a separate module
 
+
 def pil_to_data_url(pil_image):
     """Converts a PIL image to a data URL."""
     buffered = io.BytesIO()
     pil_image.save(buffered, format="PNG")
     img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
     return f"data:image/png;base64,{img_str}"
+
 
 def find_pixel_from_click(img_data, x, y, width, height):
     """Find the pixel coordinates in the image from the click coordinates."""
@@ -165,7 +167,8 @@ app.layout = html.Div([
                         id='generate-slice-button',
                         className='bg-blue-500 text-white p-2 rounded-md mb-2'
                     ),
-                    dcc.Loading(id="generate-slices", children=html.Div(id="gen-slice-output")),
+                    dcc.Loading(id="generate-slices",
+                                children=html.Div(id="gen-slice-output")),
                     html.Div(id='slice-img-container',
                              style={'height': '65vh'},
                              className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
@@ -196,29 +199,9 @@ app.clientside_callback(
     Input('evScroll', 'n_events'),
 )
 
-app.clientside_callback(
-    ClientsideFunction(namespace='clientside',
-                       function_name='canvas_draw'),
-    Output('canvas-ignore', 'data', allow_duplicate=True),
-    Input('canvas-paint', 'event'),
-    prevent_initial_call=True
-)
 
-app.clientside_callback(
-    ClientsideFunction(namespace='clientside',
-                       function_name='canvas_clear'),
-    Output('canvas-ignore', 'data'),
-    Input('image', 'src'),
-    Input('clear-canvas', 'n_clicks'),
-)
 
-app.clientside_callback(
-    ClientsideFunction(namespace='clientside',
-                       function_name='canvas_get'),
-    Output('canvas-data', 'data'),
-    Input('get-canvas', 'n_clicks'),
-    prevent_initial_call=True
-)
+components.make_canvas_callbacks(app)
 
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
@@ -240,8 +223,9 @@ def update_image(data):
 
     # Merge the channels back into an RGB image (without the original alpha channel)
     new_image = Image.merge('RGB', (new_r, new_g, new_b))
-    
+
     return pil_to_data_url(new_image)
+
 
 # Callbacks for collapsible sections
 components.make_tabs_callback(app, 'main')
@@ -255,13 +239,15 @@ components.make_tabs_callback(app, 'main')
     State('canvas', 'className'),
     State('image', 'className'),
     State('canvas-buttons', 'className'),
-    )
+)
 def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_class_name):
     if tab_class_names is None:
         raise PreventUpdate()
 
-    canvas_class_name = canvas_class_name.replace(' z-10', '').replace(' z-0', '')
-    image_class_name = image_class_name.replace(' z-10', '').replace(' z-0', '')
+    canvas_class_name = canvas_class_name.replace(
+        ' z-10', '').replace(' z-0', '')
+    image_class_name = image_class_name.replace(
+        ' z-10', '').replace(' z-0', '')
     buttons_class_name = buttons_class_name.replace(' hidden', '')
 
     # we paint on the canvas if the Segmentation tab is active
@@ -272,7 +258,7 @@ def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_
     else:
         canvas_class_name += ' z-10'
         image_class_name += ' z-0'
-        
+
     return canvas_class_name, image_class_name, buttons_class_name
 
 
@@ -383,7 +369,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
     elif state.imgThresholds is None or len(state.imgThresholds) != num_slices:
         state.imgThresholds = analyze_depth_histogram(
             state.depthMapData, num_slices=num_slices)
-    
+
     logs_data.append(f"Thresholds: {state.imgThresholds}")
 
     thresholds = []
@@ -714,6 +700,7 @@ def filename_add_version(filename):
 
     return str(filename.parent / image_filename)
 
+
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Output('gen-animation-output', 'children'),
               Input('animation-export', 'n_clicks'),
@@ -739,10 +726,11 @@ def export_animation(n_clicks, filename, num_frames, logs):
         filename,
         state.image_slices, card_corners_3d_list, camera_matrix, camera_position,
         num_frames=num_frames)
-    
+
     logs.append(f"Exported {num_frames} frames to animation")
 
     return logs, ""
+
 
 @app.callback(
     Output('application-state-filename', 'data'),
@@ -761,10 +749,10 @@ def restore_state(contents, logs):
     content_type, content_string = contents.split(',')
     decoded_contents = base64.b64decode(content_string).decode('utf-8')
     state = AppState.from_json(decoded_contents)
-    
+
     # XXX: Consider whether the image slices should be read in from_json
     state.read_image_slices(state.filename)
-    
+
     logs.append(f"Restored state from {state.filename}")
 
     buffered = io.BytesIO()
@@ -773,6 +761,7 @@ def restore_state(contents, logs):
     img_data = f"data:image/png;base64,{img_data}"
 
     return state.filename, img_data, True, state.num_slices, logs
+
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Input('save-state', 'n_clicks'),
@@ -789,6 +778,7 @@ def save_state(n_clicks, filename, logs):
     logs.append(f"Saved state to {filename}")
 
     return logs
+
 
 if __name__ == '__main__':
     os.environ['DISABLE_TELEMETRY'] = 'YES'

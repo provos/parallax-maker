@@ -3,7 +3,7 @@
 import dash
 from dash import dcc, html
 from dash_extensions import EventListener
-from dash.dependencies import Input, Output, State, ALL
+from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
 from dash.exceptions import PreventUpdate
 
 
@@ -55,6 +55,8 @@ def make_input_image_container(
         ),
         html.Div([
             dcc.Store(id='canvas-data'),
+            html.Button('Erase', id='erase-mode-canvas',
+                        className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Clear', id='clear-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Get', id='get-canvas',
@@ -306,3 +308,37 @@ def make_tabs_callback(app, tab_id: str):
                 content_class[i] = content_class[i] + ' hidden'
 
         return [None] * len(n_clicks), label_class, content_class
+
+
+def make_canvas_callbacks(app):
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='canvas_draw'),
+        Output('canvas-ignore', 'data', allow_duplicate=True),
+        Input('canvas-paint', 'event'),
+        prevent_initial_call=True
+    )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='canvas_clear'),
+        Output('canvas-ignore', 'data'),
+        Input('image', 'src'),
+        Input('clear-canvas', 'n_clicks'),
+    )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='canvas_get'),
+        Output('canvas-data', 'data'),
+        Input('get-canvas', 'n_clicks'),
+        prevent_initial_call=True
+    )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='canvas_toggle_erase'),
+        Output('erase-mode-canvas', 'className'),
+        Input('erase-mode-canvas', 'n_clicks'),
+        prevent_initial_call=True
+    )
