@@ -23,7 +23,19 @@ class AppState:
         self.imgThresholds = None
         self.depthMapData = None
         self.image_slices_filenames = []
-        self.image_slices = []  # does not require JSON serialization
+        
+        # no JSON serialization for items below
+        self.image_slices = []
+        self.selected_slice = 0
+        
+    def save_image_mask(self, slice_index, mask):
+        """Saves the PIL image mask to a png file for the specified slice index."""
+        assert slice_index >=0 and slice_index < len(self.image_slices_filenames)
+        file_path = Path(self.image_slices_filenames[slice_index])
+        mask_path = file_path.parent / f"{file_path.stem}_mask.png"
+        mask.save(str(mask_path))
+        
+        return str(mask_path)
 
     def read_image_slices(self, file_path):
         self.image_slices = [

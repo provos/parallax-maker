@@ -189,12 +189,17 @@ app.clientside_callback(
 components.make_canvas_callbacks(app)
 
 
-@app.callback(Output('image', 'src', allow_duplicate=True),
+@app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Input('canvas-data', 'data'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
               prevent_initial_call=True)
-def update_image(data):
-    if data is None:
+def save_slice_mask(data, filename, logs):
+    if data is None or filename is None:
         raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
+    
     # turn the data url into a RGBA PIL image
     image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
 
@@ -208,8 +213,15 @@ def update_image(data):
 
     # Merge the channels back into an RGB image (without the original alpha channel)
     new_image = Image.merge('RGB', (new_r, new_g, new_b))
+    
+    # Scale new image to the same dimensions as imgData
+    new_image = new_image.resize(state.imgData.size, resample=Image.BICUBIC)
+    
+    mask_filename = state.save_image_mask(state.selected_slice, new_image)
+    
+    logs.append(f"Saved mask for slice {state.selected_slice} to {mask_filename}")
 
-    return pil_to_data_url(new_image)
+    return logs
 
 
 # Callbacks for collapsible sections
@@ -581,9 +593,9 @@ def display_slice(n_clicks, id, src, filename):
 
     state = AppState.from_cache(filename)
 
-    # XXX use the state?
-
     index = n_clicks.index(1)
+    
+    state.selected_slice = index
 
     return src[index], [None]*len(n_clicks)
 

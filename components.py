@@ -54,12 +54,12 @@ def make_input_image_container(
             multiple=False
         ),
         html.Div([
-            dcc.Store(id='canvas-data'),
+            dcc.Store(id='canvas-data'), # used to intermediately store the canvas data
             html.Button('Erase', id='erase-mode-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Clear', id='clear-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
-            html.Button('Get', id='get-canvas',
+            html.Button('Save', id='save-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
         ],
             id='canvas-buttons',
@@ -403,7 +403,7 @@ def make_canvas_callbacks(app):
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_get'),
         Output('canvas-data', 'data'),
-        Input('get-canvas', 'n_clicks'),
+        Input('save-canvas', 'n_clicks'),
         prevent_initial_call=True
     )
 
