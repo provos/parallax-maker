@@ -41,6 +41,12 @@ def progress_callback(current, total):
 
 # Utility functions - XXX refactor to a separate module
 
+def pil_to_data_url(pil_image):
+    """Converts a PIL image to a data URL."""
+    buffered = io.BytesIO()
+    pil_image.save(buffered, format="PNG")
+    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
+    return f"data:image/png;base64,{img_str}"
 
 def find_pixel_from_click(img_data, x, y, width, height):
     """Find the pixel coordinates in the image from the click coordinates."""
@@ -187,8 +193,80 @@ app.clientside_callback(
     Input('evScroll', 'n_events'),
 )
 
+app.clientside_callback(
+    ClientsideFunction(namespace='clientside',
+                       function_name='canvas_draw'),
+    Output('canvas-ignore', 'data', allow_duplicate=True),
+    Input('canvas-paint', 'event'),
+    prevent_initial_call=True
+)
+
+app.clientside_callback(
+    ClientsideFunction(namespace='clientside',
+                       function_name='canvas_clear'),
+    Output('canvas-ignore', 'data'),
+    Input('image', 'src'),
+    Input('clear-canvas', 'n_clicks'),
+)
+
+app.clientside_callback(
+    ClientsideFunction(namespace='clientside',
+                       function_name='canvas_get'),
+    Output('canvas-data', 'data'),
+    Input('get-canvas', 'n_clicks'),
+    prevent_initial_call=True
+)
+
+
+@app.callback(Output('image', 'src', allow_duplicate=True),
+              Input('canvas-data', 'data'),
+              prevent_initial_call=True)
+def update_image(data):
+    if data is None:
+        raise PreventUpdate()
+    # turn the data url into a RGBA PIL image
+    image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
+
+    # Split the image into individual channels
+    r, g, b, a = image.split()
+
+    # Replace RGB channels with the Alpha channel
+    new_r = a.copy()
+    new_g = a.copy()
+    new_b = a.copy()
+
+    # Merge the channels back into an RGB image (without the original alpha channel)
+    new_image = Image.merge('RGB', (new_r, new_g, new_b))
+    
+    return pil_to_data_url(new_image)
+
 # Callbacks for collapsible sections
 components.make_tabs_callback(app, 'main')
+
+
+@app.callback(
+    Output('canvas', 'className'),
+    Output('image', 'className'),
+    Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
+    State('canvas', 'className'),
+    State('image', 'className'),
+    )
+def update_events(tab_class_names, canvas_class_name, image_class_name):
+    if tab_class_names is None:
+        raise PreventUpdate()
+
+    canvas_class_name = canvas_class_name.replace(' z-10', '').replace(' z-0', '')
+    image_class_name = image_class_name.replace(' z-10', '').replace(' z-0', '')
+
+    if 'hidden' in tab_class_names[0]:
+        print('Segmentation tab is hidden')
+        canvas_class_name += ' z-10'
+        image_class_name += ' z-0'
+    else:
+        print('Segmentation tab is visible')
+        canvas_class_name += ' z-0'
+        image_class_name += ' z-10'
+    return canvas_class_name, image_class_name
 
 
 # Callback for the logs

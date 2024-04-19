@@ -7,7 +7,63 @@ from dash.dependencies import Input, Output, State, ALL
 from dash.exceptions import PreventUpdate
 
 
+def get_canvas_paint_events():
+    props = ["type", "clientX", "clientY", "offsetX", "offsetY"]
+    events = []
+    for event in ["mousedown", "mouseup", "mouseout"]:
+        events.append({"event": event, "props": props})
+    return events
+
+def get_image_click_event():
+    return {"event": "click", "props": [
+        "type", "clientX", "clientY", "offsetX", "offsetY"]}
+
 def make_input_image_container(
+        upload_id: str = 'upload-image',
+        image_id: str = 'image',
+        event_id: str = 'el',
+        outer_class_name: str = 'w-full col-span-2'):
+
+    return html.Div([
+        html.Label('Input Image', className='font-bold mb-2 ml-3'),
+        dcc.Store(id='canvas-ignore'),
+        dcc.Upload(
+            id=upload_id,
+            children=html.Div(
+                [
+                    EventListener(
+                        html.Img(
+                            id=image_id,
+                            className='absolute top-0 left-0 w-full h-full object-contain object-left-top z-0'),
+                        events=[get_image_click_event()], logging=True, id=event_id
+                    ),
+                    EventListener(
+                        html.Canvas(
+                            id='canvas',
+                            className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-10'),
+                        id='canvas-paint', events=get_canvas_paint_events(), logging=False
+                    ),
+                ],
+                className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2',
+            ),
+            style={'height': '70vh'},
+            disable_click=True,
+            multiple=False
+        ),
+        html.Div([
+            dcc.Store(id='canvas-data'),
+            html.Button('Clear', id='clear-canvas',
+                        className='bg-blue-500 text-white p-2 rounded-md'),
+            html.Button('Get', id='get-canvas',
+                        className='bg-blue-500 text-white p-2 rounded-md'),
+        ],
+                 className='flex flex-row gap-2 p-2 bg-gray-200 rounded-md mt-1'
+        ),
+    ], className=outer_class_name
+    )
+
+
+def make_input_image_container_old(
         upload_id: str = 'upload-image',
         image_id: str = 'image',
         event_id: str = 'el',
