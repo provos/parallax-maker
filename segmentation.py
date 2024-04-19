@@ -11,18 +11,10 @@ import torch
 from torchvision.transforms import Compose
 import argparse
 from pathlib import Path
+from utils import torch_get_device
 
 # for exporting a 3d scene
 from gltf import export_gltf
-
-
-def torch_get_device():
-    if torch.cuda.is_available():
-        return torch.device("cuda")
-    elif torch.backends.mps.is_available():
-        return torch.device("mps")
-    return torch.device("cpu")
-
 
 def midas_depth_map(image, progress_callback=None):
     if progress_callback:
