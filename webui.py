@@ -149,36 +149,22 @@ app.layout = html.Div([
             outer_class_name='w-full col-span-3'),
         components.make_tabs(
             'main',
-            ['Segmentation', 'Slice Generation', 'Export', 'Configuration'],
-            [html.Div([
-                components.make_depth_map_container(
-                    depth_map_id='depth-map-container'),
-                components.make_thresholds_container(
-                    thresholds_id='thresholds-container'),
-            ], className='w-full', id='depth-map-column'),
+            ['Segmentation', 'Slice Generation', 'Inpainting', 'Export', 'Configuration'],
+            [
                 html.Div([
-                    dcc.Store(id='generate-slice-request'),
-                    dcc.Store(id='update-slice-request'),
-                    dcc.Download(id='download-image'),
-                    html.Button(
-                        html.Div([
-                            html.Label('Generate Image Slices'),
-                            html.I(className='fa-solid fa-images pl-1')]),
-                        id='generate-slice-button',
-                        className='bg-blue-500 text-white p-2 rounded-md mb-2'
-                    ),
-                    dcc.Loading(id="generate-slices",
-                                children=html.Div(id="gen-slice-output")),
-                    html.Div(id='slice-img-container',
-                             style={'height': '65vh'},
-                             className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
-                ], className='w-full', id='slice-generation-column'),
+                    components.make_depth_map_container(
+                        depth_map_id='depth-map-container'),
+                    components.make_thresholds_container(
+                        thresholds_id='thresholds-container'),
+                ], className='w-full', id='depth-map-column'),
+                components.make_slice_generation_container(),
+                components.make_inpainting_container(),
                 html.Div([
                     components.make_3d_export_div(),
                     components.make_animation_export_div(),
                 ],
                     className='w-full'
-            ),
+                ),
                 components.make_configuration_div()
             ],
             outer_class_name='w-full col-span-2'
@@ -198,7 +184,6 @@ app.clientside_callback(
     Input('image', 'src'),
     Input('evScroll', 'n_events'),
 )
-
 
 
 components.make_canvas_callbacks(app)
@@ -250,8 +235,8 @@ def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_
         ' z-10', '').replace(' z-0', '')
     buttons_class_name = buttons_class_name.replace(' hidden', '')
 
-    # we paint on the canvas if the Segmentation tab is active
-    if 'hidden' in tab_class_names[1]:
+    # we paint on the canvas if the Segmentation or Inpainting tab is active
+    if 'hidden' in tab_class_names[1] and 'hidden' in tab_class_names[2]:
         canvas_class_name += ' z-0'
         image_class_name += ' z-10'
         buttons_class_name += ' hidden'

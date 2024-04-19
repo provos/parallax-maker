@@ -96,6 +96,78 @@ def make_thresholds_container(thresholds_id: str = 'thresholds-container'):
     ], className='w-full')
 
 
+def make_slice_generation_container():
+    return html.Div([
+                    dcc.Store(id='generate-slice-request'),
+                    dcc.Store(id='update-slice-request'),
+                    dcc.Download(id='download-image'),
+                    html.Button(
+                        html.Div([
+                            html.Label('Generate Image Slices'),
+                            html.I(className='fa-solid fa-images pl-1')]),
+                        id='generate-slice-button',
+                        className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                    ),
+                    dcc.Loading(id="generate-slices",
+                                children=html.Div(id="gen-slice-output")),
+                    html.Div(id='slice-img-container',
+                             style={'height': '65vh'},
+                             className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
+                    ], className='w-full', id='slice-generation-column')
+
+
+def make_inpainting_container():
+    return html.Div([
+        dcc.Store(id='inpainting-request'),
+        html.Div([
+            html.Label('Positive Prompt'),
+            dcc.Textarea(
+                id='positive-prompt',
+                placeholder='Enter a positive generative AI prompt...',
+                className='w-full p-2 border border-gray-300 rounded-md mb-2',
+                style={'height': '100px'}
+            )
+        ]),
+        html.Div([
+            html.Label('Negative Prompt'),
+            dcc.Textarea(
+                id='negative-prompt',
+                placeholder='Enter a negative prompt...',
+                className='w-full p-2 border border-gray-300 rounded-md mb-2',
+            )
+        ]),
+        html.Button(
+            html.Div([
+                html.Label('Generate Inpainting'),
+                html.I(className='fa-solid fa-paint-brush pl-1')
+            ]),
+            id='generate-inpainting-button',
+            className='bg-blue-500 text-white p-2 rounded-md mb-2'
+        ),
+        dcc.Loading(
+            id="generate-inpainting",
+            children=html.Div(id="inpainting-output")
+        ),
+        html.Div(
+            id='inpainting-img-container',
+            children=[
+                html.Div(
+                    id='inpainting-image-display',
+                    className='grid grid-cols-3 gap-2'
+                ),
+            ],
+            className='w-full min-h-8 border-dashed border-2 border-blue-500 rounded-md p-2'
+        ),
+        html.Button(
+            'Apply Selected Image',
+            id='apply-inpainting-button',
+            className='bg-green-500 text-white p-2 rounded-md mt-2',
+            disabled=True
+        )
+
+    ], className='w-full', id='inpainting-column')
+
+
 def make_configuration_container():
     return make_label_container(
         'Configuration',
