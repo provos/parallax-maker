@@ -47,23 +47,27 @@ class PipelineSpec:
         return self.pipeline
 
 
-def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image, seed=92):
-    generator = torch.Generator(torch_get_device()).manual_seed(seed)
-
-    # resize images to match the model input size
+def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image, crop=False, seed=92):
+    original_init_image = init_image.copy()
+    
+    if crop:
+        bounding_box = find_square_bounding_box(mask_image)
+        init_image = init_image.crop(bounding_box)
+        mask_image = mask_image.crop(bounding_box)
 
     pipeline = pipelinespec.pipeline
-
     if hasattr(pipeline, 'mask_processor'):
         blurred_mask = pipeline.mask_processor.blur(mask_image, blur_factor=20)
     else:
         blurred_mask = mask_image.filter(ImageFilter.GaussianBlur(20))
-        
+
+    # resize images to match the model input size
     dimension = pipelinespec.get_dimension()
     resize_init_image = init_image.convert(
         'RGB').resize((dimension, dimension))
     resize_mask_image = blurred_mask.resize((dimension, dimension))
 
+    generator = torch.Generator(torch_get_device()).manual_seed(seed)
     image = pipeline(prompt=prompt, negative_prompt=negative_prompt,
                      image=resize_init_image, mask_image=resize_mask_image, generator=generator).images[0]
 
@@ -73,6 +77,10 @@ def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image, seed=
     image.putalpha(blurred_mask)
 
     image = Image.alpha_composite(init_image, image)
+    
+    if crop:
+        original_init_image.paste(image, bounding_box[:2])
+        image = original_init_image
 
     return image
 
@@ -81,6 +89,70 @@ def load_image_from_file(image_path, mode='RGB'):
     image = Image.open(image_path)
     image = image.convert(mode)
     return image
+
+
+def find_bounding_box(mask_image):
+    mask_array = np.array(mask_image)
+    nonzero_y, nonzero_x = np.nonzero(mask_array > 0)
+    xmin, xmax = nonzero_x.min(), nonzero_x.max()
+    ymin, ymax = nonzero_y.min(), nonzero_y.max()
+    return (xmin, ymin, xmax, ymax)
+
+
+def find_square_from_bounding_box(xmin, ymin, xmax, ymax):
+    width = xmax - xmin
+    height = ymax - ymin
+    size = max(width, height)
+    xcenter = (xmin + xmax + 1) // 2
+    ycenter = (ymin + ymax + 1) // 2
+    x1 = xcenter - size // 2
+    y1 = ycenter - size // 2
+    x2 = xcenter + size // 2
+    y2 = ycenter + size // 2
+    return (x1, y1, x2, y2)
+
+
+def move_bounding_box_to_image(image, bounding_box):
+    width, height = image.size
+    xmin, ymin, xmax, ymax = bounding_box
+    if xmin < 0:
+        xmax -= xmin
+        xmin = 0
+    if ymin < 0:
+        ymax -= ymin
+        ymin = 0
+    if xmax >= width:
+        xmin -= xmax - width
+        xmax = width
+    if ymax >= height:
+        ymin -= ymax - height
+        ymax = height
+
+    # make sure the bounding box is within the image
+    # this will change the aspect ratio of the bounding box
+    # but we will resize the image to square anyway
+    if xmin < 0:
+        xmin = 0
+    if ymin < 0:
+        ymin = 0
+
+    return (xmin, ymin, xmax, ymax)
+
+
+def find_square_bounding_box(mask_image):
+    """
+    Finds the square bounding box for a given mask image.
+
+    Args:
+        mask_image: The mask image for which the square bounding box needs to be found.
+
+    Returns:
+        The square bounding box that fits the mask image.
+    """
+    bounding_box = find_bounding_box(mask_image)
+    square_box = find_square_from_bounding_box(*bounding_box)
+    fit_box = move_bounding_box_to_image(mask_image, square_box)
+    return fit_box
 
 
 def main():
@@ -107,11 +179,12 @@ def main():
     prompt = "a black cat with glowing eyes, cute, adorable, disney, pixar, highly detailed, 8k"
     negative_prompt = "bad anatomy, deformed, ugly, disfigured"
 
-    image = inpaint(pipeline, prompt, negative_prompt, init_image, mask_image)
+    new_image = inpaint(pipeline, prompt, negative_prompt, init_image, mask_image, crop=True)
 
-    image.save(args.output, format='PNG')
+    new_image.save(args.output, format='PNG')
 
-    image = make_image_grid([init_image, mask_image, image], rows=1, cols=3)
+    image = make_image_grid(
+        [init_image, mask_image, new_image], rows=1, cols=3)
 
     image = np.array(image)
 
