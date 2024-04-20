@@ -4,7 +4,7 @@
 from PIL import Image
 
 # Related third party imports
-from dash import dcc, html
+from dash import dcc, html, ctx
 from dash_extensions import EventListener
 from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
 from dash.exceptions import PreventUpdate
@@ -234,20 +234,41 @@ def make_inpainting_container_callbacks(app):
         mask_filename = state.mask_filename(index)
         mask = Image.open(mask_filename).convert('L')
 
-        new_image = inpaint(state.pipeline_spec, positive_prompt,
-                            negative_prompt, image, mask, crop=True)
+        images = []
+        for i in range(3):
+            new_image = inpaint(state.pipeline_spec, positive_prompt,
+                                negative_prompt, image, mask, crop=True)
+            images.append(new_image)
 
-        children = [
-            html.Img(src=pil_to_data_url(image),
-                     className='w-full h-full object-contain'),
-            html.Img(src=pil_to_data_url(mask),
-                     className='w-full h-full object-contain'),
-            html.Img(src=pil_to_data_url(new_image),
-                     className='w-full h-full object-contain')
-        ]
-
+        children = []
+        for i, new_image in enumerate(images):
+            children.append(
+                html.Img(src=pil_to_data_url(new_image),
+                     className='w-full h-full object-contain',
+                     id = {'type': 'inpainting-image', 'index': i})
+            )
         return children, []
+    
+    @app.callback(
+        Output('image', 'src', allow_duplicate=True),
+        Input({'type': 'inpainting-image', 'index': ALL}, 'n_clicks'),
+        State('application-state-filename', 'data'),
+        State({'type': 'inpainting-image', 'index': ALL}, 'src'),
+        prevent_initial_call=True)
+    def apply_inpainting_image(n_clicks, filename, images):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
 
+        index = ctx.triggered_id['index']
+        if n_clicks[index] is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        if state.selected_slice is None:
+            raise PreventUpdate()
+
+        print(f'Applying inpainting image {index}')        
+        return images[index]
 
 def make_configuration_container():
     return make_label_container(
@@ -490,7 +511,7 @@ def make_canvas_callbacks(app):
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
         Output('canvas-ignore', 'data'),
-        Input('image', 'src'),
+        Input('image', 'src'), # XXX - this will kill the canvas during inpainting - bad
         Input('clear-canvas', 'n_clicks'),
     )
 
