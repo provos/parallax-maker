@@ -1,3 +1,6 @@
+# (c) 2024 Niels Provos
+# 
+
 import io
 import base64
 import torch
