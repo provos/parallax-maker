@@ -105,7 +105,7 @@ def create_buffer_and_view(gltf_obj, data, target=gltf.ARRAY_BUFFER):
     return tmp_buffer_view_index
 
 
-def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_corners_3d_list, image_paths):
+def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_corners_3d_list, image_paths, inline_images=True):
     """
     Export the camera, cards, and image slices to a glTF file.
 
@@ -116,6 +116,7 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
         camera_distance (float): The distance of the camera from the origin.
         card_corners_3d_list (list): List of 3D corner coordinates for each card.
         image_paths (list): List of file paths for each image slice.
+        inline_images (bool, optional): Whether to inline the images in the glTF file. Defaults to True.
     """
     # Create a new glTF object
     gltf_obj = gltf.GLTF2(
@@ -136,15 +137,15 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
         # Set the vertices and indices for the plane
-        
+
         # Translaton hack
         z_transform = corners_3d[0][2]
         corners_3d[:, 2] = 0
-        
+
         # negate the y coordinates of corners_3d
         vertices = np.array(corners_3d, dtype=np.float32)
         vertices[:, 1] = -vertices[:, 1]
-        
+
         tex_coords = np.array(
             [[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
         indices = np.array([[0, 1, 2], [2, 3, 0]], dtype=np.uint32)
@@ -248,7 +249,9 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
         scene.nodes.append(len(gltf_obj.nodes)-1)
 
     # Save the glTF file
-    gltf_obj.convert_images(gltf.ImageFormat.DATAURI)
+    if inline_images:
+        gltf_obj.convert_images(gltf.ImageFormat.DATAURI)
+        
     gltf_obj.save(str(output_path / "model.gltf"))
-    
+
     return str(output_path / "model.gltf")
