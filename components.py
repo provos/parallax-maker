@@ -1,10 +1,18 @@
 # (c) 2024 Niels Provos
 
-import dash
+# Standard library imports
+from PIL import Image
+
+# Related third party imports
 from dash import dcc, html
 from dash_extensions import EventListener
 from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
 from dash.exceptions import PreventUpdate
+
+# Local application/library specific imports
+from controller import AppState
+from utils import pil_to_data_url
+from inpainting import inpaint, pipelinespec_from_model
 
 
 def get_canvas_paint_events():
@@ -54,7 +62,8 @@ def make_input_image_container(
             multiple=False
         ),
         html.Div([
-            dcc.Store(id='canvas-data'), # used to intermediately store the canvas data
+            # used to intermediately store the canvas data
+            dcc.Store(id='canvas-data'),
             html.Button('Erase', id='erase-mode-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Clear', id='clear-canvas',
@@ -168,6 +177,78 @@ def make_inpainting_container():
     ], className='w-full', id='inpainting-column')
 
 
+def make_inpainting_container_callbacks(app):
+    @app.callback(
+        Output('apply-inpainting-button', 'disabled'),
+        Input('inpainting-image-display', 'children')
+    )
+    def enable_apply_inpainting_button(children):
+        return False if children else True
+
+    @app.callback(
+        Output('positive-prompt', 'value'),
+        Output('negative-prompt', 'value'),
+        Input('restore-state', 'data'),
+        State('application-state-filename', 'data'),
+        prevent_initial_call=True)
+    def restore_prompts(restore_state, filename):
+        if filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        return state.positive_prompt, state.negative_prompt
+
+    @app.callback(
+        Output('inpainting-image-display', 'children'),
+        Output('generate-inpainting', 'children'),
+        Input('generate-inpainting-button', 'n_clicks'),
+        State('application-state-filename', 'data'),
+        State('inpainting-model-dropdown', 'value'),
+        State('positive-prompt', 'value'),
+        State('negative-prompt', 'value'),
+        prevent_initial_call=True
+    )
+    def update_inpainting_image_display(n_clicks, filename, model, positive_prompt, negative_prompt):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        if state.selected_slice is None:
+            raise PreventUpdate()  # XXX - write controller logic to clear this on image changes
+
+        state.positive_prompt = positive_prompt
+        state.negative_prompt = negative_prompt
+        state.to_file(state.filename, save_image_slices=False)
+
+        pipelinespec = pipelinespec_from_model(model)
+        if state.pipeline_spec is None or state.pipeline_spec != pipelinespec:
+            state.pipeline_spec = pipelinespec
+            pipelinespec.create_pipeline()
+
+        index = state.selected_slice
+        image = state.image_slices[index]
+        # check if image is a PIL image and conver it if necessary
+        # XXX - refactor to make this always a PIL image
+        if not isinstance(image, Image.Image):
+            image = Image.fromarray(image, mode='RGBA')
+        mask_filename = state.mask_filename(index)
+        mask = Image.open(mask_filename).convert('L')
+
+        new_image = inpaint(state.pipeline_spec, positive_prompt,
+                            negative_prompt, image, mask, crop=True)
+
+        children = [
+            html.Img(src=pil_to_data_url(image),
+                     className='w-full h-full object-contain'),
+            html.Img(src=pil_to_data_url(mask),
+                     className='w-full h-full object-contain'),
+            html.Img(src=pil_to_data_url(new_image),
+                     className='w-full h-full object-contain')
+        ]
+
+        return children, []
+
+
 def make_configuration_container():
     return make_label_container(
         'Configuration',
@@ -197,6 +278,20 @@ def make_configuration_div():
                     {'label': 'ZoeDepth', 'value': 'zoedepth'}
                 ],
                 value='midas'
+            )
+        ], className='w-full'),
+        html.Div([
+            html.Label('Inpainting Model'),
+            dcc.Dropdown(
+                id='inpainting-model-dropdown',
+                options=[
+                    {'label': 'Kadinksy',
+                        'value': 'kandinsky-community/kandinsky-2-2-decoder-inpaint'},
+                    {'label': 'SD 1.5', 'value': 'unwayml/stable-diffusion-v1-5'},
+                    {'label': 'SD XL 1.0',
+                        'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'}
+                ],
+                value='kandinsky-community/kandinsky-2-2-decoder-inpaint'
             )
         ], className='w-full'),
         html.Div(

@@ -12,6 +12,11 @@ import numpy as np
 from PIL import Image, ImageFilter
 from utils import torch_get_device
 
+# Possible pretrained models:
+# pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
+# pretrained_model = "runwayml/stable-diffusion-v1-5"
+# pretrained_model = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+
 
 class PipelineSpec:
     def __init__(self,
@@ -23,9 +28,10 @@ class PipelineSpec:
         self.dimension = dimension
         self.pipeline = None
 
-    # pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
-    # pretrained_model = "runwayml/stable-diffusion-v1-5"
-    # pretrained_model = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+    def __eq__(self, other):
+        return self.pretrained_model == other.pretrained_model and \
+               self.variant == other.variant and \
+               self.dimension == other.dimension
 
     def get_dimension(self):
         return self.dimension
@@ -45,6 +51,26 @@ class PipelineSpec:
         device = torch_get_device()
         self.pipeline.to(device)
         return self.pipeline
+
+
+def pipelinespec_from_model(model):
+    """
+    Create a PipelineSpec object based on the given model.
+
+    Args:
+        model (str): The name of the model.
+
+    Returns:
+        PipelineSpec: The PipelineSpec object with the specified model, variant, and dimension.
+    """
+    dimension = 512
+    variant = ''
+    if model == "kandinsky-community/kandinsky-2-2-decoder-inpaint":
+        dimension = 768
+    elif model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
+        dimension = 1024
+        variant = "fp16"
+    return PipelineSpec(pretrained_model=model, variant=variant, dimension=dimension)
 
 
 def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image, crop=False, seed=92):

@@ -19,6 +19,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
+from utils import pil_to_data_url
 
 import dash
 from dash import dcc, html, ctx
@@ -40,15 +41,6 @@ def progress_callback(current, total):
     total_progress = 100
 
 # Utility functions - XXX refactor to a separate module
-
-
-def pil_to_data_url(pil_image):
-    """Converts a PIL image to a data URL."""
-    buffered = io.BytesIO()
-    pil_image.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
-    return f"data:image/png;base64,{img_str}"
-
 
 def find_pixel_from_click(img_data, x, y, width, height):
     """Find the pixel coordinates in the image from the click coordinates."""
@@ -136,6 +128,7 @@ app.layout = html.Div([
     EventListener(events=[eventScroll], logging=True, id="evScroll"),
     # dcc.Store stores all application state
     dcc.Store(id='application-state-filename'),
+    dcc.Store(id='restore-state'), # trigger to restore state
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     dcc.Store(id='logs-data', data=[]),  # Store for logs
     # App Layout
@@ -187,6 +180,7 @@ app.clientside_callback(
 
 
 components.make_canvas_callbacks(app)
+components.make_inpainting_container_callbacks(app)
 
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
@@ -731,6 +725,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
 @app.callback(
     Output('application-state-filename', 'data'),
+    Output('restore-state', 'data'),
     Output('image', 'src', allow_duplicate=True),
     Output('update-slice-request', 'data'),
     Output('num-slices-slider', 'value'),
@@ -752,12 +747,13 @@ def restore_state(contents, logs):
 
     logs.append(f"Restored state from {state.filename}")
 
+    # XXX - refactor this to be triggered by a write to restore-state
     buffered = io.BytesIO()
     state.imgData.save(buffered, format="PNG")
     img_data = base64.b64encode(buffered.getvalue()).decode('utf-8')
     img_data = f"data:image/png;base64,{img_data}"
 
-    return state.filename, img_data, True, state.num_slices, logs
+    return state.filename, True, img_data, True, state.num_slices, logs
 
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),

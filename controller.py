@@ -24,15 +24,23 @@ class AppState:
         self.depthMapData = None
         self.image_slices_filenames = []
         
+        self.positive_prompt = ""
+        self.negative_prompt = ""
+        
         # no JSON serialization for items below
         self.image_slices = []
         self.selected_slice = 0
+        self.pipeline_spec = None # PipelineSpec()
+        
+    def mask_filename(self, slice_index):
+        """Returns the mask filename for the specified slice index."""
+        assert slice_index >=0 and slice_index < len(self.image_slices_filenames)
+        file_path = Path(self.image_slices_filenames[slice_index])
+        return file_path.parent / f"{file_path.stem}_mask.png"
         
     def save_image_mask(self, slice_index, mask):
         """Saves the PIL image mask to a png file for the specified slice index."""
-        assert slice_index >=0 and slice_index < len(self.image_slices_filenames)
-        file_path = Path(self.image_slices_filenames[slice_index])
-        mask_path = file_path.parent / f"{file_path.stem}_mask.png"
+        mask_path = self.mask_filename(slice_index)
         mask.save(str(mask_path))
         
         return str(mask_path)
@@ -61,12 +69,13 @@ class AppState:
             cv2.imwrite(str(output_image_path), cv2.cvtColor(
                 slice_image, cv2.COLOR_RGBA2BGRA))
 
-    def to_file(self, file_path):
+    def to_file(self, file_path, save_image_slices=True):
         """
         Save the current state to a file.
 
         Args:
             file_path (str): The file path to save the state.
+            save_image_slices (bool, optional): Whether to save the image slices. Defaults to True.
         """
         file_path = Path(file_path)
         # check if file path is a directory. if not create it
@@ -74,7 +83,8 @@ class AppState:
             file_path.mkdir()
 
         # save the image slices
-        self.save_image_slices(file_path)
+        if save_image_slices:
+            self.save_image_slices(file_path)
 
         state_file = file_path / AppState.STATE_FILE
         with open(str(state_file), 'w', encoding='utf-8') as file:
@@ -159,7 +169,9 @@ class AppState:
             'imgData': self._serialize_image(self.imgData),
             'imgThresholds': self.imgThresholds,
             'depthMapData': self._serialize_ndarray(self.depthMapData),
-            'image_slices_filenames': self.image_slices_filenames
+            'image_slices_filenames': self.image_slices_filenames,
+            'positive_prompt': self.positive_prompt,
+            'negative_prompt': self.negative_prompt,
         }
         return json.dumps(data)
 
@@ -186,6 +198,8 @@ class AppState:
         state.imgThresholds = data['imgThresholds']
         state.depthMapData = AppState._deserialize_ndarray(data['depthMapData'])
         state.image_slices_filenames = data['image_slices_filenames']
+        state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
+        state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
         return state
 
     @staticmethod
