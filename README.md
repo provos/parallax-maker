@@ -1,3 +1,10 @@
+# installation
+
+Via pip use
+```
+$ pip install -r requirements.txt
+```
+
 # parallax-maker
 
 Generates masked images that can be used for 2.5D animation
