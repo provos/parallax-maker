@@ -251,11 +251,13 @@ def make_inpainting_container_callbacks(app):
     
     @app.callback(
         Output('image', 'src', allow_duplicate=True),
+        Output({'type': 'inpainting-image', 'index': ALL}, 'className'),
         Input({'type': 'inpainting-image', 'index': ALL}, 'n_clicks'),
         State('application-state-filename', 'data'),
         State({'type': 'inpainting-image', 'index': ALL}, 'src'),
+        State({'type': 'inpainting-image', 'index': ALL}, 'className'),
         prevent_initial_call=True)
-    def apply_inpainting_image(n_clicks, filename, images):
+    def apply_inpainting_image(n_clicks, filename, images, classnames):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
@@ -267,8 +269,18 @@ def make_inpainting_container_callbacks(app):
         if state.selected_slice is None:
             raise PreventUpdate()
 
-        print(f'Applying inpainting image {index}')        
-        return images[index]
+        print(f'Applying inpainting image {index}')
+        
+        # give a visual highlight on the selected children
+        new_classnames = []
+        selected_background = ' bg-green-200'
+        for i, classname in enumerate(classnames):
+            classname = classname.replace(selected_background, '')
+            if i == index:
+                classname += selected_background
+            new_classnames.append(classname)
+                
+        return images[index], new_classnames
 
 def make_configuration_container():
     return make_label_container(
