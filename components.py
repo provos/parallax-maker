@@ -216,6 +216,12 @@ def make_inpainting_container_callbacks(app):
         if state.selected_slice is None:
             raise PreventUpdate()  # XXX - write controller logic to clear this on image changes
 
+        # An empty prompt is OK.
+        if positive_prompt is None:
+            positive_prompt = ''
+        if negative_prompt is None:
+            negative_prompt = ''
+
         state.positive_prompt = positive_prompt
         state.negative_prompt = negative_prompt
         state.to_file(state.filename, save_image_slices=False)
