@@ -22,7 +22,7 @@ def midas_depth_map(image, progress_callback=None):
 
     # Load the MiDaS v2.1 model
     model_type = "DPT_Large"
-    midas = torch.hub.load("intel-isl/MiDaS", model_type)
+    midas = torch.hub.load("intel-isl/MiDaS", model_type, skip_validation=True)
 
     if progress_callback:
         progress_callback(30, 100)
@@ -31,7 +31,7 @@ def midas_depth_map(image, progress_callback=None):
     midas.eval()
 
     # Define the transformation pipeline
-    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms")
+    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms", skip_validation=True)
     if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
         transforms = midas_transforms.dpt_transform
     else:
@@ -71,7 +71,7 @@ def zoedepth_depth_map(image, progress_callback=None):
 
     # Zoe_NK
     model_zoe_nk = torch.hub.load(
-        "isl-org/ZoeDepth", "ZoeD_NK", pretrained=True)
+        "isl-org/ZoeDepth", "ZoeD_NK", pretrained=True, skip_validation=True)
 
     # Set the device (CPU or GPU)
     device = torch_get_device()
