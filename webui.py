@@ -322,6 +322,7 @@ def update_num_slices(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    state.num_slices = int(value)
     if len(state.image_slices) == 0:
         raise PreventUpdate()
 
@@ -516,6 +517,9 @@ def update_slices(ignored_data, filename):
     state = AppState.from_cache(filename)
     if state.depthMapData is None:
         raise PreventUpdate()
+
+    print(len(state.image_slices))
+    print(len(state.image_slices_filenames))
 
     img_container = []
     for i, img_slice in enumerate(state.image_slices):
