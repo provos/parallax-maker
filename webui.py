@@ -582,12 +582,18 @@ def update_slices(ignored_data, filename):
         right_id = {'type': 'slice-undo-forwards', 'index': i}
         
         slice_name = html.Div([
-            html.Button(className="fa-solid fa-download pr-1",
-                   id={'type': 'slice-info', 'index': i}),
-            html.Button(className=f"fa-solid fa-caret-left {left_color} pr-1",
-                   id=left_id, disabled=left_disabled),
-            html.Button(className=f"fa-solid fa-caret-right {right_color} pr-1",
-                   id=right_id, disabled=right_disabled),
+            html.Button(
+                title="Download image for manipuation in an external editor",
+                className="fa-solid fa-download pr-1",
+                id={'type': 'slice-info', 'index': i}),
+            html.Button(
+                title="Undo last change",
+                className=f"fa-solid fa-caret-left {left_color} pr-1",
+                id=left_id, disabled=left_disabled),
+            html.Button(
+                title="Redo last change",
+                className=f"fa-solid fa-caret-right {right_color} pr-1",
+                id=right_id, disabled=right_disabled),
             Path(state.image_slices_filenames[i]).stem])
         img_container.append(
             dcc.Upload(

@@ -117,6 +117,7 @@ def make_slice_generation_container():
                             html.Label('Generate Image Slices'),
                             html.I(className='fa-solid fa-images pl-1')]),
                         id='generate-slice-button',
+                        title='Generate image slices from the input image using the depth map',
                         className='bg-blue-500 text-white p-2 rounded-md mb-2'
                     ),
                     dcc.Loading(id="generate-slices",
