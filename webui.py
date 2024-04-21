@@ -122,6 +122,11 @@ app.layout = html.Div([
     dcc.Store(id='restore-state'),  # trigger to restore state
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     dcc.Store(id='logs-data', data=[]),  # Store for logs
+    # Trigger for generating depth map
+    dcc.Store(id='trigger-generate-depthmap'),
+    dcc.Store(id='trigger-update-depthmap'),  # Trigger for updating depth map
+    # Trigger for updating thresholds
+    dcc.Store(id='update-thresholds-container'),
     # App Layout
     html.Header("Parallax Maker",
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
@@ -286,6 +291,10 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     state = AppState.from_cache(filename)
 
+    if state.imgThresholds[1:-1] == threshold_values:
+        print("Threshold values are the same; not erasing data.")
+        raise PreventUpdate()
+
     # make sure that threshold values are monotonically increasing
     if threshold_values[0] <= 0:
         threshold_values[0] = 1
@@ -322,7 +331,7 @@ def update_num_slices(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    
+
     if len(state.image_slices) == 0:
         raise PreventUpdate()
 
@@ -331,6 +340,35 @@ def update_num_slices(value, filename):
 
 @app.callback(
     Output('thresholds-container', 'children'),
+    Input('update-thresholds-container', 'data'),
+    State('application-state-filename', 'data'),
+    prevent_initial_call=True
+)
+def update_thresholds_html(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    thresholds = []
+    for i in range(1, state.num_slices):
+        threshold = html.Div([
+            dcc.Slider(
+                id={'type': 'threshold-slider', 'index': i},
+                min=0,
+                max=255,
+                step=1,
+                value=state.imgThresholds[i],
+                marks=None,
+                tooltip={'always_visible': True, 'placement': 'bottom'}
+            )
+        ], className='m-2')
+        thresholds.append(threshold)
+
+    return thresholds
+
+
+@app.callback(
+    Output('update-thresholds-container', 'data', allow_duplicate=True),
     Output('logs-data', 'data', allow_duplicate=True),
     # triggers regeneration of slices if we have them already
     Output('num-slices-slider-update', 'data'),
@@ -345,6 +383,13 @@ def update_thresholds(contents, num_slices, filename, logs_data):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    if (
+            state.num_slices == num_slices and
+            state.imgThresholds is not None and
+            len(state.imgThresholds) == num_slices + 1):
+        print("Number of slices is the same; not erasing data.")
+        raise PreventUpdate()
+
     state.num_slices = num_slices
 
     if state.depthMapData is None:
@@ -358,25 +403,12 @@ def update_thresholds(contents, num_slices, filename, logs_data):
 
     logs_data.append(f"Thresholds: {state.imgThresholds}")
 
-    thresholds = []
-    for i in range(1, num_slices):
-        threshold = html.Div([
-            dcc.Slider(
-                id={'type': 'threshold-slider', 'index': i},
-                min=0,
-                max=255,
-                step=1,
-                value=state.imgThresholds[i],
-                marks=None,
-                tooltip={'always_visible': True, 'placement': 'bottom'}
-            )
-        ], className='m-2')
-        thresholds.append(threshold)
-
-    return thresholds, logs_data, True
+    return True, logs_data, True
 
 
 @app.callback(Output('application-state-filename', 'data', allow_duplicate=True),
+              Output('trigger-generate-depthmap',
+                     'data', allow_duplicate=True),
               Output('image', 'src', allow_duplicate=True),
               Output('depth-map-container', 'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
@@ -399,7 +431,7 @@ def update_input_image(contents):
     img_data = base64.b64encode(img_data).decode('ascii')
     img_data = f"data:image/png;base64,{img_data}"
 
-    return filename, img_data, html.Img(
+    return filename, True, img_data, html.Img(
         id='depthmap-image',
         className='w-full p-0 object-scale-down'), False
 
@@ -463,16 +495,17 @@ def click_event(n_events, e, rect_data, filename, logs_data):
     return img_data, logs_data
 
 
-@app.callback(Output('depth-map-container', 'children'),
+@app.callback(Output('trigger-update-depthmap', 'data'),
               Output('gen-depthmap-output', 'children'),
-              Input('application-state-filename', 'data'),
+              Input('trigger-generate-depthmap', 'data'),
+              State('application-state-filename', 'data'),
               State('depth-module-dropdown', 'value'),
               prevent_initial_call=True)
-def generate_depth_map_callback(filename, model):
+def generate_depth_map_callback(ignored_data, filename, model):
     if filename is None:
         raise PreventUpdate()
 
-    print('Received application-state-filename:', filename)
+    print('Received a request to generate a depth map for state f{filename}')
     state = AppState.from_cache(filename)
 
     PIL_image = state.imgData
@@ -480,11 +513,23 @@ def generate_depth_map_callback(filename, model):
     if PIL_image.mode == 'RGBA':
         PIL_image = PIL_image.convert('RGB')
 
-    if state.depthMapData is None:
-        np_image = np.array(PIL_image)
-        state.depthMapData = generate_depth_map(
-            np_image, model=model, progress_callback=progress_callback)
-        state.imgThresholds = None
+    np_image = np.array(PIL_image)
+    state.depthMapData = generate_depth_map(
+        np_image, model=model, progress_callback=progress_callback)
+    state.imgThresholds = None
+
+    return True, ""
+
+
+@app.callback(Output('depth-map-container', 'children'),
+              Input('trigger-update-depthmap', 'data'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
+def update_depth_map_callback(ignored_data, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
     depth_map_pil = Image.fromarray(state.depthMapData)
 
     buffered = io.BytesIO()
@@ -519,10 +564,8 @@ def update_slices(ignored_data, filename):
     if state.depthMapData is None:
         raise PreventUpdate()
 
-    print(len(state.image_slices))
-    print(len(state.image_slices_filenames))
-
     img_container = []
+    assert len(state.image_slices) == len(state.image_slices_filenames)
     for i, img_slice in enumerate(state.image_slices):
         img_data = to_image_url(img_slice)
         slice_name = html.Div([
@@ -567,6 +610,7 @@ def generate_slices(ignored_data, filename):
         num_expand=5)
     state.image_slices_filenames = []
 
+    print(f'Generated {len(state.image_slices)} image slices; saving to file')
     state.to_file(filename)
 
     return True, ""
@@ -707,11 +751,35 @@ def export_animation(n_clicks, filename, num_frames, logs):
     return logs, ""
 
 
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Input('restore-state', 'data'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
+def restore_state_slices(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if len(state.image_slices) == 0:
+        print("No image slices to restore")
+        raise PreventUpdate()
+
+    return True
+
+
+@app.callback(Output('trigger-update-depthmap', 'data', allow_duplicate=True),
+              Input('restore-state', 'data'),
+              prevent_initial_call=True)
+def restore_state_depthmap(value):
+    return True
+
+
 @app.callback(
+    # XXX - generate depth-map via separate callback
     Output('application-state-filename', 'data'),
     Output('restore-state', 'data'),
     Output('image', 'src', allow_duplicate=True),
-    Output('update-slice-request', 'data'),
+    Output('update-thresholds-container', 'data', allow_duplicate=True),
     Output('num-slices-slider', 'value'),
     Output('logs-data', 'data', allow_duplicate=True),
     Input('upload-state', 'contents'),
@@ -726,6 +794,7 @@ def restore_state(contents, logs):
     decoded_contents = base64.b64decode(content_string).decode('utf-8')
     state = AppState.from_json(decoded_contents)
     state.fill_from_files(state.filename)
+    AppState.cache[state.filename] = state  # XXX - this may be too hacky
 
     logs.append(f"Restored state from {state.filename}")
 

@@ -48,11 +48,12 @@ class AppState:
         
         return str(mask_path)
 
-    def read_image_slices(self, file_path):
+    def read_image_slices(self):
         self.image_slices = [
             cv2.cvtColor(cv2.imread(str(image_slice), cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
             for image_slice in self.image_slices_filenames]
         print(f"Loaded {len(self.image_slices)} image slices")
+        assert len(self.image_slices) == len(self.image_slices_filenames)
 
     def save_image_slices(self, file_path):
         """
@@ -137,7 +138,7 @@ class AppState:
         # read the input image
         img_file = Path(file_path) / AppState.IMAGE_FILE
         self.imgData = Image.open(img_file)
-        self.read_image_slices(file_path)
+        self.read_image_slices()
 
         # read the depth map and turn it into a numpy array
         depth_map_file = Path(file_path) / AppState.DEPTH_MAP_FILE
