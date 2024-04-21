@@ -582,7 +582,7 @@ def update_slices(ignored_data, filename):
         right_id = {'type': 'slice-undo-forwards', 'index': i}
         
         slice_name = html.Div([
-            html.I(className="fa-solid fa-download pr-1",
+            html.Button(className="fa-solid fa-download pr-1",
                    id={'type': 'slice-info', 'index': i}),
             html.Button(className=f"fa-solid fa-caret-left {left_color} pr-1",
                    id=left_id, disabled=left_disabled),
