@@ -1,0 +1,63 @@
+import unittest
+from PIL import Image
+from utils import find_bounding_box, find_square_from_bounding_box
+
+
+class TestUtils(unittest.TestCase):
+    def test_find_bounding_box(self):
+        # Create a mask image with a bounding box
+        mask_image = Image.new('L', (100, 100))
+        mask_image.paste(255, (20, 30, 80, 70))
+
+        # Call the function
+        result = find_bounding_box(mask_image, padding=0)
+
+        # Define the expected result
+        expected_result = (20, 30, 79, 69)
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+
+    def test_find_bounding_box_with_padding(self):
+        # Create a mask image with a bounding box
+        mask_image = Image.new('L', (100, 100))
+        mask_image.paste(255, (20, 30, 80, 70))
+
+        # Call the function with padding
+        result = find_bounding_box(mask_image, padding=10)
+
+        # Define the expected result
+        expected_result = (10, 20, 89, 79)
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+
+    def test_find_bounding_box_with_empty_mask(self):
+        # Create an empty mask image
+        mask_image = Image.new('L', (100, 100))
+
+        # Call the function
+        result = find_bounding_box(mask_image)
+
+        # Define the expected result
+        expected_result = (0, 0, 0, 0)
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+
+    def test_find_square_from_bounding_box(self):
+        # Define the bounding box coordinates
+        xmin, ymin, xmax, ymax = 20, 30, 80, 70
+
+        # Call the function
+        result = find_square_from_bounding_box(xmin, ymin, xmax, ymax)
+
+        # Define the expected result
+        expected_result = (20, 20, 80, 80)
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+
+
+if __name__ == '__main__':
+    unittest.main()

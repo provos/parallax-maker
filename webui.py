@@ -19,7 +19,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import pil_to_data_url
+from utils import to_image_url
 
 import dash
 from dash import dcc, html, ctx
@@ -42,22 +42,13 @@ def progress_callback(current, total):
 
 # Utility functions - XXX refactor to a separate module
 
+
 def find_pixel_from_click(img_data, x, y, width, height):
     """Find the pixel coordinates in the image from the click coordinates."""
     img_width, img_height = img_data.size
     x_ratio = img_width / width
     y_ratio = img_height / height
     return int(x * x_ratio), int(y * y_ratio)
-
-
-def to_image_url(img_data):
-    """Converts an image to a data URL."""
-    if not isinstance(img_data, Image.Image):
-        img_data = Image.fromarray(img_data)
-    buffered = io.BytesIO()
-    img_data.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
-    return f"data:image/png;base64,{img_str}"
 
 
 def apply_color_tint(image, color, intensity=0.2):
@@ -128,7 +119,7 @@ app.layout = html.Div([
     EventListener(events=[eventScroll], logging=True, id="evScroll"),
     # dcc.Store stores all application state
     dcc.Store(id='application-state-filename'),
-    dcc.Store(id='restore-state'), # trigger to restore state
+    dcc.Store(id='restore-state'),  # trigger to restore state
     dcc.Store(id='rect-data'),  # Store for rect coordinates
     dcc.Store(id='logs-data', data=[]),  # Store for logs
     # App Layout
@@ -142,7 +133,8 @@ app.layout = html.Div([
             outer_class_name='w-full col-span-3'),
         components.make_tabs(
             'main',
-            ['Segmentation', 'Slice Generation', 'Inpainting', 'Export', 'Configuration'],
+            ['Segmentation', 'Slice Generation',
+                'Inpainting', 'Export', 'Configuration'],
             [
                 html.Div([
                     components.make_depth_map_container(
@@ -191,9 +183,9 @@ components.make_inpainting_container_callbacks(app)
 def save_slice_mask(data, filename, logs):
     if data is None or filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
-    
+
     # turn the data url into a RGBA PIL image
     image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
 
@@ -207,13 +199,14 @@ def save_slice_mask(data, filename, logs):
 
     # Merge the channels back into an RGB image (without the original alpha channel)
     new_image = Image.merge('RGB', (new_r, new_g, new_b))
-    
+
     # Scale new image to the same dimensions as imgData
     new_image = new_image.resize(state.imgData.size, resample=Image.BICUBIC)
-    
+
     mask_filename = state.save_image_mask(state.selected_slice, new_image)
-    
-    logs.append(f"Saved mask for slice {state.selected_slice} to {mask_filename}")
+
+    logs.append(
+        f"Saved mask for slice {state.selected_slice} to {mask_filename}")
 
     return logs
 
@@ -588,7 +581,7 @@ def display_slice(n_clicks, id, src, filename):
     state = AppState.from_cache(filename)
 
     index = n_clicks.index(1)
-    
+
     state.selected_slice = index
 
     return src[index], [None]*len(n_clicks)

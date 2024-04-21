@@ -11,7 +11,7 @@ from dash.exceptions import PreventUpdate
 
 # Local application/library specific imports
 from controller import AppState
-from utils import pil_to_data_url
+from utils import to_image_url
 from inpainting import inpaint, pipelinespec_from_model
 
 
@@ -243,12 +243,12 @@ def make_inpainting_container_callbacks(app):
         children = []
         for i, new_image in enumerate(images):
             children.append(
-                html.Img(src=pil_to_data_url(new_image),
-                     className='w-full h-full object-contain',
-                     id = {'type': 'inpainting-image', 'index': i})
+                html.Img(src=to_image_url(new_image),
+                         className='w-full h-full object-contain',
+                         id={'type': 'inpainting-image', 'index': i})
             )
         return children, []
-    
+
     @app.callback(
         Output('image', 'src', allow_duplicate=True),
         Output({'type': 'inpainting-image', 'index': ALL}, 'className'),
@@ -270,7 +270,7 @@ def make_inpainting_container_callbacks(app):
             raise PreventUpdate()
 
         print(f'Applying inpainting image {index}')
-        
+
         # give a visual highlight on the selected children
         new_classnames = []
         selected_background = ' bg-green-200'
@@ -279,8 +279,9 @@ def make_inpainting_container_callbacks(app):
             if i == index:
                 classname += selected_background
             new_classnames.append(classname)
-                
+
         return images[index], new_classnames
+
 
 def make_configuration_container():
     return make_label_container(
@@ -523,7 +524,8 @@ def make_canvas_callbacks(app):
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
         Output('canvas-ignore', 'data'),
-        Input('image', 'src'), # XXX - this will kill the canvas during inpainting - bad
+        # XXX - this will kill the canvas during inpainting - bad
+        Input('image', 'src'),
         Input('clear-canvas', 'n_clicks'),
     )
 
