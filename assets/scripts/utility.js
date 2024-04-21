@@ -61,6 +61,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 return '';
             }
             rect = graphElement.getBoundingClientRect();
+
+            rendered = getImageSize(graphElement);
+            rect['width'] = rendered['width'];
+            rect['height'] = rendered['height'];
+
             //console.log(rect);
             return rect;
         },
