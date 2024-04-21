@@ -322,7 +322,7 @@ def update_num_slices(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    state.num_slices = int(value)
+    
     if len(state.image_slices) == 0:
         raise PreventUpdate()
 
@@ -345,6 +345,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    state.num_slices = num_slices
 
     if state.depthMapData is None:
         logs_data.append("No depth map data available")
