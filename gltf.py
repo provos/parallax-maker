@@ -243,7 +243,8 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
         # Create the card node and add it to the scene
         card_node = gltf.Node(
             mesh=i,
-            translation=[0, 0, int(z_transform)]
+            translation=[0, 0, int(z_transform)],
+            rotation=rotation_quaternion_y(180)
         )
         gltf_obj.nodes.append(card_node)
         scene.nodes.append(len(gltf_obj.nodes)-1)
