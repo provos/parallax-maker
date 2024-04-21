@@ -1,6 +1,6 @@
 import unittest
 from PIL import Image
-from utils import find_bounding_box, find_square_from_bounding_box, filename_add_version
+from utils import find_bounding_box, find_square_from_bounding_box, filename_add_version, filename_previous_version
 
 
 class TestUtils(unittest.TestCase):
@@ -76,6 +76,38 @@ class TestUtils(unittest.TestCase):
 
         # Define the expected result
         expected_result = "/path/to/image_v3.png"
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)        
+
+    def test_filename_previous_version(self):
+        # Define the input filename
+        filename = "/path/to/image_v3.png"
+
+        # Call the function
+        result = filename_previous_version(filename)
+
+        # Define the expected result
+        expected_result = "/path/to/image_v2.png"
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+        
+        # Call the function
+        result = filename_previous_version(result)
+
+        # Define the expected result
+        expected_result = "/path/to/image.png"
+
+        # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+
+        # Call the function with a filename without version
+        filename = "/path/to/image.png"
+        result = filename_previous_version(filename)
+
+        # Define the expected result
+        expected_result = None
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)

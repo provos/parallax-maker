@@ -22,6 +22,22 @@ def filename_add_version(filename):
 
     return str(filename.parent / image_filename)
 
+def filename_previous_version(filename):
+    filename = Path(filename)
+    last_component = filename.stem.split('_')[-1]
+    if not last_component.startswith('v'):
+        return None
+    
+    stem = '_'.join(filename.stem.split('_')[:-1])
+    version = int(last_component[1:])
+    version -= 1
+    if version > 1:
+        image_filename = f"{stem}_v{version}.png"
+    else:
+        image_filename = f"{stem}.png"
+
+    return str(filename.parent / image_filename)
+
 
 def to_image_url(img_data):
     """Converts an image to a data URL."""
