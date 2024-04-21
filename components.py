@@ -265,7 +265,7 @@ def make_inpainting_container_callbacks(app):
         State({'type': 'inpainting-image', 'index': ALL}, 'src'),
         State({'type': 'inpainting-image', 'index': ALL}, 'className'),
         prevent_initial_call=True)
-    def apply_inpainting_image(n_clicks, filename, images, classnames):
+    def select_inpainting_image(n_clicks, filename, images, classnames):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
@@ -295,6 +295,7 @@ def make_inpainting_container_callbacks(app):
     @app.callback(
         Output('inpainting-request', 'data'),
         Output('logs-data', 'data', allow_duplicate=True),
+        Output('update-slice-request', 'data', allow_duplicate=True),
         Input('apply-inpainting-button', 'n_clicks'),
         State('application-state-filename', 'data'),
         State({'type': 'inpainting-image', 'index': ALL}, 'src'),
@@ -321,7 +322,7 @@ def make_inpainting_container_callbacks(app):
         
         logs.append(f'Inpainting applied to slice {index} with new image {image_filename}')
         
-        return True, logs
+        return True, logs, True
     
         
 
