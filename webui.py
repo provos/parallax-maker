@@ -584,10 +584,10 @@ def update_slices(ignored_data, filename):
         slice_name = html.Div([
             html.I(className="fa-solid fa-download pr-1",
                    id={'type': 'slice-info', 'index': i}),
-            html.I(className=f"fa-solid fa-caret-left {left_color} pr-1",
-                   id=left_id, disable_n_clicks=left_disabled),
-            html.I(className=f"fa-solid fa-caret-right {right_color} pr-1",
-                   id=right_id, disable_n_clicks=right_disabled),
+            html.Button(className=f"fa-solid fa-caret-left {left_color} pr-1",
+                   id=left_id, disabled=left_disabled),
+            html.Button(className=f"fa-solid fa-caret-right {right_color} pr-1",
+                   id=right_id, disabled=right_disabled),
             Path(state.image_slices_filenames[i]).stem])
         img_container.append(
             dcc.Upload(
