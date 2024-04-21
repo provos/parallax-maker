@@ -9,6 +9,7 @@ from io import BytesIO
 import numpy as np
 import cv2
 from pathlib import Path
+from utils import filename_previous_version, filename_add_version
 
 
 class AppState:
@@ -21,39 +22,67 @@ class AppState:
     def __init__(self):
         self.filename = None
         self.num_slices = 5
-        self.imgData = None # PIL image
+        self.imgData = None  # PIL image
         self.imgThresholds = None
-        self.depthMapData = None # numpy array
+        self.depthMapData = None  # numpy array
         self.image_slices_filenames = []
-        
+
         self.positive_prompt = ""
         self.negative_prompt = ""
-        
+
         # no JSON serialization for items below
         self.image_slices = []
         self.selected_slice = 0
-        self.pipeline_spec = None # PipelineSpec()
+        self.pipeline_spec = None  # PipelineSpec()
         self.selected_inpainting = None
-        
+
     def mask_filename(self, slice_index):
         """Returns the mask filename for the specified slice index."""
-        assert slice_index >=0 and slice_index < len(self.image_slices_filenames)
+        assert slice_index >= 0 and slice_index < len(
+            self.image_slices_filenames)
         file_path = Path(self.image_slices_filenames[slice_index])
         return file_path.parent / f"{file_path.stem}_mask.png"
-        
+
     def save_image_mask(self, slice_index, mask):
         """Saves the PIL image mask to a png file for the specified slice index."""
         mask_path = self.mask_filename(slice_index)
         mask.save(str(mask_path))
-        
+
         return str(mask_path)
 
     def read_image_slices(self):
         self.image_slices = [
-            cv2.cvtColor(cv2.imread(str(image_slice), cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
+            cv2.cvtColor(cv2.imread(str(image_slice),
+                         cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
             for image_slice in self.image_slices_filenames]
         print(f"Loaded {len(self.image_slices)} image slices")
         assert len(self.image_slices) == len(self.image_slices_filenames)
+
+    def can_undo(self, slice_index, forward=False):
+        """
+        Check if it is possible to undo the specified slice index.
+
+        Args:
+            slice_index (int): The index of the slice to check.
+            forward (bool, optional): If True, check for the next version of the slice. 
+                                      If False, check for the previous version. Defaults to False.
+
+        Returns:
+            bool: True if the specified slice version exists, False otherwise.
+        """
+        assert slice_index >= 0 and slice_index < len(
+            self.image_slices_filenames)
+        if forward:
+            filename = filename_add_version(
+                self.image_slices_filenames[slice_index])
+        else:
+            filename = filename_previous_version(
+                self.image_slices_filenames[slice_index])
+        
+        if filename is None:
+            return False
+            
+        return Path(filename).exists()
 
     def save_image_slices(self, file_path):
         """
@@ -86,11 +115,11 @@ class AppState:
         # check if file path is a directory. if not create it
         if not file_path.is_dir():
             file_path.mkdir()
-            
+
         # save the input image
         img_file = file_path / AppState.IMAGE_FILE
         self.imgData.save(str(img_file))
-        
+
         # save the depth map
         if self.depthMapData is not None:
             depth_map_file = file_path / AppState.DEPTH_MAP_FILE
@@ -121,9 +150,9 @@ class AppState:
             state = AppState.from_json(file.read())
 
         state.fill_from_files(file_path)
-        
+
         return state
-    
+
     def fill_from_files(self, file_path):
         """
         This method reads the input image and depth map files from the specified file path and updates the state
@@ -233,4 +262,3 @@ class AppState:
         state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
         state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
         return state
-

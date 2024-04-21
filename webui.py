@@ -564,12 +564,21 @@ def update_slices(ignored_data, filename):
     if state.depthMapData is None:
         raise PreventUpdate()
 
+    caret_color_enabled = "text-emerald-400"
+    caret_color_disabled = "text-orange-800"
+
     img_container = []
     assert len(state.image_slices) == len(state.image_slices_filenames)
     for i, img_slice in enumerate(state.image_slices):
         img_data = to_image_url(img_slice)
+        
+        left_color = caret_color_enabled if state.can_undo(i, forward=False) else caret_color_disabled
+        right_color = caret_color_enabled if state.can_undo(i, forward=True) else caret_color_disabled
+        
         slice_name = html.Div([
             html.I(className="fa-solid fa-download pr-1"),
+            html.I(className=f"fa-solid fa-caret-left {left_color} pr-1"),
+            html.I(className=f"fa-solid fa-caret-right {right_color} pr-1"),
             Path(state.image_slices_filenames[i]).stem])
         img_container.append(
             dcc.Upload(
