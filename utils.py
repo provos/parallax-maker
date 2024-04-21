@@ -16,7 +16,7 @@ def filename_add_version(filename):
         stem = '_'.join(filename.stem.split('_')[:-1])
         version = int(last_component[1:])
         version += 1
-        image_filename = filename.parent / f"{stem}_v{version}.png"
+        image_filename = f"{stem}_v{version}.png"
     else:
         image_filename = f"{filename.stem}_v2.png"
 
