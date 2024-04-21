@@ -13,15 +13,17 @@ from pathlib import Path
 
 class AppState:
     STATE_FILE = 'appstate.json'
+    IMAGE_FILE = 'input_image.png'
+    DEPTH_MAP_FILE = 'depth_map.png'
 
     cache = {}
 
     def __init__(self):
         self.filename = None
         self.num_slices = 5
-        self.imgData = None
+        self.imgData = None # PIL image
         self.imgThresholds = None
-        self.depthMapData = None
+        self.depthMapData = None # numpy array
         self.image_slices_filenames = []
         
         self.positive_prompt = ""
@@ -83,6 +85,16 @@ class AppState:
         # check if file path is a directory. if not create it
         if not file_path.is_dir():
             file_path.mkdir()
+            
+        # save the input image
+        img_file = file_path / AppState.IMAGE_FILE
+        self.imgData.save(str(img_file))
+        
+        # save the depth map
+        if self.depthMapData is not None:
+            depth_map_file = file_path / AppState.DEPTH_MAP_FILE
+            image = Image.fromarray(self.depthMapData)
+            image.save(str(depth_map_file))
 
         # save the image slices
         if save_image_slices:
@@ -107,9 +119,30 @@ class AppState:
         with open(state_file, 'r', encoding='utf-8') as file:
             state = AppState.from_json(file.read())
 
-        state.read_image_slices(file_path)
-
+        state.fill_from_files(file_path)
+        
         return state
+    
+    def fill_from_files(self, file_path):
+        """
+        This method reads the input image and depth map files from the specified file path and updates the state
+        with the corresponding image data and depth map data.
+
+        Args:
+            file_path (str): The file path to load the state from.
+
+        Returns:
+            None
+        """
+        # read the input image
+        img_file = Path(file_path) / AppState.IMAGE_FILE
+        self.imgData = Image.open(img_file)
+        self.read_image_slices(file_path)
+
+        # read the depth map and turn it into a numpy array
+        depth_map_file = Path(file_path) / AppState.DEPTH_MAP_FILE
+        if depth_map_file.exists():
+            self.depthMapData = np.array(Image.open(depth_map_file))
 
     @staticmethod
     def from_cache(file_path):
@@ -168,9 +201,7 @@ class AppState:
         data = {
             'filename': self.filename,
             'num_slices': self.num_slices,
-            'imgData': self._serialize_image(self.imgData),
             'imgThresholds': self.imgThresholds,
-            'depthMapData': self._serialize_ndarray(self.depthMapData),
             'image_slices_filenames': self.image_slices_filenames,
             'positive_prompt': self.positive_prompt,
             'negative_prompt': self.negative_prompt,
@@ -196,75 +227,9 @@ class AppState:
 
         state.filename = data['filename']
         state.num_slices = data['num_slices'] if 'num_slices' in data else 5
-        state.imgData = AppState._deserialize_image(data['imgData'])
         state.imgThresholds = data['imgThresholds']
-        state.depthMapData = AppState._deserialize_ndarray(data['depthMapData'])
         state.image_slices_filenames = data['image_slices_filenames']
         state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
         state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
         return state
 
-    @staticmethod
-    def _serialize_image(image):
-        """
-        Serialize the image to a base64-encoded string.
-
-        Args:
-            image (PIL.Image.Image): The image to serialize.
-
-        Returns:
-            str: The base64-encoded string representation of the image.
-        """
-        if image is None:
-            return None
-        buffer = BytesIO()
-        image.save(buffer, format='PNG')
-        image_bytes = buffer.getvalue()
-        return base64.b64encode(image_bytes).decode('utf-8')
-
-    @staticmethod
-    def _deserialize_image(image_base64):
-        """
-        Deserialize the image from a base64-encoded string.
-
-        Args:
-            image_base64 (str): The base64-encoded string representation of the image.
-
-        Returns:
-            PIL.Image.Image: The deserialized image.
-        """
-        if image_base64 is None:
-            return None
-        image_bytes = base64.b64decode(image_base64.encode('utf-8'))
-        image = Image.open(BytesIO(image_bytes))
-        return image
-
-    @staticmethod
-    def _serialize_ndarray(arr):
-        """
-        Serialize the ndarray to a list.
-
-        Args:
-            arr (numpy.ndarray): The ndarray to serialize.
-
-        Returns:
-            list: The serialized list representation of the ndarray.
-        """
-        if arr is None:
-            return None
-        return arr.tolist()
-
-    @staticmethod
-    def _deserialize_ndarray(array_list):
-        """
-        Deserialize the ndarray from a list.
-
-        Args:
-            array_list (list): The list representation of the ndarray.
-
-        Returns:
-            numpy.ndarray: The deserialized ndarray.
-        """
-        if array_list is None:
-            return None
-        return np.array(array_list, dtype=np.uint8)

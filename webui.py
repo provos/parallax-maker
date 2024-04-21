@@ -725,9 +725,7 @@ def restore_state(contents, logs):
     content_type, content_string = contents.split(',')
     decoded_contents = base64.b64decode(content_string).decode('utf-8')
     state = AppState.from_json(decoded_contents)
-
-    # XXX: Consider whether the image slices should be read in from_json
-    state.read_image_slices(state.filename)
+    state.fill_from_files(state.filename)
 
     logs.append(f"Restored state from {state.filename}")
 
