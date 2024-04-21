@@ -49,12 +49,16 @@ class AppState:
         mask.save(str(mask_path))
 
         return str(mask_path)
+    
+    def _read_image_slice(self, slice_index):
+        img = cv2.imread(str(self.image_slices_filenames[slice_index]), cv2.IMREAD_UNCHANGED)
+        img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
+        return img
 
     def read_image_slices(self):
-        self.image_slices = [
-            cv2.cvtColor(cv2.imread(str(image_slice),
-                         cv2.IMREAD_UNCHANGED), cv2.COLOR_BGRA2RGBA)
-            for image_slice in self.image_slices_filenames]
+        self.image_slices = [None] * len(self.image_slices_filenames)
+        for i in range(len(self.image_slices_filenames)):
+            self.image_slices[i] = self._read_image_slice(i)
         print(f"Loaded {len(self.image_slices)} image slices")
         assert len(self.image_slices) == len(self.image_slices_filenames)
 
@@ -78,11 +82,43 @@ class AppState:
         else:
             filename = filename_previous_version(
                 self.image_slices_filenames[slice_index])
-        
+
         if filename is None:
             return False
-            
+
         return Path(filename).exists()
+
+    def undo(self, slice_index, forward=False):
+        """
+        Undo the specified slice index.
+
+        Args:
+            slice_index (int): The index of the slice to undo.
+            forward (bool, optional): If True, undo the next version of the slice. 
+                          If False, undo the previous version. Defaults to False.
+
+        Returns:
+            bool: True if the undo operation is successful, False otherwise.
+        """
+        assert slice_index >= 0 and slice_index < len(
+            self.image_slices_filenames)
+
+        if not self.can_undo(slice_index, forward):
+            return False
+
+        if forward:
+            filename = filename_add_version(
+                self.image_slices_filenames[slice_index])
+        else:
+            filename = filename_previous_version(
+                self.image_slices_filenames[slice_index])
+
+        if filename is None:
+            return False
+
+        self.image_slices_filenames[slice_index] = filename
+        self.image_slices[slice_index] = self._read_image_slice(slice_index)
+        return True
 
     def save_image_slices(self, file_path):
         """
@@ -103,7 +139,7 @@ class AppState:
             print(f"Saving image slice: {output_image_path}")
             slice_image.save(str(output_image_path))
 
-    def to_file(self, file_path, save_image_slices=True):
+    def to_file(self, file_path, save_image_slices=True, save_depth_map=True, save_input_image=True):
         """
         Save the current state to a file.
 
@@ -117,11 +153,12 @@ class AppState:
             file_path.mkdir()
 
         # save the input image
-        img_file = file_path / AppState.IMAGE_FILE
-        self.imgData.save(str(img_file))
+        if save_input_image:
+            img_file = file_path / AppState.IMAGE_FILE
+            self.imgData.save(str(img_file))
 
         # save the depth map
-        if self.depthMapData is not None:
+        if self.depthMapData is not None and save_depth_map:
             depth_map_file = file_path / AppState.DEPTH_MAP_FILE
             image = Image.fromarray(self.depthMapData)
             image.save(str(depth_map_file))

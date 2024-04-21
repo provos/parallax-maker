@@ -573,12 +573,20 @@ def update_slices(ignored_data, filename):
         img_data = to_image_url(img_slice)
         
         left_color = caret_color_enabled if state.can_undo(i, forward=False) else caret_color_disabled
+        left_disabled = True if left_color == caret_color_disabled else False
         right_color = caret_color_enabled if state.can_undo(i, forward=True) else caret_color_disabled
+        right_disabled = True if right_color == caret_color_disabled else False
+        
+        left_id = {'type': 'slice-undo-backwards', 'index': i}
+        right_id = {'type': 'slice-undo-forwards', 'index': i}
         
         slice_name = html.Div([
-            html.I(className="fa-solid fa-download pr-1"),
-            html.I(className=f"fa-solid fa-caret-left {left_color} pr-1"),
-            html.I(className=f"fa-solid fa-caret-right {right_color} pr-1"),
+            html.I(className="fa-solid fa-download pr-1",
+                   id={'type': 'slice-info', 'index': i}),
+            html.I(className=f"fa-solid fa-caret-left {left_color} pr-1",
+                   id=left_id, disable_n_clicks=left_disabled),
+            html.I(className=f"fa-solid fa-caret-right {right_color} pr-1",
+                   id=right_id, disable_n_clicks=right_disabled),
             Path(state.image_slices_filenames[i]).stem])
         img_container.append(
             dcc.Upload(
@@ -588,7 +596,6 @@ def update_slices(ignored_data, filename):
                         className='w-full h-full object-contain border-solid border-2 border-slate-500',
                         id={'type': 'slice', 'index': i},),
                     html.Div(children=slice_name,
-                             id={'type': 'slice-info', 'index': i},
                              className='text-center text-overlay p-1')
                 ], style={'position': 'relative'}),
                 id={'type': 'slice-upload', 'index': i},
@@ -597,6 +604,39 @@ def update_slices(ignored_data, filename):
         )
 
     return img_container, ""
+
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+             Input({'type': 'slice-undo-backwards', 'index': ALL}, 'n_clicks'),
+             Input({'type': 'slice-undo-forwards', 'index': ALL}, 'n_clicks'),
+             State('application-state-filename', 'data'),
+             prevent_initial_call=True)
+def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    # don't need to use ctx.triggered_id since we are repaining the whole thing
+    index = None
+    forward = None
+    if any(n_clicks_backwards):
+        index = n_clicks_backwards.index(1)
+        forward = False
+    elif any(n_clicks_forwards):
+        index = n_clicks_forwards.index(1)
+        forward = True
+    else:
+        raise PreventUpdate()
+
+    if not state.undo(index, forward=forward):
+        print(f"Cannot undo slice {index} with forward {forward}")
+        raise PreventUpdate()
+
+    # only save the json with the updated file mapping
+    state.to_file(filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
+
+    return True
+
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
