@@ -31,6 +31,7 @@ class AppState:
         self.image_slices = []
         self.selected_slice = 0
         self.pipeline_spec = None # PipelineSpec()
+        self.selected_inpainting = None
         
     def mask_filename(self, slice_index):
         """Returns the mask filename for the specified slice index."""
@@ -64,10 +65,11 @@ class AppState:
                 str(file_path / f"image_slice_{i}.png") for i in range(len(self.image_slices))]
         assert len(self.image_slices) == len(self.image_slices_filenames)
         for i, slice_image in enumerate(self.image_slices):
+            if not isinstance(slice_image, Image.Image):
+                slice_image = Image.fromarray(slice_image, mode='RGBA')
             output_image_path = self.image_slices_filenames[i]
             print(f"Saving image slice: {output_image_path}")
-            cv2.imwrite(str(output_image_path), cv2.cvtColor(
-                slice_image, cv2.COLOR_RGBA2BGRA))
+            slice_image.save(str(output_image_path))
 
     def to_file(self, file_path, save_image_slices=True):
         """

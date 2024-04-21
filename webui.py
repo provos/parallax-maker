@@ -19,7 +19,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import to_image_url
+from utils import to_image_url, filename_add_version
 
 import dash
 from dash import dcc, html, ctx
@@ -674,20 +674,6 @@ def slice_upload(contents, filename, logs):
     state.to_file(filename)
 
     return True, logs
-
-
-def filename_add_version(filename):
-    filename = Path(filename)
-    last_component = filename.stem.split('_')[-1]
-    if last_component.startswith('v'):
-        stem = '_'.join(filename.stem.split('_')[:-1])
-        version = int(last_component[1:])
-        version += 1
-        image_filename = filename.parent / f"{stem}_v{version}.png"
-    else:
-        image_filename = f"{filename.stem}_v2.png"
-
-    return str(filename.parent / image_filename)
 
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),

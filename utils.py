@@ -6,6 +6,21 @@ import base64
 import torch
 import numpy as np
 from PIL import Image
+from pathlib import Path
+
+
+def filename_add_version(filename):
+    filename = Path(filename)
+    last_component = filename.stem.split('_')[-1]
+    if last_component.startswith('v'):
+        stem = '_'.join(filename.stem.split('_')[:-1])
+        version = int(last_component[1:])
+        version += 1
+        image_filename = filename.parent / f"{stem}_v{version}.png"
+    else:
+        image_filename = f"{filename.stem}_v2.png"
+
+    return str(filename.parent / image_filename)
 
 
 def to_image_url(img_data):
@@ -30,6 +45,7 @@ def torch_get_device():
     elif torch.backends.mps.is_available():
         return torch.device("mps")
     return torch.device("cpu")
+
 
 def find_bounding_box(mask_image, padding=50):
     """

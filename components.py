@@ -1,6 +1,8 @@
 # (c) 2024 Niels Provos
 
 # Standard library imports
+import io
+import base64
 from PIL import Image
 
 # Related third party imports
@@ -11,7 +13,7 @@ from dash.exceptions import PreventUpdate
 
 # Local application/library specific imports
 from controller import AppState
-from utils import to_image_url
+from utils import to_image_url, filename_add_version
 from inpainting import inpaint, pipelinespec_from_model
 
 
@@ -274,6 +276,8 @@ def make_inpainting_container_callbacks(app):
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
             raise PreventUpdate()
+        
+        state.selected_inpainting = index
 
         print(f'Applying inpainting image {index}')
 
@@ -287,6 +291,39 @@ def make_inpainting_container_callbacks(app):
             new_classnames.append(classname)
 
         return images[index], new_classnames
+    
+    @app.callback(
+        Output('inpainting-request', 'data'),
+        Output('logs-data', 'data', allow_duplicate=True),
+        Input('apply-inpainting-button', 'n_clicks'),
+        State('application-state-filename', 'data'),
+        State({'type': 'inpainting-image', 'index': ALL}, 'src'),
+        State('logs-data', 'data'),
+        prevent_initial_call=True)
+    def apply_inpainting(n_clicks, filename, inpainted_images, logs):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        if state.selected_inpainting is None:
+            raise PreventUpdate()
+
+        index = state.selected_slice
+        new_image_data = inpainted_images[state.selected_inpainting]
+        
+        new_image = Image.open(io.BytesIO(base64.b64decode(new_image_data.split(',')[1])))
+        
+        image_filename = filename_add_version(state.image_slices_filenames[index])
+        state.image_slices_filenames[index] = image_filename
+        
+        state.image_slices[index] = new_image
+        state.to_file(state.filename)
+        
+        logs.append(f'Inpainting applied to slice {index} with new image {image_filename}')
+        
+        return True, logs
+    
+        
 
 
 def make_configuration_container():
