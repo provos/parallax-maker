@@ -226,7 +226,7 @@ def make_inpainting_container_callbacks(app):
 
         state.positive_prompt = positive_prompt
         state.negative_prompt = negative_prompt
-        state.to_file(state.filename, save_image_slices=False)
+        state.to_file(state.filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
 
         pipelinespec = pipelinespec_from_model(model)
         if state.pipeline_spec is None or state.pipeline_spec != pipelinespec:
