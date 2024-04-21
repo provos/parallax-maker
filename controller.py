@@ -32,7 +32,7 @@ class AppState:
 
         # no JSON serialization for items below
         self.image_slices = []
-        self.selected_slice = 0
+        self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec()
         self.selected_inpainting = None
 

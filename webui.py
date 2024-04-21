@@ -22,7 +22,7 @@ import components
 from utils import to_image_url, filename_add_version
 
 import dash
-from dash import dcc, html, ctx
+from dash import dcc, html, ctx, no_update
 from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
@@ -553,6 +553,7 @@ def generate_slices_request(n_clicks):
 
 @app.callback(Output('slice-img-container', 'children'),
               Output('gen-slice-output', 'children', allow_duplicate=True),
+              Output('image', 'src', allow_duplicate=True),
               Input('update-slice-request', 'data'),
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
@@ -602,8 +603,13 @@ def update_slices(ignored_data, filename):
                 disable_click=True,
             )
         )
+        
+    img_data = no_update
+    if state.selected_slice is not None:
+        assert state.selected_slice >= 0 and state.selected_slice < len(state.image_slices)
+        img_data = to_image_url(state.image_slices[state.selected_slice])
 
-    return img_container, ""
+    return img_container, "", img_data
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
              Input({'type': 'slice-undo-backwards', 'index': ALL}, 'n_clicks'),
