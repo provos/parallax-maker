@@ -2,11 +2,26 @@
 #
 
 import io
+from functools import wraps
+import time
 import base64
 import torch
 import numpy as np
 from PIL import Image
 from pathlib import Path
+
+
+def timeit(func):
+    @wraps(func)
+    def timeit_wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        result = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        total_time_ms = (end_time - start_time) * 1000.0
+        print(
+            f'Function {func.__name__} took {total_time_ms:.1f} ms')
+        return result
+    return timeit_wrapper
 
 
 def filename_add_version(filename):
@@ -22,12 +37,13 @@ def filename_add_version(filename):
 
     return str(filename.parent / image_filename)
 
+
 def filename_previous_version(filename):
     filename = Path(filename)
     last_component = filename.stem.split('_')[-1]
     if not last_component.startswith('v'):
         return None
-    
+
     stem = '_'.join(filename.stem.split('_')[:-1])
     version = int(last_component[1:])
     version -= 1
@@ -39,6 +55,7 @@ def filename_previous_version(filename):
     return str(filename.parent / image_filename)
 
 
+@timeit
 def to_image_url(img_data):
     """Converts an image to a data URL."""
     if not isinstance(img_data, Image.Image):
