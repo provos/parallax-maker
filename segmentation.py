@@ -252,7 +252,18 @@ def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_
 
 
 def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position):
-    """Render the current view of the camera."""
+    """
+    Render the current view of the camera.
+
+    Args:
+        image_slices (list): A list of image slices.
+        camera_matrix (numpy.ndarray): The camera matrix.
+        card_corners_3d_list (list): A list of 3D card corners.
+        camera_position (numpy.ndarray): The current camera position.
+
+    Returns:
+        numpy.ndarray: The rendered image.
+    """
     num_slices = len(image_slices)
     # Start with a blank image with an alpha channel
     rendered_image = np.zeros(
