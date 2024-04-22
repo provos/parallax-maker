@@ -65,8 +65,9 @@ def make_input_image_container(
             multiple=False
         ),
         html.Div([
-            # used to intermediately store the canvas data
-            dcc.Store(id='canvas-data'),  # ignored
+            # used to intermediately store the canvas data for saving
+            dcc.Store(id='canvas-data'),
+            # mask gets loaded here and communicated to javascript
             dcc.Store(id='canvas-mask-data'),
             html.Button('Clear', id='clear-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
@@ -583,17 +584,17 @@ def make_canvas_callbacks(app):
             print(f'Mask file {mask_filename} does not exist')
             logs.append(f'Mask file {mask_filename} does not exist')
             return no_update, logs
-            
+
         print(f'Loading mask for slice {state.selected_slice}')
         logs.append(f'Loading mask for slice {state.selected_slice}')
         mask = Image.open(mask_filename).convert('RGB')
-        
+
         r, _, _ = mask.split()
-        
+
         width, height = r.size
-        zero_channel = Image.new('L', (width, height))        
+        zero_channel = Image.new('L', (width, height))
         new_mask = Image.merge('RGBA', (r, zero_channel, zero_channel, r))
-                
+
         return to_image_url(new_mask), logs
 
     app.clientside_callback(
