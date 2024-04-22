@@ -65,22 +65,48 @@ def make_input_image_container(
             multiple=False
         ),
         html.Div([
-            # used to intermediately store the canvas data for saving
-            dcc.Store(id='canvas-data'),
-            # mask gets loaded here and communicated to javascript
-            dcc.Store(id='canvas-mask-data'),
-            html.Button('Clear', id='clear-canvas',
-                        className='bg-blue-500 text-white p-2 rounded-md'),
-            html.Button('Erase', id='erase-mode-canvas',
-                        className='bg-blue-500 text-white p-2 rounded-md'),
-            html.Button('Load', id='load-canvas',
-                        className='bg-blue-500 text-white p-2 rounded-md'),
-            html.Button('Save', id='save-canvas',
-                        className='bg-blue-500 text-white p-2 rounded-md'),
-        ],
-            id='canvas-buttons',
-            className='flex flex-row gap-2 p-2 bg-gray-200 rounded-md mt-1 hidden'
-        ),
+            # Div for existing canvas tools
+            html.Div([
+                dcc.Store(id='canvas-data'),
+                dcc.Store(id='canvas-mask-data'),
+                html.Div([
+                    html.Button('Clear', id='clear-canvas',
+                                className='bg-blue-500 text-white p-2 rounded-md'),
+                    html.Button('Erase', id='erase-mode-canvas',
+                                className='bg-blue-500 text-white p-2 rounded-md'),
+                    html.Button('Load', id='load-canvas',
+                                className='bg-blue-500 text-white p-2 rounded-md'),
+                    html.Button('Save', id='save-canvas',
+                                className='bg-blue-500 text-white p-2 rounded-md'),
+                ], className='grid grid-cols-2 gap-2 items-center justify-items-center')
+            ], className='flex flex-col justify-center items-center p-2 bg-gray-200 rounded-md mt-1'),
+
+            # Div for navigation buttons arranged like a compass rose
+            html.Div([
+                # Top row (only the top arrow)
+                html.Div([
+                    html.Button(html.I(className="fa fa-arrow-up"), id='nav-up',
+                                className='bg-blue-500 text-white p-1 rounded-full'),
+                ], className='flex justify-center'),
+
+                # Middle row (left, reset, right arrows)
+                html.Div([
+                    html.Button(html.I(className="fa fa-arrow-left"), id='nav-left',
+                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                    html.Button(html.I(className="fa fa-circle"), id='nav-reset',
+                                className='bg-blue-500 text-white p-1 rounded-full'),
+                    html.Button(html.I(className="fa fa-arrow-right"), id='nav-right',
+                                className='bg-blue-500 text-white p-1 rounded-full ml-1'),
+                ], className='flex justify-between'),
+
+                # Bottom row (only the bottom arrow)
+                html.Div([
+                    html.Button(html.I(className="fa fa-arrow-down"), id='nav-down',
+                                className='bg-blue-500 text-white p-1 rounded-full'),
+                ], className='flex justify-center')
+            ], className='flex flex-col gap-1 p-2 bg-gray-200 rounded-md mt-1'),
+
+        ], id='canvas-buttons', className='flex gap-2')
     ], className=outer_class_name
     )
 
