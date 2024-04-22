@@ -35,6 +35,12 @@ class AppState:
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec()
         self.selected_inpainting = None
+        
+        # XXX - make this configurable
+        self.camera_position = np.array([0, 0, -100], dtype=np.float32)
+        self.camera_distance = 100.0
+        self.max_distance = 500.0
+        self.focal_length = 100.0
 
     def mask_filename(self, slice_index):
         """Returns the mask filename for the specified slice index."""

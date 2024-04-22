@@ -7,6 +7,7 @@ from pathlib import Path
 from PIL import Image
 
 # Related third party imports
+import numpy as np
 from dash import dcc, html, ctx, no_update
 from dash_extensions import EventListener
 from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
@@ -16,6 +17,7 @@ from dash.exceptions import PreventUpdate
 from controller import AppState
 from utils import to_image_url, filename_add_version
 from inpainting import inpaint, pipelinespec_from_model
+from segmentation import setup_camera_and_cards, render_view
 
 
 def get_canvas_paint_events():
@@ -85,9 +87,13 @@ def make_input_image_container(
             html.Div([
                 # Top row (only the top arrow)
                 html.Div([
+                    html.Button(html.I(className="fa fa-magnifying-glass-minus"), id='nav-zoom-out',
+                                className='bg-blue-500 text-white p-1 rounded-full'),
                     html.Button(html.I(className="fa fa-arrow-up"), id='nav-up',
                                 className='bg-blue-500 text-white p-1 rounded-full'),
-                ], className='flex justify-center'),
+                    html.Button(html.I(className="fa fa-magnifying-glass-plus"), id='nav-zoom-in',
+                                className='bg-blue-500 text-white p-1 rounded-full'),
+                ], className='flex justify-between'),
 
                 # Middle row (left, reset, right arrows)
                 html.Div([
@@ -663,3 +669,59 @@ def make_canvas_callbacks(app):
         Input('erase-mode-canvas', 'n_clicks'),
         prevent_initial_call=True
     )
+
+def make_navigation_callbacks(app):
+    @app.callback(
+        Output('image', 'src', allow_duplicate=True),
+        Output('logs-data', 'data', allow_duplicate=True),
+        Input('nav-reset', 'n_clicks'),
+        Input('nav-up', 'n_clicks'),
+        Input('nav-down', 'n_clicks'),
+        Input('nav-left', 'n_clicks'),
+        Input('nav-right', 'n_clicks'),
+        Input('nav-zoom-in', 'n_clicks'),
+        Input('nav-zoom-out', 'n_clicks'),
+        State('application-state-filename', 'data'),
+        State('camera-distance-slider', 'value'),
+        State('logs-data', 'data'),
+        prevent_initial_call=True)
+    def navigate_image(reset, up, down, left, right, zoom_in, zoom_out, filename, camera_distance, logs):
+        if filename is None:
+            raise PreventUpdate()
+
+        nav_clicked = ctx.triggered_id
+        if nav_clicked is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        state.selected_slice = None
+        
+        camera_position = state.camera_position
+
+        if nav_clicked == 'nav-reset':
+            camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)
+        else:
+            # Move the camera position based on the navigation button clicked
+            # The distance should be configurable
+            switch = {
+                'nav-up': np.array([0, -1, 0], dtype=np.float32),
+                'nav-down': np.array([0, 1, 0], dtype=np.float32),
+                'nav-left': np.array([-1, 0, 0], dtype=np.float32),
+                'nav-right': np.array([1, 0, 0], dtype=np.float32),
+                'nav-zoom-out': np.array([0, 0, -1], dtype=np.float32),
+                'nav-zoom-in': np.array([0, 0, 1], dtype=np.float32),
+            }
+            
+            camera_position += switch[nav_clicked]
+
+        state.camera_position = camera_position
+
+        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
+            state.image_slices, state.imgThresholds,
+            state.camera_distance, state.max_distance, state.focal_length)
+        
+        image = render_view(state.image_slices, camera_matrix, card_corners_3d_list, camera_position)
+        
+        logs.append(f'Navigated to new camera position {camera_position}')
+
+        return to_image_url(image), logs

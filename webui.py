@@ -177,6 +177,7 @@ app.clientside_callback(
 
 
 components.make_canvas_callbacks(app)
+components.make_navigation_callbacks(app)
 components.make_inpainting_container_callbacks(app)
 
 
