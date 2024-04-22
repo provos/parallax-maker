@@ -724,4 +724,4 @@ def make_navigation_callbacks(app):
         
         logs.append(f'Navigated to new camera position {camera_position}')
 
-        return to_image_url(image), logs
+        return state.serve_main_image(image), logs

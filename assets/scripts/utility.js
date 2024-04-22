@@ -72,23 +72,35 @@ function setupCanvasContext(canvas) {
     canvas.addEventListener('mousemove', draw);
 }
 
+function resolveRect(graphElement, resolve) {
+    const rect = graphElement.getBoundingClientRect();
+    const rendered = getImageSize(graphElement);
+    rect['width'] = rendered['width'];
+    rect['height'] = rendered['height'];
+    resolve(rect);
+}
 
 window.dash_clientside = Object.assign({}, window.dash_clientside, {
     clientside: {
         store_rect_coords: function () {
-            const graphElement = document.getElementById('image');
-            if (graphElement === null) {
-                console.log('No element found with id "image"');
-                return '';
-            }
-            rect = graphElement.getBoundingClientRect();
+            return new Promise((resolve, reject) => {
+                const graphElement = document.getElementById('image');
+                if (graphElement === null) {
+                    console.log('No element found with id "image"');
+                    resolve({ x: 0, y: 0, width: 0, height: 0 });
+                    return;
+                }
 
-            rendered = getImageSize(graphElement);
-            rect['width'] = rendered['width'];
-            rect['height'] = rendered['height'];
-
-            //console.log(rect);
-            return rect;
+                // Check if the image has already loaded
+                if (graphElement.complete && graphElement.naturalWidth !== 0) {
+                    resolveRect(graphElement, resolve);
+                } else {
+                    // If the image hasn't loaded yet, wait for the load event
+                    graphElement.addEventListener('load', () => {
+                        resolveRect(graphElement, resolve);
+                    });
+                }
+            });
         },
         canvas_get: function () {
             canvas = document.getElementById('canvas');

@@ -1,21 +1,24 @@
 # (c) 2024 Niels Provos
 
-import base64
+import os 
 import json
 import random
 import string
+import time
 from PIL import Image
 from io import BytesIO
 import numpy as np
 import cv2
 from pathlib import Path
-from utils import filename_previous_version, filename_add_version
+from utils import filename_previous_version, filename_add_version, timeit
 
 
 class AppState:
+    SRV_DIR = 'tmp-images'
     STATE_FILE = 'appstate.json'
     IMAGE_FILE = 'input_image.png'
     DEPTH_MAP_FILE = 'depth_map.png'
+    MAIN_IMAGE = 'main_image.bmp'
 
     cache = {}
 
@@ -31,6 +34,7 @@ class AppState:
         self.negative_prompt = ""
 
         # no JSON serialization for items below
+        self.root_dir = Path(os.path.dirname(__file__))
         self.image_slices = []
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec()
@@ -41,6 +45,18 @@ class AppState:
         self.camera_distance = 100.0
         self.max_distance = 500.0
         self.focal_length = 100.0
+        
+    @timeit
+    def serve_main_image(self, image):
+        """Serves the image using a temporary directory."""
+        if not isinstance(image, Image.Image):
+            image = Image.fromarray(image)
+        image_path = Path(self.SRV_DIR) / f"{self.MAIN_IMAGE}"
+        if not self.root_dir.joinpath(self.SRV_DIR).exists():
+            self.root_dir.joinpath(self.SRV_DIR).mkdir()
+        image.save(self.root_dir / str(image_path))
+        unique_id = int(time.time())
+        return f'/{str(image_path)}?v={unique_id}'
 
     def mask_filename(self, slice_index):
         """Returns the mask filename for the specified slice index."""

@@ -20,7 +20,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import to_image_url, filename_add_version
+from utils import to_image_url, filename_add_version, timeit
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -28,6 +28,8 @@ from dash.dependencies import Input, Output, State, ClientsideFunction
 from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
+from flask import send_file
+
 from controller import AppState
 
 
@@ -52,6 +54,7 @@ def find_pixel_from_click(img_data, x, y, width, height):
     return int(x * x_ratio), int(y * y_ratio)
 
 
+@timeit
 def apply_color_tint(img, color, alpha):
     # Create an overlay image filled with the specified color
     overlay = Image.new('RGB', img.size, color=color)
@@ -60,6 +63,7 @@ def apply_color_tint(img, color, alpha):
     return Image.blend(img, overlay, alpha)
 
 
+@timeit
 def apply_mask(img_data, mask):
     if not isinstance(img_data, Image.Image):
         raise TypeError('img_data should be a PIL Image')
@@ -94,6 +98,13 @@ external_scripts = [
 
 app = dash.Dash(__name__,
                 external_scripts=external_scripts)
+
+# Create a Flask route for serving images
+@app.server.route(f'/{AppState.SRV_DIR}/<path:filename>')
+def serve_image(filename):
+    root_dir = Path(root_dir=os.path.dirname(__file__))
+    filename = root_dir / AppState.SRV_DIR / filename
+    return send_file(str(filename), mimetype=f'image/{filename.suffix[1:]}')
 
 # JavaScript event(s) that we want to listen to and what properties to collect.
 eventScroll = {"event": "scroll", "props": ["type", "scrollLeft", "scrollTop"]}
@@ -474,9 +485,9 @@ def click_event(n_events, e, rect_data, filename, logs_data):
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
     if mask is not None:
         result = apply_mask(state.imgData, mask)
-        img_data = to_image_url(result)
+        img_data = state.serve_main_image(result)
     else:
-        img_data = to_image_url(state.imgData)
+        img_data = state.serve_main_image(state.imgData)
     apply_time = int(datetime.datetime.now().timestamp() * 1000)
     apply_elapsed_ms = apply_time - mask_time
 
