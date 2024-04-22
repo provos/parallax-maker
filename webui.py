@@ -3,6 +3,7 @@
 
 import base64
 import cv2
+import datetime
 import io
 import os
 from pathlib import Path
@@ -51,56 +52,38 @@ def find_pixel_from_click(img_data, x, y, width, height):
     return int(x * x_ratio), int(y * y_ratio)
 
 
-def apply_color_tint(image, color, intensity=0.2):
-    # Create a color overlay with the same shape as the image
-    color_overlay = np.zeros_like(image)
-    color_overlay[:, :] = color
+def apply_color_tint(img, color, alpha):
+    # Create an overlay image filled with the specified color
+    overlay = Image.new('RGB', img.size, color=color)
 
-    # Blend the image with the color overlay using cv2.addWeighted()
-    tinted_image = cv2.addWeighted(
-        image, 1 - intensity, color_overlay, intensity, 0)
-
-    return tinted_image
+    # Blend the original image with the overlay
+    return Image.blend(img, overlay, alpha)
 
 
 def apply_mask(img_data, mask):
-    if isinstance(img_data, Image.Image):
-        # Convert PIL image to NumPy array
-        img_data = np.array(img_data)
+    if not isinstance(img_data, Image.Image):
+        raise TypeError('img_data should be a PIL Image')
 
-    # Create a copy of the original image
-    result = img_data.copy()
+    # Convert image to RGB if it's in another mode
+    if img_data.mode != 'RGB':
+        img_data = img_data.convert('RGB')
 
-    # Remove the alpha channel if it exists
-    if result.shape[2] == 4:
-        result = result[:, :, :3]
+    # Apply the main color tint to the original image
+    result_tinted = apply_color_tint(img_data, (0, 255, 0), 0.1)
 
-    # Convert the image to grayscale
-    grayscale = cv2.cvtColor(result, cv2.COLOR_BGR2GRAY)
+    # Convert the image to grayscale and back to RGB
+    grayscale = img_data.convert('L').convert('RGB')
+    grayscale_tinted = apply_color_tint(grayscale, (0, 0, 150), 0.1)
 
-    # Convert the grayscale image back to BGR
-    grayscale = cv2.cvtColor(grayscale, cv2.COLOR_GRAY2BGR)
+    # Prepare masks; make sure they are the right size and mode
+    if not isinstance(mask, Image.Image):
+        mask = Image.fromarray(mask)
+    mask = mask.convert('L')
 
-    # Colorize the image we'll keep
-    result = apply_color_tint(result, (0, 255, 0), 0.1)
+    # Combine the tinted and the grayscale image
+    final_result = Image.composite(result_tinted, grayscale_tinted, mask)
 
-    # Apply the mask to the original image
-    masked_image = cv2.bitwise_and(result, result, mask=mask)
-
-    # Invert the mask
-    inverted_mask = cv2.bitwise_not(mask)
-
-    grayscale = apply_color_tint(grayscale, (0, 0, 150), 0.1)
-
-    # Apply the inverted mask to the grayscale image
-    masked_grayscale = cv2.bitwise_and(
-        grayscale, grayscale, mask=inverted_mask)
-
-    # Combine the masked original image and masked grayscale image
-    result = cv2.add(masked_image, masked_grayscale)
-
-    return result
-
+    return final_result
 
 # call the ability to add external scripts
 external_scripts = [
@@ -449,6 +432,9 @@ def update_input_image(contents):
 def click_event(n_events, e, rect_data, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
+    
+    # take current timestamp in ms
+    start_time = int(datetime.datetime.now().timestamp() * 1000)
 
     state = AppState.from_cache(filename)
 
@@ -481,6 +467,9 @@ def click_event(n_events, e, rect_data, filename, logs_data):
                 break
         mask = mask_from_depth(
             state.depthMapData, threshold_min, threshold_max)
+    
+    mask_time = int(datetime.datetime.now().timestamp() * 1000)
+    mask_elapsed_ms = mask_time - start_time
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
     if mask is not None:
@@ -488,9 +477,16 @@ def click_event(n_events, e, rect_data, filename, logs_data):
         img_data = to_image_url(result)
     else:
         img_data = to_image_url(state.imgData)
+    apply_time = int(datetime.datetime.now().timestamp() * 1000)
+    apply_elapsed_ms = apply_time - mask_time
+
+    # take current timestamp in ms
+    end_time = int(datetime.datetime.now().timestamp() * 1000)
+    total_elapsed_ms = end_time - start_time
 
     logs_data.append(
-        f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
+        f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates" +
+        f"({pixel_x}, {pixel_y}) at depth {depth}; elapsed time: {mask_elapsed_ms}/{apply_elapsed_ms}/{total_elapsed_ms} ms"
     )
 
     return img_data, logs_data
