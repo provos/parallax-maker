@@ -68,9 +68,9 @@ def make_input_image_container(
             # used to intermediately store the canvas data
             dcc.Store(id='canvas-data'),  # ignored
             dcc.Store(id='canvas-mask-data'),
-            html.Button('Erase', id='erase-mode-canvas',
-                        className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Clear', id='clear-canvas',
+                        className='bg-blue-500 text-white p-2 rounded-md'),
+            html.Button('Erase', id='erase-mode-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Load', id='load-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
