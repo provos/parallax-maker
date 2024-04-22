@@ -1,6 +1,6 @@
 console.log('utility.js loaded');
 
-// Initialize variables
+// Initialize global variables
 let isDrawing = false;
 let isErasing = false;
 let lastX = 0;
@@ -51,6 +51,27 @@ function getImageSize(imgElement) {
     return { width: renderedWidth, height: renderedHeight };
 };
 
+function setupCanvasContext(canvas) {
+    ctx = canvas.getContext('2d');
+    image = document.getElementById('image');
+    props = getImageSize(image);
+    ctx.canvas.width = props.width;
+    ctx.canvas.height = props.height;
+
+    isDrawing = false;
+    isErasing = false;
+
+    console.log('canvas_draw', image.clientWidth, image.clientHeight);
+
+    // Set canvas properties
+    ctx.strokeStyle = 'red';
+    ctx.lineWidth = 15;
+    ctx.lineCap = 'round';
+
+    // Set up mousemove eventlistener that does not need to go back to the app
+    canvas.addEventListener('mousemove', draw);
+}
+
 
 window.dash_clientside = Object.assign({}, window.dash_clientside, {
     clientside: {
@@ -76,6 +97,28 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 return '';
             }
             return canvas.toDataURL('image/png');
+        },
+        canvas_load: function (data) {
+            canvas = document.getElementById('canvas');
+            if (canvas === null) {
+                console.log('No element found with id "canvas"');
+                return '';
+            }
+            setupCanvasContext(canvas);
+
+            image = document.getElementById('image');
+            props = getImageSize(image);
+
+            const img = new Image();
+            img.src = data;
+            img.onload = function () {
+                console.log('Image loaded and drawn on canvas');
+                ctx.drawImage(img, 0, 0, props.width, props.height);
+            };
+
+            console.log('Waiting for image to load');
+
+            return '';
         },
         canvas_clear: function () {
             if (ctx === null) {
@@ -123,24 +166,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             }
             rect = canvas.getBoundingClientRect();
             if (ctx === null) {
-                ctx = canvas.getContext('2d');
-                image = document.getElementById('image');
-                props = getImageSize(image);
-                ctx.canvas.width = props.width;
-                ctx.canvas.height = props.height;
-
-                isDrawing = false;
-                isErasing = false;
-
-                console.log('canvas_draw', image.clientWidth, image.clientHeight);
-
-                // Set canvas properties
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 15;
-                ctx.lineCap = 'round';
-
-                // Set up mousemove eventlistener that does not need to go back to the app
-                canvas.addEventListener('mousemove', draw);
+                setupCanvasContext(canvas);
             }
 
             switch (event.type) {

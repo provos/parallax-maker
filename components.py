@@ -3,10 +3,11 @@
 # Standard library imports
 import io
 import base64
+from pathlib import Path
 from PIL import Image
 
 # Related third party imports
-from dash import dcc, html, ctx
+from dash import dcc, html, ctx, no_update
 from dash_extensions import EventListener
 from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
 from dash.exceptions import PreventUpdate
@@ -65,10 +66,13 @@ def make_input_image_container(
         ),
         html.Div([
             # used to intermediately store the canvas data
-            dcc.Store(id='canvas-data'),
+            dcc.Store(id='canvas-data'),  # ignored
+            dcc.Store(id='canvas-mask-data'),
             html.Button('Erase', id='erase-mode-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Clear', id='clear-canvas',
+                        className='bg-blue-500 text-white p-2 rounded-md'),
+            html.Button('Load', id='load-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
             html.Button('Save', id='save-canvas',
                         className='bg-blue-500 text-white p-2 rounded-md'),
@@ -227,7 +231,8 @@ def make_inpainting_container_callbacks(app):
 
         state.positive_prompt = positive_prompt
         state.negative_prompt = negative_prompt
-        state.to_file(state.filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
+        state.to_file(state.filename, save_image_slices=False,
+                      save_depth_map=False, save_input_image=False)
 
         pipelinespec = pipelinespec_from_model(model)
         if state.pipeline_spec is None or state.pipeline_spec != pipelinespec:
@@ -277,7 +282,7 @@ def make_inpainting_container_callbacks(app):
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
             raise PreventUpdate()
-        
+
         state.selected_inpainting = index
 
         print(f'Applying inpainting image {index}')
@@ -292,7 +297,7 @@ def make_inpainting_container_callbacks(app):
             new_classnames.append(classname)
 
         return images[index], new_classnames
-    
+
     @app.callback(
         Output('inpainting-request', 'data'),
         Output('logs-data', 'data', allow_duplicate=True),
@@ -312,20 +317,21 @@ def make_inpainting_container_callbacks(app):
 
         index = state.selected_slice
         new_image_data = inpainted_images[state.selected_inpainting]
-        
-        new_image = Image.open(io.BytesIO(base64.b64decode(new_image_data.split(',')[1])))
-        
-        image_filename = filename_add_version(state.image_slices_filenames[index])
+
+        new_image = Image.open(io.BytesIO(
+            base64.b64decode(new_image_data.split(',')[1])))
+
+        image_filename = filename_add_version(
+            state.image_slices_filenames[index])
         state.image_slices_filenames[index] = image_filename
-        
+
         state.image_slices[index] = new_image
         state.to_file(state.filename)
-        
-        logs.append(f'Inpainting applied to slice {index} with new image {image_filename}')
-        
+
+        logs.append(
+            f'Inpainting applied to slice {index} with new image {image_filename}')
+
         return True, logs, True
-    
-        
 
 
 def make_configuration_container():
@@ -557,6 +563,47 @@ def make_tabs_callback(app, tab_id: str):
 
 
 def make_canvas_callbacks(app):
+    @app.callback(Output('canvas-mask-data', 'data'),
+                  Output('logs-data', 'data', allow_duplicate=True),
+                  Input('load-canvas', 'n_clicks'),
+                  State('application-state-filename', 'data'),
+                  State('logs-data', 'data'),
+                  prevent_initial_call=True)
+    def load_canvas_mask(n_clicks, filename, logs):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        if state.selected_slice is None:
+            raise PreventUpdate()
+
+        index = state.selected_slice
+        mask_filename = state.mask_filename(index)
+        if not Path(mask_filename).exists():
+            print(f'Mask file {mask_filename} does not exist')
+            logs.append(f'Mask file {mask_filename} does not exist')
+            return no_update, logs
+            
+        print(f'Loading mask for slice {state.selected_slice}')
+        logs.append(f'Loading mask for slice {state.selected_slice}')
+        mask = Image.open(mask_filename).convert('RGB')
+        
+        r, _, _ = mask.split()
+        
+        width, height = r.size
+        zero_channel = Image.new('L', (width, height))        
+        new_mask = Image.merge('RGBA', (r, zero_channel, zero_channel, r))
+                
+        return to_image_url(new_mask), logs
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='canvas_load'),
+        Output('canvas-ignore', 'data', allow_duplicate=True),
+        Input('canvas-mask-data', 'data'),
+        prevent_initial_call=True
+    )
+
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_draw'),
