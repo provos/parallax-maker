@@ -227,6 +227,7 @@ def update_progress(n):
 @app.callback(
     Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
     Output('slice-img-container', 'children', allow_duplicate=True),
+    Output('image', 'src', allow_duplicate=True),
     Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
     State('num-slices-slider', 'value'),
     State('application-state-filename', 'data'),
@@ -264,7 +265,12 @@ def update_threshold_values(threshold_values, num_slices, filename):
     state.image_slices = []
     state.image_slices_filenames = []
 
-    return threshold_values, None
+    img_data = no_update
+    if state.slice_pixel:
+        img_data, _ = state.depth_slice_from_pixel(
+            state.slice_pixel[0], state.slice_pixel[1])
+
+    return threshold_values, None, img_data
 
 
 @app.callback(
@@ -408,10 +414,10 @@ def click_event(n_events, e, rect_data, filename, logs_data):
     x = clientX - rectLeft
     y = clientY - rectTop
 
-    pixel_x, pixel_y = find_pixel_from_click(
-        state.imgData, x, y, rectWidth, rectHeight)
+    pixel_x, pixel_y = find_pixel_from_click(state.imgData, x, y, rectWidth, rectHeight)
     
     img_data, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
+    state.slice_pixel = (pixel_x, pixel_y)
 
     logs_data.append(
         f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
@@ -538,6 +544,7 @@ def update_slices(ignored_data, filename):
     if state.selected_slice is not None:
         assert state.selected_slice >= 0 and state.selected_slice < len(state.image_slices)
         img_data = state.serve_slice_image(state.selected_slice)
+        state.slice_pixel = None
 
     return img_container, "", img_data
 

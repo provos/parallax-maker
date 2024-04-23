@@ -41,6 +41,7 @@ class AppState:
         self.selected_inpainting = None
         self.result_tinted = None
         self.grayscale_tinted = None
+        self.slice_pixel = None
         
         # XXX - make this configurable
         self.camera_position = np.array([0, 0, -100], dtype=np.float32)
@@ -101,6 +102,7 @@ class AppState:
         self.selected_slice = None
         self.selected_inpainting = None
         self.image_slices = []
+        self.slice_pixel = None
         
         self.create_tints()
         
