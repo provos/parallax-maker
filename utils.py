@@ -173,10 +173,17 @@ def find_square_bounding_box(mask_image):
     return fit_box
 
 
-@timeit
 def apply_color_tint(img, color, alpha):
     # Create an overlay image filled with the specified color
     overlay = Image.new('RGB', img.size, color=color)
 
     # Blend the original image with the overlay
     return Image.blend(img, overlay, alpha)
+
+
+def find_pixel_from_click(img_data, x, y, width, height):
+    """Find the pixel coordinates in the image from the click coordinates."""
+    img_width, img_height = img_data.size
+    x_ratio = img_width / width
+    y_ratio = img_height / height
+    return int(x * x_ratio), int(y * y_ratio)

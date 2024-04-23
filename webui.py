@@ -11,7 +11,6 @@ from PIL import Image
 import numpy as np
 from segmentation import (
     generate_depth_map,
-    mask_from_depth,
     analyze_depth_histogram,
     generate_image_slices,
     setup_camera_and_cards,
@@ -20,7 +19,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import to_image_url, filename_add_version, timeit, apply_color_tint
+from utils import to_image_url, filename_add_version, timeit, find_pixel_from_click
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -42,29 +41,6 @@ def progress_callback(current, total):
     global current_progress, total_progress
     current_progress = (current / total) * 100
     total_progress = 100
-
-# Utility functions - XXX refactor to a separate module
-
-
-def find_pixel_from_click(img_data, x, y, width, height):
-    """Find the pixel coordinates in the image from the click coordinates."""
-    img_width, img_height = img_data.size
-    x_ratio = img_width / width
-    y_ratio = img_height / height
-    return int(x * x_ratio), int(y * y_ratio)
-
-
-@timeit
-def apply_mask(state, mask):
-    # Prepare masks; make sure they are the right size and mode
-    if not isinstance(mask, Image.Image):
-        mask = Image.fromarray(mask)
-    mask = mask.convert('L')
-
-    # Combine the tinted and the grayscale image
-    final_result = Image.composite(state.result_tinted, state.grayscale_tinted, mask)
-
-    return final_result
 
 # call the ability to add external scripts
 external_scripts = [
@@ -416,9 +392,6 @@ def click_event(n_events, e, rect_data, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
     
-    # take current timestamp in ms
-    start_time = int(datetime.datetime.now().timestamp() * 1000)
-
     state = AppState.from_cache(filename)
 
     if e is None or rect_data is None or state.imgData is None:
@@ -437,40 +410,11 @@ def click_event(n_events, e, rect_data, filename, logs_data):
 
     pixel_x, pixel_y = find_pixel_from_click(
         state.imgData, x, y, rectWidth, rectHeight)
-    mask = None
-
-    depth = -1  # for log below
-    if state.depthMapData is not None and state.imgThresholds is not None:
-        depth = state.depthMapData[pixel_y, pixel_x]
-        # find the depth that is bracketed by imgThresholds
-        for i, threshold in enumerate(state.imgThresholds):
-            if depth <= threshold:
-                threshold_min = int(state.imgThresholds[i-1])
-                threshold_max = int(threshold)
-                break
-        mask = mask_from_depth(
-            state.depthMapData, threshold_min, threshold_max)
     
-    mask_time = int(datetime.datetime.now().timestamp() * 1000)
-    mask_elapsed_ms = mask_time - start_time
-
-    # convert imgData to grayscale but leave the original colors for what is covered by the mask
-    if mask is not None:
-        result = apply_mask(state, mask)
-        img_data = state.serve_main_image(result)
-    else:
-        img_data = state.serve_main_image(state.imgData)
-    apply_time = int(datetime.datetime.now().timestamp() * 1000)
-    apply_elapsed_ms = apply_time - mask_time
-
-    # take current timestamp in ms
-    end_time = int(datetime.datetime.now().timestamp() * 1000)
-    total_elapsed_ms = end_time - start_time
+    img_data, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
 
     logs_data.append(
-        f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates" +
-        f"({pixel_x}, {pixel_y}) at depth {depth}; elapsed time: {mask_elapsed_ms}/{apply_elapsed_ms}/{total_elapsed_ms} ms"
-    )
+        f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
 
     return img_data, logs_data
 

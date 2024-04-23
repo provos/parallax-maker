@@ -11,6 +11,7 @@ import numpy as np
 import cv2
 from pathlib import Path
 from utils import filename_previous_version, filename_add_version, timeit, apply_color_tint
+from segmentation import mask_from_depth
 
 
 class AppState:
@@ -55,6 +56,44 @@ class AppState:
         # Convert the image to grayscale and back to RGB
         grayscale = self.imgData.convert('L').convert('RGB')
         self.grayscale_tinted = apply_color_tint(grayscale, (0, 0, 150), 0.1)
+        
+    def apply_mask(self, mask):
+        # Prepare masks; make sure they are the right size and mode
+        if not isinstance(mask, Image.Image):
+            mask = Image.fromarray(mask)
+        mask = mask.convert('L')
+
+        if self.result_tinted is None or self.grayscale_tinted is None:
+            self.create_tints()
+            
+        # Combine the tinted and the grayscale image
+        final_result = Image.composite(
+            self.result_tinted, self.grayscale_tinted, mask)
+
+        return final_result
+        
+    def depth_slice_from_pixel(self, pixel_x, pixel_y):
+        depth = -1  # for log below
+        if self.depthMapData is not None and self.imgThresholds is not None:
+            depth = self.depthMapData[pixel_y, pixel_x]
+            # find the depth that is bracketed by imgThresholds
+            for i, threshold in enumerate(self.imgThresholds):
+                if depth <= threshold:
+                    threshold_min = int(self.imgThresholds[i-1])
+                    threshold_max = int(threshold)
+                    break
+            mask = mask_from_depth(
+                self.depthMapData, threshold_min, threshold_max)
+
+        # convert imgData to grayscale but leave the original colors for what is covered by the mask
+        if mask is not None:
+            result = self.apply_mask(mask)
+            img_data = self.serve_main_image(result)
+        else:
+            img_data = self.serve_main_image(state.imgData)
+
+        return img_data, depth
+
         
     def set_img_data(self, img_data):
         self.imgData = img_data
