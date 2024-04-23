@@ -596,6 +596,45 @@ def make_tabs_callback(app, tab_id: str):
 
 
 def make_canvas_callbacks(app):
+    @app.callback(Output('logs-data', 'data', allow_duplicate=True),
+                  Input('canvas-data', 'data'),
+                  State('application-state-filename', 'data'),
+                  State('logs-data', 'data'),
+                  prevent_initial_call=True)
+    def save_slice_mask(data, filename, logs):
+        if data is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+
+        if state.selected_slice is None:
+            logs.append('No slice selected to save mask')
+            return logs
+
+        # turn the data url into a RGBA PIL image
+        image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
+
+        # Split the image into individual channels
+        r, g, b, a = image.split()
+
+        # Replace RGB channels with the Alpha channel
+        new_r = a.copy()
+        new_g = a.copy()
+        new_b = a.copy()
+
+        # Merge the channels back into an RGB image (without the original alpha channel)
+        new_image = Image.merge('RGB', (new_r, new_g, new_b))
+
+        # Scale new image to the same dimensions as imgData
+        new_image = new_image.resize(state.imgData.size, resample=Image.BICUBIC)
+
+        mask_filename = state.save_image_mask(state.selected_slice, new_image)
+
+        logs.append(
+            f"Saved mask for slice {state.selected_slice} to {mask_filename}")
+
+        return logs
+
     @app.callback(Output('canvas-mask-data', 'data'),
                   Output('logs-data', 'data', allow_duplicate=True),
                   Input('load-canvas', 'n_clicks'),
@@ -608,7 +647,8 @@ def make_canvas_callbacks(app):
 
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
-            raise PreventUpdate()
+            logs.append('No slice selected to load mask')
+            return no_update, logs
 
         index = state.selected_slice
         mask_filename = state.mask_filename(index)

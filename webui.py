@@ -127,42 +127,6 @@ components.make_navigation_callbacks(app)
 components.make_inpainting_container_callbacks(app)
 
 
-@app.callback(Output('logs-data', 'data', allow_duplicate=True),
-              Input('canvas-data', 'data'),
-              State('application-state-filename', 'data'),
-              State('logs-data', 'data'),
-              prevent_initial_call=True)
-def save_slice_mask(data, filename, logs):
-    if data is None or filename is None:
-        raise PreventUpdate()
-
-    state = AppState.from_cache(filename)
-
-    # turn the data url into a RGBA PIL image
-    image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
-
-    # Split the image into individual channels
-    r, g, b, a = image.split()
-
-    # Replace RGB channels with the Alpha channel
-    new_r = a.copy()
-    new_g = a.copy()
-    new_b = a.copy()
-
-    # Merge the channels back into an RGB image (without the original alpha channel)
-    new_image = Image.merge('RGB', (new_r, new_g, new_b))
-
-    # Scale new image to the same dimensions as imgData
-    new_image = new_image.resize(state.imgData.size, resample=Image.BICUBIC)
-
-    mask_filename = state.save_image_mask(state.selected_slice, new_image)
-
-    logs.append(
-        f"Saved mask for slice {state.selected_slice} to {mask_filename}")
-
-    return logs
-
-
 # Callbacks for collapsible sections
 components.make_tabs_callback(app, 'main')
 
