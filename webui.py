@@ -102,8 +102,7 @@ app = dash.Dash(__name__,
 # Create a Flask route for serving images
 @app.server.route(f'/{AppState.SRV_DIR}/<path:filename>')
 def serve_image(filename):
-    root_dir = Path(root_dir=os.path.dirname(__file__))
-    filename = root_dir / AppState.SRV_DIR / filename
+    filename = Path(os.getcwd()) / filename
     return send_file(str(filename), mimetype=f'image/{filename.suffix[1:]}')
 
 # JavaScript event(s) that we want to listen to and what properties to collect.
@@ -579,7 +578,7 @@ def update_slices(ignored_data, filename):
     img_container = []
     assert len(state.image_slices) == len(state.image_slices_filenames)
     for i, img_slice in enumerate(state.image_slices):
-        img_data = to_image_url(img_slice)
+        img_data = state.serve_slice_image(i)
         
         left_color = caret_color_enabled if state.can_undo(i, forward=False) else caret_color_disabled
         left_disabled = True if left_color == caret_color_disabled else False
@@ -621,7 +620,7 @@ def update_slices(ignored_data, filename):
     img_data = no_update
     if state.selected_slice is not None:
         assert state.selected_slice >= 0 and state.selected_slice < len(state.image_slices)
-        img_data = to_image_url(state.image_slices[state.selected_slice])
+        img_data = state.serve_slice_image(state.selected_slice)
 
     return img_container, "", img_data
 

@@ -34,7 +34,6 @@ class AppState:
         self.negative_prompt = ""
 
         # no JSON serialization for items below
-        self.root_dir = Path(os.path.dirname(__file__))
         self.image_slices = []
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec()
@@ -46,15 +45,26 @@ class AppState:
         self.max_distance = 500.0
         self.focal_length = 100.0
         
+    def serve_slice_image(self, slice_index):
+        """Serves the image slice with the specified index."""
+        assert slice_index >= 0 and slice_index < len(
+            self.image_slices_filenames)
+        image_path = self.image_slices_filenames[slice_index]
+        image_path = Path(self.SRV_DIR) / image_path
+        unique_id = int(time.time())
+        return f'/{str(image_path)}?v={unique_id}'
+        
     @timeit
     def serve_main_image(self, image):
         """Serves the image using a temporary directory."""
         if not isinstance(image, Image.Image):
             image = Image.fromarray(image)
-        image_path = Path(self.SRV_DIR) / f"{self.MAIN_IMAGE}"
-        if not self.root_dir.joinpath(self.SRV_DIR).exists():
-            self.root_dir.joinpath(self.SRV_DIR).mkdir()
-        image.save(self.root_dir / str(image_path))
+        output_dir = Path(self.filename)
+        if not output_dir.exists():
+            output_dir.mkdir()
+        save_path = Path(self.filename) / self.MAIN_IMAGE
+        image.save(save_path)
+        image_path = Path(self.SRV_DIR) / save_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
 
