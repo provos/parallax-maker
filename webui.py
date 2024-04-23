@@ -20,7 +20,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import to_image_url, filename_add_version, timeit
+from utils import to_image_url, filename_add_version, timeit, apply_color_tint
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -55,37 +55,14 @@ def find_pixel_from_click(img_data, x, y, width, height):
 
 
 @timeit
-def apply_color_tint(img, color, alpha):
-    # Create an overlay image filled with the specified color
-    overlay = Image.new('RGB', img.size, color=color)
-
-    # Blend the original image with the overlay
-    return Image.blend(img, overlay, alpha)
-
-
-@timeit
-def apply_mask(img_data, mask):
-    if not isinstance(img_data, Image.Image):
-        raise TypeError('img_data should be a PIL Image')
-
-    # Convert image to RGB if it's in another mode
-    if img_data.mode != 'RGB':
-        img_data = img_data.convert('RGB')
-
-    # Apply the main color tint to the original image
-    result_tinted = apply_color_tint(img_data, (0, 255, 0), 0.1)
-
-    # Convert the image to grayscale and back to RGB
-    grayscale = img_data.convert('L').convert('RGB')
-    grayscale_tinted = apply_color_tint(grayscale, (0, 0, 150), 0.1)
-
+def apply_mask(state, mask):
     # Prepare masks; make sure they are the right size and mode
     if not isinstance(mask, Image.Image):
         mask = Image.fromarray(mask)
     mask = mask.convert('L')
 
     # Combine the tinted and the grayscale image
-    final_result = Image.composite(result_tinted, grayscale_tinted, mask)
+    final_result = Image.composite(state.result_tinted, state.grayscale_tinted, mask)
 
     return final_result
 
@@ -479,7 +456,7 @@ def click_event(n_events, e, rect_data, filename, logs_data):
 
     # convert imgData to grayscale but leave the original colors for what is covered by the mask
     if mask is not None:
-        result = apply_mask(state.imgData, mask)
+        result = apply_mask(state, mask)
         img_data = state.serve_main_image(result)
     else:
         img_data = state.serve_main_image(state.imgData)

@@ -171,3 +171,12 @@ def find_square_bounding_box(mask_image):
     square_box = find_square_from_bounding_box(*bounding_box)
     fit_box = move_bounding_box_to_image(mask_image, square_box)
     return fit_box
+
+
+@timeit
+def apply_color_tint(img, color, alpha):
+    # Create an overlay image filled with the specified color
+    overlay = Image.new('RGB', img.size, color=color)
+
+    # Blend the original image with the overlay
+    return Image.blend(img, overlay, alpha)

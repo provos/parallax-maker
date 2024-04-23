@@ -10,7 +10,7 @@ from io import BytesIO
 import numpy as np
 import cv2
 from pathlib import Path
-from utils import filename_previous_version, filename_add_version, timeit
+from utils import filename_previous_version, filename_add_version, timeit, apply_color_tint
 
 
 class AppState:
@@ -38,6 +38,8 @@ class AppState:
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec()
         self.selected_inpainting = None
+        self.result_tinted = None
+        self.grayscale_tinted = None
         
         # XXX - make this configurable
         self.camera_position = np.array([0, 0, -100], dtype=np.float32)
@@ -45,12 +47,23 @@ class AppState:
         self.max_distance = 500.0
         self.focal_length = 100.0
         
+    def create_tints(self):
+        """Precomputes the tings for visualizing slices."""
+        # Apply the main color tint to the original image
+        self.result_tinted = apply_color_tint(self.imgData, (0, 255, 0), 0.1)
+
+        # Convert the image to grayscale and back to RGB
+        grayscale = self.imgData.convert('L').convert('RGB')
+        self.grayscale_tinted = apply_color_tint(grayscale, (0, 0, 150), 0.1)
+        
     def set_img_data(self, img_data):
         self.imgData = img_data
         self.depthMapData = None
         self.selected_slice = None
         self.selected_inpainting = None
         self.image_slices = []
+        
+        self.create_tints()
         
     def serve_slice_image(self, slice_index):
         """Serves the image slice with the specified index."""
