@@ -45,6 +45,13 @@ class AppState:
         self.max_distance = 500.0
         self.focal_length = 100.0
         
+    def set_img_data(self, img_data):
+        self.imgData = img_data
+        self.depthMapData = None
+        self.selected_slice = None
+        self.selected_inpainting = None
+        self.image_slices = []
+        
     def serve_slice_image(self, slice_index):
         """Serves the image slice with the specified index."""
         assert slice_index >= 0 and slice_index < len(
@@ -53,8 +60,18 @@ class AppState:
         image_path = Path(self.SRV_DIR) / image_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
-        
-    @timeit
+    
+    def serve_input_image(self):
+        """Serves the input image from the state directory."""
+        filename = Path(self.filename) / self.IMAGE_FILE
+        if not filename.exists():
+            if not Path(self.filename).exists():
+                Path(self.filename).mkdir()
+            self.imgData.save(filename, compress_level=1)
+        filename = Path(self.SRV_DIR) / filename
+        unique_id = int(time.time())
+        return f'/{str(filename)}?v={unique_id}'
+    
     def serve_main_image(self, image):
         """Serves the image using a temporary directory."""
         if not isinstance(image, Image.Image):

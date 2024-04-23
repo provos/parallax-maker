@@ -416,16 +416,12 @@ def update_input_image(contents):
 
     content_type, content_string = contents.split(',')
 
-    # get the dimensions of the image
-    state.imgData = Image.open(io.BytesIO(base64.b64decode(content_string)))
-    state.depthMapData = None
+    # save the image data to the state
+    state.set_img_data(Image.open(io.BytesIO(base64.b64decode(content_string))))
 
-    img_data = base64.b64decode(content_string)
-    # encode img_data as base64 ascii
-    img_data = base64.b64encode(img_data).decode('ascii')
-    img_data = f"data:image/png;base64,{img_data}"
+    img_uri = state.serve_input_image()
 
-    return filename, True, img_data, html.Img(
+    return filename, True, img_uri, html.Img(
         id='depthmap-image',
         className='w-full p-0 object-scale-down'), False
 
