@@ -696,6 +696,10 @@ def make_navigation_callbacks(app):
         state = AppState.from_cache(filename)
         state.selected_slice = None
         
+        if len(state.image_slices) == 0:
+            logs.append('No image slices to navigate')
+            return no_update, logs
+        
         camera_position = state.camera_position
 
         if nav_clicked == 'nav-reset':
