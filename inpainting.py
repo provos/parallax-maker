@@ -73,7 +73,9 @@ def pipelinespec_from_model(model):
     return PipelineSpec(pretrained_model=model, variant=variant, dimension=dimension)
 
 
-def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image, crop=False, seed=-1):
+def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image,
+            strength=1.0, guidance_scale=7.5,
+            crop=False, seed=-1):
     original_init_image = init_image.copy()
     
     if crop:
@@ -97,7 +99,8 @@ def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image, crop=
         seed = np.random.randint(0, 2**32)
     generator = torch.Generator(torch_get_device()).manual_seed(seed)
     image = pipeline(prompt=prompt, negative_prompt=negative_prompt,
-                     image=resize_init_image, mask_image=resize_mask_image, generator=generator).images[0]
+                     image=resize_init_image, mask_image=resize_mask_image, generator=generator,
+                     strength=strength, guidance_scale=guidance_scale).images[0]
 
     image = image.resize(init_image.size, resample=Image.BICUBIC)
     image = image.convert('RGBA')

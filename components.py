@@ -185,13 +185,37 @@ def make_inpainting_container():
                 className='w-full p-2 border border-gray-300 rounded-md mb-2',
             )
         ]),
+        html.Div([
+            html.Label('Strength'),
+            dcc.Slider(
+                id='inpaint-stength',
+                min=0,
+                max=2,
+                step=0.1,
+                value=0.8,
+                marks=None,
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+        ], className='w-full'),
+        html.Div([
+            html.Label('Guidance Scale'),
+            dcc.Slider(
+                id='inpaint-guidance',
+                min=1,
+                max=15,
+                step=0.25,
+                value=7.5,
+                marks=None,
+                tooltip={"placement": "bottom", "always_visible": True}
+            ),
+        ], className='w-full'),
         html.Button(
             html.Div([
                 html.Label('Generate Inpainting'),
                 html.I(className='fa-solid fa-paint-brush pl-1')
             ]),
             id='generate-inpainting-button',
-            className='bg-blue-500 text-white p-2 rounded-md mb-2'
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3'
         ),
         dcc.Loading(
             id="generate-inpainting",
@@ -246,9 +270,14 @@ def make_inpainting_container_callbacks(app):
         State('inpainting-model-dropdown', 'value'),
         State('positive-prompt', 'value'),
         State('negative-prompt', 'value'),
+        State('inpaint-stength', 'value'),
+        State('inpaint-guidance', 'value'),
         prevent_initial_call=True
     )
-    def update_inpainting_image_display(n_clicks, filename, model, positive_prompt, negative_prompt):
+    def update_inpainting_image_display(
+        n_clicks, filename, model,
+        positive_prompt, negative_prompt,
+        strength, guidance_scale):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
@@ -284,7 +313,9 @@ def make_inpainting_container_callbacks(app):
         images = []
         for i in range(3):
             new_image = inpaint(state.pipeline_spec, positive_prompt,
-                                negative_prompt, image, mask, crop=True)
+                                negative_prompt, image, mask,
+                                strength=strength, guidance_scale=guidance_scale,
+                                crop=True)
             images.append(new_image)
 
         children = []
@@ -358,7 +389,7 @@ def make_inpainting_container_callbacks(app):
             state.image_slices_filenames[index])
         state.image_slices_filenames[index] = image_filename
 
-        state.image_slices[index] = new_image
+        state.image_slices[index] = np.array(new_image) # XXX - refactor to make this always a PIL image
         state.to_file(state.filename)
 
         logs.append(
