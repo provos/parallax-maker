@@ -97,7 +97,7 @@ class AppState:
 
         
     def set_img_data(self, img_data):
-        self.imgData = img_data
+        self.imgData = img_data.convert('RGB')
         self.depthMapData = None
         self.selected_slice = None
         self.selected_inpainting = None
