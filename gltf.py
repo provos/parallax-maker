@@ -104,6 +104,182 @@ def create_buffer_and_view(gltf_obj, data, target=gltf.ARRAY_BUFFER):
 
     return tmp_buffer_view_index
 
+def subdivide_plane(plane, subdivisions):
+    """
+    Subdivides a plane into a grid with the specified number of subdivisions.
+
+    Args:
+        plane (numpy.ndarray): The 3D corner coordinates of the plane.
+        subdivisions (int): The number of subdivisions to create.
+
+    Returns:
+        numpy.ndarray: The 3D corner coordinates of the subdivided plane.
+    """
+    # Create a grid of points on the plane
+    x = np.linspace(plane[0, 0], plane[1, 0], subdivisions+1)
+    y = np.linspace(plane[0, 1], plane[3, 1], subdivisions+1)
+    x, y = np.meshgrid(x, y)
+    z = np.zeros_like(x)
+
+    # Stack the grid points into a 3D array
+    points = np.stack([x, y, z], axis=-1, dtype=np.float32)
+
+    # Reshape the points into a list of 3D coordinates
+    points = points.reshape(-1, 3)
+
+    return points
+
+
+def subdivide_textures(texture_coords, subdivisions):
+    """
+    Subdivides a 2D UV texture plane into a grid with the specified number of subdivisions.
+
+    Args:
+        texture_coords (numpy.ndarray): The 2D UV texture coordinates of the plane.
+        subdivisions (int): The number of subdivisions to create.
+
+    Returns:
+        numpy.ndarray: The 2D UV texture coordinates of the subdivided plane.
+    """
+    # Create a grid of points on the plane
+    x = np.linspace(texture_coords[0, 0], texture_coords[1, 0], subdivisions+1)
+    y = np.linspace(texture_coords[0, 1], texture_coords[3, 1], subdivisions+1)
+    x, y = np.meshgrid(x, y)
+
+    # Stack the grid points into a 3D array
+    coords = np.stack([x, y], axis=-1, dtype=np.float32)
+
+    # Reshape the points into a list of 2D coordinates
+    coords = coords.reshape(-1, 2)
+
+    return coords
+
+def triangle_indices_from_grid(vertices):
+    """
+    Generates triangle indices for a grid of vertices.
+
+    Args:
+        vertices (numpy.ndarray): The 3D corner coordinates of the grid.
+
+    Returns:
+        numpy.ndarray: The triangle indices for the grid.
+    """
+    # Calculate the number of vertices in each row
+    row_length = int(np.sqrt(len(vertices)))
+
+    # Create the indices for the triangles
+    indices = []
+    for i in range(row_length-1):
+        for j in range(row_length-1):
+            # Calculate the indices for the current quad
+            tl = i*row_length + j
+            tr = tl + 1
+            bl = (i+1)*row_length + j
+            br = bl + 1
+
+            # Create the two triangles for the quad
+            indices.append([tl, tr, bl])
+            indices.append([bl, tr, br])
+
+    return np.array(indices, dtype=np.uint32)
+
+
+def create_card(gltf_obj, corners_3d, i):
+    """
+    Creates a card (plane) in the glTF object with the specified parameters.
+
+    Args:
+        gltf_obj (gltf.Gltf): The glTF object to add the card to.
+        corners_3d (numpy.ndarray): The 3D corner coordinates for the card.
+        i (int): The index of the card.
+
+    Returns:
+        int: The index of the created mesh.
+    """
+    # Set the vertices and indices for the plane
+
+    # negate the y coordinates of corners_3d
+    vertices = np.array(corners_3d, dtype=np.float32)
+    vertices[:, 1] = -vertices[:, 1]
+    
+    # reorder the vertices of the 4 point plane
+    tl = vertices[0]
+    tr = vertices[1]
+    bl = vertices[3]
+    br = vertices[2]
+    
+    vertices = np.array([tl, tr, bl, br], dtype=np.float32)
+    
+    tex_coords = np.array(
+        [[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
+    
+    vertices = subdivide_plane(vertices, 1)
+    tex_coords = subdivide_textures(tex_coords, 1)
+    
+    indices = triangle_indices_from_grid(vertices)
+
+    # Create the buffer and buffer view for vertices
+    vertex_bufferview_index = create_buffer_and_view(
+        gltf_obj, vertices, target=gltf.ARRAY_BUFFER)
+
+    # Create the buffer and buffer view for texture coordinates
+    tex_coord_bufferview_index = create_buffer_and_view(
+        gltf_obj, tex_coords, target=gltf.ARRAY_BUFFER)
+
+    # Create the buffer and buffer view for indices
+    index_bufferview_index = create_buffer_and_view(
+        gltf_obj, indices, target=gltf.ELEMENT_ARRAY_BUFFER)
+
+    # Create the accessor for texture coordinates
+    tex_coord_accessor = gltf.Accessor(
+        bufferView=tex_coord_bufferview_index,
+        componentType=gltf.FLOAT,
+        count=len(tex_coords),
+        type=gltf.VEC2,
+        max=tex_coords.max(axis=0).tolist(),
+        min=tex_coords.min(axis=0).tolist()
+    )
+    gltf_obj.accessors.append(tex_coord_accessor)
+    tex_coord_accessor_index = len(gltf_obj.accessors)-1
+
+    # Create the accessor for vertices
+    vertex_accessor = gltf.Accessor(
+        bufferView=vertex_bufferview_index,
+        componentType=gltf.FLOAT,
+        count=len(vertices),
+        type=gltf.VEC3,
+        max=vertices.max(axis=0).tolist(),
+        min=vertices.min(axis=0).tolist()
+    )
+    gltf_obj.accessors.append(vertex_accessor)
+    vertex_accessor_index = len(gltf_obj.accessors)-1
+
+    # Create the accessor for indices
+    index_accessor = gltf.Accessor(
+        bufferView=index_bufferview_index,
+        componentType=gltf.UNSIGNED_INT,
+        count=indices.size,
+        type=gltf.SCALAR
+    )
+    gltf_obj.accessors.append(index_accessor)
+    index_accessor_index = len(gltf_obj.accessors)-1
+
+    card_name = f"Card_{i}"
+
+    # Create the mesh for the plane
+    mesh = gltf.Mesh(
+        name=card_name,
+        primitives=[
+            gltf.Primitive(
+                attributes=gltf.Attributes(
+                    POSITION=vertex_accessor_index,
+                    TEXCOORD_0=tex_coord_accessor_index,
+                ),
+                indices=index_accessor_index,
+                material=i)
+        ])
+
+    return mesh
 
 def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_corners_3d_list, image_paths, inline_images=True):
     """
@@ -136,80 +312,11 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
 
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
-        # Set the vertices and indices for the plane
-
         # Translaton hack
         z_transform = corners_3d[0][2]
         corners_3d[:, 2] = 0
-
-        # negate the y coordinates of corners_3d
-        vertices = np.array(corners_3d, dtype=np.float32)
-        vertices[:, 1] = -vertices[:, 1]
-
-        tex_coords = np.array(
-            [[0, 0], [1, 0], [1, 1], [0, 1]], dtype=np.float32)
-        indices = np.array([[0, 1, 2], [2, 3, 0]], dtype=np.uint32)
-
-        # Create the buffer and buffer view for vertices
-        vertex_bufferview_index = create_buffer_and_view(
-            gltf_obj, vertices, target=gltf.ARRAY_BUFFER)
-
-        # Create the buffer and buffer view for texture coordinates
-        tex_coord_bufferview_index = create_buffer_and_view(
-            gltf_obj, tex_coords, target=gltf.ARRAY_BUFFER)
-
-        # Create the buffer and buffer view for indices
-        index_bufferview_index = create_buffer_and_view(
-            gltf_obj, indices, target=gltf.ELEMENT_ARRAY_BUFFER)
-
-        # Create the accessor for texture coordinates
-        tex_coord_accessor = gltf.Accessor(
-            bufferView=tex_coord_bufferview_index,
-            componentType=gltf.FLOAT,
-            count=len(tex_coords),
-            type=gltf.VEC2,
-            max=tex_coords.max(axis=0).tolist(),
-            min=tex_coords.min(axis=0).tolist()
-        )
-        gltf_obj.accessors.append(tex_coord_accessor)
-        tex_coord_accessor_index = len(gltf_obj.accessors)-1
-
-        # Create the accessor for vertices
-        vertex_accessor = gltf.Accessor(
-            bufferView=vertex_bufferview_index,
-            componentType=gltf.FLOAT,
-            count=len(vertices),
-            type=gltf.VEC3,
-            max=vertices.max(axis=0).tolist(),
-            min=vertices.min(axis=0).tolist()
-        )
-        gltf_obj.accessors.append(vertex_accessor)
-        vertex_accessor_index = len(gltf_obj.accessors)-1
-
-        # Create the accessor for indices
-        index_accessor = gltf.Accessor(
-            bufferView=index_bufferview_index,
-            componentType=gltf.UNSIGNED_INT,
-            count=indices.size,
-            type=gltf.SCALAR
-        )
-        gltf_obj.accessors.append(index_accessor)
-        index_accessor_index = len(gltf_obj.accessors)-1
-
-        card_name = f"Card_{i}"
-
-        # Create the mesh for the plane
-        mesh = gltf.Mesh(
-            name=card_name,
-            primitives=[
-                gltf.Primitive(
-                    attributes=gltf.Attributes(
-                        POSITION=vertex_accessor_index,
-                        TEXCOORD_0=tex_coord_accessor_index,
-                    ),
-                    indices=index_accessor_index,
-                    material=i)
-            ])
+        
+        mesh = create_card(gltf_obj, corners_3d, i)
         gltf_obj.meshes.append(mesh)
 
         # Create the material and assign the texture

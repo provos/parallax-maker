@@ -599,12 +599,18 @@ def display_slice(n_clicks, id, src, filename):
               State('max-distance-slider', 'value'),
               State('focal-length-slider', 'value'),
               )
-def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, focal_length):
+def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
+    gltf_path = export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length)
+
+    return dcc.send_file(gltf_path, filename='scene.gltf')
+
+
+def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.imgThresholds, camera_distance, max_distance, focal_length)
@@ -612,8 +618,8 @@ def export_state_to_gltf(n_clicks, filename, camera_distance, max_distance, foca
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length, camera_distance,
                             card_corners_3d_list, state.image_slices_filenames)
-
-    return dcc.send_file(gltf_path, filename='scene.gltf')
+                            
+    return gltf_path
 
 
 @app.callback(Output('download-image', 'data'),
