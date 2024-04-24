@@ -104,55 +104,32 @@ def create_buffer_and_view(gltf_obj, data, target=gltf.ARRAY_BUFFER):
 
     return tmp_buffer_view_index
 
-def subdivide_plane(plane, subdivisions):
+
+def subdivide_geometry(coords, subdivisions, dimension):
     """
-    Subdivides a plane into a grid with the specified number of subdivisions.
+    Subdivides a plane into a grid with the specified number of subdivisions. Can handle both 3D and 2D geometries.
 
     Args:
-        plane (numpy.ndarray): The 3D corner coordinates of the plane.
+        coords (numpy.ndarray): The corner coordinates of the geometry (3D for spatial coordinates, 2D for texture coordinates).
         subdivisions (int): The number of subdivisions to create.
+        dimension (int): The dimension of the target points (3 for spatial coordinates, 2 for texture coordinates).
 
     Returns:
-        numpy.ndarray: The 3D corner coordinates of the subdivided plane.
+        numpy.ndarray: The corner coordinates of the subdivided geometry.
     """
-    # Create a grid of points on the plane
-    x = np.linspace(plane[0, 0], plane[1, 0], subdivisions+1)
-    y = np.linspace(plane[0, 1], plane[3, 1], subdivisions+1)
-    x, y = np.meshgrid(x, y)
-    z = np.zeros_like(x)
-
-    # Stack the grid points into a 3D array
-    points = np.stack([x, y, z], axis=-1, dtype=np.float32)
-
-    # Reshape the points into a list of 3D coordinates
-    points = points.reshape(-1, 3)
-
-    return points
-
-
-def subdivide_textures(texture_coords, subdivisions):
-    """
-    Subdivides a 2D UV texture plane into a grid with the specified number of subdivisions.
-
-    Args:
-        texture_coords (numpy.ndarray): The 2D UV texture coordinates of the plane.
-        subdivisions (int): The number of subdivisions to create.
-
-    Returns:
-        numpy.ndarray: The 2D UV texture coordinates of the subdivided plane.
-    """
-    # Create a grid of points on the plane
-    x = np.linspace(texture_coords[0, 0], texture_coords[1, 0], subdivisions+1)
-    y = np.linspace(texture_coords[0, 1], texture_coords[3, 1], subdivisions+1)
+    x = np.linspace(coords[0, 0], coords[1, 0],
+                    subdivisions + 1, dtype=np.float32)
+    y = np.linspace(coords[0, 1], coords[3, 1],
+                    subdivisions + 1, dtype=np.float32)
     x, y = np.meshgrid(x, y)
 
-    # Stack the grid points into a 3D array
-    coords = np.stack([x, y], axis=-1, dtype=np.float32)
+    if dimension == 3:
+        z = np.zeros_like(x)
+        points = np.stack([x, y, z], axis=-1)
+    elif dimension == 2:
+        points = np.stack([x, y], axis=-1)
 
-    # Reshape the points into a list of 2D coordinates
-    coords = coords.reshape(-1, 2)
-
-    return coords
+    return points.reshape(-1, dimension)
 
 def triangle_indices_from_grid(vertices):
     """
@@ -213,8 +190,8 @@ def create_card(gltf_obj, corners_3d, i):
     tex_coords = np.array(
         [[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
     
-    vertices = subdivide_plane(vertices, 1)
-    tex_coords = subdivide_textures(tex_coords, 1)
+    vertices = subdivide_geometry(vertices, 1, 3)
+    tex_coords = subdivide_geometry(tex_coords, 1, 2)
     
     indices = triangle_indices_from_grid(vertices)
 
