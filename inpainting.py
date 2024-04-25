@@ -10,7 +10,7 @@ from diffusers.utils import load_image, make_image_grid
 import cv2
 import numpy as np
 from PIL import Image, ImageFilter
-from utils import torch_get_device, find_square_bounding_box
+from utils import torch_get_device, find_square_bounding_box, feather_mask
 
 # Possible pretrained models:
 # pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
@@ -50,6 +50,7 @@ class PipelineSpec:
 
         device = torch_get_device()
         self.pipeline.to(device)
+                
         return self.pipeline
 
 
@@ -74,25 +75,22 @@ def pipelinespec_from_model(model):
 
 
 def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image,
-            strength=1.0, guidance_scale=7.5,
+            strength=1.0, guidance_scale=7.5, padding=50, blur_radius=50,
             crop=False, seed=-1):
     original_init_image = init_image.copy()
     
     if crop:
-        bounding_box = find_square_bounding_box(mask_image)
+        bounding_box = find_square_bounding_box(mask_image, padding=padding)
         init_image = init_image.crop(bounding_box)
         mask_image = mask_image.crop(bounding_box)
 
-    pipeline = pipelinespec.pipeline
-    if hasattr(pipeline, 'mask_processor'):
-        blurred_mask = pipeline.mask_processor.blur(mask_image, blur_factor=20)
-    else:
-        blurred_mask = mask_image.filter(ImageFilter.GaussianBlur(20))
+    
+    blurred_mask = feather_mask(mask_image, num_expand=blur_radius)
 
     # resize images to match the model input size
+    pipeline = pipelinespec.pipeline
     dimension = pipelinespec.get_dimension()
-    resize_init_image = init_image.convert(
-        'RGB').resize((dimension, dimension))
+    resize_init_image = init_image.convert('RGB').resize((dimension, dimension))
     resize_mask_image = blurred_mask.resize((dimension, dimension))
 
     if seed == -1:
