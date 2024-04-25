@@ -272,12 +272,15 @@ def make_inpainting_container_callbacks(app):
         State('negative-prompt', 'value'),
         State('inpaint-stength', 'value'),
         State('inpaint-guidance', 'value'),
+        State('mask-padding-slider', 'value'),
+        State('mask-blur-slider', 'value'),
         prevent_initial_call=True
     )
     def update_inpainting_image_display(
-        n_clicks, filename, model,
-        positive_prompt, negative_prompt,
-        strength, guidance_scale):
+            n_clicks, filename, model,
+            positive_prompt, negative_prompt,
+            strength, guidance_scale,
+            padding, blur):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
@@ -389,7 +392,8 @@ def make_inpainting_container_callbacks(app):
             state.image_slices_filenames[index])
         state.image_slices_filenames[index] = image_filename
 
-        state.image_slices[index] = np.array(new_image) # XXX - refactor to make this always a PIL image
+        # XXX - refactor to make this always a PIL image
+        state.image_slices[index] = np.array(new_image)
         state.to_file(state.filename)
 
         logs.append(
@@ -442,6 +446,39 @@ def make_configuration_div():
                 ],
                 value='kandinsky-community/kandinsky-2-2-decoder-inpaint'
             )
+        ], className='w-full'),
+        html.Div([
+            html.Label('Inpainting Parameters'),
+            html.Div([
+                html.Label('Mask Padding'),
+                dcc.Slider(
+                    id='mask-padding-slider',
+                    min=0,
+                    max=100,
+                    step=10,
+                    value=50,
+                    marks={i * 10: str(i * 10) for i in range(11)}
+                ),
+                html.Label('Mask Blur'),
+                dcc.Slider(
+                    id='mask-blur-slider',
+                    min=0,
+                    max=100,
+                    step=10,
+                    value=50,
+                    marks={i * 10: str(i * 10) for i in range(11)}
+                ),
+                html.Label('Mesh Displacement'),
+                dcc.Slider(
+                    id='displacement-slider',
+                    min=0,
+                    max=70,
+                    step=5,
+                    value=0,
+                    marks={i * 5: str(i * 5) for i in range(16)},
+                )
+
+            ], className='w-full min-h-8 border-dashed border-2 border-blue-500 rounded-md p-2')
         ], className='w-full'),
         html.Div(
             [
@@ -657,7 +694,8 @@ def make_canvas_callbacks(app):
         new_image = Image.merge('RGB', (new_r, new_g, new_b))
 
         # Scale new image to the same dimensions as imgData
-        new_image = new_image.resize(state.imgData.size, resample=Image.BICUBIC)
+        new_image = new_image.resize(
+            state.imgData.size, resample=Image.BICUBIC)
 
         mask_filename = state.save_image_mask(state.selected_slice, new_image)
 
@@ -741,6 +779,7 @@ def make_canvas_callbacks(app):
         prevent_initial_call=True
     )
 
+
 def make_navigation_callbacks(app):
     @app.callback(
         Output('image', 'src', allow_duplicate=True),
@@ -766,15 +805,16 @@ def make_navigation_callbacks(app):
 
         state = AppState.from_cache(filename)
         state.selected_slice = None
-        
+
         if len(state.image_slices) == 0:
             logs.append('No image slices to navigate')
             return no_update, logs
-        
+
         camera_position = state.camera_position
 
         if nav_clicked == 'nav-reset':
-            camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)
+            camera_position = np.array(
+                [0, 0, -camera_distance], dtype=np.float32)
         else:
             # Move the camera position based on the navigation button clicked
             # The distance should be configurable
@@ -786,7 +826,7 @@ def make_navigation_callbacks(app):
                 'nav-zoom-out': np.array([0, 0, -1], dtype=np.float32),
                 'nav-zoom-in': np.array([0, 0, 1], dtype=np.float32),
             }
-            
+
             camera_position += switch[nav_clicked]
 
         state.camera_position = camera_position
@@ -794,9 +834,10 @@ def make_navigation_callbacks(app):
         camera_matrix, card_corners_3d_list = setup_camera_and_cards(
             state.image_slices, state.imgThresholds,
             state.camera_distance, state.max_distance, state.focal_length)
-        
-        image = render_view(state.image_slices, camera_matrix, card_corners_3d_list, camera_position)
-        
+
+        image = render_view(state.image_slices, camera_matrix,
+                            card_corners_3d_list, camera_position)
+
         logs.append(f'Navigated to new camera position {camera_position}')
 
         return state.serve_main_image(image), logs
