@@ -139,12 +139,19 @@ class AppState:
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
 
-    def mask_filename(self, slice_index):
-        """Returns the mask filename for the specified slice index."""
+    def _make_filename(self, slice_index, suffix):
         assert slice_index >= 0 and slice_index < len(
             self.image_slices_filenames)
         file_path = Path(self.image_slices_filenames[slice_index])
-        return file_path.parent / f"{file_path.stem}_mask.png"
+        return file_path.parent / f"{file_path.stem}_{suffix}.png"
+    
+    def depth_filename(self, slice_index):
+        """Returns the depth filename for the specified slice index."""
+        return self._make_filename(slice_index, 'depth')
+
+    def mask_filename(self, slice_index):
+        """Returns the mask filename for the specified slice index."""
+        return self._make_filename(slice_index, 'mask')
 
     def save_image_mask(self, slice_index, mask):
         """Saves the PIL image mask to a png file for the specified slice index."""
