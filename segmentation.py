@@ -11,7 +11,7 @@ import torch
 from torchvision.transforms import Compose
 import argparse
 from pathlib import Path
-from utils import torch_get_device
+from utils import torch_get_device, feather_mask
 
 # for exporting a 3d scene
 from gltf import export_gltf
@@ -155,27 +155,6 @@ def mask_from_depth(depth_map, threshold_min, threshold_max, prev_mask=None):
     if prev_mask is not None:
         mask = cv2.bitwise_and(mask, cv2.bitwise_not(prev_mask))
     return mask
-
-
-def feather_mask(mask, num_expand=50):
-    """
-    Expand and feather a mask.
-
-    Args:
-        mask (numpy.ndarray): The input mask.
-        num_expand (int, optional): The number of times to expand the mask. Defaults to 50.
-
-    Returns:
-        numpy.ndarray: The expanded and feathered mask.
-    """
-    # Expand the mask
-    kernel = np.ones((num_expand, num_expand), np.uint8)
-    expanded_mask = cv2.dilate(mask, kernel, iterations=1)
-
-    # Feather the expanded mask
-    feathered_mask = cv2.GaussianBlur(
-        expanded_mask, (num_expand * 2 + 1, num_expand * 2 + 1), 0)
-    return feathered_mask
 
 
 def generate_image_slices(image, depth_map, thresholds, num_expand=50):

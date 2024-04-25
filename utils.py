@@ -3,6 +3,7 @@
 
 import io
 from functools import wraps
+import cv2
 import time
 import base64
 import torch
@@ -157,17 +158,18 @@ def move_bounding_box_to_image(image, bounding_box):
     return (xmin, ymin, xmax, ymax)
 
 
-def find_square_bounding_box(mask_image):
+def find_square_bounding_box(mask_image, padding=50):
     """
     Finds the square bounding box for a given mask image.
 
     Args:
         mask_image: The mask image for which the square bounding box needs to be found.
+        padding: The padding to apply to the bounding box. Defaults to 50.
 
     Returns:
         The square bounding box that fits the mask image.
     """
-    bounding_box = find_bounding_box(mask_image)
+    bounding_box = find_bounding_box(mask_image, padding=padding)
     square_box = find_square_from_bounding_box(*bounding_box)
     fit_box = move_bounding_box_to_image(mask_image, square_box)
     return fit_box
@@ -187,3 +189,33 @@ def find_pixel_from_click(img_data, x, y, width, height):
     x_ratio = img_width / width
     y_ratio = img_height / height
     return int(x * x_ratio), int(y * y_ratio)
+
+
+def feather_mask(mask, num_expand=50):
+    """
+    Expand and feather a mask.
+
+    Args:
+        mask (numpy.ndarray): The input mask.
+        num_expand (int, optional): The number of times to expand the mask. Defaults to 50.
+
+    Returns:
+        numpy.ndarray: The expanded and feathered mask.
+    """
+    was_pil_image = False
+    if isinstance(mask, Image.Image):
+        mask = np.array(mask)
+        was_pil_image = True
+    
+    # Expand the mask
+    kernel = np.ones((num_expand, num_expand), np.uint8)
+    expanded_mask = cv2.dilate(mask, kernel, iterations=1)
+
+    # Feather the expanded mask
+    feathered_mask = cv2.GaussianBlur(
+        expanded_mask, (num_expand * 2 + 1, num_expand * 2 + 1), 0)
+    
+    if was_pil_image:
+        feathered_mask = Image.fromarray(feathered_mask)
+    
+    return feathered_mask
