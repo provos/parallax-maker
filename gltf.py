@@ -5,9 +5,10 @@
 # The resulting file can be opened in a 3D application like Blender, Houdini or Unreal.
 #
 import base64
+
 import numpy as np
 import pygltflib as gltf
-
+from PIL import Image
 
 def rotation_quaternion_y(y_rot_degrees):
     """Calculates the rotation quaternion for a rotation around the y-axis.
@@ -160,15 +161,51 @@ def triangle_indices_from_grid(vertices):
 
     return np.array(indices, dtype=np.uint32)
 
+def displace_vertices(vertices, depth_map, displacement_scale=10.0):
+    """
+    Displaces the vertices of a plane based on a depth map.
 
-def create_card(gltf_obj, corners_3d, i):
+    Args:
+        vertices (numpy.ndarray): The 3D corner coordinates of the plane.
+        depth_map (numpy.ndarray): The depth map to displace the vertices with. Normalized to [0, 1].
+
+    Returns:
+        numpy.ndarray: The displaced vertices.
+    """
+    # Get the dimensions of the depth map
+    depth_map_width, depth_map_height = depth_map.shape
+
+    # Calculate the texture coordinates for the vertices
+    tex_coords = vertices[:, :2].copy()
+    tex_coords[:, 1] = -tex_coords[:, 1] # flip Y-axis
+
+    # normalize the texture coordinates to [0, 1]
+    tex_min_x, tex_min_y = tex_coords.min(axis=0)
+    tex_max_x, tex_max_y = tex_coords.max(axis=0)
+    tex_coords -= [tex_min_x, tex_min_y]
+    tex_coords /= [tex_max_x - tex_min_x, tex_max_y - tex_min_y]
+    
+    # Calculate the pixel coordinates for the texture coordinates
+    pixel_coords = (tex_coords * [depth_map_height - 1, depth_map_width - 1]).astype(int)
+
+    # Get the depth values for the pixel coordinates
+    depths = depth_map[pixel_coords[:, 1], pixel_coords[:, 0]] * displacement_scale
+
+    # Displace the vertices based on the depth values
+    vertices[:, 2] = depths
+    
+    return vertices
+
+
+def create_card(gltf_obj, i, corners_3d, depth_map=None):
     """
     Creates a card (plane) in the glTF object with the specified parameters.
 
     Args:
         gltf_obj (gltf.Gltf): The glTF object to add the card to.
-        corners_3d (numpy.ndarray): The 3D corner coordinates for the card.
         i (int): The index of the card.
+        corners_3d (numpy.ndarray): The 3D corner coordinates for the card.
+        depth_map (numpy.ndarray, optional): The depth map for the card. Defaults to None.
 
     Returns:
         int: The index of the created mesh.
@@ -190,9 +227,12 @@ def create_card(gltf_obj, corners_3d, i):
     tex_coords = np.array(
         [[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
     
-    vertices = subdivide_geometry(vertices, 1, 3)
-    tex_coords = subdivide_geometry(tex_coords, 1, 2)
+    vertices = subdivide_geometry(vertices, 100, 3)
     
+    if depth_map is not None:
+        vertices = displace_vertices(vertices, depth_map, displacement_scale=10.0)
+    
+    tex_coords = subdivide_geometry(tex_coords, 100, 2)    
     indices = triangle_indices_from_grid(vertices)
 
     # Create the buffer and buffer view for vertices
@@ -258,7 +298,15 @@ def create_card(gltf_obj, corners_3d, i):
 
     return mesh
 
-def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_corners_3d_list, image_paths, inline_images=True):
+def export_gltf(
+    output_path,
+    aspect_ratio,
+    focal_length,
+    camera_distance,
+    card_corners_3d_list,
+    image_paths,
+    depth_paths = [],
+    inline_images=True):
     """
     Export the camera, cards, and image slices to a glTF file.
 
@@ -269,6 +317,7 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
         camera_distance (float): The distance of the camera from the origin.
         card_corners_3d_list (list): List of 3D corner coordinates for each card.
         image_paths (list): List of file paths for each image slice.
+        depth_paths (list, optional): List of file paths for each depth map. Defaults to [].
         inline_images (bool, optional): Whether to inline the images in the glTF file. Defaults to True.
     """
     # Create a new glTF object
@@ -293,7 +342,13 @@ def export_gltf(output_path, aspect_ratio, focal_length, camera_distance, card_c
         z_transform = corners_3d[0][2]
         corners_3d[:, 2] = 0
         
-        mesh = create_card(gltf_obj, corners_3d, i)
+        depth_map = None
+        if len(depth_paths) > i:
+            depth_map = Image.open(depth_paths[i])
+            depth_map = np.array(depth_map)
+            depth_map = depth_map.astype(np.float32) / 255.0
+        
+        mesh = create_card(gltf_obj, i, corners_3d, depth_map)
         gltf_obj.meshes.append(mesh)
 
         # Create the material and assign the texture
