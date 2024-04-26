@@ -14,23 +14,44 @@ from controller import AppState
 from webui import export_state_as_gltf
 from segmentation import generate_depth_map
 
+def postprocess_depth_map(depth_map, image_alpha):
+    depth_map[image_alpha != 255] = 0
 
-def compute_depth_map_for_slices(state: AppState, premultiply_alpha: bool = True):
+    kernel = np.ones((3, 3), np.uint8)
+
+    # erode the alpha channel to remove the feathering
+    image_alpha = cv2.erode(image_alpha, kernel, iterations=1)
+    depth_map_blur = cv2.blur(depth_map, (15, 15))
+    depth_map[image_alpha != 255] = depth_map_blur[image_alpha != 255]
+
+    depth_map = cv2.blur(depth_map, (5, 5))
+    depth_map = cv2.dilate(depth_map, kernel, iterations=20)
+
+    # normalize to the smallest value
+    smallest_vale = np.quantile(depth_map[image_alpha == 255], 0.01)
+    smallest_vale = int(smallest_vale)
+    
+    # change dtype of depth map to int
+    depth_map = depth_map.astype(np.int16)    
+    depth_map[:, :] -= smallest_vale
+    depth_map = np.clip(depth_map, 0, 255)
+    depth_map = depth_map.astype(np.uint8)
+    
+    return depth_map
+
+def compute_depth_map_for_slices(state: AppState, postprocess: bool = True):
     depth_maps = []
     for i, filename in enumerate(state.image_slices_filenames):
         print(f"Processing {filename}")
 
         image = state.image_slices[i]
 
-        # premultiply with the alpha channel
-        rgb = image[:, :, :3]
-        if premultiply_alpha:
-            alpha = image[:, :, 3]
-            alpha = alpha.astype(np.float16) / 255.0
-            alpha = alpha[:, :, np.newaxis]
-            rgb = (rgb * alpha).astype(np.uint8)
+        depth_map = generate_depth_map(image[:, :, :3], model='midas')
+        
+        if postprocess:      
+            image_alpha = image[:, :, 3]
+            depth_map = postprocess_depth_map(depth_map, image_alpha)
 
-        depth_map = generate_depth_map(rgb, model='midas')
         depth_image = Image.fromarray(depth_map)
 
         output_filename = Path(state.filename) / \
@@ -58,6 +79,9 @@ def main():
                         help='Path to save the glTF file')
     parser.add_argument('-d', '--depth', action='store_true',
                         help='Compute depth maps for slices')
+    parser.add_argument('-s', '--scale', type=float,
+                        default=0.0,
+                        help='Displacement scale factor')
     args = parser.parse_args()
 
     state = AppState.from_file(args.state_file)
@@ -67,13 +91,16 @@ def main():
         output_path.mkdir(parents=True)
 
     if args.depth:
-        compute_depth_map_for_slices(state, premultiply_alpha=False)
+        compute_depth_map_for_slices(state)
+
+    state.max_distance = 100
 
     gltf_path = export_state_as_gltf(
         state, args.output_path,
         state.camera_distance,
         state.max_distance,
-        state.focal_length)
+        state.focal_length,
+        displacement_scale=args.scale)
     print(f"Exported glTF to {gltf_path}")
 
 
