@@ -197,7 +197,7 @@ def displace_vertices(vertices, depth_map, displacement_scale=10.0):
     return vertices
 
 
-def create_card(gltf_obj, i, corners_3d, depth_map=None):
+def create_card(gltf_obj, i, corners_3d, depth_map=None, displacement_scale=0.0):
     """
     Creates a card (plane) in the glTF object with the specified parameters.
 
@@ -206,6 +206,7 @@ def create_card(gltf_obj, i, corners_3d, depth_map=None):
         i (int): The index of the card.
         corners_3d (numpy.ndarray): The 3D corner coordinates for the card.
         depth_map (numpy.ndarray, optional): The depth map for the card. Defaults to None.
+        displacement_scale (float, optional): The scale of the displacement. Defaults to 0.0.
 
     Returns:
         int: The index of the created mesh.
@@ -227,12 +228,12 @@ def create_card(gltf_obj, i, corners_3d, depth_map=None):
     tex_coords = np.array(
         [[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
     
-    vertices = subdivide_geometry(vertices, 100, 3)
+    vertices = subdivide_geometry(vertices, 300, 3)
     
-    if depth_map is not None:
-        vertices = displace_vertices(vertices, depth_map, displacement_scale=10.0)
+    if depth_map is not None and displacement_scale > 0.0:
+        vertices = displace_vertices(vertices, depth_map, displacement_scale=displacement_scale)
     
-    tex_coords = subdivide_geometry(tex_coords, 100, 2)    
+    tex_coords = subdivide_geometry(tex_coords, 300, 2)    
     indices = triangle_indices_from_grid(vertices)
 
     # Create the buffer and buffer view for vertices
@@ -306,6 +307,7 @@ def export_gltf(
     card_corners_3d_list,
     image_paths,
     depth_paths = [],
+    displacement_scale=0.0,
     inline_images=True):
     """
     Export the camera, cards, and image slices to a glTF file.
@@ -318,6 +320,7 @@ def export_gltf(
         card_corners_3d_list (list): List of 3D corner coordinates for each card.
         image_paths (list): List of file paths for each image slice.
         depth_paths (list, optional): List of file paths for each depth map. Defaults to [].
+        displacement_scale (float, optional): The scale of the displacement. Defaults to 0.0.
         inline_images (bool, optional): Whether to inline the images in the glTF file. Defaults to True.
     """
     # Create a new glTF object
@@ -348,7 +351,7 @@ def export_gltf(
             depth_map = np.array(depth_map)
             depth_map = depth_map.astype(np.float32) / 255.0
         
-        mesh = create_card(gltf_obj, i, corners_3d, depth_map)
+        mesh = create_card(gltf_obj, i, corners_3d, depth_map, displacement_scale=displacement_scale)
         gltf_obj.meshes.append(mesh)
 
         # Create the material and assign the texture

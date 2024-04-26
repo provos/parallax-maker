@@ -598,26 +598,38 @@ def display_slice(n_clicks, id, src, filename):
               State('camera-distance-slider', 'value'),
               State('max-distance-slider', 'value'),
               State('focal-length-slider', 'value'),
+              State('displacement-slider', 'value'),
               )
-def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length):
+def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
-    gltf_path = export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length)
+    gltf_path = export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale)
 
     return dcc.send_file(gltf_path, filename='scene.gltf')
 
 
-def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length):
+def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.imgThresholds, camera_distance, max_distance, focal_length)
 
+    depth_filenames = []
+    if displacement_scale > 0:
+        for i, image in enumerate(state.image_slices):
+            print(f"Generating depth map for slice {i}")
+            depth_filename = state.depth_filename(i)
+            if not depth_filename.exists():
+                depth_map = generate_depth_map(image[:, :, :3], model='midas')
+                Image.fromarray(depth_map).save(depth_filename, compress_level=1)
+            depth_filenames.append(depth_filename)
+
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length, camera_distance,
-                            card_corners_3d_list, state.image_slices_filenames)
+                            card_corners_3d_list, state.image_slices_filenames, depth_filenames,
+                            displacement_scale=displacement_scale)
                             
     return gltf_path
 
