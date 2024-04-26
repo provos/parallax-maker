@@ -16,7 +16,7 @@ from dash.exceptions import PreventUpdate
 # Local application/library specific imports
 from controller import AppState
 from utils import to_image_url, filename_add_version
-from inpainting import inpaint, pipelinespec_from_model
+from inpainting import inpaint, pipelinespec_from_model, patch_image
 from segmentation import setup_camera_and_cards, render_view
 
 
@@ -312,6 +312,10 @@ def make_inpainting_container_callbacks(app):
             image = Image.fromarray(image, mode='RGBA')
         mask_filename = state.mask_filename(index)
         mask = Image.open(mask_filename).convert('L')
+
+        # patch the image
+        image = patch_image(np.array(image), np.array(mask))
+        image = Image.fromarray(image)
 
         images = []
         for i in range(3):
