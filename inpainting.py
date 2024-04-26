@@ -255,6 +255,8 @@ def main():
                         help='Path to the mask image')
     parser.add_argument('-o', '--output', type=str,
                         default='inpainted_image.png', help='Path to the output filename')
+    parser.add_argument('-a', '--patch', action='store_true',
+                        help='Patch the image using the fast inpainting algorithm.')
     parser.add_argument('-p', '--prompt', type=str,
                         default='a black cat with glowing eyes, cute, adorable, disney, pixar, highly detailed, 8k',
                         help='The positive prompt to use for inpainting')
@@ -268,15 +270,18 @@ def main():
     init_image = patch_image(np.array(init_image), np.array(mask_image))
     init_image = Image.fromarray(init_image)
 
-    pipeline = PipelineSpec(
-        'diffusers/stable-diffusion-xl-1.0-inpainting-0.1',
-        variant='fp16',
-        dimension=1024)
+    if not args.patch:
+        pipeline = PipelineSpec(
+            'diffusers/stable-diffusion-xl-1.0-inpainting-0.1',
+            variant='fp16',
+            dimension=1024)
 
-    pipeline.create_pipeline()
+        pipeline.create_pipeline()
 
-    new_image = inpaint(pipeline, args.prompt,
-                        args.negative_prompt, init_image, mask_image, crop=True)
+        new_image = inpaint(pipeline, args.prompt,
+                            args.negative_prompt, init_image, mask_image, crop=True)
+    else:
+        new_image = init_image
 
     new_image.save(args.output, format='PNG')
 
