@@ -29,3 +29,10 @@ ffmpeg -framerate 24 -i rendered_image_%03d.png -filter_complex "fps=5,scale=480
 The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender.
 
 ![Blender Scene View](example/blender_view.png)
+
+
+# Web UI
+
+![Web UI](example/webui.jpg)
+
+A simple Dash based Web UI provides a browser assisted workflow to generated slices from images, inpaint the slices and then export them as a glTF scene to Blender.
