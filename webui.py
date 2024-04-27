@@ -19,7 +19,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import to_image_url, filename_add_version, timeit, find_pixel_from_click
+from utils import filename_add_version, find_pixel_from_click, postprocess_depth_map
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -623,6 +623,7 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
             depth_filename = state.depth_filename(i)
             if not depth_filename.exists():
                 depth_map = generate_depth_map(image[:, :, :3], model='midas')
+                depth_map = postprocess_depth_map(depth_map, image[:, :, 3])
                 Image.fromarray(depth_map).save(depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
 

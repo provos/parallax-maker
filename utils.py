@@ -219,3 +219,44 @@ def feather_mask(mask, num_expand=50):
         feathered_mask = Image.fromarray(feathered_mask)
     
     return feathered_mask
+
+
+def postprocess_depth_map(depth_map, image_alpha):
+    """
+    Apply edge extension technique to extend the depthmap beyond the edge of the alpha channel.
+
+    Args:
+        depth_map (numpy.ndarray): The depth map.
+        image_alpha (numpy.ndarray): The alpha channel of the image.
+
+    Returns:
+        numpy.ndarray: The post-processed depth map.
+
+    """
+    depth_map[image_alpha != 255] = 0
+
+    kernel = np.ones((3, 3), np.uint8)
+
+    # erode the alpha channel to remove the feathering
+    image_alpha = cv2.erode(image_alpha, kernel, iterations=3)
+
+    depth_map_blur = cv2.blur(depth_map, (15, 15))
+    depth_map[image_alpha != 255] = depth_map_blur[image_alpha != 255]
+
+    for i in range(20):
+        depth_map_dilated = cv2.dilate(depth_map, kernel, iterations=1)
+        depth_map[image_alpha != 255] = depth_map_dilated[image_alpha != 255]
+
+    depth_map = cv2.blur(depth_map, (5, 5))
+
+    # normalize to the smallest value
+    smallest_vale = np.min(depth_map[image_alpha == 255])
+    smallest_vale = int(smallest_vale)
+
+    # change dtype of depth map to int
+    depth_map = depth_map.astype(np.int16)
+    depth_map[:, :] -= smallest_vale
+    depth_map = np.clip(depth_map, 0, 255)
+    depth_map = depth_map.astype(np.uint8)
+
+    return depth_map
