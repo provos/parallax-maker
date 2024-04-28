@@ -3,15 +3,14 @@
 #
 
 import argparse
-import io
 
 import numba as nb
 import torch
 from diffusers import AutoPipelineForInpainting
-from diffusers.utils import load_image, make_image_grid
+from diffusers.utils import make_image_grid
 import cv2
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image
 
 from utils import torch_get_device, find_square_bounding_box, feather_mask, timeit
 
