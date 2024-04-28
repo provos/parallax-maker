@@ -32,6 +32,8 @@ class PipelineSpec:
         self.pipeline = None
 
     def __eq__(self, other):
+        if not isinstance(other, PipelineSpec):
+            return False
         return self.pretrained_model == other.pretrained_model and \
             self.variant == other.variant and \
             self.dimension == other.dimension
