@@ -472,16 +472,6 @@ def make_configuration_div():
                     value=50,
                     marks={i * 10: str(i * 10) for i in range(11)}
                 ),
-                html.Label('Mesh Displacement'),
-                dcc.Slider(
-                    id='displacement-slider',
-                    min=0,
-                    max=70,
-                    step=5,
-                    value=0,
-                    marks={i * 5: str(i * 5) for i in range(16)},
-                )
-
             ], className='w-full min-h-8 border-dashed border-2 border-blue-500 rounded-md p-2')
         ], className='w-full'),
         html.Div(
@@ -534,6 +524,15 @@ def make_3d_export_div():
                     'Camera Distance', 0, 5000, 1, 100),
         make_slider('max-distance-slider', 'Max Distance', 0, 5000, 1, 500),
         make_slider('focal-length-slider', 'Focal Length', 0, 5000, 1, 100),
+        html.Label('Mesh Displacement'),
+        dcc.Slider(
+            id='displacement-slider',
+            min=0,
+            max=70,
+            step=5,
+            value=0,
+            marks={i * 5: str(i * 5) for i in range(16)},
+        ),
         dcc.Download(id="download-gltf")
     ],
         className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md p-2 mb-2'
