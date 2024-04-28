@@ -2,26 +2,10 @@ import unittest
 from contextvars import copy_context
 from dash._callback_context import context_value
 from dash._utils import AttributeDict
-from webui import filename_add_version, update_threshold_values
+from webui import update_threshold_values
 from controller import AppState
 from pathlib import Path
 
-
-class TestFilenameAddVersion(unittest.TestCase):
-    def test_without_version(self):
-        filename = "image.png"
-        expected = "image_v2.png"
-        self.assertEqual(filename_add_version(filename), expected)
-
-    def test_with_version(self):
-        filename = "image_v2.png"
-        expected = "image_v3.png"
-        self.assertEqual(filename_add_version(filename), expected)
-        
-    def test_with_directory(self):
-        filename = "dir/image.png"
-        expected = "dir/image_v2.png"
-        self.assertEqual(filename_add_version(filename), expected)
 
 class TestUpdateThresholds(unittest.TestCase):
     def test_update_threshold_values_boundaries(self):

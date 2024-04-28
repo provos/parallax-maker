@@ -3,7 +3,7 @@ from PIL import Image
 from utils import find_bounding_box, find_square_from_bounding_box, filename_add_version, filename_previous_version
 
 
-class TestUtils(unittest.TestCase):
+class TestFindBoundingBox(unittest.TestCase):
     def test_find_bounding_box(self):
         # Create a mask image with a bounding box
         mask_image = Image.new('L', (100, 100))
@@ -58,6 +58,8 @@ class TestUtils(unittest.TestCase):
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
 
+
+class TestFilenameAddVersion(unittest.TestCase):
     def test_filename_add_version(self):
         # Define the input filename
         filename = "/path/to/image.png"
