@@ -106,6 +106,12 @@ class AppState:
         
         self.create_tints()
         
+    def serve_model_file(self):
+        """Serves the gltf model file."""
+        model_path = Path(self.SRV_DIR) / Path(self.filename) / 'model.gltf'
+        unique_id = int(time.time())
+        return f'/{str(model_path)}?v={unique_id}'
+        
     def serve_slice_image(self, slice_index):
         """Serves the image slice with the specified index."""
         assert slice_index >= 0 and slice_index < len(

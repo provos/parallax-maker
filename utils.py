@@ -206,7 +206,7 @@ def feather_mask(mask, num_expand=50):
     if isinstance(mask, Image.Image):
         mask = np.array(mask)
         was_pil_image = True
-    
+
     # Expand the mask
     kernel = np.ones((num_expand, num_expand), np.uint8)
     expanded_mask = cv2.dilate(mask, kernel, iterations=1)
@@ -214,10 +214,10 @@ def feather_mask(mask, num_expand=50):
     # Feather the expanded mask
     feathered_mask = cv2.GaussianBlur(
         expanded_mask, (num_expand * 2 + 1, num_expand * 2 + 1), 0)
-    
+
     if was_pil_image:
         feathered_mask = Image.fromarray(feathered_mask)
-    
+
     return feathered_mask
 
 
@@ -260,3 +260,70 @@ def postprocess_depth_map(depth_map, image_alpha):
     depth_map = depth_map.astype(np.uint8)
 
     return depth_map
+
+
+def get_gltf_iframe(gltf_uri):
+    return f'''
+    <html>
+    <head>
+        <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
+        <style>
+            body, html {{
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+            }}
+            model-viewer {{
+                width: 100%;
+                height: 100%;
+            }}
+        </style>
+    </head>
+    <body>
+    <model-viewer
+        id="model-viewer"
+        src="{gltf_uri}"
+        alt="glTF Scene"
+        ar
+        autoRotate
+        camera-target="0m 0m 0m"
+        camera-orbit="3.106650330236851rad 1.5658376358588284rad 50m"
+        field-of-view="8"
+        min-camera-orbit='auto auto 1%'
+        max-camera-orbit='auto auto 100%'
+        min-field-of-view='1deg'
+        max-field-of-view='60deg'
+        camera-controls touch-action="pan-y"
+        style="width: 100%; height: 100vh;"
+    ></model-viewer>
+    </body>
+    </html>
+    '''
+
+def get_no_gltf_available():
+    return '''
+    <html>
+    <head>
+        <style>
+            body, html {
+                margin: 0;
+                padding: 0;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            }
+            h1 {
+                font-family: sans-serif;
+                font-size: 24px;
+                color: #333;
+            }
+        </style>
+    </head>
+    <body>
+        <h1>No glTF file available.</h1>
+    </body>
+    </html>
+    '''

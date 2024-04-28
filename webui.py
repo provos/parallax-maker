@@ -19,7 +19,7 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import filename_add_version, find_pixel_from_click, postprocess_depth_map
+from utils import filename_add_version, find_pixel_from_click, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -46,7 +46,7 @@ def progress_callback(current, total):
 external_scripts = [
     # add the tailwind cdn url hosting the files with the utility classes
     {'src': 'https://cdn.tailwindcss.com'},
-    {'src': 'https://kit.fontawesome.com/48f728cfc9.js'}
+    {'src': 'https://kit.fontawesome.com/48f728cfc9.js'},
 ]
 
 app = dash.Dash(__name__,
@@ -54,12 +54,19 @@ app = dash.Dash(__name__,
 
 # Create a Flask route for serving images
 @app.server.route(f'/{AppState.SRV_DIR}/<path:filename>')
-def serve_image(filename):
+def serve_data(filename):
     filename = Path(os.getcwd()) / filename
-    return send_file(str(filename), mimetype=f'image/{filename.suffix[1:]}')
+    if filename.suffix == '.gltf':
+        mimetype = 'model/gltf+json'
+    else:
+        mimetype = f'image/{filename.suffix[1:]}'
+    print(f"Sending {filename} with mimetype {mimetype}")
+    return send_file(str(filename), mimetype=mimetype)
 
 # JavaScript event(s) that we want to listen to and what properties to collect.
 eventScroll = {"event": "scroll", "props": ["type", "scrollLeft", "scrollTop"]}
+
+gltf_hack = '/tmp-images/appstate-feBWVeXR/model.gltf'
 
 app.layout = html.Div([
     EventListener(events=[eventScroll], logging=True, id="evScroll"),
@@ -77,11 +84,29 @@ app.layout = html.Div([
     html.Header("Parallax Maker",
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Main([
-        components.make_input_image_container(
-            upload_id='upload-image',
-            image_id='image', event_id='el',
-            canvas_id='canvas',
-            outer_class_name='w-full col-span-3'),
+        components.make_tabs(
+            'viewer',
+            ['2D', '3D'],
+            [
+                components.make_input_image_container(
+                    upload_id='upload-image',
+                    image_id='image', event_id='el',
+                    canvas_id='canvas',
+                    outer_class_name='w-full col-span-3'),
+                html.Div(
+                    id="model-viewer-container",
+                    children=[
+                        html.Iframe(
+                            id="model-viewer",
+                            srcDoc=get_no_gltf_available(),
+                            style={'height': '70vh'},
+                            className='w-full h-full bg-gray-400 p-2'
+                        )
+                    ]
+                ),
+            ],
+            outer_class_name='w-full col-span-3'
+        ),
         components.make_tabs(
             'main',
             ['Segmentation', 'Slice Generation',
@@ -128,6 +153,7 @@ components.make_inpainting_container_callbacks(app)
 
 
 # Callbacks for collapsible sections
+components.make_tabs_callback(app, 'viewer')
 components.make_tabs_callback(app, 'main')
 
 
@@ -611,6 +637,30 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
     return dcc.send_file(gltf_path, filename='scene.gltf')
 
 
+# XXX - this and the callback above can be chained to avoid code duplication
+@app.callback(Output('model-viewer', 'srcDoc', allow_duplicate=True),
+              Input('gltf-create', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('camera-distance-slider', 'value'),
+              State('max-distance-slider', 'value'),
+              State('focal-length-slider', 'value'),
+              State('displacement-slider', 'value'),
+              prevent_initial_call=True
+              )
+def gltf_create(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
+    if n_clicks is None or filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    export_state_as_gltf(
+        state, filename, camera_distance, max_distance, focal_length, displacement_scale)
+
+    return get_gltf_iframe(state.serve_model_file())
+
+
+
+
 def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
@@ -724,6 +774,21 @@ def export_animation(n_clicks, filename, num_frames, logs):
     logs.append(f"Exported {num_frames} frames to animation")
 
     return logs, ""
+
+@app.callback(
+    Output('model-viewer', 'srcDoc'),
+    Input('restore-state', 'data'),
+    State('application-state-filename', 'data'),
+    prevent_initial_call=True)
+def update_model_viewer(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    iframe = get_gltf_iframe(state.serve_model_file())
+
+    return iframe
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),

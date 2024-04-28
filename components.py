@@ -520,6 +520,12 @@ def make_3d_export_div():
     return html.Div([
         html.Button(
             html.Div([
+                html.Label('Create glTF Scene'),
+                html.I(className='fa-solid fa-cube pl-1')]),
+            id="gltf-create",
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'),
+        html.Button(
+            html.Div([
                 html.Label('Export glTF Scene'),
                 html.I(className='fa-solid fa-download pl-1')]),
             id="gltf-export",
