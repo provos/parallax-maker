@@ -10,7 +10,7 @@ from io import BytesIO
 import numpy as np
 import cv2
 from pathlib import Path
-from utils import filename_previous_version, filename_add_version, timeit, apply_color_tint
+from utils import filename_previous_version, filename_add_version, apply_color_tint
 from segmentation import mask_from_depth
 
 
