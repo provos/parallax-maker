@@ -395,6 +395,6 @@ def export_gltf(
     if inline_images:
         gltf_obj.convert_images(gltf.ImageFormat.DATAURI)
         
-    gltf_obj.save(str(output_path / "model.gltf"))
+    gltf_obj.save(str(output_path))
 
-    return str(output_path / "model.gltf")
+    return str(output_path)

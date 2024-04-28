@@ -66,8 +66,6 @@ def serve_data(filename):
 # JavaScript event(s) that we want to listen to and what properties to collect.
 eventScroll = {"event": "scroll", "props": ["type", "scrollLeft", "scrollTop"]}
 
-gltf_hack = '/tmp-images/appstate-feBWVeXR/model.gltf'
-
 app.layout = html.Div([
     EventListener(events=[eventScroll], logging=True, id="evScroll"),
     # dcc.Store stores all application state
@@ -678,7 +676,8 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
             depth_filenames.append(depth_filename)
 
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
-    gltf_path = export_gltf(Path(filename), aspect_ratio, focal_length, camera_distance,
+    output_path = Path(filename) / state.MODEL_FILE
+    gltf_path = export_gltf(output_path, aspect_ratio, focal_length, camera_distance,
                             card_corners_3d_list, state.image_slices_filenames, depth_filenames,
                             displacement_scale=displacement_scale)
                             

@@ -1,6 +1,6 @@
 # (c) 2024 Niels Provos
 
-import os 
+import os
 import json
 import random
 import string
@@ -20,6 +20,7 @@ class AppState:
     IMAGE_FILE = 'input_image.png'
     DEPTH_MAP_FILE = 'depth_map.png'
     MAIN_IMAGE = 'main_image.bmp'
+    MODEL_FILE = 'model.gltf'
 
     cache = {}
 
@@ -42,13 +43,13 @@ class AppState:
         self.result_tinted = None
         self.grayscale_tinted = None
         self.slice_pixel = None
-        
+
         # XXX - make this configurable
         self.camera_position = np.array([0, 0, -100], dtype=np.float32)
         self.camera_distance = 100.0
         self.max_distance = 500.0
         self.focal_length = 100.0
-        
+
     def create_tints(self):
         """Precomputes the tings for visualizing slices."""
         # Apply the main color tint to the original image
@@ -57,7 +58,7 @@ class AppState:
         # Convert the image to grayscale and back to RGB
         grayscale = self.imgData.convert('L').convert('RGB')
         self.grayscale_tinted = apply_color_tint(grayscale, (0, 0, 150), 0.1)
-        
+
     def apply_mask(self, mask):
         # Prepare masks; make sure they are the right size and mode
         if not isinstance(mask, Image.Image):
@@ -66,13 +67,13 @@ class AppState:
 
         if self.result_tinted is None or self.grayscale_tinted is None:
             self.create_tints()
-            
+
         # Combine the tinted and the grayscale image
         final_result = Image.composite(
             self.result_tinted, self.grayscale_tinted, mask)
 
         return final_result
-        
+
     def depth_slice_from_pixel(self, pixel_x, pixel_y):
         depth = -1  # for log below
         if self.depthMapData is not None and self.imgThresholds is not None:
@@ -95,7 +96,6 @@ class AppState:
 
         return img_data, depth
 
-        
     def set_img_data(self, img_data):
         self.imgData = img_data.convert('RGB')
         self.depthMapData = None
@@ -103,15 +103,15 @@ class AppState:
         self.selected_inpainting = None
         self.image_slices = []
         self.slice_pixel = None
-        
+
         self.create_tints()
-        
+
     def serve_model_file(self):
         """Serves the gltf model file."""
-        model_path = Path(self.SRV_DIR) / Path(self.filename) / 'model.gltf'
+        model_path = Path(self.SRV_DIR) / Path(self.filename) / self.MODEL_FILE
         unique_id = int(time.time())
         return f'/{str(model_path)}?v={unique_id}'
-        
+
     def serve_slice_image(self, slice_index):
         """Serves the image slice with the specified index."""
         assert slice_index >= 0 and slice_index < len(
@@ -120,7 +120,7 @@ class AppState:
         image_path = Path(self.SRV_DIR) / image_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
-    
+
     def serve_input_image(self):
         """Serves the input image from the state directory."""
         filename = Path(self.filename) / self.IMAGE_FILE
@@ -131,7 +131,7 @@ class AppState:
         filename = Path(self.SRV_DIR) / filename
         unique_id = int(time.time())
         return f'/{str(filename)}?v={unique_id}'
-    
+
     def serve_main_image(self, image):
         """Serves the image using a temporary directory."""
         if not isinstance(image, Image.Image):
@@ -150,7 +150,7 @@ class AppState:
             self.image_slices_filenames)
         file_path = Path(self.image_slices_filenames[slice_index])
         return file_path.parent / f"{file_path.stem}_{suffix}.png"
-    
+
     def depth_filename(self, slice_index):
         """Returns the depth filename for the specified slice index."""
         return self._make_filename(slice_index, 'depth')
@@ -165,9 +165,10 @@ class AppState:
         mask.save(str(mask_path))
 
         return str(mask_path)
-    
+
     def _read_image_slice(self, slice_index):
-        img = cv2.imread(str(self.image_slices_filenames[slice_index]), cv2.IMREAD_UNCHANGED)
+        img = cv2.imread(
+            str(self.image_slices_filenames[slice_index]), cv2.IMREAD_UNCHANGED)
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
         return img
 
