@@ -12,77 +12,10 @@ from torchvision.transforms import Compose
 import argparse
 from pathlib import Path
 from utils import torch_get_device, feather_mask
+from depth import midas_depth_map, zoedepth_depth_map
 
 # for exporting a 3d scene
 from gltf import export_gltf
-
-def midas_depth_map(image, progress_callback=None):
-    if progress_callback:
-        progress_callback(0, 100)
-
-    # Load the MiDaS v2.1 model
-    model_type = "DPT_Large"
-    midas = torch.hub.load("intel-isl/MiDaS", model_type, skip_validation=True)
-
-    if progress_callback:
-        progress_callback(30, 100)
-
-    # Set the model to evaluation mode
-    midas.eval()
-
-    # Define the transformation pipeline
-    midas_transforms = torch.hub.load("intel-isl/MiDaS", "transforms", skip_validation=True)
-    if model_type == "DPT_Large" or model_type == "DPT_Hybrid":
-        transforms = midas_transforms.dpt_transform
-    else:
-        transforms = midas_transforms.small_transform
-
-    if progress_callback:
-        progress_callback(50, 100)
-
-    # Set the device (CPU or GPU)
-    device = torch_get_device()
-    midas.to(device)
-    input_batch = transforms(image).to(device)
-    with torch.no_grad():
-        prediction = midas(input_batch)
-
-        prediction = torch.nn.functional.interpolate(
-            prediction.unsqueeze(1),
-            size=image.shape[:2],
-            mode="bicubic",
-            align_corners=False,
-        ).squeeze()
-
-    if progress_callback:
-        progress_callback(90, 100)
-
-    depth_map = prediction.cpu().numpy()
-
-    if progress_callback:
-        progress_callback(100, 100)
-
-    return depth_map
-
-
-def zoedepth_depth_map(image, progress_callback=None):
-    # Triggers fresh download of MiDaS repo
-    torch.hub.help("intel-isl/MiDaS", "DPT_BEiT_L_384", force_reload=True)
-
-    # Zoe_NK
-    model_zoe_nk = torch.hub.load(
-        "isl-org/ZoeDepth", "ZoeD_NK", pretrained=True, skip_validation=True)
-
-    # Set the device (CPU or GPU)
-    device = torch_get_device()
-    model_zoe_nk.to(device)
-
-    depth_map = model_zoe_nk.infer_pil(image)  # as numpy
-
-    # invert the depth map since we are expecting the farthest objects to be black
-    depth_map = 255 - depth_map
-
-    return depth_map
 
 
 def generate_depth_map(image, model="midas", progress_callback=None):
@@ -132,7 +65,8 @@ def analyze_depth_histogram(depth_map, num_slices=5):
     thresholds = calculate_thresholds(depth_map, num_slices - 1)
     if (len(thresholds) != num_slices + 1):
         thresholds = calculate_thresholds(depth_map, num_slices)
-    assert len(thresholds) == num_slices + 1, f"Expected {num_slices + 1} thresholds, got {len(thresholds)}"
+    assert len(thresholds) == num_slices + \
+        1, f"Expected {num_slices + 1} thresholds, got {len(thresholds)}"
     return thresholds
 
 
@@ -270,6 +204,7 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
 
     return rendered_image
 
+
 def blend_with_alpha(target_image, merge_image):
     """
     Blends the merge_image with the target_image using alpha blending.
@@ -313,10 +248,10 @@ def render_image_sequence(output_path,
     Returns:
         None
     """
-    
+
     if progress_callback:
         progress_callback(0, num_frames)
-    
+
     output_path = Path(output_path)
     for i in range(num_frames):
         # Update the camera position
@@ -331,7 +266,7 @@ def render_image_sequence(output_path,
 
         cv2.imwrite(str(output_image_path), cv2.cvtColor(
             rendered_image, cv2.COLOR_RGBA2BGR))
-        
+
         if progress_callback:
             progress_callback(i+1, num_frames)
 
@@ -428,7 +363,7 @@ def process_image(image_path, output_path, num_slices=5,
                    f"image_slice_{i}.png" for i in range(num_slices)]
     # fix it
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
-    
+
     output_path = Path(output_path) / "model.gltf"
     export_gltf(output_path, aspect_ratio, focal_length, camera_distance,
                 card_corners_3d_list, image_paths)
