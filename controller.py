@@ -38,7 +38,8 @@ class AppState:
         # no JSON serialization for items below
         self.image_slices = []
         self.selected_slice = None
-        self.pipeline_spec = None  # PipelineSpec()
+        self.pipeline_spec = None  # PipelineSpec() for inpainting
+        self.depth_estimation_model = None # DepthEstimationModel() for depth estimation
         self.selected_inpainting = None
         self.result_tinted = None
         self.grayscale_tinted = None

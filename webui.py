@@ -20,6 +20,7 @@ from segmentation import (
 )
 import components
 from utils import filename_add_version, find_pixel_from_click, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available
+from depth import DepthEstimationModel
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -432,8 +433,13 @@ def generate_depth_map_callback(ignored_data, filename, model):
         PIL_image = PIL_image.convert('RGB')
 
     np_image = np.array(PIL_image)
+    
+    depth_model = DepthEstimationModel(model=model)
+    if depth_model != state.depth_estimation_model:
+        state.depth_estimation_model = depth_model
+    
     state.depthMapData = generate_depth_map(
-        np_image, model=model, progress_callback=progress_callback)
+        np_image, model=state.depth_estimation_model, progress_callback=progress_callback)
     state.imgThresholds = None
 
     return True, ""
@@ -670,7 +676,10 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
             print(f"Generating depth map for slice {i}")
             depth_filename = state.depth_filename(i)
             if not depth_filename.exists():
-                depth_map = generate_depth_map(image[:, :, :3], model='midas')
+                model = DepthEstimationModel(model='midas')
+                if model != state.depth_estimation_model:
+                    state.depth_estimation_model = model
+                depth_map = generate_depth_map(image[:, :, :3], model=state.depth_estimation_model)
                 depth_map = postprocess_depth_map(depth_map, image[:, :, 3])
                 Image.fromarray(depth_map).save(depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)

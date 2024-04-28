@@ -12,38 +12,30 @@ from torchvision.transforms import Compose
 import argparse
 from pathlib import Path
 from utils import torch_get_device, feather_mask
-from depth import midas_depth_map, zoedepth_depth_map
+from depth import DepthEstimationModel
 
 # for exporting a 3d scene
 from gltf import export_gltf
 
 
-def generate_depth_map(image, model="midas", progress_callback=None):
+def generate_depth_map(image, model: DepthEstimationModel, progress_callback=None):
     """
     Generate a depth map from the input image using the specified model.
 
     Args:
         image (numpy.ndarray): The input image.
-        model (str, optional): The depth estimation model to use. 
+        model (DepthEstimationModel): The depth estimation model to use. 
             Supported models are "midas" and "zoedepth". 
-            Defaults to "midas".
-
+        progress_callback (callable, optional): A callback function to report progress.
+        
     Returns:
         numpy.ndarray: The grayscale depth map.
     Raises:
         ValueError: If an unknown model is specified.
     """
 
-    if model == "midas":
-        depth_map = midas_depth_map(image, progress_callback=progress_callback)
-    elif model == "zoedepth":
-        depth_map = zoedepth_depth_map(
-            image, progress_callback=progress_callback)
-    else:
-        raise ValueError(f"Unknown model: {model}")
-
-    depth_map = cv2.normalize(depth_map, None, 0, 255,
-                              cv2.NORM_MINMAX, cv2.CV_8U)
+    depth_map = model.depth_map(image, progress_callback=progress_callback)
+    depth_map = cv2.normalize(depth_map, None, 0, 255, cv2.NORM_MINMAX, cv2.CV_8U)
     return depth_map
 
 
@@ -302,7 +294,8 @@ def process_image(image_path, output_path, num_slices=5,
     depth_map_path = output_path / "depth_map.png"
     if create_depth_map:
         # Generate the depth map
-        depth_map = generate_depth_map(image, model=depth_model)
+        model = DepthEstimationModel(depth_model)
+        depth_map = generate_depth_map(image, model)
 
         # save the depth map to a file
         cv2.imwrite(str(depth_map_path), depth_map)

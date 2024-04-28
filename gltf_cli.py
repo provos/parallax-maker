@@ -14,16 +14,18 @@ from controller import AppState
 from webui import export_state_as_gltf
 from segmentation import generate_depth_map
 from utils import postprocess_depth_map
+from depth import DepthEstimationModel
 
 
 def compute_depth_map_for_slices(state: AppState, postprocess: bool = True):
     depth_maps = []
+    model = DepthEstimationModel(model='midas')
     for i, filename in enumerate(state.image_slices_filenames):
         print(f"Processing {filename}")
 
         image = state.image_slices[i]
 
-        depth_map = generate_depth_map(image[:, :, :3], model='midas')
+        depth_map = generate_depth_map(image[:, :, :3], model)
 
         if postprocess:
             image_alpha = image[:, :, 3]
