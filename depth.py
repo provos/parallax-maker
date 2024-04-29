@@ -1,14 +1,20 @@
 # (c) 2024 Niels Provos
 
+from transformers import AutoImageProcessor, DPTForDepthEstimation
 import torch
+import cv2
+import numpy as np
+from PIL import Image
+
 from utils import torch_get_device
 
 class DepthEstimationModel:
     def __init__(self, model="midas"):
-        assert model in ["midas", "zoedepth"]
+        assert model in ["midas", "zoedepth", "dinov2"]
         self.model_type = model
         self.model = None
         self.transforms = None
+        self.image_processor = None
         
     def __eq__(self, other):
         if not isinstance(other, DepthEstimationModel):
@@ -18,16 +24,18 @@ class DepthEstimationModel:
     def load_model(self, progress_callback=None):
         load_pipeline = {
             "midas": create_medias_pipeline,
-            "zoedepth": create_zoedepth_pipeline
+            "zoedepth": create_zoedepth_pipeline,
+            "dinov2": create_dinov2_pipeline
         }
-
-        result = load_pipeline[self.model_type](
-            progress_callback=progress_callback)
+        
+        result = load_pipeline[self.model_type](progress_callback=progress_callback)
 
         if self.model_type == "midas":
             self.model, self.transforms = result
         elif self.model_type == "zoedepth":
             self.model = result
+        elif self.model_type == "dinov2":
+            self.model, self.image_processor = result
 
     def depth_map(self, image, progress_callback=None):
         if self.model is None:
@@ -35,10 +43,56 @@ class DepthEstimationModel:
 
         run_pipeline = {
             "midas": lambda img, cb: run_medias_pipeline(img, self.model, self.transforms, progress_callback=cb),
-            "zoedepth": lambda img, cb: run_zoedepth_pipeline(img, self.model, progress_callback=cb)
+            "zoedepth": lambda img, cb: run_zoedepth_pipeline(img, self.model, progress_callback=cb),
+            "dinov2": lambda img, cb: run_dinov2_pipeline(img, self.model, self.image_processor, progress_callback=cb)
         }
 
         return run_pipeline[self.model_type](image, progress_callback)
+    
+    
+def create_dinov2_pipeline(progress_callback=None):
+    image_processor = AutoImageProcessor.from_pretrained(
+        "facebook/dpt-dinov2-large-nyu")
+    model = DPTForDepthEstimation.from_pretrained(
+        "facebook/dpt-dinov2-large-nyu")
+    model.to(torch_get_device())
+    return model, image_processor
+
+def run_dinov2_pipeline(image, model, image_processor, progress_callback=None):
+    image = Image.fromarray(image)
+    
+    new_size = image.size
+    if image.width > image.height:
+        if image.width > 1024:
+            new_size = (1024, int(image.height * 1024 / image.width))
+    else:
+        if image.height > 1024:
+            new_size = (int(image.width * 1024 / image.height), 1024)
+    
+    resized_image = image.convert("RGB").resize(new_size, Image.BICUBIC)
+    inputs = image_processor(images=resized_image, return_tensors="pt")
+    inputs = {k: v.to(torch_get_device()) for k, v in inputs.items()}
+    with torch.no_grad():
+        outputs = model(**inputs)
+        predicted_depth = outputs.predicted_depth
+
+    # interpolate to original size
+    prediction = torch.nn.functional.interpolate(
+        predicted_depth.unsqueeze(1),
+        size=image.size[::-1],
+        mode="bicubic",
+        align_corners=False,
+    )
+
+    # visualize the prediction
+    output = prediction.squeeze().cpu().numpy()
+    formatted = (output * 255 / np.max(output)).astype("uint8")
+    formatted[:, :] = 255 - formatted[:, :]  # invert the depth map
+    
+    # resize to original size
+    formatted = cv2.resize(formatted, (image.width, image.height), interpolation=cv2.INTER_CUBIC)
+       
+    return formatted
 
 def create_medias_pipeline(progress_callback=None):
     """

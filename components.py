@@ -432,7 +432,8 @@ def make_configuration_div():
                 id='depth-module-dropdown',
                 options=[
                     {'label': 'MiDaS', 'value': 'midas'},
-                    {'label': 'ZoeDepth', 'value': 'zoedepth'}
+                    {'label': 'ZoeDepth', 'value': 'zoedepth'},
+                    {'label': 'DINOv2', 'value': 'dinov2'}
                 ],
                 value='midas'
             )
