@@ -197,7 +197,7 @@ def displace_vertices(vertices, depth_map, displacement_scale=10.0):
     return vertices
 
 
-def create_card(gltf_obj, i, corners_3d, depth_map=None, displacement_scale=0.0):
+def create_card(gltf_obj, i, corners_3d, subdivisions=300, depth_map=None, displacement_scale=0.0):
     """
     Creates a card (plane) in the glTF object with the specified parameters.
 
@@ -205,6 +205,7 @@ def create_card(gltf_obj, i, corners_3d, depth_map=None, displacement_scale=0.0)
         gltf_obj (gltf.Gltf): The glTF object to add the card to.
         i (int): The index of the card.
         corners_3d (numpy.ndarray): The 3D corner coordinates for the card.
+        subdivisions (int, optional): The number of subdivisions for the card. Defaults to 300.
         depth_map (numpy.ndarray, optional): The depth map for the card. Defaults to None.
         displacement_scale (float, optional): The scale of the displacement. Defaults to 0.0.
 
@@ -228,12 +229,12 @@ def create_card(gltf_obj, i, corners_3d, depth_map=None, displacement_scale=0.0)
     tex_coords = np.array(
         [[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
     
-    vertices = subdivide_geometry(vertices, 300, 3)
+    vertices = subdivide_geometry(vertices, subdivisions, 3)
     
     if depth_map is not None and displacement_scale > 0.0:
         vertices = displace_vertices(vertices, depth_map, displacement_scale=displacement_scale)
     
-    tex_coords = subdivide_geometry(tex_coords, 300, 2)    
+    tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)    
     indices = triangle_indices_from_grid(vertices)
 
     # Create the buffer and buffer view for vertices
@@ -339,6 +340,8 @@ def export_gltf(
     # Add the camera node to the scene
     scene.nodes.append(camera_index)
 
+    subdivisions = 300
+
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
         # Translaton hack
@@ -348,10 +351,14 @@ def export_gltf(
         depth_map = None
         if len(depth_paths) > i:
             depth_map = Image.open(depth_paths[i])
+            width, height = depth_map.size
+            depth_map = depth_map.resize((subdivisions+1, subdivisions+1), Image.BICUBIC)
+            depth_map = depth_map.resize((width, height), Image.BICUBIC)
             depth_map = np.array(depth_map)
             depth_map = depth_map.astype(np.float32) / 255.0
         
-        mesh = create_card(gltf_obj, i, corners_3d, depth_map, displacement_scale=displacement_scale)
+        mesh = create_card(
+            gltf_obj, i, corners_3d, subdivisions, depth_map, displacement_scale=displacement_scale)
         gltf_obj.meshes.append(mesh)
 
         # Create the material and assign the texture
