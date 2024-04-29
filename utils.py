@@ -250,7 +250,7 @@ def postprocess_depth_map(depth_map, image_alpha):
     depth_map = cv2.blur(depth_map, (5, 5))
 
     # normalize to the smallest value
-    smallest_vale = np.min(depth_map[image_alpha == 255])
+    smallest_vale = int(np.quantile(depth_map[image_alpha == 255], 0.01))
     smallest_vale = int(smallest_vale)
 
     # change dtype of depth map to int
