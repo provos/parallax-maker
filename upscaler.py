@@ -60,7 +60,14 @@ class Upscaler:
         Returns:
             PIL.Image.Image: The upscaled image.
         """
-        # Load the image
+        # Convert the image
+        alpha = None
+        if image.mode == "RGBA":
+            alpha = image.getchannel("A")
+            # double the size of the alpha image
+            double_size = (image.size[0] * 2, image.size[1] * 2) 
+            alpha = alpha.resize(double_size, Image.BICUBIC)
+            
         image = image.convert("RGB")
 
         if self.model is None:
@@ -103,6 +110,9 @@ class Upscaler:
                                     place_top, place_right, place_bottom, x, y, overlap)
 
         # Save the upscaled image
+        if alpha:
+            upscaled_image.putalpha(alpha)
+        
         return upscaled_image
 
     def upscale_tile(self, tile):
