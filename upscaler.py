@@ -1,6 +1,18 @@
 #!/usr/bin/env python
 # (c) 2024 Niels Provos
 #
+"""
+Upscale Image Tiling
+
+This module provides functionality to upscale an image using a pre-trained deep learning model,
+specifically Swin2SR for Super Resolution. The upscaling process breaks the input image into smaller
+tiles.  Each tile is individually upscaled using the model, and then these upscaled tiles are reassembled
+into the final image. The tile-based approach helps manage memory usage and can handle larger
+images by processing small parts one at a time.
+
+For better integration of the tiles into the resultant upscaled image, tiles are overlapped and
+blended to ensure smoother transitions between tiles.
+"""
 
 from PIL import Image
 import torch
