@@ -509,6 +509,8 @@ def make_configuration_div():
 
 def make_3d_export_div():
     return html.Div([
+        dcc.Loading(id='gltf-loading',
+                    children=html.Div(id='gen-gltf-output')),
         html.Button(
             html.Div([
                 html.Label('Create glTF Scene'),

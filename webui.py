@@ -623,12 +623,14 @@ def display_slice(n_clicks, id, src, filename):
 
 
 @app.callback(Output('download-gltf', 'data'),
+              Output('gltf-loading', 'children', allow_duplicate=True),
               Input('gltf-export', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('camera-distance-slider', 'value'),
               State('max-distance-slider', 'value'),
               State('focal-length-slider', 'value'),
               State('displacement-slider', 'value'),
+              prevent_initial_call=True
               )
 def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
     if n_clicks is None or filename is None:
@@ -638,11 +640,12 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
 
     gltf_path = export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale)
 
-    return dcc.send_file(gltf_path, filename='scene.gltf')
+    return dcc.send_file(gltf_path, filename='scene.gltf'), ""
 
 
 # XXX - this and the callback above can be chained to avoid code duplication
 @app.callback(Output('model-viewer', 'srcDoc', allow_duplicate=True),
+              Output('gltf-loading', 'children', allow_duplicate=True),
               Input('gltf-create', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('camera-distance-slider', 'value'),
@@ -660,7 +663,7 @@ def gltf_create(n_clicks, filename, camera_distance, max_distance, focal_length,
     export_state_as_gltf(
         state, filename, camera_distance, max_distance, focal_length, displacement_scale)
 
-    return get_gltf_iframe(state.serve_model_file())
+    return get_gltf_iframe(state.serve_model_file()), ""
 
 
 
