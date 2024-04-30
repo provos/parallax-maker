@@ -22,119 +22,142 @@ import numpy as np
 from utils import torch_get_device
 
 
-def upscale_tile(model, image_processor, tile):
-    """
-    Upscales a tile using a given model and image processor.
+class Upscaler:
+    def __init__(self, model_name="swin2sr"):
+        assert model_name in ["swin2sr"]
+        self.model_name = model_name
+        self.model = None
+        self.image_processor = None
 
-    Args:
-        model: The model used for upscaling the tile.
-        image_processor: The image processor used to preprocess the tile.
-        tile: The input tile to be upscaled.
+    def create_model(self):
+        if self.model_name == "swin2sr":
+            self.model, self.image_processor = self.load_swin2sr_model()
 
-    Returns:
-        An Image object representing the upscaled tile.
-    """
-    inputs = image_processor(tile, return_tensors="pt")
-    inputs = {name: tensor.to(model.device) for name, tensor in inputs.items()}
+    def __eq__(self, other):
+        if not isinstance(other, Upscaler):
+            return False
+        return self.model_name == other.model_name
 
-    with torch.no_grad():
-        outputs = model(**inputs)
+    def load_swin2sr_model(self):
+        # Initialize the image processor and model
+        image_processor = AutoImageProcessor.from_pretrained(
+            "caidas/swin2SR-classical-sr-x2-64")
+        model = Swin2SRForImageSuperResolution.from_pretrained(
+            "caidas/swin2SR-classical-sr-x2-64")
+        model.to(torch_get_device())
 
-    output = outputs.reconstruction.squeeze().float().cpu().clamp_(0, 1).numpy()
-    output = np.moveaxis(output, source=0, destination=-1)
-    output = (output * 255.0).round().astype(np.uint8)
+        return model, image_processor
 
-    return Image.fromarray(output)
+    def upscale_image_tiled(self, image, tile_size=512, overlap=64):
+        """
+        Upscales an image using a tiled approach.
 
+        Args:
+            image (PIL.Image.Image): The input image file.
+            tile_size (int, optional): The size of each tile. Defaults to 512.
+            overlap (int, optional): The overlap between adjacent tiles. Defaults to 64.
 
-def integrate_tile(tile, image, left, top, right, bottom, tile_x, tile_y, overlap):
-    if tile_x > 0:
-        left_strip = tile.crop((0, 0, overlap, tile.height))
-        blended = Image.blend(left_strip, image.crop(
-            (left, top, left + overlap, bottom)), 0.5)
-        image.paste(blended, (left, top, left + overlap, bottom))
-        if overlap > tile.width:
-            # Skip the tile if the overlap is greater than the tile width
-            return
-        tile = tile.crop((overlap, 0, tile.width, tile.height))
-        left += overlap
-    if tile_y > 0:
-        top_strip = tile.crop((0, 0, tile.width, overlap))
-        blended = Image.blend(top_strip, image.crop(
-            (left, top, right, top + overlap)), 0.5)
-        image.paste(blended, (left, top, right, top + overlap))
-        if overlap > tile.height:
-            # Skip the tile if the overlap is greater than the tile height
-            return
-        tile = tile.crop((0, overlap, tile.width, tile.height))
-        top += overlap
-    # Paste the upscaled tile onto the upscaled image
-    image.paste(tile, (left, top, right, bottom))
+        Returns:
+            PIL.Image.Image: The upscaled image.
+        """
+        # Load the image
+        image = image.convert("RGB")
 
+        if self.model is None:
+            self.create_model()
 
-def upscale_image_tiled(image_path, tile_size=512, overlap=64):
-    """
-    Upscales an image using a tiled approach.
+        # Calculate the number of tiles
+        width, height = image.size
+        step_size = tile_size - overlap
+        num_tiles_x = (width + step_size - 1) // step_size
+        num_tiles_y = (height + step_size - 1) // step_size
 
-    Args:
-        image_path (str): The path to the input image file.
-        tile_size (int, optional): The size of each tile. Defaults to 512.
-        overlap (int, optional): The overlap between adjacent tiles. Defaults to 64.
+        # Create a new image to store the upscaled result
+        upscaled_width = width * 2
+        upscaled_height = height * 2
+        upscaled_image = Image.new("RGB", (upscaled_width, upscaled_height))
 
-    Returns:
-        PIL.Image.Image: The upscaled image.
-    """
-    # Load the image
-    image = Image.open(image_path).convert("RGB")
+        # Iterate over the tiles
+        for y in range(num_tiles_y):
+            for x in range(num_tiles_x):
+                # Calculate the coordinates of the current tile
+                left = x * step_size
+                top = y * step_size
+                right = min(left + tile_size, width)
+                bottom = min(top + tile_size, height)
 
-    # Initialize the image processor and model
-    image_processor = AutoImageProcessor.from_pretrained(
-        "caidas/swin2SR-classical-sr-x2-64")
-    model = Swin2SRForImageSuperResolution.from_pretrained(
-        "caidas/swin2SR-classical-sr-x2-64")
-    model.to(torch_get_device())
+                print(
+                    f"Processing tile ({y}, {x} with coordinates ({left}, {top}, {right}, {bottom})")
 
-    # Calculate the number of tiles
-    width, height = image.size
-    step_size = tile_size - overlap
-    num_tiles_x = (width + step_size - 1) // step_size
-    num_tiles_y = (height + step_size - 1) // step_size
+                # Extract the current tile from the image
+                tile = image.crop((left, top, right, bottom))
+                upscaled_tile = self.upscale_tile(tile)
 
-    # Create a new image to store the upscaled result
-    upscaled_width = width * 2
-    upscaled_height = height * 2
-    upscaled_image = Image.new("RGB", (upscaled_width, upscaled_height))
+                # Calculate the coordinates to paste the upscaled tile
+                place_left = x * step_size * 2
+                place_top = y * step_size * 2
+                place_right = place_left + upscaled_tile.width
+                place_bottom = place_top + upscaled_tile.height
 
-    # Iterate over the tiles
-    for y in range(num_tiles_y):
-        for x in range(num_tiles_x):
-            # Calculate the coordinates of the current tile
-            left = x * step_size
-            top = y * step_size
-            right = min(left + tile_size, width)
-            bottom = min(top + tile_size, height)
+                self.integrate_tile(upscaled_tile, upscaled_image, place_left,
+                                    place_top, place_right, place_bottom, x, y, overlap)
 
-            print(
-                f"Processing tile ({y}, {x} with coordinates ({left}, {top}, {right}, {bottom})")
+        # Save the upscaled image
+        return upscaled_image
 
-            # Extract the current tile from the image
-            tile = image.crop((left, top, right, bottom))
-            upscaled_tile = upscale_tile(model, image_processor, tile)
+    def upscale_tile(self, tile):
+        """
+        Upscales a tile using a given model and image processor.
 
-            # Calculate the coordinates to paste the upscaled tile
-            place_left = x * step_size * 2
-            place_top = y * step_size * 2
-            place_right = place_left + upscaled_tile.width
-            place_bottom = place_top + upscaled_tile.height
+        Args:
+            model: The model used for upscaling the tile.
+            image_processor: The image processor used to preprocess the tile.
+            tile: The input tile to be upscaled.
 
-            integrate_tile(upscaled_tile, upscaled_image, place_left,
-                           place_top, place_right, place_bottom, x, y, overlap)
+        Returns:
+            An Image object representing the upscaled tile.
+        """
+        inputs = self.image_processor(tile, return_tensors="pt")
+        inputs = {name: tensor.to(self.model.device)
+                  for name, tensor in inputs.items()}
 
-    # Save the upscaled image
-    return upscaled_image
+        with torch.no_grad():
+            outputs = self.model(**inputs)
+
+        output = outputs.reconstruction.squeeze().float().cpu().clamp_(0, 1).numpy()
+        output = np.moveaxis(output, source=0, destination=-1)
+        output = (output * 255.0).round().astype(np.uint8)
+
+        return Image.fromarray(output)
+
+    @staticmethod
+    def integrate_tile(tile, image, left, top, right, bottom, tile_x, tile_y, overlap):
+        if tile_x > 0:
+            left_strip = tile.crop((0, 0, overlap, tile.height))
+            blended = Image.blend(left_strip, image.crop(
+                (left, top, left + overlap, bottom)), 0.5)
+            image.paste(blended, (left, top, left + overlap, bottom))
+            if overlap > tile.width:
+                # Skip the tile if the overlap is greater than the tile width
+                return
+            tile = tile.crop((overlap, 0, tile.width, tile.height))
+            left += overlap
+        if tile_y > 0:
+            top_strip = tile.crop((0, 0, tile.width, overlap))
+            blended = Image.blend(top_strip, image.crop(
+                (left, top, right, top + overlap)), 0.5)
+            image.paste(blended, (left, top, right, top + overlap))
+            if overlap > tile.height:
+                # Skip the tile if the overlap is greater than the tile height
+                return
+            tile = tile.crop((0, overlap, tile.width, tile.height))
+            top += overlap
+        # Paste the upscaled tile onto the upscaled image
+        image.paste(tile, (left, top, right, bottom))
 
 
 if __name__ == "__main__":
-    upscaled_image = upscale_image_tiled(
-        "appstate-feBWVeXR/image_slice_1_v2.png", tile_size=512, overlap=64)
+    upscaler = Upscaler()
+    image = Image.open("appstate-feBWVeXR/image_slice_1_v2.png")
+    upscaled_image = upscaler.upscale_image_tiled(image, tile_size=512, overlap=64)
     upscaled_image.save("upscaled_image.png")
