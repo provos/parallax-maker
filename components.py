@@ -522,6 +522,12 @@ def make_3d_export_div():
                 html.Label('Export glTF Scene'),
                 html.I(className='fa-solid fa-download pl-1')]),
             id="gltf-export",
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'),
+        html.Button(
+            html.Div([
+                html.Label('Upscale Textures'),
+                html.I(className='fa-solid fa-maximize pl-1')]),
+            id="upscale-textures",
             className='bg-blue-500 text-white p-2 rounded-md mb-2'),
         make_slider('camera-distance-slider',
                     'Camera Distance', 0, 5000, 1, 100),

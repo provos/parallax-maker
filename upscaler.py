@@ -60,7 +60,9 @@ class Upscaler:
         Returns:
             PIL.Image.Image: The upscaled image.
         """
-        # Convert the image
+        # Convert the image if it's a numpy array
+        if isinstance(image, np.ndarray):
+            image = Image.fromarray(image)
         alpha = None
         if image.mode == "RGBA":
             alpha = image.getchannel("A")

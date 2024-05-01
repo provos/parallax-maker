@@ -622,6 +622,25 @@ def display_slice(n_clicks, id, src, filename):
     return src[index], [None]*len(n_clicks)
 
 
+@app.callback(Output('logs-data', 'data', allow_duplicate=True),
+              Output('gltf-loading', 'children', allow_duplicate=True),
+              Input('upscale-textures', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def upscale_texture(n_clicks, filename, logs):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    state.upscale_slices()
+
+    logs.append("Upscaled textures for slices")
+
+    return logs, ""
+
+
 @app.callback(Output('download-gltf', 'data'),
               Output('gltf-loading', 'children', allow_duplicate=True),
               Input('gltf-export', 'n_clicks'),
@@ -687,10 +706,19 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
                 Image.fromarray(depth_map).save(depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
 
+    # check whether we have upscaled slices we should use
+    slices_filenames = []
+    for i, slice_filename in enumerate(state.image_slices_filenames):
+        upscaled_filename = state.upscaled_filename(i)
+        if upscaled_filename.exists():
+            slices_filenames.append(upscaled_filename)
+        else:
+            slices_filenames.append(slice_filename)
+
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     output_path = Path(filename) / state.MODEL_FILE
     gltf_path = export_gltf(output_path, aspect_ratio, focal_length, camera_distance,
-                            card_corners_3d_list, state.image_slices_filenames, depth_filenames,
+                            card_corners_3d_list, slices_filenames, depth_filenames,
                             displacement_scale=displacement_scale)
                             
     return gltf_path

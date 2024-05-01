@@ -12,6 +12,7 @@ import cv2
 from pathlib import Path
 from utils import filename_previous_version, filename_add_version, apply_color_tint
 from segmentation import mask_from_depth
+from upscaler import Upscaler
 
 
 class AppState:
@@ -44,6 +45,7 @@ class AppState:
         self.result_tinted = None
         self.grayscale_tinted = None
         self.slice_pixel = None
+        self.upscaler = None
 
         # XXX - make this configurable
         self.camera_position = np.array([0, 0, -100], dtype=np.float32)
@@ -159,6 +161,10 @@ class AppState:
     def mask_filename(self, slice_index):
         """Returns the mask filename for the specified slice index."""
         return self._make_filename(slice_index, 'mask')
+    
+    def upscaled_filename(self, slice_index):
+        """Returns the upscaled filename for the specified slice index."""
+        return self._make_filename(slice_index, 'upscaled')
 
     def save_image_mask(self, slice_index, mask):
         """Saves the PIL image mask to a png file for the specified slice index."""
@@ -256,6 +262,18 @@ class AppState:
             output_image_path = self.image_slices_filenames[i]
             print(f"Saving image slice: {output_image_path}")
             slice_image.save(str(output_image_path))
+            
+    def upscale_slices(self):
+        if self.upscaler is None:
+            self.upscaler = Upscaler()
+            
+        for i, slice_image in enumerate(self.image_slices):
+            filename = self.upscaled_filename(i)
+            if not Path(filename).exists():
+                print(f"Upscaling image slice: {filename}")
+                upscaled_image = self.upscaler.upscale_image_tiled(slice_image, tile_size=512, overlap=64)
+                upscaled_image.save(filename)
+                print(f"Saved upscaled image slice: {filename}")
 
     def to_file(self, file_path, save_image_slices=True, save_depth_map=True, save_input_image=True):
         """
