@@ -19,7 +19,7 @@ import torch
 from transformers import AutoImageProcessor, Swin2SRForImageSuperResolution
 import numpy as np
 
-from utils import torch_get_device
+from utils import torch_get_device, premultiply_alpha_numpy
 
 
 class Upscaler:
@@ -112,6 +112,7 @@ class Upscaler:
         # Save the upscaled image
         if alpha:
             upscaled_image.putalpha(alpha)
+            upscaled_image = premultiply_alpha_numpy(upscaled_image)
         
         return upscaled_image
 

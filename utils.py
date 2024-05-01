@@ -262,6 +262,33 @@ def postprocess_depth_map(depth_map, image_alpha):
     return depth_map
 
 
+def premultiply_alpha_numpy(img):
+    """
+    Premultiplies the alpha channel of an RGBA image using NumPy.
+
+    Args:
+        img (PIL.Image.Image): The input RGBA image.
+
+    Returns:
+        PIL.Image.Image: The premultiplied RGBA image.
+    """
+    # Convert the image to a NumPy array
+    arr = np.array(img)
+
+    # Split the array into RGB and Alpha components
+    rgb = arr[..., :3]
+    a = arr[..., 3:] / 255.0  # Normalise alpha to (0, 1)
+
+    # Perform premultiplication
+    premultiplied_rgb = (rgb * a).astype(np.uint8)
+
+    # Combine the new RGB with the original alpha
+    premultiplied = np.dstack((premultiplied_rgb, arr[..., 3]))
+
+    # Convert back to an Image
+    return Image.fromarray(premultiplied, 'RGBA')
+
+
 def get_gltf_iframe(gltf_uri):
     return f'''
     <html>
