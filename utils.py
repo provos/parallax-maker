@@ -8,7 +8,7 @@ import time
 import base64
 import torch
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw
 from pathlib import Path
 
 
@@ -174,6 +174,22 @@ def find_square_bounding_box(mask_image, padding=50):
     fit_box = move_bounding_box_to_image(mask_image, square_box)
     return fit_box
 
+def image_overlay(image, segmented_image):
+    """
+    Blend the main image with a segmented image using PIL.
+
+    Args:
+        image (PIL.Image.Image): The main image in RGB format.
+        segmented_image (str or PIL.Image.Image): The segmentation map in RGB format.
+
+    Returns:
+        PIL.Image.Image: A new PIL Image object with the result of the blending.
+    """
+    alpha_segmented = 0.8  # transparency for the segmentation map
+    result = Image.blend(image, segmented_image, alpha_segmented)
+
+    return result
+
 
 def apply_color_tint(img, color, alpha):
     # Create an overlay image filled with the specified color
@@ -287,6 +303,26 @@ def premultiply_alpha_numpy(img):
 
     # Convert back to an Image
     return Image.fromarray(premultiplied, 'RGBA')
+
+
+def draw_circle(image, center, radius, fill_color=(255, 128, 128), outline_color=(255, 55, 55)):
+    """
+    Draw a circle on a PIL Image.
+
+    Args:
+        image (PIL.Image.Image): The PIL Image object where the circle will be drawn.
+        center (tuple): The center coordinates of the circle in the format (x, y).
+        radius (int): The radius of the circle.
+        fill_color (tuple): The color of the circle's interior in RGB format.
+        outline_color (tuple): The color of the circle's outline in RGB format.
+    """
+    draw = ImageDraw.Draw(image)
+    left = center[0] - radius
+    top = center[1] - radius
+    right = center[0] + radius
+    bottom = center[1] + radius
+    draw.ellipse([left, top, right, bottom],
+                 fill=fill_color, outline=outline_color)
 
 
 def get_gltf_iframe(gltf_uri):
