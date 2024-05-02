@@ -1,4 +1,14 @@
 # (c) 2024 Niels Provos
+# 
+'''
+Create Depth Maps from Images
+
+This module provides functionality to create depth maps from images using pre-trained deep learning models.
+The depth maps can be used to create parallax effects in images and videos.
+
+TODO: Investigate https://huggingface.co/LiheYoung/depth_anything_vitl14
+'''
+
 
 from transformers import AutoImageProcessor, DPTForDepthEstimation
 import torch
