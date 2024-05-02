@@ -196,7 +196,7 @@ def apply_color_tint(img, color, alpha):
     overlay = Image.new('RGB', img.size, color=color)
 
     # Blend the original image with the overlay
-    return Image.blend(img, overlay, alpha)
+    return Image.blend(img.convert('RGB'), overlay, alpha)
 
 
 def find_pixel_from_click(img_data, x, y, width, height):
