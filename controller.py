@@ -31,6 +31,7 @@ class AppState:
         self.imgData = None  # PIL image
         self.imgThresholds = None
         self.depthMapData = None  # numpy array
+        self.image_depths = []
         self.image_slices_filenames = []
 
         self.positive_prompt = ""
@@ -76,6 +77,13 @@ class AppState:
             self.result_tinted, self.grayscale_tinted, mask)
 
         return final_result
+    
+    def reset_image_slices(self):
+        self.image_slices = []
+        self.image_depths = []
+        self.image_slices_filenames = []
+        self.selected_slice = None
+        self.selected_inpainting = None
 
     def depth_slice_from_pixel(self, pixel_x, pixel_y):
         depth = -1  # for log below
@@ -405,6 +413,7 @@ class AppState:
             'filename': self.filename,
             'num_slices': self.num_slices,
             'imgThresholds': self.imgThresholds,
+            'image_depths': self.image_depths,
             'image_slices_filenames': self.image_slices_filenames,
             'positive_prompt': self.positive_prompt,
             'negative_prompt': self.negative_prompt,
@@ -431,6 +440,7 @@ class AppState:
         state.filename = data['filename']
         state.num_slices = data['num_slices'] if 'num_slices' in data else 5
         state.imgThresholds = data['imgThresholds']
+        state.image_depths = data['image_depths'] if 'image_depths' in data else state.imgThresholds[1:]
         state.image_slices_filenames = data['image_slices_filenames']
         state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
         state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''

@@ -850,7 +850,7 @@ def make_navigation_callbacks(app):
         state.camera_position = camera_position
 
         camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-            state.image_slices, state.imgThresholds,
+            state.image_slices, state.image_depths,
             state.camera_distance, state.max_distance, state.focal_length)
 
         image = render_view(state.image_slices, camera_matrix,

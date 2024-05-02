@@ -522,6 +522,10 @@ def update_slices(ignored_data, filename):
         img_container.append(
             dcc.Upload(
                 html.Div([
+                    html.Div(
+                        f"{state.image_depths[i]}",  # The number to display
+                        className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-amber-800 text-opacity-50 text-center'
+                    ),
                     html.Img(
                         src=img_data,
                         className='w-full h-full object-contain border-solid border-2 border-slate-500',
@@ -589,7 +593,7 @@ def generate_slices(ignored_data, filename):
     if state.depthMapData is None:
         raise PreventUpdate()
 
-    state.image_slices = generate_image_slices(
+    state.image_slices, state.image_depths = generate_image_slices(
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
@@ -690,7 +694,7 @@ def gltf_create(n_clicks, filename, camera_distance, max_distance, focal_length,
 def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
-        state.imgThresholds, camera_distance, max_distance, focal_length)
+        state.image_depths, camera_distance, max_distance, focal_length)
 
     depth_filenames = []
     if displacement_scale > 0:
@@ -801,7 +805,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
     max_distance = 500.0
     focal_length = 100.0
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-        state.image_slices, state.imgThresholds, camera_distance, max_distance, focal_length)
+        state.image_slices, state.image_depths, camera_distance, max_distance, focal_length)
 
     # Render the initial view
     camera_position = np.array([0, 0, -100], dtype=np.float32)

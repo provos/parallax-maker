@@ -84,8 +84,18 @@ def mask_from_depth(depth_map, threshold_min, threshold_max, prev_mask=None):
 
 
 def generate_image_slices(image, depth_map, thresholds, num_expand=50):
-    """Generate image slices based on the depth map and thresholds, including an alpha channel."""
+    """Generate image slices based on the depth map and thresholds, including an alpha channel.
 
+    Args:
+        image (numpy.ndarray): The input image.
+        depth_map (numpy.ndarray): The depth map corresponding to the input image.
+        thresholds (list): A list of threshold values used to segment the depth map.
+        num_expand (int, optional): The number of pixels to expand the mask by. Defaults to 50.
+
+    Returns:
+        tuple: A tuple containing a list of image slices and the depths for each slice.
+
+    """
     slices = []
 
     prev_mask = None
@@ -106,16 +116,16 @@ def generate_image_slices(image, depth_map, thresholds, num_expand=50):
         slices.append(masked_image)
         prev_mask = mask
 
-    return slices
+    return slices, thresholds[1:]
 
 
-def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_distance=100.0, focal_length=100.0, sensor_width=35.0):
+def setup_camera_and_cards(image_slices, depths, camera_distance=100.0, max_distance=100.0, focal_length=100.0, sensor_width=35.0):
     """
     Set up the camera intrinsic parameters and the card corners in 3D space.
 
     Args:
         image_slices (list): A list of image slices.
-        thresholds (list): A list of threshold values for each image slice.
+        depths (list): A list of threshold depths for each image slice.
         camera_distance (float, optional): The distance between the camera and the cards. Defaults to 100.0.
         max_distance (float, optional): The maximum distance for the cards. Defaults to 100.0.
         focal_length (float, optional): The focal length of the camera. Defaults to 100.0.
@@ -139,7 +149,7 @@ def setup_camera_and_cards(image_slices, thresholds, camera_distance=100.0, max_
     card_corners_3d_list = []
     # The thresholds start with 0 and end with 255. We want the closest card to be at 0.
     for i in range(num_slices):
-        z = max_distance * ((255 - thresholds[i+1]) / 255.0)
+        z = max_distance * ((255 - depths[i]) / 255.0)
 
         # Calculate the 3D points of the card corners
         card_width = (image_width * (z + camera_distance)) / focal_length_px
@@ -311,7 +321,7 @@ def process_image(image_path, output_path, num_slices=5,
 
     if create_image_slices:
         # Generate image slices
-        image_slices = generate_image_slices(image, depth_map, thresholds)
+        image_slices, _ = generate_image_slices(image, depth_map, thresholds)
 
         # Save the image slices
         for i, slice_image in enumerate(image_slices):
@@ -335,7 +345,7 @@ def process_image(image_path, output_path, num_slices=5,
     max_distance = 500.0
     focal_length = 100.0
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-        image_slices, thresholds, camera_distance, max_distance, focal_length)
+        image_slices, thresholds[1:], camera_distance, max_distance, focal_length)
 
     # Render the initial view
     camera_position = np.array([0, 0, -100], dtype=np.float32)
