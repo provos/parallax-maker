@@ -1,6 +1,8 @@
 console.log('utility.js loaded');
 
 // Initialize global variables
+let drawWidth = 40;
+let eraseWidth = 60;
 let isDrawing = false;
 let isErasing = false;
 let lastX = 0;
@@ -65,7 +67,7 @@ function setupCanvasContext(canvas) {
 
     // Set canvas properties
     ctx.strokeStyle = 'red';
-    ctx.lineWidth = 15;
+    ctx.lineWidth = drawWidth;
     ctx.lineCap = 'round';
 
     // Set up mousemove eventlistener that does not need to go back to the app
@@ -154,12 +156,12 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 className = 'bg-red-500 text-white p-2 rounded-md';
                 ctx.globalCompositeOperation = 'destination-out';
                 ctx.strokeStyle = 'rgba(0,0,0,1)';
-                ctx.lineWidth = 40;
+                ctx.lineWidth = eraseWidth;
                 ctx.lineCap = 'round';
             } else {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = 'red';
-                ctx.lineWidth = 25;
+                ctx.lineWidth = drawWidth;
                 ctx.lineCap = 'round';
             }
             console.log('isErasing', isErasing);
