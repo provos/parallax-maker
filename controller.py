@@ -82,9 +82,10 @@ class AppState:
         return final_result
     
     def add_slice(self, slice_image, depth):
+        """Adds the image as a new slice at the provided depth."""
         filename = str(Path(self.filename) / f"image_slice_{len(self.image_slices)}.png")
         # find the index where the depth should be inserted
-        index = 0
+        index = len(self.image_depths)
         for i, d in enumerate(self.image_depths):
             if depth < d:
                 index = i
@@ -98,6 +99,8 @@ class AppState:
             for i in range(index, len(self.image_slices)):
                 if self.image_depths[i] == self.image_depths[i-1]:
                     self.image_depths[i] += 1
+                    
+        return index
     
     def reset_image_slices(self):
         self.image_slices = []
@@ -153,7 +156,7 @@ class AppState:
         image_path = Path(self.SRV_DIR) / image_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
-
+    
     def serve_input_image(self):
         """Serves the input image from the state directory."""
         filename = Path(self.filename) / self.IMAGE_FILE

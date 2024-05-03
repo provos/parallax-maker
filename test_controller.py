@@ -10,14 +10,39 @@ class TestAddSlice(unittest.TestCase):
         self.state = AppState()
         self.state.filename = 'test'
 
-    def test_add_slice(self):
+    def test_add_slice_normal(self):
         # Create a mock slice image and depth value
         slice_image1 = 'image-1'
         depth1 = 5
 
         # Call the function
-        self.state.add_slice(slice_image1, depth1)
+        insert1 = self.state.add_slice(slice_image1, depth1)
+
+        self.assertEqual(insert1, 0)
+        self.assertEqual(len(self.state.image_slices), 1)
+        self.assertEqual(self.state.image_depths[0], depth1)
+
+        slice_image2 = 'image-2'
+        depth2 = 10
+
+        # Call the function
+        insert2 = self.state.add_slice(slice_image2, depth2)
+
+        # Check whether this slice was added before the first slice
+        self.assertEqual(insert2, 1)
+        self.assertEqual(len(self.state.image_slices), 2)
+        self.assertEqual(self.state.image_depths[0], depth1)
+        self.assertEqual(self.state.image_depths[1], depth2)
+
+    def test_add_slice_reverse(self):
+        # Create a mock slice image and depth value
+        slice_image1 = 'image-1'
+        depth1 = 5
+
+        # Call the function
+        insert1 = self.state.add_slice(slice_image1, depth1)
         
+        self.assertEqual(insert1, 0)
         self.assertEqual(len(self.state.image_slices), 1)
         self.assertEqual(self.state.image_depths[0], depth1)
         
@@ -25,9 +50,10 @@ class TestAddSlice(unittest.TestCase):
         depth2 = 1
         
         # Call the function
-        self.state.add_slice(slice_image2, depth2)
+        insert2 = self.state.add_slice(slice_image2, depth2)
         
         # Check whether this slice was added before the first slice
+        self.assertEqual(insert2, 0)
         self.assertEqual(len(self.state.image_slices), 2)
         self.assertEqual(self.state.image_depths[0], depth2)
         self.assertEqual(self.state.image_depths[1], depth1)
@@ -36,9 +62,10 @@ class TestAddSlice(unittest.TestCase):
         depth3 = 1
 
         # Call the function
-        self.state.add_slice(slice_image3, depth3)
+        insert3 = self.state.add_slice(slice_image3, depth3)
 
         # Check that the slice was added and depth increased to avoid duplicates
+        self.assertEqual(insert3, 1)
         self.assertEqual(len(self.state.image_slices), 3)
         self.assertEqual(self.state.image_depths[0], depth2)
         self.assertEqual(self.state.image_depths[1], depth3+1)
