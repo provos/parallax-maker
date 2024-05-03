@@ -178,8 +178,16 @@ def make_slice_generation_container():
                             html.Button(
                                 html.Div([
                                     html.Label('Create Slice'),
-                                    html.I(className='fa-solid fa-arrows-left-right pl-1')]),
+                                    html.I(className='fa-solid fa-square-plus pl-1')]),
                                 id='create-slice-button',
+                                title='Creates a slice from the current mask',
+                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                            ),
+                            html.Button(
+                                html.Div([
+                                    html.Label('Delete Slice'),
+                                    html.I(className='fa-solid fa-trash-can pl-1')]),
+                                id='delete-slice-button',
                                 title='Creates a slice from the current mask',
                                 className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
                             ),

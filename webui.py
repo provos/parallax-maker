@@ -40,6 +40,7 @@ from controller import AppState
 
 # Globals
 EXPAND_MASK = 5
+HIGHLIGHT_COLOR = 'bg-green-200'
 
 # Progress tracking variables
 current_progress = -1
@@ -489,6 +490,34 @@ def update_depth_map_callback(ignored_data, filename):
         id='depthmap-image'), ""
 
 
+@app.callback(Output('image', 'src', allow_duplicate=True),
+              Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
+              Input('delete-slice-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def delete_slice_request(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.selected_slice is None:
+        logs.append("No slice selected")
+        return no_update, no_update, logs
+
+    logs.append("Delete slice at index {state.selected_slice}")
+
+    state.delete_slice(state.selected_slice)
+
+    # sufficient to just change the json.
+    state.to_file(filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
+
+    return state.serve_main_image(state.imgData), True, logs
+
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
               Input('create-slice-button', 'n_clicks'),
@@ -508,7 +537,7 @@ def create_single_slice_request(n_clicks, filename, logs):
         return no_update, logs
     
     image = create_slice_from_mask(state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
-    state.add_slice(image, state.slice_pixel_depth)
+    state.selected_slice = state.add_slice(image, state.slice_pixel_depth)
     state.to_file(filename) # may need to optimize what is being saved eventually
     
     logs.append("Created a slice from the mask")
@@ -597,6 +626,9 @@ def update_slices(ignored_data, filename):
                 className=f"fa-solid fa-caret-right {right_color} pr-1",
                 id=right_id, disabled=right_disabled),
             Path(state.image_slices_filenames[i]).stem])
+        
+        # slice creation with select a slice so we need to highlight it here
+        highlight_class = f' {HIGHLIGHT_COLOR}' if state.selected_slice == i else ''
         img_container.append(
             dcc.Upload(
                 html.Div([
@@ -606,7 +638,7 @@ def update_slices(ignored_data, filename):
                     ),
                     html.Img(
                         src=img_data,
-                        className='w-full h-full object-contain border-solid border-2 border-slate-500',
+                        className=f'w-full h-full object-contain border-solid border-2 border-slate-500{highlight_class}',
                         id={'type': 'slice', 'index': i},),
                     html.Div(children=slice_name,
                              className='text-center text-overlay p-1')
@@ -619,7 +651,7 @@ def update_slices(ignored_data, filename):
     img_data = no_update
     if state.selected_slice is not None:
         assert state.selected_slice >= 0 and state.selected_slice < len(state.image_slices)
-        img_data = state.serve_slice_image(state.selected_slice)
+        img_data = state.serve_slice_image_composed(state.selected_slice)
         state.slice_pixel = None
         state.slice_mask = None
         state.slice_depth = None
@@ -705,12 +737,12 @@ def display_slice(n_clicks, id, src, classnames, filename):
     # if we are already displaying the slice, then we should remove it
     if state.selected_slice != index:
         state.selected_slice = index
-        result = src[index]
+        result = state.serve_slice_image_composed(index)
     else:
         state.selected_slice = None
         result = state.serve_input_image()
         
-    new_classnames = highlight_selected_element(classnames, state.selected_slice)
+    new_classnames = highlight_selected_element(classnames, state.selected_slice, HIGHLIGHT_COLOR)
 
     return result, new_classnames
 

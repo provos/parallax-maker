@@ -102,6 +102,21 @@ class AppState:
                     
         return index
     
+    def delete_slice(self, slice_index):
+        """Deletes the slice at the specified index."""
+        if slice_index < 0 or slice_index >= len(self.image_slices):
+            return False
+        self.image_slices.pop(slice_index)
+        self.image_depths.pop(slice_index)
+        self.image_slices_filenames.pop(slice_index)
+        self.selected_slice = None
+        self.slice_pixel = None
+        self.slice_pixel_depth = None
+        self.slice_mask = None
+        
+        # XXX - decide whether to delete the corresponding files
+        return True
+    
     def reset_image_slices(self):
         self.image_slices = []
         self.image_depths = []
@@ -156,6 +171,19 @@ class AppState:
         image_path = Path(self.SRV_DIR) / image_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
+    
+    def serve_slice_image_composed(self, slice_index):
+        """Serves the slice image composed over the gray main image."""
+        assert slice_index >= 0 and slice_index < len(
+            self.image_slices_filenames)
+        slice_image = self.image_slices[slice_index]
+        if not isinstance(slice_image, Image.Image):
+            slice_image = Image.fromarray(slice_image)
+        if self.grayscale_tinted is None:
+            self.create_tints()
+        full_image = Image.composite(
+            slice_image, self.grayscale_tinted, slice_image.getchannel('A'))
+        return self.serve_main_image(full_image)
     
     def serve_input_image(self):
         """Serves the input image from the state directory."""
