@@ -52,6 +52,7 @@ def progress_callback(current, total):
     current_progress = (current / total) * 100
     total_progress = 100
 
+
 # call the ability to add external scripts
 external_scripts = [
     # add the tailwind cdn url hosting the files with the utility classes
@@ -63,6 +64,8 @@ app = dash.Dash(__name__,
                 external_scripts=external_scripts)
 
 # Create a Flask route for serving images
+
+
 @app.server.route(f'/{AppState.SRV_DIR}/<path:filename>')
 def serve_data(filename):
     filename = Path(os.getcwd()) / filename
@@ -72,6 +75,7 @@ def serve_data(filename):
         mimetype = f'image/{filename.suffix[1:]}'
     print(f"Sending {filename} with mimetype {mimetype}")
     return send_file(str(filename), mimetype=mimetype)
+
 
 # JavaScript event(s) that we want to listen to and what properties to collect.
 eventScroll = {"event": "scroll", "props": ["type", "scrollLeft", "scrollTop"]}
@@ -260,7 +264,8 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     img_data = no_update
     if state.slice_pixel:
-        state.slice_mask, _ = state.depth_slice_from_pixel(state.slice_pixel[0], state.slice_pixel[1])
+        state.slice_mask, _ = state.depth_slice_from_pixel(
+            state.slice_pixel[0], state.slice_pixel[1])
         if state.slice_mask is not None:
             result = state.apply_mask(state.slice_mask)
             img_data = state.serve_main_image(result)
@@ -355,7 +360,8 @@ def update_input_image(contents):
     content_type, content_string = contents.split(',')
 
     # save the image data to the state
-    state.set_img_data(Image.open(io.BytesIO(base64.b64decode(content_string))))
+    state.set_img_data(Image.open(
+        io.BytesIO(base64.b64decode(content_string))))
 
     img_uri = state.serve_input_image()
 
@@ -377,7 +383,7 @@ def update_input_image(contents):
 def click_event(n_events, e, rect_data, mode, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
 
     if e is None or rect_data is None or state.imgData is None:
@@ -394,18 +400,20 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
     x = clientX - rectLeft
     y = clientY - rectTop
 
-    pixel_x, pixel_y = find_pixel_from_click(state.imgData, x, y, rectWidth, rectHeight)
-    
+    pixel_x, pixel_y = find_pixel_from_click(
+        state.imgData, x, y, rectWidth, rectHeight)
+
     # we need to find the depth even if we use instance segmentation
     state.slice_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
     state.slice_pixel = (pixel_x, pixel_y)
     state.slice_pixel_depth = depth
-    
+
     if mode == 'segment':
         if state.segmentation_model == None:
             state.segmentation_model = SegmentationModel()
             state.segmentation_model.segment_image(state.imgData)
-        state.slice_mask = state.segmentation_model.mask_at_point((pixel_x, pixel_y))
+        state.slice_mask = state.segmentation_model.mask_at_point(
+            (pixel_x, pixel_y))
 
     if state.slice_mask is not None:
         result = state.apply_mask(state.slice_mask)
@@ -438,11 +446,11 @@ def generate_depth_map_callback(ignored_data, filename, model):
         PIL_image = PIL_image.convert('RGB')
 
     np_image = np.array(PIL_image)
-    
+
     depth_model = DepthEstimationModel(model=model)
     if depth_model != state.depth_estimation_model:
         state.depth_estimation_model = depth_model
-    
+
     state.depthMapData = generate_depth_map(
         np_image, model=state.depth_estimation_model, progress_callback=progress_callback)
     state.imgThresholds = None
@@ -496,9 +504,47 @@ def delete_slice_request(n_clicks, filename, logs):
     state.delete_slice(state.selected_slice)
 
     # sufficient to just change the json.
-    state.to_file(filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
 
     return state.serve_main_image(state.imgData), True, logs
+
+
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
+              Input('add-to-slice-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def add_mask_slice_request(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.slice_mask is None:
+        logs.append("No mask selected")
+        return no_update, logs
+
+    if state.selected_slice is None:
+        logs.append("No slice selected")
+        return no_update, logs
+
+    image = create_slice_from_mask(
+        state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
+    # updates the image slice in place - dangerous
+    blend_with_alpha(state.image_slices[state.selected_slice], image)
+
+    image_filename = filename_add_version(
+        state.image_slices_filenames[state.selected_slice])
+    state.image_slices_filenames[state.selected_slice] = image_filename
+    state.to_file(filename, save_image_slices=True, save_depth_map=False, save_input_image=False)
+    
+    logs.append(f"Added mask to slice {state.selected_slice}")
+    return True, logs
+
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
@@ -509,21 +555,23 @@ def delete_slice_request(n_clicks, filename, logs):
 def create_single_slice_request(n_clicks, filename, logs):
     if n_clicks is None:
         raise PreventUpdate()
-    
+
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
     if state.slice_mask is None:
         logs.append("No mask selected")
         return no_update, logs
-    
-    image = create_slice_from_mask(state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
+
+    image = create_slice_from_mask(
+        state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     state.selected_slice = state.add_slice(image, state.slice_pixel_depth)
-    state.to_file(filename) # may need to optimize what is being saved eventually
-    
+    # may need to optimize what is being saved eventually
+    state.to_file(filename)
+
     logs.append("Created a slice from the mask")
-    
+
     return True, logs
 
 
@@ -536,19 +584,20 @@ def create_single_slice_request(n_clicks, filename, logs):
 def balance_slices_request(n_clicks, filename, logs):
     if n_clicks is None:
         raise PreventUpdate()
-    
+
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
     if len(state.image_depths) == 0:
         raise PreventUpdate()
-    
+
     state.balance_slices_depths()
-    state.to_file(filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
-    
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
+
     logs.append("Balanced slice depths")
-    
+
     return True, logs
 
 
@@ -574,7 +623,7 @@ def update_slices(ignored_data, filename):
     if len(state.image_slices) == 0:
         # a user may have uploaded a new image and not generated slices yet
         return [], "", no_update
-    
+
     if state.depthMapData is None:
         raise PreventUpdate()
 
@@ -585,15 +634,17 @@ def update_slices(ignored_data, filename):
     assert len(state.image_slices) == len(state.image_slices_filenames)
     for i, img_slice in enumerate(state.image_slices):
         img_data = state.serve_slice_image(i)
-        
-        left_color = caret_color_enabled if state.can_undo(i, forward=False) else caret_color_disabled
+
+        left_color = caret_color_enabled if state.can_undo(
+            i, forward=False) else caret_color_disabled
         left_disabled = True if left_color == caret_color_disabled else False
-        right_color = caret_color_enabled if state.can_undo(i, forward=True) else caret_color_disabled
+        right_color = caret_color_enabled if state.can_undo(
+            i, forward=True) else caret_color_disabled
         right_disabled = True if right_color == caret_color_disabled else False
-        
+
         left_id = {'type': 'slice-undo-backwards', 'index': i}
         right_id = {'type': 'slice-undo-forwards', 'index': i}
-        
+
         slice_name = html.Div([
             html.Button(
                 title="Download image for manipuation in an external editor",
@@ -608,14 +659,15 @@ def update_slices(ignored_data, filename):
                 className=f"fa-solid fa-caret-right {right_color} pr-1",
                 id=right_id, disabled=right_disabled),
             Path(state.image_slices_filenames[i]).stem])
-        
+
         # slice creation with select a slice so we need to highlight it here
         highlight_class = f' {HIGHLIGHT_COLOR}' if state.selected_slice == i else ''
         img_container.append(
             dcc.Upload(
                 html.Div([
                     html.Div(
-                        f"{int(state.image_depths[i])}",  # The number to display
+                        # The number to display
+                        f"{int(state.image_depths[i])}",
                         className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-amber-800 text-opacity-50 text-center'
                     ),
                     html.Img(
@@ -629,10 +681,11 @@ def update_slices(ignored_data, filename):
                 disable_click=True,
             )
         )
-        
+
     img_data = no_update
     if state.selected_slice is not None:
-        assert state.selected_slice >= 0 and state.selected_slice < len(state.image_slices)
+        assert state.selected_slice >= 0 and state.selected_slice < len(
+            state.image_slices)
         img_data = state.serve_slice_image_composed(state.selected_slice)
         state.slice_pixel = None
         state.slice_mask = None
@@ -640,11 +693,12 @@ def update_slices(ignored_data, filename):
 
     return img_container, "", img_data
 
+
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
-             Input({'type': 'slice-undo-backwards', 'index': ALL}, 'n_clicks'),
-             Input({'type': 'slice-undo-forwards', 'index': ALL}, 'n_clicks'),
-             State('application-state-filename', 'data'),
-             prevent_initial_call=True)
+              Input({'type': 'slice-undo-backwards', 'index': ALL}, 'n_clicks'),
+              Input({'type': 'slice-undo-forwards', 'index': ALL}, 'n_clicks'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
 def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
     if filename is None:
         raise PreventUpdate()
@@ -668,10 +722,10 @@ def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
         raise PreventUpdate()
 
     # only save the json with the updated file mapping
-    state.to_file(filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
 
     return True
-
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
@@ -723,10 +777,12 @@ def display_slice(n_clicks, id, src, classnames, filename):
     else:
         state.selected_slice = None
         result = state.serve_input_image()
-        
-    new_classnames = highlight_selected_element(classnames, state.selected_slice, HIGHLIGHT_COLOR)
+
+    new_classnames = highlight_selected_element(
+        classnames, state.selected_slice, HIGHLIGHT_COLOR)
 
     return result, new_classnames
+
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Output('gltf-loading', 'children', allow_duplicate=True),
@@ -763,7 +819,8 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
 
     state = AppState.from_cache(filename)
 
-    gltf_path = export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale)
+    gltf_path = export_state_as_gltf(
+        state, filename, camera_distance, max_distance, focal_length, displacement_scale)
 
     return dcc.send_file(gltf_path, filename='scene.gltf'), ""
 
@@ -791,8 +848,6 @@ def gltf_create(n_clicks, filename, camera_distance, max_distance, focal_length,
     return get_gltf_iframe(state.serve_model_file()), ""
 
 
-
-
 def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
@@ -807,9 +862,11 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
                 model = DepthEstimationModel(model='midas')
                 if model != state.depth_estimation_model:
                     state.depth_estimation_model = model
-                depth_map = generate_depth_map(image[:, :, :3], model=state.depth_estimation_model)
+                depth_map = generate_depth_map(
+                    image[:, :, :3], model=state.depth_estimation_model)
                 depth_map = postprocess_depth_map(depth_map, image[:, :, 3])
-                Image.fromarray(depth_map).save(depth_filename, compress_level=1)
+                Image.fromarray(depth_map).save(
+                    depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
 
     # check whether we have upscaled slices we should use
@@ -826,7 +883,7 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
     gltf_path = export_gltf(output_path, aspect_ratio, focal_length, camera_distance,
                             card_corners_3d_list, slices_filenames, depth_filenames,
                             displacement_scale=displacement_scale)
-                            
+
     return gltf_path
 
 
@@ -919,6 +976,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
     logs.append(f"Exported {num_frames} frames to animation")
 
     return logs, ""
+
 
 @app.callback(
     Output('model-viewer', 'srcDoc'),

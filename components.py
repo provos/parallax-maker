@@ -192,6 +192,22 @@ def make_slice_generation_container():
                                     title='Deletes the currently selected slice',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
                                 ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Add'),
+                                        html.I(className='fa-solid fa-brush pl-1')]),
+                                    id='add-to-slice-button',
+                                    title='Adds the current mask to the selected slice',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Remove'),
+                                        html.I(className='fa-solid fa-eraser pl-1')]),
+                                    id='remove-from-slice-button',
+                                    title='Removes the current mask from the selected slice',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                ),
                             ],
                                 className='grid grid-cols-2 gap-2 gap-2 p-2'
                             ),
