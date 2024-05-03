@@ -159,37 +159,41 @@ def make_slice_generation_container():
                         html.Div([
                             html.Label(
                                 'Actions', className='font-bold mb-2 ml-3'),
-                            html.Button(
-                                html.Div([
-                                    html.Label('Generate Slices'),
-                                    html.I(className='fa-solid fa-images pl-1')]),
-                                id='generate-slice-button',
-                                title='Generate image slices from the input image using the depth map',
-                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'
-                            ),
-                            html.Button(
-                                html.Div([
-                                    html.Label('Balance Depths'),
-                                    html.I(className='fa-solid fa-arrows-left-right pl-1')]),
-                                id='balance-slice-button',
-                                title='Rebalances the depths of the image slices evenly',
-                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
-                            ),
-                            html.Button(
-                                html.Div([
-                                    html.Label('Create Slice'),
-                                    html.I(className='fa-solid fa-square-plus pl-1')]),
-                                id='create-slice-button',
-                                title='Creates a slice from the current mask',
-                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
-                            ),
-                            html.Button(
-                                html.Div([
-                                    html.Label('Delete Slice'),
-                                    html.I(className='fa-solid fa-trash-can pl-1')]),
-                                id='delete-slice-button',
-                                title='Creates a slice from the current mask',
-                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                            html.Div([
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Generate'),
+                                        html.I(className='fa-solid fa-images pl-1')]),
+                                    id='generate-slice-button',
+                                    title='Generate image slices from the input image using the depth map',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'
+                                ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Balance'),
+                                        html.I(className='fa-solid fa-arrows-left-right pl-1')]),
+                                    id='balance-slice-button',
+                                    title='Rebalances the depths of the image slices evenly',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Create'),
+                                        html.I(className='fa-solid fa-square-plus pl-1')]),
+                                    id='create-slice-button',
+                                    title='Creates a slice from the current mask',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Delete'),
+                                        html.I(className='fa-solid fa-trash-can pl-1')]),
+                                    id='delete-slice-button',
+                                    title='Deletes the currently selected slice',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                ),
+                            ],
+                                className='grid grid-cols-2 gap-2 gap-2 p-2'
                             ),
                         ], className='w-full h-full col-span-2',
                         )
@@ -466,7 +470,6 @@ def make_configuration_div():
                 value=5,
                 marks={i: str(i) for i in range(2, 11)}
             ),
-            dcc.Store('num-slices-slider-update')  # to trigger an update
         ], className='w-full'),
         html.Div([
             html.Label('Depth Module Algorithm'),
@@ -901,3 +904,29 @@ def make_navigation_callbacks(app):
         logs.append(f'Navigated to new camera position {camera_position}')
 
         return state.serve_main_image(image), logs
+
+
+def make_mode_selector():
+    return html.Div([
+        html.Label('Mode Selector', className='font-bold mb-2 ml-3'),
+        html.Div([
+            html.Div([
+                dcc.Dropdown(
+                    id='mode-selector',
+                    options=[
+                        {'label': 'Depth Map', 'value': 'depth'},
+                        {'label': 'Instance Segmentation', 'value': 'segment'},
+                    ],
+                    value='depth'
+                ),
+            ], className='w-full'),
+            html.Div([
+                '''
+            Switch between depth map and instance segmentation.
+            Depth map allows the creation of slices from bands of depth based on the depth map.
+            Instance segmentation allows the creation of slices from selected objects on the image.
+            '''
+            ], className='w-full'),
+        ], className='w-full grid grid-cols-2 gap-2 p-2')],
+        className='w-full'
+    )

@@ -117,11 +117,12 @@ app.layout = html.Div([
         ),
         components.make_tabs(
             'main',
-            ['Depth', 'Segmentation', 'Inpainting', 'Export', 'Configuration'],
+            ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'],
             [
                 html.Div([
                     components.make_depth_map_container(
                         depth_map_id='depth-map-container'),
+                    components.make_mode_selector(),
                 ], className='w-full', id='depth-map-column'),
                 components.make_slice_generation_container(),
                 components.make_inpainting_container(),
@@ -221,7 +222,6 @@ def update_progress(n):
 
 @app.callback(
     Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
-    Output('slice-img-container', 'children', allow_duplicate=True),
     Output('image', 'src', allow_duplicate=True),
     Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
     State('num-slices-slider', 'value'),
@@ -257,7 +257,6 @@ def update_threshold_values(threshold_values, num_slices, filename):
             threshold_values[i] = threshold_values[i+1] - 1
 
     state.imgThresholds[1:-1] = threshold_values
-    state.reset_image_slices()
 
     img_data = no_update
     if state.slice_pixel:
@@ -268,25 +267,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
         else:
             img_data = state.serve_main_image(state.imgData)
 
-    return threshold_values, None, img_data
-
-
-@app.callback(
-    Output('generate-slice-request', 'data', allow_duplicate=True),
-    Input('num-slices-slider-update', 'data'),
-    State('application-state-filename', 'data'),
-    prevent_initial_call=True)
-def update_num_slices(value, filename):
-    """Updates the slices only if we have them already."""
-    if filename is None:
-        raise PreventUpdate()
-
-    state = AppState.from_cache(filename)
-
-    if len(state.image_slices) == 0:
-        raise PreventUpdate()
-
-    return True
+    return threshold_values, img_data
 
 
 @app.callback(
@@ -322,7 +303,6 @@ def update_thresholds_html(value, filename):
     Output('update-thresholds-container', 'data', allow_duplicate=True),
     Output('logs-data', 'data', allow_duplicate=True),
     # triggers regeneration of slices if we have them already
-    Output('num-slices-slider-update', 'data'),
     Input('depth-map-container', 'children'),
     Input('num-slices-slider', 'value'),
     State('application-state-filename', 'data'),
@@ -354,7 +334,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
 
     logs_data.append(f"Thresholds: {state.imgThresholds}")
 
-    return True, logs_data, True
+    return True, logs_data
 
 
 @app.callback(Output('application-state-filename', 'data', allow_duplicate=True),
@@ -389,11 +369,12 @@ def update_input_image(contents):
               Input("el", "n_events"),
               State("el", "event"),
               State('rect-data', 'data'),
+              State('mode-selector', 'value'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
               prevent_initial_call=True
               )
-def click_event(n_events, e, rect_data, filename, logs_data):
+def click_event(n_events, e, rect_data, mode, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
     
@@ -415,15 +396,16 @@ def click_event(n_events, e, rect_data, filename, logs_data):
 
     pixel_x, pixel_y = find_pixel_from_click(state.imgData, x, y, rectWidth, rectHeight)
     
+    # we need to find the depth even if we use instance segmentation
     state.slice_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
     state.slice_pixel = (pixel_x, pixel_y)
     state.slice_pixel_depth = depth
     
-    # XXX - BAD HACK
-    if state.segmentation_model == None:
-        state.segmentation_model = SegmentationModel()
-        state.segmentation_model.segment_image(state.imgData)
-    state.slice_mask = state.segmentation_model.mask_at_point((pixel_x, pixel_y))
+    if mode == 'segment':
+        if state.segmentation_model == None:
+            state.segmentation_model = SegmentationModel()
+            state.segmentation_model.segment_image(state.imgData)
+        state.slice_mask = state.segmentation_model.mask_at_point((pixel_x, pixel_y))
 
     if state.slice_mask is not None:
         result = state.apply_mask(state.slice_mask)
