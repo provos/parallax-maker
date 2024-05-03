@@ -17,6 +17,7 @@ from segmentation import (
     setup_camera_and_cards,
     export_gltf,
     blend_with_alpha,
+    remove_mask_from_alpha,
     render_image_sequence
 )
 import components
@@ -509,6 +510,41 @@ def delete_slice_request(n_clicks, filename, logs):
 
     return state.serve_main_image(state.imgData), True, logs
 
+
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
+              Input('remove-from-slice-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def remove_mask_slice_request(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.slice_mask is None:
+        logs.append("No mask selected")
+        return no_update, logs
+
+    if state.selected_slice is None:
+        logs.append("No slice selected")
+        return no_update, logs
+
+    final_mask = remove_mask_from_alpha(
+        state.image_slices[state.selected_slice], state.slice_mask)
+    state.image_slices[state.selected_slice][:, :, 3] = final_mask    
+
+    image_filename = filename_add_version(
+        state.image_slices_filenames[state.selected_slice])
+    state.image_slices_filenames[state.selected_slice] = image_filename
+    state.to_file(filename, save_image_slices=True,
+                  save_depth_map=False, save_input_image=False)
+
+    logs.append(f"Removed mask from slice {state.selected_slice}")
+    return True, logs
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),

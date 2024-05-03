@@ -226,6 +226,28 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
 
     return rendered_image
 
+def remove_mask_from_alpha(image, mask):
+    """
+    Removes the masked region from the alpha channel of an image.
+
+    Args:
+        image (numpy.ndarray): The input image with an alpha channel.
+        mask (numpy.ndarray): The mask indicating the region to be removed.
+
+    Returns:
+        numpy.ndarray: The modified image with the masked region removed from the alpha channel.
+    """
+    assert image.shape[2] == 4, "Image must have an alpha channel"
+    assert image.shape[:2] == mask.shape, "Image and mask must have the same dimensions"
+    
+    inverted_mask = 1 - mask/255.0
+    slice_mask = image[:, :, 3] / 255.0
+
+    final_mask = inverted_mask * slice_mask
+    final_mask = (final_mask * 255).astype(np.uint8)
+    final_mask = np.clip(final_mask, 0, 255)
+    
+    return final_mask
 
 def blend_with_alpha(target_image, merge_image):
     """
