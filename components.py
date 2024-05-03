@@ -141,7 +141,7 @@ def make_thresholds_container(thresholds_id: str = 'thresholds-container'):
         html.Label('Thresholds', className='font-bold mb-2 ml-3'),
         html.Div(id=thresholds_id,
                  className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md'),
-    ], className='w-full')
+    ], className='w-full mb-2')
 
 
 def make_slice_generation_container():
@@ -149,6 +149,8 @@ def make_slice_generation_container():
                     dcc.Store(id='generate-slice-request'),
                     dcc.Store(id='update-slice-request'),
                     dcc.Download(id='download-image'),
+                    make_thresholds_container(
+                        thresholds_id='thresholds-container'),
                     html.Button(
                         html.Div([
                             html.Label('Generate Image Slices'),
@@ -168,9 +170,12 @@ def make_slice_generation_container():
                     dcc.Loading(id="generate-slices",
                                 children=html.Div(id="gen-slice-output")),
                     html.Div(id='slice-img-container',
-                             style={'height': '65vh'},
-                             className='min-h-8 w-full grid grid-cols-2 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
-                    ], className='w-full', id='slice-generation-column')
+                             className='min-h-8 w-full grid grid-cols-3 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
+                    ],
+                    className='w-full overflow-auto',
+                    id='slice-generation-column',
+                    style={'height': '70vh'},
+                    )
 
 
 def make_inpainting_container():

@@ -24,6 +24,8 @@ from utils import (
     highlight_selected_element
 )
 from depth import DepthEstimationModel
+from instance import SegmentationModel
+
 
 import dash
 from dash import dcc, html, ctx, no_update
@@ -111,14 +113,11 @@ app.layout = html.Div([
         ),
         components.make_tabs(
             'main',
-            ['Segmentation', 'Slice Generation',
-                'Inpainting', 'Export', 'Configuration'],
+            ['Depth', 'Segmentation', 'Inpainting', 'Export', 'Configuration'],
             [
                 html.Div([
                     components.make_depth_map_container(
                         depth_map_id='depth-map-container'),
-                    components.make_thresholds_container(
-                        thresholds_id='thresholds-container'),
                 ], className='w-full', id='depth-map-column'),
                 components.make_slice_generation_container(),
                 components.make_inpainting_container(),
@@ -178,14 +177,14 @@ def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_
         ' z-10', '').replace(' z-0', '')
     buttons_class_name = buttons_class_name.replace(' hidden', '')
 
-    # we paint on the canvas if the Segmentation or Inpainting tab is active
-    if 'hidden' in tab_class_names[1] and 'hidden' in tab_class_names[2]:
+    # we paint on the canvas only if the Inpainting tab is active
+    if 'hidden' not in tab_class_names[2]:
+        canvas_class_name += ' z-10'
+        image_class_name += ' z-0'
+    else:
         canvas_class_name += ' z-0'
         image_class_name += ' z-10'
         buttons_class_name += ' hidden'
-    else:
-        canvas_class_name += ' z-10'
-        image_class_name += ' z-0'
 
     return canvas_class_name, image_class_name, buttons_class_name
 
@@ -303,9 +302,9 @@ def update_thresholds_html(value, filename):
                 step=1,
                 value=state.imgThresholds[i],
                 marks=None,
-                tooltip={'always_visible': True, 'placement': 'bottom'}
+                tooltip={'always_visible': True, 'placement': 'right'},
             )
-        ], className='m-2')
+        ], className='m-1 pl-1')
         thresholds.append(threshold)
 
     return thresholds
@@ -409,7 +408,7 @@ def click_event(n_events, e, rect_data, filename, logs_data):
     
     img_data, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
     state.slice_pixel = (pixel_x, pixel_y)
-
+    
     logs_data.append(
         f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
 
@@ -550,7 +549,7 @@ def update_slices(ignored_data, filename):
             dcc.Upload(
                 html.Div([
                     html.Div(
-                        f"{state.image_depths[i]}",  # The number to display
+                        f"{int(state.image_depths[i])}",  # The number to display
                         className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-amber-800 text-opacity-50 text-center'
                     ),
                     html.Img(

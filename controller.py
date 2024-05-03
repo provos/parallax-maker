@@ -42,6 +42,7 @@ class AppState:
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec() for inpainting
         self.depth_estimation_model = None # DepthEstimationModel() for depth estimation
+        self.segmentation_model = None # SegmentationModel() for segmentation
         self.selected_inpainting = None
         self.result_tinted = None
         self.grayscale_tinted = None
