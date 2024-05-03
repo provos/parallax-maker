@@ -19,7 +19,10 @@ from segmentation import (
     render_image_sequence
 )
 import components
-from utils import filename_add_version, find_pixel_from_click, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available
+from utils import (
+    filename_add_version, find_pixel_from_click, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available,
+    highlight_selected_element
+)
 from depth import DepthEstimationModel
 
 import dash
@@ -251,8 +254,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
             threshold_values[i] = threshold_values[i+1] - 1
 
     state.imgThresholds[1:-1] = threshold_values
-    state.image_slices = []
-    state.image_slices_filenames = []
+    state.reset_image_slices()
 
     img_data = no_update
     if state.slice_pixel:
@@ -467,6 +469,31 @@ def update_depth_map_callback(ignored_data, filename):
         id='depthmap-image'), ""
 
 
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
+              Input('balance-slice-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def generate_slices_request(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+    
+    if filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
+    if len(state.image_depths) == 0:
+        raise PreventUpdate()
+    
+    state.balance_slices_depths()
+    state.to_file(filename, save_image_slices=False, save_depth_map=False, save_input_image=False)
+    
+    logs.append("Balanced slice depths")
+    
+    return True, logs
+
+
 @app.callback(Output('generate-slice-request', 'data'),
               Input('generate-slice-button', 'n_clicks'))
 def generate_slices_request(n_clicks):
@@ -607,24 +634,32 @@ def generate_slices(ignored_data, filename):
 
 
 @app.callback(Output('image', 'src'),
-              Output({'type': 'slice', 'index': ALL}, 'n_clicks'),
+              Output({'type': 'slice', 'index': ALL}, 'className'),
               Input({'type': 'slice', 'index': ALL}, 'n_clicks'),
               State({'type': 'slice', 'index': ALL}, 'id'),
               State({'type': 'slice', 'index': ALL}, 'src'),
+              State({'type': 'slice', 'index': ALL}, 'className'),
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
-def display_slice(n_clicks, id, src, filename):
+def display_slice(n_clicks, id, src, classnames, filename):
     if filename is None or n_clicks is None or any(n_clicks) is False:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
-    index = n_clicks.index(1)
+    index = ctx.triggered_id['index']
 
-    state.selected_slice = index
+    # if we are already displaying the slice, then we should remove it
+    if state.selected_slice != index:
+        state.selected_slice = index
+        result = src[index]
+    else:
+        state.selected_slice = None
+        result = state.serve_input_image()
+        
+    new_classnames = highlight_selected_element(classnames, state.selected_slice)
 
-    return src[index], [None]*len(n_clicks)
-
+    return result, new_classnames
 
 @app.callback(Output('logs-data', 'data', allow_duplicate=True),
               Output('gltf-loading', 'children', allow_duplicate=True),

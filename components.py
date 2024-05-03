@@ -155,6 +155,14 @@ def make_slice_generation_container():
                             html.I(className='fa-solid fa-images pl-1')]),
                         id='generate-slice-button',
                         title='Generate image slices from the input image using the depth map',
+                        className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'
+                    ),
+                    html.Button(
+                        html.Div([
+                            html.Label('Balance Depths'),
+                            html.I(className='fa-solid fa-arrows-left-right pl-1')]),
+                        id='balance-slice-button',
+                        title='Rebalances the depths of the image slices evenly',
                         className='bg-blue-500 text-white p-2 rounded-md mb-2'
                     ),
                     dcc.Loading(id="generate-slices",

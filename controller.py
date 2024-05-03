@@ -84,6 +84,11 @@ class AppState:
         self.image_slices_filenames = []
         self.selected_slice = None
         self.selected_inpainting = None
+        
+    def balance_slices_depths(self):
+        """Equally distribute the depths of the image slices."""
+        self.image_depths[0] = 0
+        self.image_depths[1:] = [int(i * 255 / (self.num_slices - 1)) for i in range(1, self.num_slices)]
 
     def depth_slice_from_pixel(self, pixel_x, pixel_y):
         depth = -1  # for log below
