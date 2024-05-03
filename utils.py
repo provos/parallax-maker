@@ -485,3 +485,26 @@ COCO_CATEGORIES = [
     [102, 102, 156],
     [250, 141, 255],
 ]
+
+
+def highlight_selected_element(classnames, index, highlight_class='bg-green-200'):
+    """
+    Highlights the selected element in a list of classnames by adding a highlight class.
+
+    Args:
+        classnames (list): List of classnames.
+        index (int): Index of the element to be highlighted.
+        highlight_class (str, optional): The highlight class to be added. Defaults to 'bg-green-200'.
+
+    Returns:
+        list: A new list of classnames with the selected element highlighted.
+    """
+    new_classnames = []
+    selected_background = f' {highlight_class}'
+    for i, classname in enumerate(classnames):
+        classname = classname.replace(selected_background, '')
+        if i == index:
+            classname += selected_background
+
+        new_classnames.append(classname)
+    return new_classnames
