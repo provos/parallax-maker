@@ -226,6 +226,7 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
 
     return rendered_image
 
+# XXX - consider whether this should return the image with the alpha patch instead of just the alpha
 def remove_mask_from_alpha(image, mask):
     """
     Removes the masked region from the alpha channel of an image.

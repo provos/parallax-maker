@@ -17,7 +17,7 @@ from dash.exceptions import PreventUpdate
 from controller import AppState
 from utils import to_image_url, filename_add_version
 from inpainting import inpaint, pipelinespec_from_model, patch_image
-from segmentation import setup_camera_and_cards, render_view
+from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
 
 
 def get_canvas_paint_events():
@@ -277,7 +277,16 @@ def make_inpainting_container():
                 html.I(className='fa-solid fa-paint-brush pl-1')
             ]),
             id='generate-inpainting-button',
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3'
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
+        ),
+        html.Button(
+            html.Div([
+                html.Label('Erase'),
+                html.I(className='fa-solid fa-trash-can pl-1')
+            ]),
+            id='erase-inpainting-button',
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3',
+            title='Clear the painted areas from the selected image',
         ),
         dcc.Loading(
             id="generate-inpainting",
@@ -323,6 +332,43 @@ def make_inpainting_container_callbacks(app):
 
         state = AppState.from_cache(filename)
         return state.positive_prompt, state.negative_prompt
+    
+    @app.callback(
+        Output('update-slice-request', 'data', allow_duplicate=True),
+        Output('logs-data', 'data', allow_duplicate=True),
+        Input('erase-inpainting-button', 'n_clicks'),
+        State('application-state-filename', 'data'),
+        State('logs-data', 'data'),
+        prevent_initial_call=True)
+    def erase_inpainting(n_clicks, filename, logs):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        if state.selected_slice is None:
+            logs.append('No slice selected')
+            return no_update, logs
+
+        index = state.selected_slice
+        mask_filename = state.mask_filename(index)
+        if not Path(mask_filename).exists():
+            logs.append(f'No mask found for slice {index}')
+            return no_update, logs
+        mask = Image.open(mask_filename).convert('L')
+        mask = np.array(mask)
+        
+        image_filename = filename_add_version(state.image_slices_filenames[index])
+        state.image_slices_filenames[index] = image_filename
+        
+        final_mask = remove_mask_from_alpha(state.image_slices[index], mask)        
+        state.image_slices[index][:, :, 3] = final_mask
+        state.to_file(state.filename, save_image_slices=True, save_depth_map=False, save_input_image=False)
+        logs.append(f'Inpainting erased for slice {index}')
+
+        logs.append(f'Inpainting erased for slice {index}')
+
+        return True, logs
+    
 
     @app.callback(
         Output('inpainting-image-display', 'children'),
