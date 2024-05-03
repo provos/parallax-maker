@@ -149,23 +149,44 @@ def make_slice_generation_container():
                     dcc.Store(id='generate-slice-request'),
                     dcc.Store(id='update-slice-request'),
                     dcc.Download(id='download-image'),
-                    make_thresholds_container(
-                        thresholds_id='thresholds-container'),
-                    html.Button(
+                    html.Div([
                         html.Div([
-                            html.Label('Generate Image Slices'),
-                            html.I(className='fa-solid fa-images pl-1')]),
-                        id='generate-slice-button',
-                        title='Generate image slices from the input image using the depth map',
-                        className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'
-                    ),
-                    html.Button(
+                            make_thresholds_container(
+                                thresholds_id='thresholds-container'),
+                        ],
+                            className='w-full col-span-3',
+                        ),
                         html.Div([
-                            html.Label('Balance Depths'),
-                            html.I(className='fa-solid fa-arrows-left-right pl-1')]),
-                        id='balance-slice-button',
-                        title='Rebalances the depths of the image slices evenly',
-                        className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                            html.Label(
+                                'Actions', className='font-bold mb-2 ml-3'),
+                            html.Button(
+                                html.Div([
+                                    html.Label('Generate Slices'),
+                                    html.I(className='fa-solid fa-images pl-1')]),
+                                id='generate-slice-button',
+                                title='Generate image slices from the input image using the depth map',
+                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'
+                            ),
+                            html.Button(
+                                html.Div([
+                                    html.Label('Balance Depths'),
+                                    html.I(className='fa-solid fa-arrows-left-right pl-1')]),
+                                id='balance-slice-button',
+                                title='Rebalances the depths of the image slices evenly',
+                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                            ),
+                            html.Button(
+                                html.Div([
+                                    html.Label('Create Slice'),
+                                    html.I(className='fa-solid fa-arrows-left-right pl-1')]),
+                                id='create-slice-button',
+                                title='Creates a slice from the current mask',
+                                className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                            ),
+                        ], className='w-full h-full col-span-2',
+                        )
+                    ],
+                        className='grid grid-cols-5 gap-4 p-2'
                     ),
                     dcc.Loading(id="generate-slices",
                                 children=html.Div(id="gen-slice-output")),

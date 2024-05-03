@@ -13,6 +13,7 @@ from segmentation import (
     generate_depth_map,
     analyze_depth_histogram,
     generate_image_slices,
+    create_slice_from_mask,
     setup_camera_and_cards,
     export_gltf,
     blend_with_alpha,
@@ -37,6 +38,8 @@ from flask import send_file
 
 from controller import AppState
 
+# Globals
+EXPAND_MASK = 5
 
 # Progress tracking variables
 current_progress = -1
@@ -257,8 +260,12 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
     img_data = no_update
     if state.slice_pixel:
-        img_data, _ = state.depth_slice_from_pixel(
-            state.slice_pixel[0], state.slice_pixel[1])
+        state.slice_mask, _ = state.depth_slice_from_pixel(state.slice_pixel[0], state.slice_pixel[1])
+        if state.slice_mask is not None:
+            result = state.apply_mask(state.slice_mask)
+            img_data = state.serve_main_image(result)
+        else:
+            img_data = state.serve_main_image(state.imgData)
 
     return threshold_values, None, img_data
 
@@ -350,6 +357,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
 
 
 @app.callback(Output('application-state-filename', 'data', allow_duplicate=True),
+              Output('update-slice-request', 'data', allow_duplicate=True),
               Output('trigger-generate-depthmap',
                      'data', allow_duplicate=True),
               Output('image', 'src', allow_duplicate=True),
@@ -370,7 +378,7 @@ def update_input_image(contents):
 
     img_uri = state.serve_input_image()
 
-    return filename, True, img_uri, html.Img(
+    return filename, True, True, img_uri, html.Img(
         id='depthmap-image',
         className='w-full p-0 object-scale-down'), False
 
@@ -406,9 +414,22 @@ def click_event(n_events, e, rect_data, filename, logs_data):
 
     pixel_x, pixel_y = find_pixel_from_click(state.imgData, x, y, rectWidth, rectHeight)
     
-    img_data, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
+    state.slice_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
     state.slice_pixel = (pixel_x, pixel_y)
+    state.slice_pixel_depth = depth
     
+    # XXX - BAD HACK
+    if state.segmentation_model == None:
+        state.segmentation_model = SegmentationModel()
+        state.segmentation_model.segment_image(state.imgData)
+    state.slice_mask = state.segmentation_model.mask_at_point((pixel_x, pixel_y))
+
+    if state.slice_mask is not None:
+        result = state.apply_mask(state.slice_mask)
+        img_data = state.serve_main_image(result)
+    else:
+        img_data = state.serve_main_image(state.imgData)
+
     logs_data.append(
         f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
 
@@ -470,11 +491,38 @@ def update_depth_map_callback(ignored_data, filename):
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
+              Input('create-slice-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def create_single_slice_request(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+    
+    if filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
+    if state.slice_mask is None:
+        logs.append("No mask selected")
+        return no_update, logs
+    
+    image = create_slice_from_mask(state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
+    state.add_slice(image, state.slice_pixel_depth)
+    state.to_file(filename) # may need to optimize what is being saved eventually
+    
+    logs.append("Created a slice from the mask")
+    
+    return True, logs
+
+
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
               Input('balance-slice-button', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
               prevent_initial_call=True)
-def generate_slices_request(n_clicks, filename, logs):
+def balance_slices_request(n_clicks, filename, logs):
     if n_clicks is None:
         raise PreventUpdate()
     
@@ -512,6 +560,10 @@ def update_slices(ignored_data, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    if len(state.image_slices) == 0:
+        # a user may have uploaded a new image and not generated slices yet
+        return [], "", no_update
+    
     if state.depthMapData is None:
         raise PreventUpdate()
 
@@ -569,6 +621,8 @@ def update_slices(ignored_data, filename):
         assert state.selected_slice >= 0 and state.selected_slice < len(state.image_slices)
         img_data = state.serve_slice_image(state.selected_slice)
         state.slice_pixel = None
+        state.slice_mask = None
+        state.slice_depth = None
 
     return img_container, "", img_data
 
@@ -623,7 +677,7 @@ def generate_slices(ignored_data, filename):
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
-        num_expand=5)
+        num_expand=EXPAND_MASK)
     state.image_slices_filenames = []
 
     print(f'Generated {len(state.image_slices)} image slices; saving to file')
@@ -767,7 +821,7 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
               State('application-state-filename', 'data'),
               prevent_initial_call=True)
 def download_image(n_clicks, filename):
-    if filename is None or n_clicks is None:
+    if filename is None or n_clicks is None or ctx.triggered_id is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)

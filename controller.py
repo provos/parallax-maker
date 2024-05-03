@@ -47,6 +47,8 @@ class AppState:
         self.result_tinted = None
         self.grayscale_tinted = None
         self.slice_pixel = None
+        self.slice_pixel_depth = None
+        self.slice_mask = None
         self.upscaler = None
 
         # XXX - make this configurable
@@ -58,7 +60,7 @@ class AppState:
     def create_tints(self):
         """Precomputes the tings for visualizing slices."""
         # Apply the main color tint to the original image
-        self.result_tinted = apply_color_tint(self.imgData, (0, 255, 0), 0.1)
+        self.result_tinted = apply_color_tint(self.imgData, (150, 255, 0), 0.3)
 
         # Convert the image to grayscale and back to RGB
         grayscale = self.imgData.convert('L').convert('RGB')
@@ -79,12 +81,33 @@ class AppState:
 
         return final_result
     
+    def add_slice(self, slice_image, depth):
+        filename = str(Path(self.filename) / f"image_slice_{len(self.image_slices)}.png")
+        # find the index where the depth should be inserted
+        index = 0
+        for i, d in enumerate(self.image_depths):
+            if depth < d:
+                index = i
+                break
+        self.image_depths.insert(index, depth)
+        self.image_slices_filenames.insert(index, filename)
+        self.image_slices.insert(index, slice_image)
+        
+        if index > 0:
+            # make sure the depth values are all unique
+            for i in range(index, len(self.image_slices)):
+                if self.image_depths[i] == self.image_depths[i-1]:
+                    self.image_depths[i] += 1
+    
     def reset_image_slices(self):
         self.image_slices = []
         self.image_depths = []
         self.image_slices_filenames = []
         self.selected_slice = None
         self.selected_inpainting = None
+        self.slice_pixel = None
+        self.slice_mask = None
+        self.slice_pixel_depth = None
         
     def balance_slices_depths(self):
         """Equally distribute the depths of the image slices."""
@@ -94,7 +117,7 @@ class AppState:
     def depth_slice_from_pixel(self, pixel_x, pixel_y):
         depth = -1  # for log below
         if self.depthMapData is not None and self.imgThresholds is not None:
-            depth = self.depthMapData[pixel_y, pixel_x]
+            depth = int(self.depthMapData[pixel_y, pixel_x])
             # find the depth that is bracketed by imgThresholds
             for i, threshold in enumerate(self.imgThresholds):
                 if depth <= threshold:
@@ -104,14 +127,7 @@ class AppState:
             mask = mask_from_depth(
                 self.depthMapData, threshold_min, threshold_max)
 
-        # convert imgData to grayscale but leave the original colors for what is covered by the mask
-        if mask is not None:
-            result = self.apply_mask(mask)
-            img_data = self.serve_main_image(result)
-        else:
-            img_data = self.serve_main_image(state.imgData)
-
-        return img_data, depth
+        return mask, depth
 
     def set_img_data(self, img_data):
         self.imgData = img_data.convert('RGB')

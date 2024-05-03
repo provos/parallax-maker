@@ -113,7 +113,10 @@ class SegmentationModel:
         if label == -1:
             return None
 
-        return (self.mask == label).numpy().astype(np.uint8)
+        mask = (self.mask == label).numpy().astype(np.uint8)
+        mask *= 255
+        
+        return mask
 
     def segment_image_sam(self):
         # this is a no-op for sam as the model needs to be guided by an input point
@@ -152,9 +155,8 @@ class SegmentationModel:
         index = int(torch.argmax(scores))
         mask = mask[index]
 
-        color = np.array([30/255, 144/255, 255/255, 0.6])
         h, w = mask.shape[-2:]
-        mask_image = mask.reshape(h, w, 1) * color.reshape(1, 1, -1)
+        mask_image = mask.reshape(h, w)
         mask_image = (mask_image * 255).astype(np.uint8)
         
         return mask_image
@@ -171,7 +173,7 @@ if __name__ == "__main__":
 
     # draw a circle at the point on image
     mask_at_point = model.mask_at_point(point_xy)
-    mask = Image.fromarray(mask_at_point * 255).convert("RGB")
+    mask = Image.fromarray(mask_at_point).convert("RGB")
 
     if mask is not None:
         result = image_overlay(image, mask)

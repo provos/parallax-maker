@@ -11,6 +11,8 @@ import torch
 from torchvision.transforms import Compose
 import argparse
 from pathlib import Path
+from PIL import Image
+
 from utils import torch_get_device, feather_mask
 from depth import DepthEstimationModel
 
@@ -105,18 +107,36 @@ def generate_image_slices(image, depth_map, thresholds, num_expand=50):
 
         mask = mask_from_depth(depth_map, threshold_min, threshold_max,
                                prev_mask=prev_mask)
-        feathered_mask = feather_mask(mask, num_expand=num_expand)
-
-        # Create a 4-channel image (RGBA)
-        masked_image = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
-
-        # Set alpha channel values based on the feathered mask
-        masked_image[:, :, 3] = feathered_mask
+        masked_image = create_slice_from_mask(image, mask, num_expand)
 
         slices.append(masked_image)
         prev_mask = mask
 
     return slices, thresholds[1:]
+
+def create_slice_from_mask(image, mask, num_expand=50):
+    """
+    Create a slice from an image based on a given mask.
+
+    Args:
+        image (PIL.Image.Image or numpy.ndarray): The input image.
+        mask (numpy.ndarray): The mask to apply on the image.
+        num_expand (int): The number of pixels to expand the mask by.
+
+    Returns:
+        numpy.ndarray: The masked image slice.
+    """
+    if isinstance(image, Image.Image):
+        image = np.array(image)
+        
+    feathered_mask = feather_mask(mask, num_expand=num_expand)
+
+    # Create a 4-channel image (RGBA)
+    masked_image = cv2.cvtColor(image, cv2.COLOR_RGB2RGBA)
+
+    # Set alpha channel values based on the feathered mask
+    masked_image[:, :, 3] = feathered_mask
+    return masked_image
 
 
 def setup_camera_and_cards(image_slices, depths, camera_distance=100.0, max_distance=100.0, focal_length=100.0, sensor_width=35.0):
