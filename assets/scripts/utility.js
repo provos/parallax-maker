@@ -39,6 +39,17 @@ function stopDrawing() {
     isDrawing = false;
 }
 
+function getPixelRatio(context) {
+  dpr = window.devicePixelRatio || 1,
+    bsr = context.webkitBackingStorePixelRatio ||
+    context.mozBackingStorePixelRatio ||
+    context.msBackingStorePixelRatio ||
+    context.oBackingStorePixelRatio ||
+    context.backingStorePixelRatio || 1;
+
+  return dpr / bsr;
+}
+
 // Try to get the image size
 function getImageSize(imgElement) {
     var containerRect = imgElement.getBoundingClientRect();
@@ -65,9 +76,13 @@ function setupCanvasContext(canvas) {
 
     console.log('canvas_draw', image.clientWidth, image.clientHeight);
 
+    pixelRatio = getPixelRatio(ctx);
+
+    console.log('Pixel ratio:', pixelRatio);
+
     // Set canvas properties
     ctx.strokeStyle = 'red';
-    ctx.lineWidth = drawWidth;
+    ctx.lineWidth = drawWidth * pixelRatio;
     ctx.lineCap = 'round';
 
     // Set up mousemove eventlistener that does not need to go back to the app
@@ -151,17 +166,18 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.log('No context found');
                 return className;
             }
+            pixelRatio = getPixelRatio(ctx);
             isErasing = !isErasing;
             if (isErasing) {
                 className = 'bg-red-500 text-white p-2 rounded-md';
                 ctx.globalCompositeOperation = 'destination-out';
                 ctx.strokeStyle = 'rgba(0,0,0,1)';
-                ctx.lineWidth = eraseWidth;
+                ctx.lineWidth = eraseWidth * pixelRatio;
                 ctx.lineCap = 'round';
             } else {
                 ctx.globalCompositeOperation = 'source-over';
                 ctx.strokeStyle = 'red';
-                ctx.lineWidth = drawWidth;
+                ctx.lineWidth = drawWidth * pixelRatio;
                 ctx.lineCap = 'round';
             }
             console.log('isErasing', isErasing);
