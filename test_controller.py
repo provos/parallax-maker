@@ -99,8 +99,8 @@ class TestCheckPathnames(unittest.TestCase):
 
     def test_check_pathnames_invalid_root(self):
         # Set up invalid root pathname
+        self.state.filename = 'invalid_root/../something'
         self.state.image_slices_filenames = [
-            'invalid_root/image_slice_1.png',
             'appstate-test/image_slice_2.png',
             'appstate-test/image_slice_0.png'
         ]
