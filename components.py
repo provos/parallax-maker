@@ -45,6 +45,7 @@ def make_input_image_container(
         dcc.Store(id='canvas-ignore'),
         dcc.Upload(
             id=upload_id,
+            disabled=False,
             children=html.Div(
                 [
                     dcc.Loading(

@@ -351,9 +351,16 @@ def update_thresholds(contents, num_slices, filename, logs_data):
               Output('depth-map-container', 'children', allow_duplicate=True),
               Output('progress-interval', 'disabled', allow_duplicate=True),
               Input('upload-image', 'contents'),
+              State({'type': f'tab-content-main', 'index': ALL}, 'className'),
               prevent_initial_call=True)
-def update_input_image(contents):
+def update_input_image(contents, classnames):
     if not contents:
+        raise PreventUpdate()
+
+    # allow an upload action only when the user is on the main tab
+    # or configuration tab
+    on_valid_tab = 'hidden' not in classnames[0] or 'hidden' not in classnames[-1]
+    if classnames is None or not on_valid_tab:
         raise PreventUpdate()
 
     state, filename = AppState.from_file_or_new(None)
