@@ -373,6 +373,7 @@ def update_input_image(contents):
 
 @app.callback(Output('image', 'src', allow_duplicate=True),
               Output('logs-data', 'data'),
+              Output('loading-upload', 'children', allow_duplicate=True),
               Input("el", "n_events"),
               State("el", "event"),
               State('rect-data', 'data'),
@@ -425,7 +426,7 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
     logs_data.append(
         f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
 
-    return img_data, logs_data
+    return img_data, logs_data, ""
 
 
 @app.callback(Output('trigger-update-depthmap', 'data'),
@@ -484,6 +485,7 @@ def update_depth_map_callback(ignored_data, filename):
 @app.callback(Output('image', 'src', allow_duplicate=True),
               Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
+              Output('loading-upload', 'children', allow_duplicate=True),
               Input('delete-slice-button', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
@@ -498,7 +500,7 @@ def delete_slice_request(n_clicks, filename, logs):
     state = AppState.from_cache(filename)
     if state.selected_slice is None:
         logs.append("No slice selected")
-        return no_update, no_update, logs
+        return no_update, no_update, logs, ""
 
     logs.append("Delete slice at index {state.selected_slice}")
 
@@ -508,11 +510,12 @@ def delete_slice_request(n_clicks, filename, logs):
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
-    return state.serve_main_image(state.imgData), True, logs
+    return state.serve_main_image(state.imgData), True, logs, ""
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
+              Output('loading-upload', 'children', allow_duplicate=True),
               Input('remove-from-slice-button', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
@@ -527,11 +530,11 @@ def remove_mask_slice_request(n_clicks, filename, logs):
     state = AppState.from_cache(filename)
     if state.slice_mask is None:
         logs.append("No mask selected")
-        return no_update, logs
+        return no_update, logs, no_update
 
     if state.selected_slice is None:
         logs.append("No slice selected")
-        return no_update, logs
+        return no_update, logs, no_update
 
     final_mask = remove_mask_from_alpha(
         state.image_slices[state.selected_slice], state.slice_mask)
@@ -544,10 +547,11 @@ def remove_mask_slice_request(n_clicks, filename, logs):
                   save_depth_map=False, save_input_image=False)
 
     logs.append(f"Removed mask from slice {state.selected_slice}")
-    return True, logs
+    return True, logs, ""
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
+              Output('loading-upload', 'children', allow_duplicate=True),
               Input('add-to-slice-button', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
@@ -562,11 +566,11 @@ def add_mask_slice_request(n_clicks, filename, logs):
     state = AppState.from_cache(filename)
     if state.slice_mask is None:
         logs.append("No mask selected")
-        return no_update, logs
+        return no_update, logs, no_update
 
     if state.selected_slice is None:
         logs.append("No slice selected")
-        return no_update, logs
+        return no_update, logs, no_update
 
     image = create_slice_from_mask(
         state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
@@ -579,11 +583,12 @@ def add_mask_slice_request(n_clicks, filename, logs):
     state.to_file(filename, save_image_slices=True, save_depth_map=False, save_input_image=False)
     
     logs.append(f"Added mask to slice {state.selected_slice}")
-    return True, logs
+    return True, logs, ""
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
+              Output('loading-upload', 'children', allow_duplicate=True),
               Input('create-slice-button', 'n_clicks'),
               State('application-state-filename', 'data'),
               State('logs-data', 'data'),
@@ -598,7 +603,7 @@ def create_single_slice_request(n_clicks, filename, logs):
     state = AppState.from_cache(filename)
     if state.slice_mask is None:
         logs.append("No mask selected")
-        return no_update, logs
+        return no_update, logs, no_update
 
     image = create_slice_from_mask(
         state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
@@ -608,7 +613,7 @@ def create_single_slice_request(n_clicks, filename, logs):
 
     logs.append("Created a slice from the mask")
 
-    return True, logs
+    return True, logs, ""
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),

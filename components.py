@@ -47,6 +47,14 @@ def make_input_image_container(
             id=upload_id,
             children=html.Div(
                 [
+                    dcc.Loading(
+                        id='loading-upload',
+                        children=[],
+                        fullscreen=False,  # Ensure not to use fullscreen
+                        # Center in the Upload container
+                        className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20',
+                        style={'color': 'blue'},
+                    ), 
                     EventListener(
                         html.Img(
                             id=image_id,
@@ -60,9 +68,11 @@ def make_input_image_container(
                         id='canvas-paint', events=get_canvas_paint_events(), logging=False
                     ),
                 ],
-                className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2',
+                className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2 flex items-center justify-center',
+                style={'height': '70vh'},
             ),
             style={'height': '70vh'},
+            className='w-full',
             disable_click=True,
             multiple=False
         ),
@@ -445,6 +455,7 @@ def make_inpainting_container_callbacks(app):
     @app.callback(
         Output('image', 'src', allow_duplicate=True),
         Output({'type': 'inpainting-image', 'index': ALL}, 'className'),
+        Output('loading-upload', 'children', allow_duplicate=True),
         Input({'type': 'inpainting-image', 'index': ALL}, 'n_clicks'),
         State('application-state-filename', 'data'),
         State({'type': 'inpainting-image', 'index': ALL}, 'src'),
@@ -475,7 +486,7 @@ def make_inpainting_container_callbacks(app):
                 classname += selected_background
             new_classnames.append(classname)
 
-        return images[index], new_classnames
+        return images[index], new_classnames, ""
 
     @app.callback(
         Output('inpainting-request', 'data'),
