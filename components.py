@@ -407,6 +407,11 @@ def make_inpainting_container_callbacks(app):
         if state.selected_slice is None:
             raise PreventUpdate()  # XXX - write controller logic to clear this on image changes
 
+        index = state.selected_slice
+        mask_filename = state.mask_filename(index)
+        if not Path(mask_filename).exists():
+            raise PreventUpdate()
+
         # An empty prompt is OK.
         if positive_prompt is None:
             positive_prompt = ''
@@ -423,13 +428,11 @@ def make_inpainting_container_callbacks(app):
             state.pipeline_spec = pipelinespec
             pipelinespec.create_pipeline()
 
-        index = state.selected_slice
         image = state.image_slices[index]
         # check if image is a PIL image and conver it if necessary
         # XXX - refactor to make this always a PIL image
         if not isinstance(image, Image.Image):
             image = Image.fromarray(image, mode='RGBA')
-        mask_filename = state.mask_filename(index)
         mask = Image.open(mask_filename).convert('L')
 
         # patch the image
