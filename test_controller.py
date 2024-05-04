@@ -114,7 +114,7 @@ class TestCheckPathnames(unittest.TestCase):
         self.state.image_slices_filenames = [
             'appstate-test/image_slice_1.png',
             'appstate-test/image_slice_2.png',
-            'invalid_filename.png'
+            'appstate-test/../../../invalid_filename.png'
         ]
 
         # Call the function and expect an AssertionError
