@@ -540,7 +540,7 @@ def make_configuration_div():
                 min=2,
                 max=10,
                 step=1,
-                value=5,
+                value=3,
                 marks={i: str(i) for i in range(2, 11)}
             ),
         ], className='w-full'),
@@ -567,7 +567,7 @@ def make_configuration_div():
                     {'label': 'SD XL 1.0',
                         'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'}
                 ],
-                value='kandinsky-community/kandinsky-2-2-decoder-inpaint'
+                value='diffusers/stable-diffusion-xl-1.0-inpainting-0.1'
             )
         ], className='w-full'),
         html.Div([
