@@ -497,4 +497,19 @@ class AppState:
         state.image_slices_filenames = data['image_slices_filenames']
         state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
         state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
+        
+        # check that all filenames start with the filename as prefix
+        state.check_pathnames()
+            
         return state
+    
+    def check_pathnames(self):
+        """Check that all pathnames are valid."""
+        
+        cwd = Path().cwd()
+        root = Path(self.filename).resolve()
+        assert str(root).startswith(str(cwd / 'appstate-')), f"Invalid filename: {self.filename}"
+        
+        for filename in self.image_slices_filenames:
+            filename = Path(filename).resolve()
+            assert str(filename).startswith(str(root)), f"Invalid filename: {filename}"
