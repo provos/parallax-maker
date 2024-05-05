@@ -237,13 +237,14 @@ def feather_mask(mask, num_expand=50):
     return feathered_mask
 
 
-def postprocess_depth_map(depth_map, image_alpha):
+def postprocess_depth_map(depth_map, image_alpha, final_blur=5):
     """
     Apply edge extension technique to extend the depthmap beyond the edge of the alpha channel.
 
     Args:
         depth_map (numpy.ndarray): The depth map.
         image_alpha (numpy.ndarray): The alpha channel of the image.
+        final_blur (int): The amount of post blur to apply to the depth map
 
     Returns:
         numpy.ndarray: The post-processed depth map.
@@ -263,7 +264,7 @@ def postprocess_depth_map(depth_map, image_alpha):
         depth_map_dilated = cv2.dilate(depth_map, kernel, iterations=1)
         depth_map[image_alpha != 255] = depth_map_dilated[image_alpha != 255]
 
-    depth_map = cv2.blur(depth_map, (5, 5))
+    depth_map = cv2.blur(depth_map, (final_blur, final_blur))
 
     # normalize to the smallest value
     smallest_vale = int(np.quantile(depth_map[image_alpha == 255], 0.01))

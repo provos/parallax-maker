@@ -924,7 +924,7 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
                     state.depth_estimation_model = model
                 depth_map = generate_depth_map(
                     image[:, :, :3], model=state.depth_estimation_model)
-                depth_map = postprocess_depth_map(depth_map, image[:, :, 3])
+                depth_map = postprocess_depth_map(depth_map, image[:, :, 3], final_blur=50)
                 Image.fromarray(depth_map).save(
                     depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
