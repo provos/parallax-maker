@@ -435,6 +435,14 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
 
     return img_data, logs_data, ""
 
+@app.callback(Output('trigger-generate-depthmap', 'data'),
+              Input('generate-depthmap-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              prevent_initial_call=True)
+def generate_depth_map_from_button(n_clicks, filename):
+    if n_clicks is None or filename is None:
+        raise PreventUpdate()
+    return True
 
 @app.callback(Output('trigger-update-depthmap', 'data'),
               Output('gen-depthmap-output', 'children'),
@@ -446,7 +454,7 @@ def generate_depth_map_callback(ignored_data, filename, model):
     if filename is None:
         raise PreventUpdate()
 
-    print('Received a request to generate a depth map for state f{filename}')
+    print(f'Received a request to generate a depth map for state f{filename}')
     state = AppState.from_cache(filename)
 
     PIL_image = state.imgData
