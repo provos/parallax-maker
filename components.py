@@ -139,11 +139,18 @@ def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
             type='default',
             children=html.Div(id='gen-depthmap-output')
         ),
+        html.Button(
+          html.Div([
+            html.Label('Regenerate Depth Map'),
+            html.I(className='fa-solid fa-image pl-1')]),
+            id='generate-depthmap-button',
+            className='bg-blue-500 text-white p-2 rounded-md mt-2 mb-2'  
+        ),
         html.Div([
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
             html.Div(id='progress-bar-container',
                      className='h-3 w-full bg-gray-200 rounded-lg'),
-        ], className='p-4'),
+        ], className='p-2'),
     ], className='w-full')
 
 
