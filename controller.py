@@ -172,8 +172,8 @@ class AppState:
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
     
-    def serve_slice_image_composed(self, slice_index):
-        """Serves the slice image composed over the gray main image."""
+    def slice_image_composed(self, slice_index, grayscale=True):
+        """Composes the slice image over the main image."""
         assert slice_index >= 0 and slice_index < len(
             self.image_slices_filenames)
         slice_image = self.image_slices[slice_index]
@@ -182,7 +182,12 @@ class AppState:
         if self.grayscale_tinted is None:
             self.create_tints()
         full_image = Image.composite(
-            slice_image, self.grayscale_tinted, slice_image.getchannel('A'))
+            slice_image, self.grayscale_tinted if grayscale else self.imgData, slice_image.getchannel('A'))
+        return full_image
+    
+    def serve_slice_image_composed(self, slice_index):
+        """Serves the slice image composed over the gray main image."""
+        full_image = self.slice_image_composed(slice_index)
         return self.serve_main_image(full_image)
     
     def serve_input_image(self):

@@ -420,7 +420,11 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
     if mode == 'segment':
         if state.segmentation_model == None:
             state.segmentation_model = SegmentationModel()
-            state.segmentation_model.segment_image(state.imgData)
+        image = state.imgData
+        # if we have a slice, take it and compose the background image over it
+        if state.selected_slice:
+            image = state.slice_image_composed(state.selected_slice, grayscale=False)
+        state.segmentation_model.segment_image(image)
         state.slice_mask = state.segmentation_model.mask_at_point(
             (pixel_x, pixel_y))
 
