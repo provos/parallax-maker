@@ -1,11 +1,14 @@
-# installation
+# Installation and First Usage
 
-Install a new python environment via *conda* or *venv* and then use pip
+Create a new environment with python 3.10 via *conda* or *venv* and then use pip to install the dependencies.
 ```
 $ pip install -r requirements.txt
+$ python ./webui
 ```
 
-# parallax-maker
+You can then reach the web ui via [http://127.0.0.1:8050/](http://127.0.0.1:8050/). Be prepared that the first time, any new functionality is used, the corresponding models need to be downloaded first. This can take a few minutes based on your connection speed.
+
+# Parallax-Maker
 
 Generates masked images that can be used for 2.5D animation
 
