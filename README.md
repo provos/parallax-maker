@@ -1,6 +1,6 @@
 # installation
 
-Via pip use
+Install a new python environment via *conda* or *venv* and then use pip
 ```
 $ pip install -r requirements.txt
 ```
