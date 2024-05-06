@@ -38,3 +38,6 @@ The tool also supports generating a glTF2.0 scene file that an be easily importe
 A simple Dash based Web UI provides a browser assisted workflow to generated slices from images, inpaint the slices and then export them as a glTF scene to Blender. The resulting glTF scene can also be visualized within the app or manipulated via a command line tool and the state file saved by the app
 
 ![Web UI 3D Example](example/webui_3d.jpg)
+
+# Watch the Video
+[![Watch the video](example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
