@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 # (c) 2024 Niels Provos
 
+import argparse
 import base64
-import cv2
-import datetime
 import io
 import os
 from pathlib import Path
@@ -27,6 +26,7 @@ from utils import (
 )
 from depth import DepthEstimationModel
 from instance import SegmentationModel
+from inpainting import prefetch_models
 
 
 import dash
@@ -36,6 +36,7 @@ from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
 from flask import send_file
+from werkzeug import serving
 
 from controller import AppState
 
@@ -1130,4 +1131,28 @@ def save_state(n_clicks, filename, logs):
 if __name__ == '__main__':
     os.environ['DISABLE_TELEMETRY'] = 'YES'
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-    app.run_server(debug=True)
+    
+    # parse command line arguments
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=8050)
+    parser.add_argument('--prefetch-models', type=str, default=None,
+                        help='Either "all" or "default"')
+    args = parser.parse_args()
+    
+    if not serving.is_running_from_reloader():
+        if args.prefetch_models in ['all', 'default']:
+            print("Prefetching models")
+            if args.prefetch_models == 'all':
+                for model in [DepthEstimationModel, SegmentationModel]:
+                    for model_name in model.MODELS:
+                        model(model_name).load_model()
+                prefetch_models(fetch_all_models=True)
+            else:
+                DepthEstimationModel().load_model()
+                SegmentationModel().load_model()
+                prefetch_models(fetch_all_models=False)
+        elif args.prefetch_models is not None:
+            print(f'Invalid prefetch models argument: {args.prefetch_models}; use "all" or "default"')
+            exit(1)
+    
+    app.run_server(port=args.port, debug=True)

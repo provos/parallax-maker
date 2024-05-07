@@ -18,9 +18,11 @@ from utils import torch_get_device, image_overlay, draw_circle, COCO_CATEGORIES
 
 
 class SegmentationModel:
-    def __init__(self, model_name="sam"):
-        assert model_name in ["mask2former", "sam"]
-        self.model_name = model_name
+    MODELS = ["mask2former", "sam"]
+    
+    def __init__(self, model="sam"):
+        assert model in self.MODELS
+        self.model_name = model
         self.model = None
         self.image_processor = None
         self.image = None
@@ -31,7 +33,7 @@ class SegmentationModel:
             return False
         return self.model_name == other.model_name
 
-    def create_model(self):
+    def load_model(self):
         load_model = {
             "mask2former": self.load_mask2former_model,
             "sam": self.load_sam_model
@@ -92,7 +94,7 @@ class SegmentationModel:
 
     def segment_image_mask2former(self):
         if self.model is None:
-            self.create_model()
+            self.load_model()
 
         inputs = self.image_processor(
             self.image, size=1280, return_tensors="pt").to(self.model.device)
@@ -124,7 +126,7 @@ class SegmentationModel:
 
     def mask_at_point_sam(self, point_xy):
         if self.model is None:
-            self.create_model()
+            self.load_model()
 
         input_points = [[point_xy]]
         inputs = self.image_processor(self.image, input_points=input_points,

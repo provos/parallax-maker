@@ -19,8 +19,10 @@ from PIL import Image
 from utils import torch_get_device
 
 class DepthEstimationModel:
+    MODELS = ["midas", "zoedepth", "dinov2"]
+    
     def __init__(self, model="midas"):
-        assert model in ["midas", "zoedepth", "dinov2"]
+        assert model in self.MODELS
         self.model_type = model
         self.model = None
         self.transforms = None

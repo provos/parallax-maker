@@ -433,7 +433,7 @@ def make_inpainting_container_callbacks(app):
         pipelinespec = pipelinespec_from_model(model)
         if state.pipeline_spec is None or state.pipeline_spec != pipelinespec:
             state.pipeline_spec = pipelinespec
-            pipelinespec.create_pipeline()
+            pipelinespec.load_model()
 
         image = state.image_slices[index]
         # check if image is a PIL image and conver it if necessary

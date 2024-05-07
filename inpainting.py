@@ -19,13 +19,19 @@ from utils import torch_get_device, find_square_bounding_box, feather_mask, time
 # pretrained_model = "runwayml/stable-diffusion-v1-5"
 # pretrained_model = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 
+MODELS = [
+    "kandinsky-community/kandinsky-2-2-decoder-inpaint",
+    "runwayml/stable-diffusion-v1-5",
+    "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+]
+
 
 class PipelineSpec:
     def __init__(self,
-                 pretrained_model="diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+                 model="diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
                  variant="fp16",
                  dimension=1024):
-        self.pretrained_model = pretrained_model
+        self.pretrained_model = model
         self.variant = variant
         self.dimension = dimension
         self.pipeline = None
@@ -40,7 +46,7 @@ class PipelineSpec:
     def get_dimension(self):
         return self.dimension
 
-    def create_pipeline(self):
+    def load_model(self):
         if self.pipeline is not None:
             return self.pipeline
 
@@ -58,7 +64,7 @@ class PipelineSpec:
         return self.pipeline
 
 
-def pipelinespec_from_model(model):
+def pipelinespec_from_model(model="diffusers/stable-diffusion-xl-1.0-inpainting-0.1"):
     """
     Create a PipelineSpec object based on the given model.
 
@@ -68,6 +74,8 @@ def pipelinespec_from_model(model):
     Returns:
         PipelineSpec: The PipelineSpec object with the specified model, variant, and dimension.
     """
+    assert model in MODELS
+
     dimension = 512
     variant = ''
     if model == "kandinsky-community/kandinsky-2-2-decoder-inpaint":
@@ -75,7 +83,24 @@ def pipelinespec_from_model(model):
     elif model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
         dimension = 1024
         variant = "fp16"
-    return PipelineSpec(pretrained_model=model, variant=variant, dimension=dimension)
+    return PipelineSpec(model=model, variant=variant, dimension=dimension)
+
+
+def prefetch_models(fetch_all_models=False):
+    """
+    Prefetch all models to avoid loading them multiple times.
+
+    Args:
+        fetch_all_models (bool): Whether to fetch all models.
+
+    Returns:
+        None
+    """
+    if fetch_all_models:
+        for model in MODELS:
+            pipelinespec_from_model(model).load_model()
+    else:
+        pipelinespec_from_model().load_model()
 
 
 def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image,
@@ -154,7 +179,7 @@ def find_nearest_alpha(alpha, near_a):
                 near_a[i, j, 2, 1] = j
                 near_a[i, j, 3, 0] = i
                 near_a[i, j, 3, 1] = j
-                
+
     for i in range(height):
         for j in range(width):
             if alpha[i, j] != 255:
@@ -164,9 +189,11 @@ def find_nearest_alpha(alpha, near_a):
                     near_a[i, j, 1] = near_a[i, j - 1, 1]
             if alpha[height - i - 1, width - j - 1] != 255:
                 if i > 0:
-                    near_a[height - i - 1, width - j - 1, 2] = near_a[height - i, width - j - 1, 2]
+                    near_a[height - i - 1, width - j - 1,
+                           2] = near_a[height - i, width - j - 1, 2]
                 if j > 0:
-                    near_a[height - i - 1, width - j - 1, 3] = near_a[height - i - 1, width - j, 3]
+                    near_a[height - i - 1, width - j - 1,
+                           3] = near_a[height - i - 1, width - j, 3]
 
 
 @nb.jit(nopython=True, parallel=True)
@@ -277,7 +304,7 @@ def main():
             variant='fp16',
             dimension=1024)
 
-        pipeline.create_pipeline()
+        pipeline.load_model()
 
         new_image = inpaint(pipeline, args.prompt,
                             args.negative_prompt, init_image, mask_image, crop=True)
