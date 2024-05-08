@@ -906,9 +906,15 @@ def make_canvas_callbacks(app):
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
         Output('canvas-data', 'data'),
+        Input('clear-canvas', 'n_clicks'),
+    )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='canvas_clear'),
+        Output('canvas-ignore', 'data'),
         # XXX - this will kill the canvas during inpainting - bad
         Input('image', 'src'),
-        Input('clear-canvas', 'n_clicks'),
     )
 
     app.clientside_callback(
