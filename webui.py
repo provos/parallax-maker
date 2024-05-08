@@ -269,7 +269,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
         state.slice_mask, _ = state.depth_slice_from_pixel(
             state.slice_pixel[0], state.slice_pixel[1])
         if state.slice_mask is not None:
-            result = state.apply_mask(state.slice_mask)
+            result = state.apply_mask(state.imgData, state.slice_mask)
             img_data = state.serve_main_image(result)
         else:
             img_data = state.serve_main_image(state.imgData)
@@ -418,19 +418,20 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
     state.slice_pixel = (pixel_x, pixel_y)
     state.slice_pixel_depth = depth
 
+    image = state.imgData
     if mode == 'segment':
         if state.segmentation_model == None:
             state.segmentation_model = SegmentationModel()
-        image = state.imgData
         # if we have a slice, take it and compose the background image over it
-        if state.selected_slice:
+        print(f"Selected slice: {state.selected_slice}")
+        if state.selected_slice is not None:
             image = state.slice_image_composed(state.selected_slice, grayscale=False)
         state.segmentation_model.segment_image(image)
         state.slice_mask = state.segmentation_model.mask_at_point(
             (pixel_x, pixel_y))
 
     if state.slice_mask is not None:
-        result = state.apply_mask(state.slice_mask)
+        result = state.apply_mask(image, state.slice_mask)
         img_data = state.serve_main_image(result)
     else:
         img_data = state.serve_main_image(state.imgData)

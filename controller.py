@@ -66,18 +66,27 @@ class AppState:
         grayscale = self.imgData.convert('L').convert('RGB')
         self.grayscale_tinted = apply_color_tint(grayscale, (0, 0, 150), 0.1)
 
-    def apply_mask(self, mask):
+    def apply_mask(self, image, mask):
         # Prepare masks; make sure they are the right size and mode
         if not isinstance(mask, Image.Image):
             mask = Image.fromarray(mask)
         mask = mask.convert('L')
-
-        if self.result_tinted is None or self.grayscale_tinted is None:
-            self.create_tints()
+        
+        if image is not self.imgData:
+            if not isinstance(image, Image.Image):
+                image = Image.fromarray(image)
+            image = image.convert('RGB')
+            result_tinted = apply_color_tint(image, (150, 255, 0), 0.3)
+            grayscale_tinted = apply_color_tint(image.convert('L').convert('RGB'), (0, 0, 150), 0.1)
+        else:
+            if self.result_tinted is None or self.grayscale_tinted is None:
+                self.create_tints()
+            result_tinted = self.result_tinted
+            grayscale_tinted = self.grayscale_tinted
 
         # Combine the tinted and the grayscale image
         final_result = Image.composite(
-            self.result_tinted, self.grayscale_tinted, mask)
+            result_tinted, grayscale_tinted, mask)
 
         return final_result
     
