@@ -117,7 +117,40 @@ def make_inpaint_tools_container():
                 ], className='flex justify-between'),
             ], className='flex justify-center items-centergap-1 p-1 bg-gray-200 rounded-md mt-1'),
 
-        ], id='canvas-buttons', className='flex gap-2')    
+        ], id='canvas-buttons', className='flex gap-2')
+    
+    
+def make_tools_callbacks(app):
+    @app.callback(
+        Output('canvas', 'className'),
+        Output('image', 'className'),
+        Output('canvas-buttons', 'className'),
+        Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
+        State('canvas', 'className'),
+        State('image', 'className'),
+        State('canvas-buttons', 'className'),
+    )
+    def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_class_name):
+        if tab_class_names is None:
+            raise PreventUpdate()
+
+        canvas_class_name = canvas_class_name.replace(
+            ' z-10', '').replace(' z-0', '')
+        image_class_name = image_class_name.replace(
+            ' z-10', '').replace(' z-0', '')
+        buttons_class_name = buttons_class_name.replace(' hidden', '')
+
+        # we paint on the canvas only if the Inpainting tab is active
+        if 'hidden' not in tab_class_names[2]:
+            canvas_class_name += ' z-10'
+            image_class_name += ' z-0'
+        else:
+            canvas_class_name += ' z-0'
+            image_class_name += ' z-10'
+            buttons_class_name += ' hidden'
+
+        return canvas_class_name, image_class_name, buttons_class_name    
+
 
 def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
     return html.Div([

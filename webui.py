@@ -167,37 +167,7 @@ components.make_inpainting_container_callbacks(app)
 # Callbacks for collapsible sections
 components.make_tabs_callback(app, 'viewer')
 components.make_tabs_callback(app, 'main')
-
-
-@app.callback(
-    Output('canvas', 'className'),
-    Output('image', 'className'),
-    Output('canvas-buttons', 'className'),
-    Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
-    State('canvas', 'className'),
-    State('image', 'className'),
-    State('canvas-buttons', 'className'),
-)
-def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_class_name):
-    if tab_class_names is None:
-        raise PreventUpdate()
-
-    canvas_class_name = canvas_class_name.replace(
-        ' z-10', '').replace(' z-0', '')
-    image_class_name = image_class_name.replace(
-        ' z-10', '').replace(' z-0', '')
-    buttons_class_name = buttons_class_name.replace(' hidden', '')
-
-    # we paint on the canvas only if the Inpainting tab is active
-    if 'hidden' not in tab_class_names[2]:
-        canvas_class_name += ' z-10'
-        image_class_name += ' z-0'
-    else:
-        canvas_class_name += ' z-0'
-        image_class_name += ' z-10'
-        buttons_class_name += ' hidden'
-
-    return canvas_class_name, image_class_name, buttons_class_name
+components.make_tools_callbacks(app)
 
 
 # Callback for the logs
