@@ -860,6 +860,28 @@ def make_tabs_callback(app, tab_id: str):
 
         return [None] * len(n_clicks), label_class, content_class
 
+def make_segmentation_callbacks(app):
+    @app.callback(Output('image', 'src', allow_duplicate=True), 
+                  Output('logs-data', 'data', allow_duplicate=True),
+                  Input('invert-mask', 'n_clicks'),
+                  State('application-state-filename', 'data'),
+                  State('logs-data', 'data'),
+                  prevent_initial_call=True)
+    def invert_mask(n_clicks, filename, logs):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+        
+        state = AppState.from_cache(filename)
+        if state.slice_mask is None:
+            logs.append('No mask to invert')
+            return no_update, logs
+        
+        state.slice_mask = 255 - state.slice_mask
+        
+        image = state.apply_mask(state.imgData, state.slice_mask)
+        logs.append('Inverted mask')
+        
+        return image, logs
 
 def make_canvas_callbacks(app):
     @app.callback(Output('logs-data', 'data', allow_duplicate=True),
