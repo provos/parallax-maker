@@ -5,6 +5,7 @@ import io
 import base64
 from pathlib import Path
 from PIL import Image
+import cv2
 
 # Related third party imports
 import numpy as np
@@ -127,6 +128,8 @@ def make_segmentation_tools_container():
         html.Div([
             html.Div([
                 html.Button(["Invert ", html.I(className="fa fa-adjust")], id='invert-mask',
+                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                html.Button(["Feather ", html.I(className="fa fa-wind")], id='feather-mask',
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
             ], className='flex justify-between')
         ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1')
@@ -882,6 +885,31 @@ def make_segmentation_callbacks(app):
         logs.append('Inverted mask')
         
         return image, logs
+
+    @app.callback(Output('image', 'src', allow_duplicate=True),
+                  Output('logs-data', 'data', allow_duplicate=True),
+                  Input('feather-mask', 'n_clicks'),
+                  State('application-state-filename', 'data'),
+                  State('logs-data', 'data'),
+                  prevent_initial_call=True)
+    def blur_mask(n_clicks, filename, logs):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+        if state.slice_mask is None:
+            logs.append('No mask to feather')
+            return no_update, logs
+
+        # blur the mask
+        feather_amount = 10
+        state.slice_mask = cv2.blur(state.slice_mask, (feather_amount, feather_amount))
+
+        image = state.apply_mask(state.imgData, state.slice_mask)
+        logs.append(f'Feathered mask by {feather_amount} pixels')
+
+        return image, logs
+
 
 def make_canvas_callbacks(app):
     @app.callback(Output('logs-data', 'data', allow_duplicate=True),
