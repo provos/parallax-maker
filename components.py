@@ -70,61 +70,54 @@ def make_input_image_container(
                     ),
                 ],
                 className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2 flex items-center justify-center',
-                style={'height': '70vh'},
+                style={'height': '67vh'},
             ),
-            style={'height': '70vh'},
+            style={'height': '67vh'},
             className='w-full',
             disable_click=True,
             multiple=False
         ),
-        html.Div([
+        make_inpaint_tools_container(),
+    ], className=outer_class_name
+    )
+
+def make_inpaint_tools_container():
+    return html.Div([
             # Div for existing canvas tools
             html.Div([
                 dcc.Store(id='canvas-data'), # saves to disk
                 dcc.Store(id='canvas-mask-data'),
                 html.Div([
                     html.Button('Clear', id='clear-canvas',
-                                className='bg-blue-500 text-white p-2 rounded-md'),
+                                className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                     html.Button('Erase', id='erase-mode-canvas',
-                                className='bg-blue-500 text-white p-2 rounded-md'),
+                                className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                     html.Button('Load', id='load-canvas',
                                 className='bg-blue-500 text-white p-2 rounded-md'),
-                ], className='grid grid-cols-2 gap-2 items-center justify-items-center')
-            ], className='flex flex-col justify-center items-center p-2 bg-gray-200 rounded-md mt-1'),
+                ], className='flex justify-between')
+            ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1'),
 
-            # Div for navigation buttons arranged like a compass rose
+            # Div for navigation buttons arranged just in a single row
             html.Div([
-                # Top row (only the top arrow)
                 html.Div([
                     html.Button(html.I(className="fa fa-magnifying-glass-minus"), id='nav-zoom-out',
-                                className='bg-blue-500 text-white p-1 rounded-full'),
+                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
                     html.Button(html.I(className="fa fa-arrow-up"), id='nav-up',
-                                className='bg-blue-500 text-white p-1 rounded-full'),
-                    html.Button(html.I(className="fa fa-magnifying-glass-plus"), id='nav-zoom-in',
-                                className='bg-blue-500 text-white p-1 rounded-full'),
-                ], className='flex justify-between'),
-
-                # Middle row (left, reset, right arrows)
-                html.Div([
+                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
                     html.Button(html.I(className="fa fa-arrow-left"), id='nav-left',
                                 className='bg-blue-500 text-white p-1 rounded-full mr-1'),
                     html.Button(html.I(className="fa fa-circle"), id='nav-reset',
-                                className='bg-blue-500 text-white p-1 rounded-full'),
+                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
                     html.Button(html.I(className="fa fa-arrow-right"), id='nav-right',
-                                className='bg-blue-500 text-white p-1 rounded-full ml-1'),
-                ], className='flex justify-between'),
-
-                # Bottom row (only the bottom arrow)
-                html.Div([
+                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
                     html.Button(html.I(className="fa fa-arrow-down"), id='nav-down',
+                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                    html.Button(html.I(className="fa fa-magnifying-glass-plus"), id='nav-zoom-in',
                                 className='bg-blue-500 text-white p-1 rounded-full'),
-                ], className='flex justify-center')
-            ], className='flex flex-col gap-1 p-2 bg-gray-200 rounded-md mt-1'),
+                ], className='flex justify-between'),
+            ], className='flex justify-center items-centergap-1 p-1 bg-gray-200 rounded-md mt-1'),
 
-        ], id='canvas-buttons', className='flex gap-2')
-    ], className=outer_class_name
-    )
-
+        ], id='canvas-buttons', className='flex gap-2')    
 
 def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
     return html.Div([
@@ -239,7 +232,7 @@ def make_slice_generation_container():
                     ],
                     className='w-full overflow-auto',
                     id='slice-generation-column',
-                    style={'height': '70vh'},
+                    style={'height': '69vh'},
                     )
 
 
