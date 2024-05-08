@@ -1,6 +1,8 @@
 console.log('utility.js loaded');
 
 // Initialize global variables
+let canvasLastDrawnTime = 0;
+let canvasLastSavedTime = 0;
 let drawWidth = 40;
 let eraseWidth = 60;
 let isDrawing = false;
@@ -30,6 +32,8 @@ function draw(e) {
     ctx.moveTo(lastX, lastY);
     ctx.lineTo(currentX, currentY);
     ctx.stroke();
+
+    canvasLastDrawnTime = Date.now();
 
     [lastX, lastY] = [currentX, currentY];
 }
@@ -133,7 +137,10 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.log('No element found with id "canvas"');
                 return '';
             }
-            setupCanvasContext(canvas);
+            rect = canvas.getBoundingClientRect();
+            if (ctx === null) {
+                setupCanvasContext(canvas);
+            }
 
             image = document.getElementById('image');
             props = getImageSize(image);
@@ -154,6 +161,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.log('No context found');
                 return '';
             }
+            canvasLastSavedTime = Date.now();
             ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
             // we also have to reset the ctx as a new image might be loaded
             ctx = null;
@@ -204,13 +212,19 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 case 'touchstart':
                     startDrawing(event);
                     break;
-                case 'mouseup':
                 case 'mouseout':
+                    // Try to get the canvas without needing to save it
+                    stopDrawing(canvas);
+
+                    bShouldSave = canvasLastDrawnTime > canvasLastSavedTime;
+                    canvasLastSavedTime = Date.now();
+                    return bShouldSave ? this.canvas_get() : window.dash_clientside.no_update;
+                case 'mouseup':
                 case 'touchend':
                     stopDrawing(canvas);
                     break;
             }
-            return '';
+            return window.dash_clientside.no_update;
         }
     }
 });

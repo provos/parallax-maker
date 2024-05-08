@@ -42,7 +42,7 @@ def make_input_image_container(
 
     return html.Div([
         html.Label('Input Image', className='font-bold mb-2 ml-3'),
-        dcc.Store(id='canvas-ignore'),
+        dcc.Store(id='canvas-ignore'), # we don't read this data
         dcc.Upload(
             id=upload_id,
             disabled=False,
@@ -80,7 +80,7 @@ def make_input_image_container(
         html.Div([
             # Div for existing canvas tools
             html.Div([
-                dcc.Store(id='canvas-data'),
+                dcc.Store(id='canvas-data'), # saves to disk
                 dcc.Store(id='canvas-mask-data'),
                 html.Div([
                     html.Button('Clear', id='clear-canvas',
@@ -88,8 +88,6 @@ def make_input_image_container(
                     html.Button('Erase', id='erase-mode-canvas',
                                 className='bg-blue-500 text-white p-2 rounded-md'),
                     html.Button('Load', id='load-canvas',
-                                className='bg-blue-500 text-white p-2 rounded-md'),
-                    html.Button('Save', id='save-canvas',
                                 className='bg-blue-500 text-white p-2 rounded-md'),
                 ], className='grid grid-cols-2 gap-2 items-center justify-items-center')
             ], className='flex flex-col justify-center items-center p-2 bg-gray-200 rounded-md mt-1'),
@@ -826,6 +824,14 @@ def make_canvas_callbacks(app):
             logs.append('No slice selected to save mask')
             return logs
 
+        if data == '':
+            mask_filename = state.mask_filename(state.selected_slice)
+            if Path(mask_filename).exists():
+                Path(mask_filename).unlink()
+                logs.append(
+                    f'Deleted mask for slice {state.selected_slice}')
+            return logs
+
         # turn the data url into a RGBA PIL image
         image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
 
@@ -896,7 +902,7 @@ def make_canvas_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_draw'),
-        Output('canvas-ignore', 'data', allow_duplicate=True),
+        Output('canvas-data', 'data', allow_duplicate=True),
         Input('canvas-paint', 'event'),
         prevent_initial_call=True
     )
@@ -904,18 +910,10 @@ def make_canvas_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
-        Output('canvas-ignore', 'data'),
+        Output('canvas-data', 'data'),
         # XXX - this will kill the canvas during inpainting - bad
         Input('image', 'src'),
         Input('clear-canvas', 'n_clicks'),
-    )
-
-    app.clientside_callback(
-        ClientsideFunction(namespace='clientside',
-                           function_name='canvas_get'),
-        Output('canvas-data', 'data'),
-        Input('save-canvas', 'n_clicks'),
-        prevent_initial_call=True
     )
 
     app.clientside_callback(
