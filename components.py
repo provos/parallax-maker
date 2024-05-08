@@ -838,13 +838,8 @@ def make_canvas_callbacks(app):
         # Split the image into individual channels
         r, g, b, a = image.split()
 
-        # Replace RGB channels with the Alpha channel
-        new_r = a.copy()
-        new_g = a.copy()
-        new_b = a.copy()
-
-        # Merge the channels back into an RGB image (without the original alpha channel)
-        new_image = Image.merge('RGB', (new_r, new_g, new_b))
+        # Create a grayscale image with the alpha channel
+        new_image = a
 
         # Scale new image to the same dimensions as imgData
         new_image = new_image.resize(
