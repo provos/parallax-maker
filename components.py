@@ -42,7 +42,7 @@ def make_input_image_container(
 
     return html.Div([
         html.Label('Input Image', className='font-bold mb-2 ml-3'),
-        dcc.Store(id='canvas-ignore'), # we don't read this data
+        dcc.Store(id='canvas-ignore'),  # we don't read this data
         dcc.Upload(
             id=upload_id,
             disabled=False,
@@ -55,7 +55,7 @@ def make_input_image_container(
                         # Center in the Upload container
                         className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20',
                         style={'color': 'blue'},
-                    ), 
+                    ),
                     EventListener(
                         html.Img(
                             id=image_id,
@@ -77,60 +77,78 @@ def make_input_image_container(
             disable_click=True,
             multiple=False
         ),
-        make_inpaint_tools_container(),
+        make_segmentation_tools_container(),
+        make_inpainting_tools_container(),
     ], className=outer_class_name
     )
 
-def make_inpaint_tools_container():
+
+def make_inpainting_tools_container():
     return html.Div([
-            # Div for existing canvas tools
+        # Div for existing canvas tools
+        html.Div([
+            dcc.Store(id='canvas-data'),  # saves to disk
+            dcc.Store(id='canvas-mask-data'),
             html.Div([
-                dcc.Store(id='canvas-data'), # saves to disk
-                dcc.Store(id='canvas-mask-data'),
-                html.Div([
                     html.Button('Clear', id='clear-canvas',
                                 className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                     html.Button('Erase', id='erase-mode-canvas',
                                 className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                     html.Button('Load', id='load-canvas',
                                 className='bg-blue-500 text-white p-2 rounded-md'),
-                ], className='flex justify-between')
-            ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1'),
+                    ], className='flex justify-between')
+        ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1'),
 
-            # Div for navigation buttons arranged just in a single row
+        # Div for navigation buttons arranged just in a single row
+        html.Div([
             html.Div([
-                html.Div([
-                    html.Button(html.I(className="fa fa-magnifying-glass-minus"), id='nav-zoom-out',
-                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                    html.Button(html.I(className="fa fa-arrow-up"), id='nav-up',
-                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                    html.Button(html.I(className="fa fa-arrow-left"), id='nav-left',
-                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                    html.Button(html.I(className="fa fa-circle"), id='nav-reset',
-                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                    html.Button(html.I(className="fa fa-arrow-right"), id='nav-right',
-                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                    html.Button(html.I(className="fa fa-arrow-down"), id='nav-down',
-                                className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                    html.Button(html.I(className="fa fa-magnifying-glass-plus"), id='nav-zoom-in',
-                                className='bg-blue-500 text-white p-1 rounded-full'),
-                ], className='flex justify-between'),
-            ], className='flex justify-center items-centergap-1 p-1 bg-gray-200 rounded-md mt-1'),
+                html.Button(html.I(className="fa fa-magnifying-glass-minus"), id='nav-zoom-out',
+                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                html.Button(html.I(className="fa fa-arrow-up"), id='nav-up',
+                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                html.Button(html.I(className="fa fa-arrow-left"), id='nav-left',
+                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                html.Button(html.I(className="fa fa-circle"), id='nav-reset',
+                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                html.Button(html.I(className="fa fa-arrow-right"), id='nav-right',
+                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                html.Button(html.I(className="fa fa-arrow-down"), id='nav-down',
+                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                html.Button(html.I(className="fa fa-magnifying-glass-plus"), id='nav-zoom-in',
+                            className='bg-blue-500 text-white p-1 rounded-full'),
+            ], className='flex justify-between'),
+        ], className='flex justify-center items-centergap-1 p-1 bg-gray-200 rounded-md mt-1'),
 
-        ], id='canvas-buttons', className='flex gap-2')
-    
-    
+    ], id='canvas-buttons', className='flex gap-2')
+
+
+def make_segmentation_tools_container():
+    return html.Div([
+        html.Div([
+            html.Div([
+                html.Button(["Invert ", html.I(className="fa fa-adjust")], id='invert-mask',
+                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+            ], className='flex justify-between')
+        ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1')
+    ],
+        id='segmentation-buttons',
+        className='inline-block')
+
+
 def make_tools_callbacks(app):
     @app.callback(
         Output('canvas', 'className'),
         Output('image', 'className'),
         Output('canvas-buttons', 'className'),
+        Output('segmentation-buttons', 'className'),
         Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
         State('canvas', 'className'),
         State('image', 'className'),
         State('canvas-buttons', 'className'),
+        State('segmentation-buttons', 'className'),
     )
-    def update_events(tab_class_names, canvas_class_name, image_class_name, buttons_class_name):
+    def update_events(tab_class_names, canvas_class_name, image_class_name,
+                      inpaint_btns_class, segment_btns_class):
         if tab_class_names is None:
             raise PreventUpdate()
 
@@ -138,7 +156,11 @@ def make_tools_callbacks(app):
             ' z-10', '').replace(' z-0', '')
         image_class_name = image_class_name.replace(
             ' z-10', '').replace(' z-0', '')
-        buttons_class_name = buttons_class_name.replace(' hidden', '')
+        inpaint_btns_class = inpaint_btns_class.replace(' hidden', '')
+        segment_btns_class = segment_btns_class.replace(' hidden', '')
+        
+        # tabs[1] == Segmentation tab
+        # tabs[2] == Inpainting tab
 
         # we paint on the canvas only if the Inpainting tab is active
         if 'hidden' not in tab_class_names[2]:
@@ -147,9 +169,13 @@ def make_tools_callbacks(app):
         else:
             canvas_class_name += ' z-0'
             image_class_name += ' z-10'
-            buttons_class_name += ' hidden'
+            inpaint_btns_class += ' hidden'
+            
+        # we will show the segmentation tools only if the Segmentation tab is active
+        if 'hidden' in tab_class_names[1]:
+            segment_btns_class += ' hidden'
 
-        return canvas_class_name, image_class_name, buttons_class_name    
+        return canvas_class_name, image_class_name, inpaint_btns_class, segment_btns_class
 
 
 def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
@@ -164,11 +190,11 @@ def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
             children=html.Div(id='gen-depthmap-output')
         ),
         html.Button(
-          html.Div([
-            html.Label('Regenerate Depth Map'),
-            html.I(className='fa-solid fa-image pl-1')]),
+            html.Div([
+                html.Label('Regenerate Depth Map'),
+                html.I(className='fa-solid fa-image pl-1')]),
             id='generate-depthmap-button',
-            className='bg-blue-500 text-white p-2 rounded-md mt-2 mb-2'  
+            className='bg-blue-500 text-white p-2 rounded-md mt-2 mb-2'
         ),
         html.Div([
             dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
@@ -374,7 +400,7 @@ def make_inpainting_container_callbacks(app):
 
         state = AppState.from_cache(filename)
         return state.positive_prompt, state.negative_prompt
-    
+
     @app.callback(
         Output('update-slice-request', 'data', allow_duplicate=True),
         Output('logs-data', 'data', allow_duplicate=True),
@@ -398,19 +424,20 @@ def make_inpainting_container_callbacks(app):
             return no_update, logs
         mask = Image.open(mask_filename).convert('L')
         mask = np.array(mask)
-        
-        image_filename = filename_add_version(state.image_slices_filenames[index])
+
+        image_filename = filename_add_version(
+            state.image_slices_filenames[index])
         state.image_slices_filenames[index] = image_filename
-        
-        final_mask = remove_mask_from_alpha(state.image_slices[index], mask)        
+
+        final_mask = remove_mask_from_alpha(state.image_slices[index], mask)
         state.image_slices[index][:, :, 3] = final_mask
-        state.to_file(state.filename, save_image_slices=True, save_depth_map=False, save_input_image=False)
+        state.to_file(state.filename, save_image_slices=True,
+                      save_depth_map=False, save_input_image=False)
         logs.append(f'Inpainting erased for slice {index}')
 
         logs.append(f'Inpainting erased for slice {index}')
 
         return True, logs
-    
 
     @app.callback(
         Output('inpainting-image-display', 'children'),
