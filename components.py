@@ -713,9 +713,9 @@ def make_3d_export_div():
             id="upscale-textures",
             className='bg-blue-500 text-white p-2 rounded-md mb-2'),
         make_slider('camera-distance-slider',
-                    'Camera Distance', 0, 5000, 1, 100),
-        make_slider('max-distance-slider', 'Max Distance', 0, 5000, 1, 500),
-        make_slider('focal-length-slider', 'Focal Length', 0, 5000, 1, 100),
+                    'Camera Distance', 0, 500, 1, 100),
+        make_slider('max-distance-slider', 'Max Distance', 0, 1000, 1, 200),
+        make_slider('focal-length-slider', 'Focal Length', 0, 500, 1, 100),
         html.Label('Mesh Displacement'),
         dcc.Slider(
             id='displacement-slider',
