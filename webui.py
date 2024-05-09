@@ -494,7 +494,7 @@ def delete_slice_request(n_clicks, filename, logs):
         logs.append("No slice selected")
         return no_update, no_update, logs, ""
 
-    logs.append("Delete slice at index {state.selected_slice}")
+    logs.append(f"Deleted slice at index {state.selected_slice}")
 
     state.delete_slice(state.selected_slice)
 
@@ -593,13 +593,19 @@ def create_single_slice_request(n_clicks, filename, logs):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    if state.slice_mask is None:
-        logs.append("No mask selected")
+    if state.imgData is None:
+        logs.append("No image available")
         return no_update, logs, no_update
-
-    image = create_slice_from_mask(
-        state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
-    state.selected_slice = state.add_slice(image, state.slice_pixel_depth)
+    
+    if state.slice_mask is None:
+        # create an empty image that the user can inpaint if they want to
+        image = Image.new('RGBA', state.imgData.size, (0, 0, 0, 0))
+        depth = 127
+    else:
+        depth = state.slice_pixel_depth
+        image = create_slice_from_mask(
+            state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
+    state.selected_slice = state.add_slice(image, depth)
     # may need to optimize what is being saved eventually
     state.to_file(filename)
 
