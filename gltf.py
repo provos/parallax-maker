@@ -374,8 +374,8 @@ def export_gltf(
             emissiveTexture=gltf.TextureInfo(
                 index=i
             ),
-            alphaMode="MASK",
-            alphaCutoff=0.5,
+            alphaMode="BLEND",
+            # alphaCutoff=0.5 if alphaMode is "MASK"
             doubleSided=True
         )
 

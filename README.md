@@ -34,7 +34,7 @@ ffmpeg -framerate 24 -i rendered_image_%03d.png -filter_complex "fps=5,scale=480
 
 # 3D Export
 
-The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender. FYI, when importing into Blender, you need to set the materials to *Alpha Blend*. By default, it's set to *Alpha Clip*.
+The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender.
 
 ![Blender Scene View](example/blender_view.png)
 
