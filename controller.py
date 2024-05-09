@@ -90,9 +90,27 @@ class AppState:
 
         return final_result
     
-    def add_slice(self, slice_image, depth):
+    def change_slice_depth(self, slice_index, depth):
+        """Changes the depth of the slice at the specified index."""
+        assert slice_index >= 0 and slice_index < len(self.image_slices)
+        
+        if depth == self.image_depths[slice_index]:
+            return slice_index
+        
+        filename = self.image_slices_filenames[slice_index]
+        image = self.image_slices[slice_index]
+        
+        # remove it from the lists
+        self.image_depths.pop(slice_index)
+        self.image_slices_filenames.pop(slice_index)
+        self.image_slices.pop(slice_index)
+        
+        return self.add_slice(image, depth, filename=filename)
+    
+    def add_slice(self, slice_image, depth, filename=None):
         """Adds the image as a new slice at the provided depth."""
-        filename = str(Path(self.filename) / f"image_slice_{len(self.image_slices)}.png")
+        if filename is None:
+            filename = str(Path(self.filename) / f"image_slice_{len(self.image_slices)}.png")
         # find the index where the depth should be inserted
         index = len(self.image_depths)
         for i, d in enumerate(self.image_depths):

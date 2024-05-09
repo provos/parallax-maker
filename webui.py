@@ -700,9 +700,17 @@ def update_slices(ignored_data, filename):
                 html.Div([
                     html.Div(
                         # The number to display
-                        f"{int(state.image_depths[i])}",
+                        children=f"{int(state.image_depths[i])}",
+                        id={'type': 'depth-display', 'index': i},
                         className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-amber-800 text-opacity-50 text-center'
                     ),
+                    dcc.Input(id={'type': 'depth-input', 'index': i},
+                              className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center z-10 w-full h-full text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-amber-800 text-opacity-50 hidden',
+                              type='number',
+                              debounce=True,
+                              inputMode='numeric',
+                              maxLength=3,
+                              value=f"{int(state.image_depths[i])}"),
                     html.Img(
                         src=img_data,
                         className=f'w-full h-full object-contain border-solid border-2 border-slate-500{highlight_class}',
@@ -725,6 +733,49 @@ def update_slices(ignored_data, filename):
         state.slice_depth = None
 
     return img_container, "", img_data
+
+
+@app.callback(
+    Output({'type': 'depth-input', 'index': MATCH}, 'className'),
+    Input({'type': 'depth-display', 'index': MATCH}, 'n_clicks'),
+    State({'type': 'depth-input',  'index': MATCH}, 'className'),
+    prevent_initial_call=True
+)
+def display_depth_input(n_clicks, class_name):
+    if n_clicks is None:
+        raise PreventUpdate()
+    
+    class_name = class_name.replace('hidden', '')
+    return class_name
+
+
+@app.callback(
+    Output('update-slice-request', 'data', allow_duplicate=True),
+    Input({'type': 'depth-input', 'index': ALL}, 'value'),
+    Input({'type': 'depth-input', 'index': ALL}, 'n_submit'),
+    State('application-state-filename', 'data'),
+    prevent_initial_call=True
+)
+def record_depth_input(values, n_submits, filename):
+    if filename is None or values is None or n_submits is None:
+        raise PreventUpdate()
+    
+    index = ctx.triggered_id['index']
+    if n_submits[index] is None:
+        raise PreventUpdate()
+    
+    value = int(values[index])
+    
+    # need to re-order and validate the depth values
+    state = AppState.from_cache(filename)
+    
+    new_index = state.change_slice_depth(index, value)
+    if index != new_index:
+        state.selected_slice = None
+        
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
+    return True
 
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
