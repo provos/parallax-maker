@@ -11,3 +11,4 @@ diffusers[torch]>=0.27.2
 transformers>=4.40
 orjson>=3.10.1
 numba>=0.59.1
+websocket-client>=1.8.0
