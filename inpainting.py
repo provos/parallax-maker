@@ -3,7 +3,8 @@
 #
 
 import argparse
-
+import base64
+from io import BytesIO
 import numba as nb
 import torch
 from diffusers import AutoPipelineForInpainting
@@ -13,35 +14,78 @@ import numpy as np
 from PIL import Image
 
 from utils import torch_get_device, find_square_bounding_box, feather_mask, timeit
+from automatic1111 import create_img2img_payload, make_img2img_request
 
 # Possible pretrained models:
 # pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
 # pretrained_model = "runwayml/stable-diffusion-v1-5"
 # pretrained_model = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 
-MODELS = [
-    "kandinsky-community/kandinsky-2-2-decoder-inpaint",
-    "runwayml/stable-diffusion-v1-5",
-    "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
-]
 
+class InpaintingModel:
+    MODELS = [
+        "kandinsky-community/kandinsky-2-2-decoder-inpaint",
+        "runwayml/stable-diffusion-v1-5",
+        "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+    ]
 
-class PipelineSpec:
     def __init__(self,
                  model="diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
-                 variant="fp16",
-                 dimension=1024):
-        self.pretrained_model = model
-        self.variant = variant
-        self.dimension = dimension
+                 **kwargs):
+        """
+        Initializes the Inpainting class.
+
+        Args:
+            model (str): The name of the model to be used for inpainting.
+                Defaults to "diffusers/stable-diffusion-xl-1.0-inpainting-0.1". Can also
+                be "automatic1111" to use the automatic1111 API server.
+            **kwargs: Additional keyword arguments to be passed to the class.
+                At the moment, automatic1111 requires a "server_address" argument.
+
+        Attributes:
+            model (str): The name of the model used for inpainting.
+            kwargs (dict): Additional keyword arguments passed to the class.
+        """
+        self.model = model
+        self.variant = ''
+        self.dimension = 512
+        self.kwargs = kwargs
         self.pipeline = None
 
     def __eq__(self, other):
-        if not isinstance(other, PipelineSpec):
+        if not isinstance(other, InpaintingModel):
             return False
-        return self.pretrained_model == other.pretrained_model and \
+        return self.model == other.model and \
             self.variant == other.variant and \
             self.dimension == other.dimension
+
+    def load_diffusers_model(self):
+        self.dimension = 512
+        self.variant = ''
+        if self.model == "kandinsky-community/kandinsky-2-2-decoder-inpaint":
+            self.dimension = 768
+        elif self.model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
+            self.dimension = 1024
+            self.variant = "fp16"
+
+        kwargs = {}
+        if self.variant:
+            kwargs['variant'] = self.variant
+
+        self.pipeline = AutoPipelineForInpainting.from_pretrained(
+            self.model, torch_dtype=torch.float16, **kwargs
+        )
+
+        device = torch_get_device()
+        self.pipeline.to(device)
+
+        return self.pipeline
+
+    def load_automatic1111_model(self):
+        assert 'server_address' in self.kwargs
+        self.dimension = 1024
+        self.pipeline = self.kwargs['server_address']
+        return self.pipeline
 
     def get_dimension(self):
         return self.dimension
@@ -50,40 +94,91 @@ class PipelineSpec:
         if self.pipeline is not None:
             return self.pipeline
 
-        kwargs = {}
-        if self.variant:
-            kwargs['variant'] = self.variant
+        # diffusers models
+        if self.model in self.MODELS:
+            return self.load_diffusers_model()
 
-        self.pipeline = AutoPipelineForInpainting.from_pretrained(
-            self.pretrained_model, torch_dtype=torch.float16, **kwargs
+        if self.model == "automatic1111":
+            return self.load_automatic1111_model()
+
+        return None
+
+    def inpaint(self, prompt, negative_prompt, init_image, mask_image,
+                strength=0.7, guidance_scale=8, num_inference_steps=50, padding=50, blur_radius=50,
+                crop=False, seed=-1):
+        original_init_image = init_image.copy()
+
+        if crop:
+            bounding_box = find_square_bounding_box(
+                mask_image, padding=padding)
+            init_image = init_image.crop(bounding_box)
+            mask_image = mask_image.crop(bounding_box)
+
+        blurred_mask = feather_mask(mask_image, num_expand=blur_radius)
+
+        # resize images to match the model input size
+        dimension = self.get_dimension()
+        resize_init_image = init_image.convert(
+            'RGB').resize((dimension, dimension))
+        resize_mask_image = blurred_mask.resize((dimension, dimension))
+
+        if self.model in self.MODELS:
+            image = self.inpaint_diffusers(
+                resize_init_image, resize_mask_image,
+                prompt, negative_prompt,
+                strength, guidance_scale, num_inference_steps, seed)
+        elif self.model == "automatic1111":
+            image = self.inpaint_automatic1111(
+                resize_init_image, resize_mask_image,
+                prompt, negative_prompt,
+                strength, guidance_scale, num_inference_steps, seed)
+        else:
+            raise ValueError(f"Model {self.model} is not supported.")
+
+        image = image.resize(init_image.size, resample=Image.BICUBIC)
+        image = image.convert('RGBA')
+
+        image.putalpha(blurred_mask)
+
+        image = Image.alpha_composite(init_image, image)
+
+        if crop:
+            original_init_image.paste(image, bounding_box[:2])
+            image = original_init_image
+
+        return image
+
+    def inpaint_automatic1111(self,
+                              resize_init_image, resize_mask_image,
+                              prompt, negative_prompt,
+                              strength, guidance_scale, num_inference_steps, seed):
+        server_address = self.kwargs['server_address']
+        payload = create_img2img_payload(
+            resize_init_image, prompt, negative_prompt,
+            mask_image=resize_mask_image,
+            strength=strength,
+            steps=num_inference_steps,
+            cfg_scale=guidance_scale
         )
+        images = make_img2img_request(server_address, payload)
+        if len(images) != 1:
+            raise ValueError("Expected one image from the server.")
+        return Image.open(BytesIO(base64.b64decode(images[0])))
 
-        device = torch_get_device()
-        self.pipeline.to(device)
+    def inpaint_diffusers(self,
+                          resize_init_image, resize_mask_image,
+                          prompt, negative_prompt,
+                          strength, guidance_scale, num_inference_steps, seed):
+        if seed == -1:
+            seed = np.random.randint(0, 2**32)
+        generator = torch.Generator(torch_get_device()).manual_seed(seed)
+        pipeline = self.pipeline
+        image = pipeline(prompt=prompt, negative_prompt=negative_prompt,
+                         image=resize_init_image, mask_image=resize_mask_image, generator=generator,
+                         strength=strength, guidance_scale=guidance_scale,
+                         num_inference_steps=num_inference_steps).images[0]
 
-        return self.pipeline
-
-
-def pipelinespec_from_model(model="diffusers/stable-diffusion-xl-1.0-inpainting-0.1"):
-    """
-    Create a PipelineSpec object based on the given model.
-
-    Args:
-        model (str): The name of the model.
-
-    Returns:
-        PipelineSpec: The PipelineSpec object with the specified model, variant, and dimension.
-    """
-    assert model in MODELS
-
-    dimension = 512
-    variant = ''
-    if model == "kandinsky-community/kandinsky-2-2-decoder-inpaint":
-        dimension = 768
-    elif model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
-        dimension = 1024
-        variant = "fp16"
-    return PipelineSpec(model=model, variant=variant, dimension=dimension)
+        return image
 
 
 def prefetch_models(fetch_all_models=False):
@@ -97,51 +192,10 @@ def prefetch_models(fetch_all_models=False):
         None
     """
     if fetch_all_models:
-        for model in MODELS:
-            pipelinespec_from_model(model).load_model()
+        for model in InpaintingModel.MODELS:
+            InpaintingModel(model).load_model()
     else:
-        pipelinespec_from_model().load_model()
-
-
-def inpaint(pipelinespec, prompt, negative_prompt, init_image, mask_image,
-            strength=0.7, guidance_scale=8, num_inference_steps=50, padding=50, blur_radius=50,
-            crop=False, seed=-1):
-    original_init_image = init_image.copy()
-
-    if crop:
-        bounding_box = find_square_bounding_box(mask_image, padding=padding)
-        init_image = init_image.crop(bounding_box)
-        mask_image = mask_image.crop(bounding_box)
-
-    blurred_mask = feather_mask(mask_image, num_expand=blur_radius)
-
-    # resize images to match the model input size
-    pipeline = pipelinespec.pipeline
-    dimension = pipelinespec.get_dimension()
-    resize_init_image = init_image.convert(
-        'RGB').resize((dimension, dimension))
-    resize_mask_image = blurred_mask.resize((dimension, dimension))
-
-    if seed == -1:
-        seed = np.random.randint(0, 2**32)
-    generator = torch.Generator(torch_get_device()).manual_seed(seed)
-    image = pipeline(prompt=prompt, negative_prompt=negative_prompt,
-                     image=resize_init_image, mask_image=resize_mask_image, generator=generator,
-                     strength=strength, guidance_scale=guidance_scale,
-                     num_inference_steps=num_inference_steps).images[0]
-
-    image = image.resize(init_image.size, resample=Image.BICUBIC)
-    image = image.convert('RGBA')
-
-    image.putalpha(blurred_mask)
-
-    image = Image.alpha_composite(init_image, image)
-
-    if crop:
-        original_init_image.paste(image, bounding_box[:2])
-        image = original_init_image
-
-    return image
+        InpaintingModel().load_model()
 
 
 def load_image_from_file(image_path, mode='RGB'):
@@ -285,6 +339,8 @@ def main():
                         default='inpainted_image.png', help='Path to the output filename')
     parser.add_argument('-a', '--patch', action='store_true',
                         help='Patch the image using the fast inpainting algorithm.')
+    parser.add_argument('-s', '--strength', type=float, default=0.7,
+                        help='The strength of diffusion applied to the image')
     parser.add_argument('-p', '--prompt', type=str,
                         default='a black cat with glowing eyes, cute, adorable, disney, pixar, highly detailed, 8k',
                         help='The positive prompt to use for inpainting')
@@ -299,15 +355,16 @@ def main():
     init_image = Image.fromarray(init_image)
 
     if not args.patch:
-        pipeline = PipelineSpec(
-            'diffusers/stable-diffusion-xl-1.0-inpainting-0.1',
-            variant='fp16',
-            dimension=1024)
+        pipeline = InpaintingModel(
+            'diffusers/stable-diffusion-xl-1.0-inpainting-0.1')
+        # pipeline = InpaintingModel(
+        #    'automatic1111', server_address='localhost:7860')
 
         pipeline.load_model()
 
-        new_image = inpaint(pipeline, args.prompt,
-                            args.negative_prompt, init_image, mask_image, crop=True)
+        new_image = pipeline.inpaint(
+            args.prompt, args.negative_prompt, init_image, mask_image,
+            strength=args.strength, crop=True)
     else:
         new_image = init_image
 

@@ -15,9 +15,10 @@ from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
 from dash.exceptions import PreventUpdate
 
 # Local application/library specific imports
+from automatic1111 import make_models_request
 from controller import AppState
 from utils import to_image_url, filename_add_version
-from inpainting import inpaint, pipelinespec_from_model, patch_image
+from inpainting import InpaintingModel, patch_image
 from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
 
 
@@ -161,7 +162,7 @@ def make_tools_callbacks(app):
             ' z-10', '').replace(' z-0', '')
         inpaint_btns_class = inpaint_btns_class.replace(' hidden', '')
         segment_btns_class = segment_btns_class.replace(' hidden', '')
-        
+
         # tabs[1] == Segmentation tab
         # tabs[2] == Inpainting tab
 
@@ -173,7 +174,7 @@ def make_tools_callbacks(app):
             canvas_class_name += ' z-0'
             image_class_name += ' z-10'
             inpaint_btns_class += ' hidden'
-            
+
         # we will show the segmentation tools only if the Segmentation tab is active
         if 'hidden' in tab_class_names[1]:
             segment_btns_class += ' hidden'
@@ -448,6 +449,7 @@ def make_inpainting_container_callbacks(app):
         Input('generate-inpainting-button', 'n_clicks'),
         State('application-state-filename', 'data'),
         State('inpainting-model-dropdown', 'value'),
+        State('automatic-server-address', 'value'),
         State('positive-prompt', 'value'),
         State('negative-prompt', 'value'),
         State('inpaint-stength', 'value'),
@@ -458,6 +460,7 @@ def make_inpainting_container_callbacks(app):
     )
     def update_inpainting_image_display(
             n_clicks, filename, model,
+            server_address,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur):
@@ -484,13 +487,13 @@ def make_inpainting_container_callbacks(app):
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
-        pipelinespec = pipelinespec_from_model(model)
-        if state.pipeline_spec is None or state.pipeline_spec != pipelinespec:
-            state.pipeline_spec = pipelinespec
-            pipelinespec.load_model()
+        pipeline = InpaintingModel(model, server_address=server_address)
+        if state.pipeline_spec is None or state.pipeline_spec != pipeline:
+            state.pipeline_spec = pipeline
+            pipeline.load_model()
 
         image = state.image_slices[index]
-        # check if image is a PIL image and conver it if necessary
+        # check if image is a PIL image and convert it if necessary
         # XXX - refactor to make this always a PIL image
         if not isinstance(image, Image.Image):
             image = Image.fromarray(image, mode='RGBA')
@@ -502,10 +505,10 @@ def make_inpainting_container_callbacks(app):
 
         images = []
         for i in range(3):
-            new_image = inpaint(state.pipeline_spec, positive_prompt,
-                                negative_prompt, image, mask,
-                                strength=strength, guidance_scale=guidance_scale,
-                                crop=True)
+            new_image = pipeline.inpaint(
+                positive_prompt, negative_prompt, image, mask,
+                strength=strength, guidance_scale=guidance_scale,
+                crop=True)
             images.append(new_image)
 
         children = []
@@ -590,6 +593,51 @@ def make_inpainting_container_callbacks(app):
         return True, logs, True
 
 
+def make_configuration_callbacks(app):
+    @app.callback(
+        Output('automatic-config-container', 'className'),
+        Input('inpainting-model-dropdown', 'value'),
+        State('automatic-config-container', 'className')
+    )
+    def toggle_automatic_config(value, class_name):
+        class_name = class_name.replace(' hidden', '')
+        if value != 'automatic1111':
+            class_name += ' hidden'
+        return class_name
+    
+    @app.callback(
+        Output('logs-data', 'data', allow_duplicate=True),
+        Output('automatic-server-address', 'className'),
+        Input('automatic-test-connection-button', 'n_clicks'),
+        State('automatic-server-address', 'value'),
+        State('automatic-server-address', 'className'),
+        State('logs-data', 'data'),
+        prevent_initial_call=True)
+    def test_automatic_connection(n_clicks, server_address, class_name, logs):
+        if n_clicks is None:
+            raise PreventUpdate()
+        
+        success_class = ' bg-green-200'
+        failure_class = ' bg-red-200'
+        
+        class_name = class_name.replace(success_class, '').replace(failure_class, '')
+
+        success = False
+        try:
+            models = make_models_request(server_address)
+            if models is not None:
+                logs.append(f'Connection to Automatic1111 successful: {models}')
+                success = True
+            else:
+                logs.append(f'Connection to Automatic1111 failed')
+        except Exception as e:
+            logs.append(f'Connection to Automatic1111 failed: {str(e)}')
+            
+        class_name += success_class if success else failure_class
+            
+        return logs, class_name
+
+
 def make_configuration_container():
     return make_label_container(
         'Configuration',
@@ -630,11 +678,37 @@ def make_configuration_div():
                         'value': 'kandinsky-community/kandinsky-2-2-decoder-inpaint'},
                     {'label': 'SD 1.5', 'value': 'unwayml/stable-diffusion-v1-5'},
                     {'label': 'SD XL 1.0',
-                        'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'}
+                        'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'},
+                    {'label': 'Automatic1111', 'value': 'automatic1111'},
                 ],
                 value='diffusers/stable-diffusion-xl-1.0-inpainting-0.1'
             )
         ], className='w-full'),
+        html.Div([
+            html.Label('Automatic1111 Server Address'),
+            html.Div([
+                dcc.Input(
+                    id='automatic-server-address',
+                    value='localhost:7860',
+                    type='text',
+                    # Adjust the width as needed, e.g., w-3/4
+                    className='p-2 border border-gray-300 rounded-md mb-2 flex-grow'
+                ),
+                html.Button(
+                    html.Div([
+                        html.Label('Test Connection'),
+                        html.I(className='fa-solid fa-network-wired pl-1')
+                    ]),
+                    id='automatic-test-connection-button',
+                    # Adjust the width and other margin as needed
+                    className='bg-blue-500 text-white p-2 rounded-md mb-2 ml-2'
+                ),
+            ],
+                # Set the container to display flex for a row layout
+                className='flex flex-row items-center w-full')
+        ],
+            id='automatic-config-container',
+            className='w-full'),
         html.Div([
             html.Label('Inpainting Parameters'),
             html.Div([
@@ -863,8 +937,9 @@ def make_tabs_callback(app, tab_id: str):
 
         return [None] * len(n_clicks), label_class, content_class
 
+
 def make_segmentation_callbacks(app):
-    @app.callback(Output('image', 'src', allow_duplicate=True), 
+    @app.callback(Output('image', 'src', allow_duplicate=True),
                   Output('logs-data', 'data', allow_duplicate=True),
                   Input('invert-mask', 'n_clicks'),
                   State('application-state-filename', 'data'),
@@ -873,17 +948,17 @@ def make_segmentation_callbacks(app):
     def invert_mask(n_clicks, filename, logs):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
-        
+
         state = AppState.from_cache(filename)
         if state.slice_mask is None:
             logs.append('No mask to invert')
             return no_update, logs
-        
+
         state.slice_mask = 255 - state.slice_mask
-        
+
         image = state.apply_mask(state.imgData, state.slice_mask)
         logs.append('Inverted mask')
-        
+
         return image, logs
 
     @app.callback(Output('image', 'src', allow_duplicate=True),
@@ -903,7 +978,8 @@ def make_segmentation_callbacks(app):
 
         # blur the mask
         feather_amount = 10
-        state.slice_mask = cv2.blur(state.slice_mask, (feather_amount, feather_amount))
+        state.slice_mask = cv2.blur(
+            state.slice_mask, (feather_amount, feather_amount))
 
         image = state.apply_mask(state.imgData, state.slice_mask)
         logs.append(f'Feathered mask by {feather_amount} pixels')
