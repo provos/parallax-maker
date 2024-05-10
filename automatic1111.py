@@ -125,9 +125,6 @@ if __name__ == '__main__':
     parser.add_argument('-s', '--server', type=str, help='Server address')
     args = parser.parse_args()
 
-    print(make_models_request(args.server))
-    exit()
-
     image = Image.open(args.input_image)
     mask_image = None
     if args.mask_image is not None:
