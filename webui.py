@@ -26,7 +26,7 @@ from utils import (
 )
 from depth import DepthEstimationModel
 from instance import SegmentationModel
-from inpainting import prefetch_models
+from inpainting import InpaintingModel
 
 
 import dash
@@ -163,6 +163,7 @@ components.make_segmentation_callbacks(app)
 components.make_canvas_callbacks(app)
 components.make_navigation_callbacks(app)
 components.make_inpainting_container_callbacks(app)
+components.make_configuration_callbacks(app)
 
 
 # Callbacks for collapsible sections
@@ -1172,14 +1173,13 @@ if __name__ == '__main__':
         if args.prefetch_models in ['all', 'default']:
             print("Prefetching models")
             if args.prefetch_models == 'all':
-                for model in [DepthEstimationModel, SegmentationModel]:
+                for model in [DepthEstimationModel, SegmentationModel, InpaintingModel]:
                     for model_name in model.MODELS:
                         model(model_name).load_model()
-                prefetch_models(fetch_all_models=True)
             else:
                 DepthEstimationModel().load_model()
                 SegmentationModel().load_model()
-                prefetch_models(fetch_all_models=False)
+                InpaintingModel().load_model()
         elif args.prefetch_models is not None:
             print(f'Invalid prefetch models argument: {args.prefetch_models}; use "all" or "default"')
             exit(1)
