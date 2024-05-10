@@ -138,7 +138,7 @@ def get_history(server_address, prompt_id):
         return json.loads(response.read())
 
 
-def inpaiting_comfyui(
+def inpainting_comfyui(
         server_address, workflow_path,
         image_path, mask_path,
         prompt, negative_prompt,
@@ -190,7 +190,7 @@ def main():
 
     server_address = "localhost:8188"
 
-    image = inpaiting_comfyui(
+    image = inpainting_comfyui(
         server_address, args.workflow,
         args.image, args.mask, 
         args.prompt, args.negative_prompt, args.strength)
