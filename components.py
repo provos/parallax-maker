@@ -16,6 +16,7 @@ from dash.exceptions import PreventUpdate
 
 # Local application/library specific imports
 from automatic1111 import make_models_request
+from comfyui import inpainting_comfyui, get_history
 from controller import AppState
 from utils import to_image_url, filename_add_version
 from inpainting import InpaintingModel, patch_image
@@ -449,7 +450,7 @@ def make_inpainting_container_callbacks(app):
         Input('generate-inpainting-button', 'n_clicks'),
         State('application-state-filename', 'data'),
         State('inpainting-model-dropdown', 'value'),
-        State('automatic-server-address', 'value'),
+        State('external-server-address', 'value'),
         State('positive-prompt', 'value'),
         State('negative-prompt', 'value'),
         State('inpaint-stength', 'value'),
@@ -594,6 +595,9 @@ def make_inpainting_container_callbacks(app):
 
 
 def make_configuration_callbacks(app):
+    success_class = ' bg-green-200'
+    failure_class = ' bg-red-200'
+        
     @app.callback(
         Output('automatic-config-container', 'className'),
         Input('inpainting-model-dropdown', 'value'),
@@ -601,37 +605,46 @@ def make_configuration_callbacks(app):
     )
     def toggle_automatic_config(value, class_name):
         class_name = class_name.replace(' hidden', '')
-        if value != 'automatic1111':
+        if value != 'automatic1111' and value != 'comfyui':
             class_name += ' hidden'
         return class_name
     
     @app.callback(
+        Output('external-server-address', 'className', allow_duplicate=True),
+        Input('external-server-address', 'value'),
+        State('external-server-address', 'className'),
+        prevent_initial_call=True)
+    def reset_external_server_address(value, class_name):
+        return class_name.replace(success_class, '').replace(failure_class, '')
+    
+    @app.callback(
         Output('logs-data', 'data', allow_duplicate=True),
-        Output('automatic-server-address', 'className'),
-        Input('automatic-test-connection-button', 'n_clicks'),
-        State('automatic-server-address', 'value'),
-        State('automatic-server-address', 'className'),
+        Output('external-server-address', 'className'),
+        Input('external-test-connection-button', 'n_clicks'),
+        State('external-server-address', 'value'),
+        State('external-server-address', 'className'),
+        State('inpainting-model-dropdown', 'value'),
         State('logs-data', 'data'),
         prevent_initial_call=True)
-    def test_automatic_connection(n_clicks, server_address, class_name, logs):
+    def test_external_connection(n_clicks, server_address, class_name, model, logs):
         if n_clicks is None:
             raise PreventUpdate()
-        
-        success_class = ' bg-green-200'
-        failure_class = ' bg-red-200'
         
         class_name = class_name.replace(success_class, '').replace(failure_class, '')
 
         success = False
         try:
-            models = make_models_request(server_address)
-            if models is not None:
-                logs.append(f'Connection to Automatic1111 successful: {models}')
+            if model == 'automatic1111':
+                data = make_models_request(server_address)
+            else:
+                data = get_history(server_address, 'test')
+            if data is not None:
+                logs.append(f'Connection to {model} successful: {data}')
                 success = True
             else:
-                logs.append(f'Connection to Automatic1111 failed')
+                logs.append(f'Connection to {model} failed')
         except Exception as e:
-            logs.append(f'Connection to Automatic1111 failed: {str(e)}')
+            logs.append(f'Connection to {model} failed: {str(e)}')
             
         class_name += success_class if success else failure_class
             
@@ -680,15 +693,16 @@ def make_configuration_div():
                     {'label': 'SD XL 1.0',
                         'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'},
                     {'label': 'Automatic1111', 'value': 'automatic1111'},
+                    {'label': 'ComfyUI', 'value': 'comfyui'},
                 ],
                 value='diffusers/stable-diffusion-xl-1.0-inpainting-0.1'
             )
         ], className='w-full'),
         html.Div([
-            html.Label('Automatic1111 Server Address'),
+            html.Label('A1111/ComfyUI Server Address'),
             html.Div([
                 dcc.Input(
-                    id='automatic-server-address',
+                    id='external-server-address',
                     value='localhost:7860',
                     type='text',
                     # Adjust the width as needed, e.g., w-3/4
@@ -699,7 +713,7 @@ def make_configuration_div():
                         html.Label('Test Connection'),
                         html.I(className='fa-solid fa-network-wired pl-1')
                     ]),
-                    id='automatic-test-connection-button',
+                    id='external-test-connection-button',
                     # Adjust the width and other margin as needed
                     className='bg-blue-500 text-white p-2 rounded-md mb-2 ml-2'
                 ),
