@@ -5,7 +5,7 @@ from io import BytesIO
 import json
 import argparse
 
-from utils import to_image_url, image_from_data_url
+from utils import to_image_url
 
 MAX_DIMENSION = 2048
 
