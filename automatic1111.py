@@ -53,14 +53,14 @@ def create_img2img_payload(
         "height": height,
         "steps": steps,
         "cfg_scale": cfg_scale,
-        "mask_blur_x": 0, # if we provide a mask it's already blurred
+        "mask_blur_x": 0,  # if we provide a mask it's already blurred
         "mask_blur_y": 0,
         "mask_blur": 0,
     }
-    
+
     if mask_image is not None:
         payload["mask"] = to_image_url(mask_image)
-    
+
     return payload
 
 
@@ -109,7 +109,7 @@ def make_models_request(server_address):
     return [entry["model_name"] for entry in response]
 
 
-if __name__ == '__main__':
+def main():
     # Parse arguments - input image, positive prompt, negative prompt, server address
     parser = argparse.ArgumentParser(description='Process some integers.')
     parser.add_argument('-i', '--input-image', type=str,
@@ -140,3 +140,7 @@ if __name__ == '__main__':
             image = Image.open(BytesIO(base64.b64decode(image)))
             image.show()
             input("Press Enter to continue...")
+
+
+if __name__ == '__main__':
+    main()
