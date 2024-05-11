@@ -434,6 +434,9 @@ def generate_depth_map_callback(ignored_data, filename, model):
 
     print(f'Received a request to generate a depth map for state f{filename}')
     state = AppState.from_cache(filename)
+    
+    # we should update the depth model name more consistently
+    state.depth_model_name = model
 
     PIL_image = state.imgData
 
@@ -925,21 +928,31 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
               State('max-distance-slider', 'value'),
               State('focal-length-slider', 'value'),
               State('displacement-slider', 'value'),
+              State('depth-module-dropdown', 'value'),
               prevent_initial_call=True
               )
-def gltf_create(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
+def gltf_create(
+    n_clicks, filename,
+    camera_distance, max_distance, focal_length,
+    displacement_scale, model_name):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    state.depth_model_name = model_name
 
     export_state_as_gltf(
-        state, filename, camera_distance, max_distance, focal_length, displacement_scale)
+        state, filename,
+        camera_distance, max_distance, focal_length,
+        displacement_scale, model=model_name)
 
     return get_gltf_iframe(state.serve_model_file()), ""
 
 
-def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_length, displacement_scale):
+def export_state_as_gltf(
+    state, filename,
+    camera_distance, max_distance, focal_length,
+    displacement_scale, model='midas'):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.image_depths, camera_distance, max_distance, focal_length)
@@ -950,7 +963,7 @@ def export_state_as_gltf(state, filename, camera_distance, max_distance, focal_l
             print(f"Generating depth map for slice {i}")
             depth_filename = state.depth_filename(i)
             if not depth_filename.exists():
-                model = DepthEstimationModel(model='midas')
+                model = DepthEstimationModel(model=model)
                 if model != state.depth_estimation_model:
                     state.depth_estimation_model = model
                 depth_map = generate_depth_map(
