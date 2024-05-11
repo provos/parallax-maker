@@ -35,6 +35,8 @@ class AppState:
         self.image_depths = []
         self.image_slices_filenames = []
 
+        self.depth_model_name = None
+
         self.positive_prompt = ""
         self.negative_prompt = ""
         
@@ -509,8 +511,11 @@ class AppState:
             'image_slices_filenames': self.image_slices_filenames,
             'positive_prompt': self.positive_prompt,
             'negative_prompt': self.negative_prompt,
-            'server_address': self.server_address if self.server_address is not None else ''
         }
+        if self.depth_model_name is not None:
+            data['depth_model_name'] = self.depth_model_name
+        if self.server_address is not None:
+            data['server_address'] = self.server_address
         return json.dumps(data)
 
     @staticmethod
@@ -535,6 +540,9 @@ class AppState:
         state.imgThresholds = data['imgThresholds']
         state.image_depths = data['image_depths'] if 'image_depths' in data else state.imgThresholds[1:]
         state.image_slices_filenames = data['image_slices_filenames']
+        
+        state.depth_model_name = data['depth_model_name'] if 'depth_model_name' in data else None
+        
         state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
         state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
         
