@@ -49,3 +49,8 @@ A simple Dash based Web UI provides a browser assisted workflow to generated sli
 
 # Watch the Video
 [![Watch the video](example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
+
+# Advanced Use Cases
+Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialzied inpainting models and workflow. Here is [an example](example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
+
+![Example configuration for ComfyUI](example/external_config.png)
