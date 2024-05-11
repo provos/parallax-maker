@@ -16,7 +16,7 @@ from dash.exceptions import PreventUpdate
 
 # Local application/library specific imports
 from automatic1111 import make_models_request
-from comfyui import inpainting_comfyui, get_history
+from comfyui import get_history, patch_inpainting_workflow
 from controller import AppState
 from utils import to_image_url, filename_add_version
 from inpainting import InpaintingModel, patch_image
@@ -325,8 +325,8 @@ def make_inpainting_container():
             dcc.Slider(
                 id='inpaint-stength',
                 min=0,
-                max=2,
-                step=0.1,
+                max=1,
+                step=0.01,
                 value=0.8,
                 marks=None,
                 tooltip={"placement": "bottom", "always_visible": True}
@@ -451,6 +451,7 @@ def make_inpainting_container_callbacks(app):
         State('application-state-filename', 'data'),
         State('inpainting-model-dropdown', 'value'),
         State('external-server-address', 'value'),
+        State('comfyui-workflow-upload', 'contents'),
         State('positive-prompt', 'value'),
         State('negative-prompt', 'value'),
         State('inpaint-stength', 'value'),
@@ -461,7 +462,7 @@ def make_inpainting_container_callbacks(app):
     )
     def update_inpainting_image_display(
             n_clicks, filename, model,
-            server_address,
+            server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur):
@@ -488,7 +489,29 @@ def make_inpainting_container_callbacks(app):
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
-        pipeline = InpaintingModel(model, server_address=server_address)
+        if model == 'comfyui':
+            if workflow is not None and len(workflow) > 0:
+                workflow_path = state.workflow_path()
+
+                need_to_update = False
+                if not workflow_path.exists():
+                    need_to_update = True
+                else:
+                    old_workflow = workflow_path.read_bytes()
+                    if old_workflow != workflow:
+                        need_to_update = True
+
+                if need_to_update:
+                    # dcc.Upload always has the format 'data:filetype;base64,'
+                    workflow = workflow.split(',')[1]
+                    workflow = base64.b64decode(workflow)
+                    workflow_path.write_bytes(workflow)
+                    print('ComfyUI workflow updated')
+
+        pipeline = InpaintingModel(
+            model,
+            server_address=server_address,
+            workflow_path=workflow_path)
         if state.pipeline_spec is None or state.pipeline_spec != pipeline:
             state.pipeline_spec = pipeline
             pipeline.load_model()
@@ -597,6 +620,42 @@ def make_inpainting_container_callbacks(app):
 def make_configuration_callbacks(app):
     success_class = ' bg-green-200'
     failure_class = ' bg-red-200'
+
+    @app.callback(
+        Output('comfyui-workflow-upload', 'contents'),
+        Output('comfyui-workflow-upload', 'children'),
+        Output('logs-data', 'data', allow_duplicate=True),
+        Input('comfyui-workflow-upload', 'contents'),
+        State('comfyui-workflow-upload', 'filename'),
+        State('application-state-filename', 'data'),
+        State('logs-data', 'data'),
+        prevent_initial_call=True)
+    def validate_workflow(contents, upload_name, filename, logs):
+        if contents is None:
+            raise PreventUpdate()
+
+        # remove the data URL prefix
+        contents = contents.split(',')[1]
+        contents = base64.b64decode(contents)
+
+        try:
+            patch_inpainting_workflow(
+                contents, 'image', 'mask', 'positive', 'negative')
+            logs.append('ComfyUI workflow validated')
+        except Exception as e:
+            logs.append(f'ComfyUI workflow validation failed: {str(e)}')
+            return "", ['Drag and Drop or ', html.I(
+                        className='fa-solid fa-upload'), ' to upload'], logs
+
+        if filename is not None:
+            state = AppState.from_cache(filename)
+            workflow_path = state.workflow_path()
+            with open(workflow_path, 'wb') as f:
+                f.write(contents)
+            state.to_file(state.filename, save_image_slices=False,
+                          save_depth_map=False, save_input_image=False)
+
+        return no_update, upload_name, logs
 
     @app.callback(
         Output('automatic-config-container', 'className'),

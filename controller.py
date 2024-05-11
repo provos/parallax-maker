@@ -22,6 +22,7 @@ class AppState:
     DEPTH_MAP_FILE = 'depth_map.png'
     MAIN_IMAGE = 'main_image.bmp'
     MODEL_FILE = 'model.gltf'
+    WORKFLOW = 'workflow.json'
 
     cache = {}
 
@@ -242,6 +243,10 @@ class AppState:
         image_path = Path(self.SRV_DIR) / save_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
+    
+    def workflow_path(self):
+        """Returns the workflow path."""
+        return Path(self.filename) / self.WORKFLOW
 
     def _make_filename(self, slice_index, suffix):
         assert slice_index >= 0 and slice_index < len(

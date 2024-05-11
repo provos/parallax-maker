@@ -48,12 +48,26 @@ def patch_inpainting_workflow(
 
     latent_id = sampler['inputs']['latent_image'][0]
     latent_node = workflow.get(latent_id)
+    
+    # this is very fragile and is not going to work in general
+    mask_id = None
+    if latent_node['class_type'] == 'SetLatentNoiseMask':
+        mask_id = latent_node['inputs']['mask'][0]
+        latent_id = latent_node['inputs']['samples'][0]
+        latent_node = workflow.get(latent_id)
 
-    image_id = latent_node['inputs']['pixels'][0]
-    mask_id = latent_node['inputs']['mask'][0]
+    if latent_node['class_type'] == 'VAEEncode':
+        image_id = latent_node['inputs']['pixels'][0]
+        if mask_id is None:
+            mask_id = latent_node['inputs']['mask'][0]
+    else:
+        raise ValueError(f"Unknown node type: {latent_node['class_type']}")
 
     image_node = workflow.get(image_id)
     mask_node = workflow.get(mask_id)
+
+    assert 'image' in image_node['inputs'], 'Image node does not have an image input'
+    assert 'image' in mask_node['inputs'], 'Mask node does not have an image input'
 
     image_node['inputs']['image'] = image
     mask_node['inputs']['image'] = mask
