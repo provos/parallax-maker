@@ -1,8 +1,10 @@
 import argparse
 import json
 import io
+import os
 from PIL import Image
 from urllib import request, parse
+import random
 import requests
 
 import uuid
@@ -20,7 +22,7 @@ def load_workflow(workflow_path):
 
 def patch_inpainting_workflow(
         workflow, image, mask, prompt, negative_prompt,
-        strength=0.8, steps=1, cfg_scale=5.0):
+        strength=0.8, steps=1, cfg_scale=5.0, seed=-1):
     workflow = json.loads(workflow)
 
     # find the sampler note in workflow
@@ -31,6 +33,10 @@ def patch_inpainting_workflow(
     sampler['inputs']['denoise'] = strength
     sampler['inputs']['steps'] = steps
     sampler['inputs']['cfg'] = cfg_scale
+    
+    if seed == -1:
+        seed = random.randint(0, 2**32-1)
+    sampler['inputs']['seed'] = seed
 
     positive_id = sampler['inputs']['positive'][0]
     positive_node = workflow.get(positive_id)
@@ -138,33 +144,68 @@ def get_history(server_address, prompt_id):
         return json.loads(response.read())
 
 
+def temporary_filename(prefix='tmp', suffix='.png'):
+    return f"{prefix}-{uuid.uuid4()}{suffix}"
+
+
 def inpainting_comfyui(
         server_address, workflow_path,
-        image_path, mask_path,
+        image, mask,
         prompt, negative_prompt,
-        strength=0.5, steps=40, cfg_scale=5.0):
+        strength=0.5, steps=40, cfg_scale=5.0, seed=-1):
+    """
+    Perform inpainting using an external ComfyUI server.
+
+    Args:
+        server_address (str): The address of the server.
+        workflow_path (str): The path to the workflow file.
+        image (PIL.Image): The input image.
+        mask (PIL.Image): The mask indicating the areas to be inpainted.
+        prompt (str): The prompt for the inpainting process.
+        negative_prompt (str): The negative prompt for the inpainting process.
+        strength (float, optional): The strength of the inpainting. Defaults to 0.5.
+        steps (int, optional): The number of steps for the inpainting process. Defaults to 40.
+        cfg_scale (float, optional): The scale factor for the configuration. Defaults to 5.0.
+        seed (int, optional): The seed for the inpainting process. Defaults to -1.
+
+    Returns:
+        PIL.Image: The inpainted image.
+    """
     workflow = load_workflow(workflow_path)
     if workflow is None:        
         return None
 
     client_id = str(uuid.uuid4())
 
-    image = upload_image(server_address, image_path, overwrite=True)
-    mask = upload_image(server_address, mask_path, overwrite=True)
+    # we assume PIL images
+    image_path = temporary_filename()
+    image.save(image_path)
+    mask_path = temporary_filename()
+    mask.save(mask_path)
 
-    workflow = patch_inpainting_workflow(
-        workflow, image, mask, prompt, negative_prompt,
-        strength=strength, steps=steps, cfg_scale=cfg_scale)
+    image = None
+    try:
+        image = upload_image(server_address, image_path, overwrite=True)
+        mask = upload_image(server_address, mask_path, overwrite=True)
 
-    status = queue_prompt(server_address, client_id, workflow)
-    prompt_id = status['prompt_id']
+        workflow = patch_inpainting_workflow(
+            workflow, image, mask, prompt, negative_prompt,
+            strength=strength, steps=steps, cfg_scale=cfg_scale, seed=seed)
 
-    images = get_images(server_address, client_id, prompt_id)
+        status = queue_prompt(server_address, client_id, workflow)
+        prompt_id = status['prompt_id']
 
-    # XXX - only one image for now
-    id = list(images.keys())[0]
-    image_data = images[id][0]
-    image = Image.open(io.BytesIO(image_data))
+        images = get_images(server_address, client_id, prompt_id)
+
+        # XXX - only one image for now
+        id = list(images.keys())[0]
+        image_data = images[id][0]
+        image = Image.open(io.BytesIO(image_data))
+    finally:
+        # remove temporary files
+        os.remove(image_path)
+        os.remove(mask_path)
+        
     return image
 
 
@@ -189,10 +230,13 @@ def main():
     args = argsparse.parse_args()
 
     server_address = "localhost:8188"
+    
+    image = Image.open(args.image)
+    mask = Image.open(args.mask)
 
     image = inpainting_comfyui(
         server_address, args.workflow,
-        args.image, args.mask, 
+        image, mask, 
         args.prompt, args.negative_prompt, args.strength)
     image.show()
 
