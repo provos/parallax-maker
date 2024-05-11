@@ -299,7 +299,10 @@ def patch_pixels(image, mask_image, nearest_alpha, patch_indices):
             weights = 1 / (distances[:count] + 1)
             average_color = np.sum(
                 surrounding_pixels[:count] * weights.reshape(-1, 1), axis=0) / np.sum(weights)
-            image[i, j, :3] = average_color
+            # alpha blend the patched color with the original color
+            alpha = image[i, j, 3]
+            orig_color = image[i, j, :3]
+            image[i, j, :3] = alpha / 255.0 * orig_color + (255.0 - alpha)/255.0 * average_color
             image[i, j, 3] = max(mask_image[i, j], image[i, j, 3])
 
 
@@ -326,7 +329,7 @@ def patch_image(image, mask_image):
     height, width, _ = image.shape
 
     alpha = image[:, :, 3].copy()
-    alpha = cv2.blur(alpha, (25, 25))
+    alpha = cv2.GaussianBlur(alpha, (5, 5), 0)
 
     # Create a boolean mask indicating pixels that need patching
     patch_mask = (alpha < 255) & (mask_image > 0)
