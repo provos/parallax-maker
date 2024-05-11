@@ -36,6 +36,8 @@ class AppState:
 
         self.positive_prompt = ""
         self.negative_prompt = ""
+        
+        self.server_address = None
 
         # no JSON serialization for items below
         self.image_slices = []
@@ -502,6 +504,7 @@ class AppState:
             'image_slices_filenames': self.image_slices_filenames,
             'positive_prompt': self.positive_prompt,
             'negative_prompt': self.negative_prompt,
+            'server_address': self.server_address if self.server_address is not None else ''
         }
         return json.dumps(data)
 
@@ -529,6 +532,8 @@ class AppState:
         state.image_slices_filenames = data['image_slices_filenames']
         state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
         state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
+        
+        state.server_address = data['server_address'] if 'server_address' in data else None
         
         # check that all filenames start with the filename as prefix
         state.check_pathnames()

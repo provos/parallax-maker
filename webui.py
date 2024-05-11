@@ -1070,6 +1070,19 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
 
 @app.callback(
+    Output('external-server-address', 'value'),
+    Input('restore-state', 'data'),
+    State('application-state-filename', 'data'),
+    prevent_initial_call=True)
+def update_external_server_address(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    return state.server_address
+
+
+@app.callback(
     Output('model-viewer', 'srcDoc'),
     Input('restore-state', 'data'),
     State('application-state-filename', 'data'),

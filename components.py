@@ -597,26 +597,40 @@ def make_inpainting_container_callbacks(app):
 def make_configuration_callbacks(app):
     success_class = ' bg-green-200'
     failure_class = ' bg-red-200'
-        
+
     @app.callback(
         Output('automatic-config-container', 'className'),
+        Output('comfyui-workflow-container', 'className'),
         Input('inpainting-model-dropdown', 'value'),
-        State('automatic-config-container', 'className')
+        State('automatic-config-container', 'className'),
+        State('comfyui-workflow-container', 'className'),
     )
-    def toggle_automatic_config(value, class_name):
-        class_name = class_name.replace(' hidden', '')
+    def toggle_automatic_config(value, class_name_server, class_name_workflow):
+        class_name_server = class_name_server.replace(' hidden', '')
         if value != 'automatic1111' and value != 'comfyui':
-            class_name += ' hidden'
-        return class_name
-    
+            class_name_server += ' hidden'
+
+        class_name_workflow = class_name_workflow.replace(' hidden', '')
+        if value != 'comfyui':
+            class_name_workflow += ' hidden'
+        return class_name_server, class_name_workflow
+
     @app.callback(
         Output('external-server-address', 'className', allow_duplicate=True),
         Input('external-server-address', 'value'),
         State('external-server-address', 'className'),
+        State('application-state-filename', 'data'),
         prevent_initial_call=True)
-    def reset_external_server_address(value, class_name):
+    def reset_external_server_address(value, class_name, filename):
+        if filename is not None:
+            state = AppState.from_cache(filename)
+            state.server_address = value
+            state.to_file(state.filename,
+                          save_image_slices=False,
+                          save_depth_map=False, save_input_image=False)
+
         return class_name.replace(success_class, '').replace(failure_class, '')
-    
+
     @app.callback(
         Output('logs-data', 'data', allow_duplicate=True),
         Output('external-server-address', 'className'),
@@ -629,8 +643,9 @@ def make_configuration_callbacks(app):
     def test_external_connection(n_clicks, server_address, class_name, model, logs):
         if n_clicks is None:
             raise PreventUpdate()
-        
-        class_name = class_name.replace(success_class, '').replace(failure_class, '')
+
+        class_name = class_name.replace(
+            success_class, '').replace(failure_class, '')
 
         success = False
         try:
@@ -645,9 +660,9 @@ def make_configuration_callbacks(app):
                 logs.append(f'Connection to {model} failed')
         except Exception as e:
             logs.append(f'Connection to {model} failed: {str(e)}')
-            
+
         class_name += success_class if success else failure_class
-            
+
         return logs, class_name
 
 
@@ -705,7 +720,7 @@ def make_configuration_div():
                     id='external-server-address',
                     value='localhost:7860',
                     type='text',
-                    # Adjust the width as needed, e.g., w-3/4
+                    debounce=True,
                     className='p-2 border border-gray-300 rounded-md mb-2 flex-grow'
                 ),
                 html.Button(
@@ -719,7 +734,19 @@ def make_configuration_div():
                 ),
             ],
                 # Set the container to display flex for a row layout
-                className='flex flex-row items-center w-full')
+                className='flex flex-row items-center w-full'),
+            html.Div([
+                html.Label('ComfyUI Workflow'),
+                dcc.Upload(
+                    children=['Drag and Drop or ', html.I(
+                        className='fa-solid fa-upload'), ' to upload'],
+                    className='p-2 border border-gray-300 rounded-md mb-2 flex-grow',
+                    id='comfyui-workflow-upload',
+                ),
+            ],
+                id='comfyui-workflow-container',
+                className='w-full'
+            ),
         ],
             id='automatic-config-container',
             className='w-full'),
