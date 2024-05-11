@@ -19,17 +19,23 @@ from depth import DepthEstimationModel
 
 def compute_depth_map_for_slices(state: AppState, postprocess: bool = True):
     depth_maps = []
-    model = DepthEstimationModel(model='midas')
+    
+    model_name = state.depth_model_name if state.depth_model_name else 'midas'
+    model = DepthEstimationModel(model=model_name)
     for i, filename in enumerate(state.image_slices_filenames):
         print(f"Processing {filename}")
 
         image = state.image_slices[i]
 
         depth_map = generate_depth_map(image[:, :, :3], model)
+        
+        tmp_filename = state._make_filename(i, 'depth_tmp')
+        depth_image = Image.fromarray(depth_map)
+        depth_image.save(tmp_filename, compress_level=9)
 
         if postprocess:
             image_alpha = image[:, :, 3]
-            depth_map = postprocess_depth_map(depth_map, image_alpha)
+            depth_map = postprocess_depth_map(depth_map, image_alpha, final_blur=50)
 
         depth_image = Image.fromarray(depth_map)
 
