@@ -11,7 +11,7 @@ from diffusers import AutoPipelineForInpainting
 from diffusers.utils import make_image_grid
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageFilter
 
 from utils import torch_get_device, find_square_bounding_box, feather_mask, timeit
 from automatic1111 import create_img2img_payload, make_img2img_request
@@ -344,6 +344,17 @@ def patch_image(image, mask_image):
 
     patch_pixels(image, mask_image, nearest_alpha, patch_indices)
 
+    # find the alpha channel of the patched image that is new and not part of the original image
+    inverted_alpha = 255 - alpha
+    new_alpha = np.minimum(mask_image, inverted_alpha)        
+    new_alpha = np.expand_dims(new_alpha, axis=2)
+    new_alpha = new_alpha / 255.0
+    
+    blurred_image = cv2.GaussianBlur(image, (155, 155), 0)
+    
+    # composite
+    image[:, :, :3] = image[:, :, :3] * (1 - new_alpha) + blurred_image[:, :, :3] * new_alpha
+    
     return image
 
 
@@ -369,6 +380,9 @@ def main():
 
     init_image = load_image_from_file(args.image, mode='RGBA')
     mask_image = load_image_from_file(args.mask, mode='L')
+
+    # blur the mask image to feather the edges
+    mask_image = mask_image.filter(ImageFilter.GaussianBlur(55))
 
     init_image = patch_image(np.array(init_image), np.array(mask_image))
     init_image = Image.fromarray(init_image)
