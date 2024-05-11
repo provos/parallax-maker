@@ -264,7 +264,10 @@ def postprocess_depth_map(depth_map, image_alpha, final_blur=5):
         depth_map_dilated = cv2.dilate(depth_map, kernel, iterations=1)
         depth_map[image_alpha != 255] = depth_map_dilated[image_alpha != 255]
 
-    depth_map = cv2.blur(depth_map, (final_blur, final_blur))
+    # make final blur an odd number - required by GaussianBlur
+    if final_blur % 2 == 0:
+        final_blur += 1
+    depth_map = cv2.GaussianBlur(depth_map, (final_blur, final_blur), 0)
 
     # normalize to the smallest value
     smallest_vale = int(np.quantile(depth_map[image_alpha == 255], 0.01))
