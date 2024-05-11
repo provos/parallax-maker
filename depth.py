@@ -23,7 +23,7 @@ class DepthEstimationModel:
     
     def __init__(self, model="midas"):
         assert model in self.MODELS
-        self.model_type = model
+        self._model_name = model
         self.model = None
         self.transforms = None
         self.image_processor = None
@@ -31,7 +31,11 @@ class DepthEstimationModel:
     def __eq__(self, other):
         if not isinstance(other, DepthEstimationModel):
             return False
-        return self.model_type == other.model_type
+        return self._model_name == other._model_name
+    
+    @property
+    def model_name(self):
+        return self._model_name
         
     def load_model(self, progress_callback=None):
         load_pipeline = {
@@ -40,13 +44,13 @@ class DepthEstimationModel:
             "dinov2": create_dinov2_pipeline
         }
         
-        result = load_pipeline[self.model_type](progress_callback=progress_callback)
+        result = load_pipeline[self._model_name](progress_callback=progress_callback)
 
-        if self.model_type == "midas":
+        if self._model_name == "midas":
             self.model, self.transforms = result
-        elif self.model_type == "zoedepth":
+        elif self._model_name == "zoedepth":
             self.model = result
-        elif self.model_type == "dinov2":
+        elif self._model_name == "dinov2":
             self.model, self.image_processor = result
 
     def depth_map(self, image, progress_callback=None):
@@ -59,7 +63,7 @@ class DepthEstimationModel:
             "dinov2": lambda img, cb: run_dinov2_pipeline(img, self.model, self.image_processor, progress_callback=cb)
         }
 
-        return run_pipeline[self.model_type](image, progress_callback)
+        return run_pipeline[self._model_name](image, progress_callback)
     
     
 def create_dinov2_pipeline(progress_callback=None):
