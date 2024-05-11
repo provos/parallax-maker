@@ -15,6 +15,7 @@ from PIL import Image
 
 from utils import torch_get_device, find_square_bounding_box, feather_mask, timeit
 from automatic1111 import create_img2img_payload, make_img2img_request
+from comfyui import inpainting_comfyui
 
 # Possible pretrained models:
 # pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
@@ -38,9 +39,10 @@ class InpaintingModel:
         Args:
             model (str): The name of the model to be used for inpainting.
                 Defaults to "diffusers/stable-diffusion-xl-1.0-inpainting-0.1". Can also
-                be "automatic1111" to use the automatic1111 API server.
+                be "automatic1111" or "comfyui" to use an external API server.
             **kwargs: Additional keyword arguments to be passed to the class.
-                At the moment, automatic1111 requires a "server_address" argument.
+                At the moment, automatic1111 requires a "server_address" argument and
+                ComfyUI requires a "server_address" and "workflow_path" argument.
 
         Attributes:
             model (str): The name of the model used for inpainting.
@@ -51,6 +53,8 @@ class InpaintingModel:
         self.dimension = 512
         self.kwargs = kwargs
         self.pipeline = None
+        self.server_address = None
+        self.workflow_path = None
 
     def __eq__(self, other):
         if not isinstance(other, InpaintingModel):
@@ -81,10 +85,14 @@ class InpaintingModel:
 
         return self.pipeline
 
-    def load_automatic1111_model(self):
+    def load_external_model(self):
         assert 'server_address' in self.kwargs
         self.dimension = 1024
         self.pipeline = self.kwargs['server_address']
+        self.server_address = self.kwargs['server_address']
+        if self.model == "comfyui":
+            assert 'workflow_path' in self.kwargs
+            self.workflow_path = self.kwargs['workflow_path']
         return self.pipeline
 
     def get_dimension(self):
@@ -98,8 +106,8 @@ class InpaintingModel:
         if self.model in self.MODELS:
             return self.load_diffusers_model()
 
-        if self.model == "automatic1111":
-            return self.load_automatic1111_model()
+        if self.model in ["automatic1111", "comfyui"]:
+            return self.load_external_model()
 
         return None
 
@@ -132,6 +140,14 @@ class InpaintingModel:
                 resize_init_image, resize_mask_image,
                 prompt, negative_prompt,
                 strength, guidance_scale, num_inference_steps, seed)
+        elif self.model == "comfyui":
+            image = inpainting_comfyui(
+                self.server_address,
+                self.workflow_path,
+                resize_init_image, resize_mask_image,
+                prompt, negative_prompt,
+                strength=strength, cfg_scale=guidance_scale, steps=num_inference_steps,
+                seed=seed)
         else:
             raise ValueError(f"Model {self.model} is not supported.")
 
@@ -355,10 +371,14 @@ def main():
     init_image = Image.fromarray(init_image)
 
     if not args.patch:
-        pipeline = InpaintingModel(
-            'diffusers/stable-diffusion-xl-1.0-inpainting-0.1')
+        #pipeline = InpaintingModel(
+        #    'diffusers/stable-diffusion-xl-1.0-inpainting-0.1')
         # pipeline = InpaintingModel(
         #    'automatic1111', server_address='localhost:7860')
+        pipeline = InpaintingModel(
+            'comfyui',
+            workflow_path='workflow.json',
+            server_address='localhost:8188')
 
         pipeline.load_model()
 
