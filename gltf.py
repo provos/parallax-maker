@@ -340,7 +340,7 @@ def export_gltf(
     # Add the camera node to the scene
     scene.nodes.append(camera_index)
 
-    subdivisions = 300
+    subdivisions = 500
 
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
