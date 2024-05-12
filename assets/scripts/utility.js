@@ -9,21 +9,31 @@ let isDrawing = false;
 let isErasing = false;
 let lastX = 0;
 let lastY = 0;
+// Store last preview coordinates for more efficient erasing
+let lastPreviewX = null;
+let lastPreviewY = null;
+let lastBrushRadius = null;
 let gCtx = null;
 let gRect = null;
 
 let gPreviewCtx = null;
 
 function clearPreviewCanvas() {
-    gPreviewCtx.clearRect(0, 0, gPreviewCtx.canvas.width, gPreviewCtx.canvas.height); // Clear previous preview
+    // Clear previous preview (if any)
+    if (lastPreviewX !== null && lastPreviewY !== null) {
+        const clearX = lastPreviewX - lastBrushRadius - 5;
+        const clearY = lastPreviewY - lastBrushRadius - 5;
+        const clearWidth = 2 * lastBrushRadius + 10;
+        const clearHeight = 2 * lastBrushRadius + 10;
+        gPreviewCtx.clearRect(clearX, clearY, clearWidth, clearHeight);
+    }
 }
 
 // Preview the brush size
 function previewBrush(e) {
     clearPreviewCanvas();
 
-    pixelRatio = getPixelRatio(gPreviewCtx);
-
+    const pixelRatio = getPixelRatio(gPreviewCtx);
     const brushSize = isErasing ? eraseWidth : drawWidth;
     const brushRadius = brushSize * pixelRatio / 2;
     const currentX = e.clientX - gRect.left;
@@ -34,6 +44,11 @@ function previewBrush(e) {
     gPreviewCtx.strokeStyle = isErasing ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)'; // Semi-transparent color
     gPreviewCtx.lineWidth = 2 * pixelRatio; // Thin outline
     gPreviewCtx.stroke();
+
+    // Update last preview coordinates
+    lastPreviewX = currentX;
+    lastPreviewY = currentY;
+    lastBrushRadius = brushRadius;
 }
 
 
