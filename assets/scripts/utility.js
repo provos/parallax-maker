@@ -10,6 +10,10 @@ let isErasing = false;
 let lastX = 0;
 let lastY = 0;
 
+// For Zooming
+let zoomLevel = 1;
+let zoomFactor = 1.1;
+
 // For Brush Sizing
 let isAltRightDragging = false;
 let initialDragX = 0;
@@ -42,8 +46,7 @@ function previewBrush(e) {
     const pixelRatio = getPixelRatio(gPreviewCtx);
     const brushSize = isErasing ? eraseWidth : drawWidth;
     const brushRadius = brushSize * pixelRatio / 2;
-    const currentX = e.clientX - gRect.left;
-    const currentY = e.clientY - gRect.top;
+    const [currentX, currentY] = translateCoordinates(e);
 
     gPreviewCtx.beginPath();
     gPreviewCtx.arc(currentX, currentY, brushRadius, 0, 2 * Math.PI);
@@ -68,7 +71,7 @@ function startDrawing(e) {
 
     isDrawing = true;
 
-    [lastX, lastY] = [e.clientX - gRect.left, e.clientY - gRect.top];
+    [lastX, lastY] = translateCoordinates(e);
 
     console.log('startDrawing', lastX, lastY);
 }
@@ -98,8 +101,7 @@ function draw(e) {
         clearPreviewCanvas();
     }
 
-    const currentX = e.clientX - gRect.left;
-    const currentY = e.clientY - gRect.top;
+    const [currentX, currentY] = translateCoordinates(e);
 
     gCtx.beginPath();
     gCtx.moveTo(lastX, lastY);
@@ -115,6 +117,53 @@ function draw(e) {
 function stopDrawing() {
     isDrawing = false;
     isAltRightDragging = false;
+}
+
+function translateCoordinates(e) {
+    var canvas = document.getElementById('canvas');
+    const transform = window.getComputedStyle(canvas).transform;
+    const matrix = new DOMMatrixReadOnly(transform);
+    const invertedMatrix = matrix.inverse();
+
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+
+    const transformedPoint = invertedMatrix.transformPoint({ x: mouseX, y: mouseY });
+    const adjustedX = transformedPoint.x;
+    const adjustedY = transformedPoint.y;
+
+    return [adjustedX, adjustedY];
+}
+
+
+function handleWheel(e) {
+    e.preventDefault();
+
+    if (e.deltaY < 0) {
+        zoomLevel *= zoomFactor;
+    } else {
+        zoomLevel /= zoomFactor;
+    }
+    zoomLevel = Math.min(Math.max(0.125, zoomLevel), 8); // Limit zoom level
+
+    console.log('Zoom level:', zoomLevel);
+    console.log('Offset:', e.offsetX, e.offsetY);
+
+    // Apply zoom transformation to the image container
+    image.style.transform = `scale(${zoomLevel})`;
+    image.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`;
+
+    var canvas = document.getElementById('canvas');
+    canvas.style.transform = `scale(${zoomLevel})`;
+    canvas.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`; 
+
+    var preview = document.getElementById('preview-canvas');
+    preview.style.transform = `scale(${zoomLevel})`;
+    preview.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`;
+
+    gRect = canvas.getBoundingClientRect();
+    previewBrush(e);
 }
 
 function getPixelRatio(context) {
@@ -171,6 +220,7 @@ function setupMainCanvas(canvas) {
     canvas.addEventListener('contextmenu', (e) => {
         e.preventDefault();
     });
+    canvas.addEventListener('wheel', handleWheel);
 }
 
 function drawCallback(e) {
@@ -228,7 +278,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             }
 
             var previewCanvas = document.getElementById('preview-canvas');
-            gPreviewCtx = setupCanvasCtx(previewCanvas);
+            if (gPreviewCtx === null) {
+                gPreviewCtx = setupCanvasCtx(previewCanvas);
+            }
 
             image = document.getElementById('image');
             props = getImageSize(image);
@@ -296,7 +348,9 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             }
 
             var previewCanvas = document.getElementById('preview-canvas');
-            gPreviewCtx = setupCanvasCtx(previewCanvas);
+            if (gPreviewCtx === null) {
+                gPreviewCtx = setupCanvasCtx(previewCanvas);
+            }
 
             switch (event.type) {
                 case 'mousedown':

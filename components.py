@@ -79,7 +79,7 @@ def make_input_image_container(
                         className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-20'
                     ),
                 ],
-                className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2 flex items-center justify-center',
+                className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2 flex items-center justify-center overflow-hidden',
                 style={'height': '67vh'},
             ),
             style={'height': '67vh'},
