@@ -24,3 +24,10 @@
     background-position: 0 0, 12.5px 0, 12.5px -12.5px, 0px 12.5px;
     /* Must be half of one side of the square */
 }
+
+#preview-canvas {
+    position: absolute;
+    pointer-events: none;
+    /* Allow clicks and events to pass through */
+    opacity: 0.5;
+}

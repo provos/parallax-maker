@@ -9,29 +9,59 @@ let isDrawing = false;
 let isErasing = false;
 let lastX = 0;
 let lastY = 0;
-let ctx = null;
-let rect = null;
+let gCtx = null;
+let gRect = null;
+
+let gPreviewCtx = null;
+
+function clearPreviewCanvas() {
+    gPreviewCtx.clearRect(0, 0, gPreviewCtx.canvas.width, gPreviewCtx.canvas.height); // Clear previous preview
+}
+
+// Preview the brush size
+function previewBrush(e) {
+    clearPreviewCanvas();
+
+    pixelRatio = getPixelRatio(gPreviewCtx);
+
+    const brushSize = isErasing ? eraseWidth : drawWidth;
+    const brushRadius = brushSize * pixelRatio / 2;
+    const currentX = e.clientX - gRect.left;
+    const currentY = e.clientY - gRect.top;
+
+    gPreviewCtx.beginPath();
+    gPreviewCtx.arc(currentX, currentY, brushRadius, 0, 2 * Math.PI);
+    gPreviewCtx.strokeStyle = isErasing ? 'rgba(0, 0, 0, 0.5)' : 'rgba(255, 0, 0, 0.5)'; // Semi-transparent color
+    gPreviewCtx.lineWidth = 2 * pixelRatio; // Thin outline
+    gPreviewCtx.stroke();
+}
+
 
 // Function to start drawing
 function startDrawing(e) {
     isDrawing = true;
 
-    [lastX, lastY] = [e.clientX - rect.left, e.clientY - rect.top];
+    [lastX, lastY] = [e.clientX - gRect.left, e.clientY - gRect.top];
 
     console.log('startDrawing', lastX, lastY);
 }
 
 // Function to draw on the canvas
 function draw(e) {
-    if (!isDrawing) return;
+    if (!isDrawing) {
+        previewBrush(e);
+        return;
+    } else {
+        clearPreviewCanvas();
+    }
 
-    const currentX = e.clientX - rect.left;
-    const currentY = e.clientY - rect.top;
+    const currentX = e.clientX - gRect.left;
+    const currentY = e.clientY - gRect.top;
 
-    ctx.beginPath();
-    ctx.moveTo(lastX, lastY);
-    ctx.lineTo(currentX, currentY);
-    ctx.stroke();
+    gCtx.beginPath();
+    gCtx.moveTo(lastX, lastY);
+    gCtx.lineTo(currentX, currentY);
+    gCtx.stroke();
 
     canvasLastDrawnTime = Date.now();
 
@@ -68,29 +98,36 @@ function getImageSize(imgElement) {
     return { width: renderedWidth, height: renderedHeight };
 };
 
-function setupCanvasContext(canvas) {
-    ctx = canvas.getContext('2d');
-    image = document.getElementById('image');
-    props = getImageSize(image);
-    ctx.canvas.width = props.width;
-    ctx.canvas.height = props.height;
+function setupCanvasCtx(canvas) {
+    var tmpCtx = canvas.getContext('2d');
+    var image = document.getElementById('image');
+    var props = getImageSize(image);
+    tmpCtx.canvas.width = props.width;
+    tmpCtx.canvas.height = props.height;
+    return tmpCtx;
+}
+
+function setupMainCanvas(canvas) {
+    gCtx = setupCanvasCtx(canvas);
 
     isDrawing = false;
     isErasing = false;
 
-    console.log('canvas_draw', image.clientWidth, image.clientHeight);
-
-    pixelRatio = getPixelRatio(ctx);
+    pixelRatio = getPixelRatio(gCtx);
 
     console.log('Pixel ratio:', pixelRatio);
 
     // Set canvas properties
-    ctx.strokeStyle = 'red';
-    ctx.lineWidth = drawWidth * pixelRatio;
-    ctx.lineCap = 'round';
+    gCtx.strokeStyle = 'red';
+    gCtx.lineWidth = drawWidth * pixelRatio;
+    gCtx.lineCap = 'round';
 
     // Set up mousemove eventlistener that does not need to go back to the app
-    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mousemove', drawCallback);
+}
+
+function drawCallback(e) {
+    requestAnimationFrame(() => draw(e));
 }
 
 function resolveRect(graphElement, resolve) {
@@ -137,10 +174,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.log('No element found with id "canvas"');
                 return '';
             }
-            rect = canvas.getBoundingClientRect();
-            if (ctx === null) {
-                setupCanvasContext(canvas);
+
+            gRect = canvas.getBoundingClientRect();
+            if (gCtx === null) {
+                setupMainCanvas(canvas);
             }
+
+            var previewCanvas = document.getElementById('preview-canvas');
+            gPreviewCtx = setupCanvasCtx(previewCanvas);
 
             image = document.getElementById('image');
             props = getImageSize(image);
@@ -149,7 +190,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             img.src = data;
             img.onload = function () {
                 console.log('Image loaded and drawn on canvas');
-                ctx.drawImage(img, 0, 0, props.width, props.height);
+                gCtx.drawImage(img, 0, 0, props.width, props.height);
             };
 
             console.log('Waiting for image to load');
@@ -157,36 +198,36 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             return '';
         },
         canvas_clear: function () {
-            if (ctx === null) {
+            if (gCtx === null) {
                 console.log('No context found');
                 return '';
             }
             canvasLastSavedTime = Date.now();
-            ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+            gCtx.clearRect(0, 0, gCtx.canvas.width, gCtx.canvas.height);
             // we also have to reset the ctx as a new image might be loaded
-            ctx = null;
+            gCtx = null;
             return '';
         },
         canvas_toggle_erase: function () {
             className = 'bg-blue-500 text-white p-2 rounded-md';
-            if (ctx === null) {
+            if (gCtx === null) {
                 isErasing = false;
                 console.log('No context found');
                 return className;
             }
-            pixelRatio = getPixelRatio(ctx);
+            pixelRatio = getPixelRatio(gCtx);
             isErasing = !isErasing;
             if (isErasing) {
                 className = 'bg-red-500 text-white p-2 rounded-md';
-                ctx.globalCompositeOperation = 'destination-out';
-                ctx.strokeStyle = 'rgba(0,0,0,1)';
-                ctx.lineWidth = eraseWidth * pixelRatio;
-                ctx.lineCap = 'round';
+                gCtx.globalCompositeOperation = 'destination-out';
+                gCtx.strokeStyle = 'rgba(0,0,0,1)';
+                gCtx.lineWidth = eraseWidth * pixelRatio;
+                gCtx.lineCap = 'round';
             } else {
-                ctx.globalCompositeOperation = 'source-over';
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = drawWidth * pixelRatio;
-                ctx.lineCap = 'round';
+                gCtx.globalCompositeOperation = 'source-over';
+                gCtx.strokeStyle = 'red';
+                gCtx.lineWidth = drawWidth * pixelRatio;
+                gCtx.lineCap = 'round';
             }
             console.log('isErasing', isErasing);
 
@@ -202,10 +243,13 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.log('No element found with id "canvas"');
                 return '';
             }
-            rect = canvas.getBoundingClientRect();
-            if (ctx === null) {
-                setupCanvasContext(canvas);
+            gRect = canvas.getBoundingClientRect();
+            if (gCtx === null) {
+                setupMainCanvas(canvas);
             }
+
+            var previewCanvas = document.getElementById('preview-canvas');
+            gPreviewCtx = setupCanvasCtx(previewCanvas);
 
             switch (event.type) {
                 case 'mousedown':
@@ -216,12 +260,18 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                     // Try to get the canvas without needing to save it
                     stopDrawing(canvas);
 
+                    clearPreviewCanvas();
+
                     bShouldSave = canvasLastDrawnTime > canvasLastSavedTime;
                     canvasLastSavedTime = Date.now();
                     return bShouldSave ? this.canvas_get() : window.dash_clientside.no_update;
                 case 'mouseup':
                 case 'touchend':
                     stopDrawing(canvas);
+                    break;
+                case 'mouseenter':
+                    // Do nothing; we just want to set up the canvas
+                    console.log('Mouse entered; setup canvas');
                     break;
             }
             return window.dash_clientside.no_update;

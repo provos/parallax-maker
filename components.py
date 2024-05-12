@@ -26,7 +26,7 @@ from segmentation import setup_camera_and_cards, render_view, remove_mask_from_a
 def get_canvas_paint_events():
     props = ["type", "clientX", "clientY", "offsetX", "offsetY"]
     events = []
-    for event in ["mousedown", "mouseup", "mouseout"]:
+    for event in ["mousedown", "mouseup", "mouseout", "mouseenter"]:
         events.append({"event": event, "props": props})
     return events
 
@@ -41,6 +41,7 @@ def make_input_image_container(
         image_id: str = 'image',
         event_id: str = 'el',
         canvas_id: str = 'canvas',
+        preview_canvas_id: str = 'preview-canvas',
         outer_class_name: str = 'w-full col-span-2'):
 
     return html.Div([
@@ -68,8 +69,13 @@ def make_input_image_container(
                     EventListener(
                         html.Canvas(
                             id=canvas_id,
-                            className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-10'),
+                            className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-10'
+                            ),
                         id='canvas-paint', events=get_canvas_paint_events(), logging=False
+                    ),
+                    html.Canvas(
+                        id=preview_canvas_id,
+                        className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-20'
                     ),
                 ],
                 className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2 flex items-center justify-center',
