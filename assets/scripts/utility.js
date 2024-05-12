@@ -9,6 +9,11 @@ let isDrawing = false;
 let isErasing = false;
 let lastX = 0;
 let lastY = 0;
+
+// For Brush Sizing
+let isAltRightDragging = false;
+let initialDragX = 0;
+
 // Store last preview coordinates for more efficient erasing
 let lastPreviewX = null;
 let lastPreviewY = null;
@@ -21,10 +26,11 @@ let gPreviewCtx = null;
 function clearPreviewCanvas() {
     // Clear previous preview (if any)
     if (lastPreviewX !== null && lastPreviewY !== null) {
-        const clearX = lastPreviewX - lastBrushRadius - 5;
-        const clearY = lastPreviewY - lastBrushRadius - 5;
-        const clearWidth = 2 * lastBrushRadius + 10;
-        const clearHeight = 2 * lastBrushRadius + 10;
+        const pixelRatio = getPixelRatio(gPreviewCtx);
+        const clearX = lastPreviewX - lastBrushRadius - 3 * pixelRatio;
+        const clearY = lastPreviewY - lastBrushRadius - 3 * pixelRatio;
+        const clearWidth = 2 * lastBrushRadius + 6 * pixelRatio;
+        const clearHeight = 2 * lastBrushRadius + 6 * pixelRatio;
         gPreviewCtx.clearRect(clearX, clearY, clearWidth, clearHeight);
     }
 }
@@ -54,6 +60,12 @@ function previewBrush(e) {
 
 // Function to start drawing
 function startDrawing(e) {
+    if (e.button === 2 && e.altKey) { // Right-click + Alt key
+        isAltRightDragging = true;
+        initialDragX = e.clientX;
+        return;
+    }
+
     isDrawing = true;
 
     [lastX, lastY] = [e.clientX - gRect.left, e.clientY - gRect.top];
@@ -61,9 +73,25 @@ function startDrawing(e) {
     console.log('startDrawing', lastX, lastY);
 }
 
+function adjustBrushSize(deltaX) {
+    const newSize = Math.max(5, Math.min(100, drawWidth + deltaX / 15));
+    if (!isErasing) {
+        drawWidth = newSize;
+    } else {
+        eraseWidth = newSize;
+    }
+
+    const pixelRatio = getPixelRatio(gCtx);
+    gCtx.lineWidth = newSize * pixelRatio;
+}
+
 // Function to draw on the canvas
 function draw(e) {
     if (!isDrawing) {
+        if (isAltRightDragging) {
+            // Adjust size based on drag distance
+            adjustBrushSize(e.clientX - initialDragX); 
+        }
         previewBrush(e);
         return;
     } else {
@@ -86,6 +114,7 @@ function draw(e) {
 // Function to stop drawing
 function stopDrawing() {
     isDrawing = false;
+    isAltRightDragging = false;
 }
 
 function getPixelRatio(context) {
@@ -139,6 +168,9 @@ function setupMainCanvas(canvas) {
 
     // Set up mousemove eventlistener that does not need to go back to the app
     canvas.addEventListener('mousemove', drawCallback);
+    canvas.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+    });
 }
 
 function drawCallback(e) {

@@ -24,7 +24,8 @@ from segmentation import setup_camera_and_cards, render_view, remove_mask_from_a
 
 
 def get_canvas_paint_events():
-    props = ["type", "clientX", "clientY", "offsetX", "offsetY"]
+    props = ["type", "clientX", "clientY", "offsetX", "offsetY",
+             "button", "altKey", "ctrlKey", "shiftKey"]
     events = []
     for event in ["mousedown", "mouseup", "mouseout", "mouseenter"]:
         events.append({"event": event, "props": props})
