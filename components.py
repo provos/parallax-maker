@@ -623,6 +623,8 @@ def make_inpainting_container_callbacks(app):
             f'Inpainting applied to slice {index} with new image {image_filename}')
 
         return True, logs, True
+    
+    return update_inpainting_image_display
 
 
 def make_configuration_callbacks(app):
