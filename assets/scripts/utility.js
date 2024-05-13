@@ -93,7 +93,7 @@ function draw(e) {
     if (!isDrawing) {
         if (isAltRightDragging) {
             // Adjust size based on drag distance
-            adjustBrushSize(e.clientX - initialDragX); 
+            adjustBrushSize(e.clientX - initialDragX);
         }
         previewBrush(e);
         return;
@@ -156,7 +156,7 @@ function handleWheel(e) {
 
     var canvas = document.getElementById('canvas');
     canvas.style.transform = `scale(${zoomLevel})`;
-    canvas.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`; 
+    canvas.style.transformOrigin = `${e.offsetX}px ${e.offsetY}px`;
 
     var preview = document.getElementById('preview-canvas');
     preview.style.transform = `scale(${zoomLevel})`;
@@ -167,14 +167,14 @@ function handleWheel(e) {
 }
 
 function getPixelRatio(context) {
-  dpr = window.devicePixelRatio || 1,
-    bsr = context.webkitBackingStorePixelRatio ||
-    context.mozBackingStorePixelRatio ||
-    context.msBackingStorePixelRatio ||
-    context.oBackingStorePixelRatio ||
-    context.backingStorePixelRatio || 1;
+    dpr = window.devicePixelRatio || 1,
+        bsr = context.webkitBackingStorePixelRatio ||
+        context.mozBackingStorePixelRatio ||
+        context.msBackingStorePixelRatio ||
+        context.oBackingStorePixelRatio ||
+        context.backingStorePixelRatio || 1;
 
-  return dpr / bsr;
+    return dpr / bsr;
 }
 
 // Try to get the image size
@@ -221,6 +221,11 @@ function setupMainCanvas(canvas) {
         e.preventDefault();
     });
     canvas.addEventListener('wheel', handleWheel);
+    window.addEventListener('resize', () => {
+        gCtx = null;
+        gPreviewCtx = null;
+        gRect = null;
+    });
 }
 
 function drawCallback(e) {
