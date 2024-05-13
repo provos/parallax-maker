@@ -496,6 +496,7 @@ def make_inpainting_container_callbacks(app):
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
+        workflow_path = None
         if model == 'comfyui':
             if workflow is not None and len(workflow) > 0:
                 workflow_path = state.workflow_path()
