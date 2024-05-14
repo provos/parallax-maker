@@ -115,8 +115,8 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         n_clicks = 1
         filename = 'test_filename'
         model = 'other_model'
-        server_address = 'http://localhost:8000'
-        workflow = 'data:filetype;base64,workflow_data'
+        server_address = None
+        workflow = None
         positive_prompt = 'sky is clear'
         negative_prompt = 'cloudy sky'
         strength = 0.7
@@ -126,7 +126,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
 
         # Workflow path mock
         workflow_path = MagicMock()
-        workflow_path.exists.return_value = True
+        workflow_path.exists.return_value = False
 
         # Set up the AppState mock
         state = MagicMock()
