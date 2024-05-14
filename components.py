@@ -238,7 +238,7 @@ def make_slice_generation_container():
                         ),
                         html.Div([
                             html.Label(
-                                'Actions', className='font-bold mb-2 ml-3'),
+                                'Actions', className='font-bold mb-1 ml-3'),
                             html.Div([
                                 html.Button(
                                     html.Div([
@@ -246,7 +246,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-images pl-1')]),
                                     id='generate-slice-button',
                                     title='Generate image slices from the input image using the depth map',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1 mr-2'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -254,7 +254,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-arrows-left-right pl-1')]),
                                     id='balance-slice-button',
                                     title='Rebalances the depths of the image slices evenly',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -262,7 +262,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-square-plus pl-1')]),
                                     id='create-slice-button',
                                     title='Creates a slice from the current mask',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -270,7 +270,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-trash-can pl-1')]),
                                     id='delete-slice-button',
                                     title='Deletes the currently selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -278,7 +278,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-brush pl-1')]),
                                     id='add-to-slice-button',
                                     title='Adds the current mask to the selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -286,7 +286,23 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-eraser pl-1')]),
                                     id='remove-from-slice-button',
                                     title='Removes the current mask from the selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-2'
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Copy'),
+                                        html.I(className='fa-solid fa-brush pl-1')]),
+                                    id='copy-button',
+                                    title='Copies the current mask to the clipboard',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                ),
+                                html.Button(
+                                    html.Div([
+                                        html.Label('Paste'),
+                                        html.I(className='fa-solid fa-eraser pl-1')]),
+                                    id='paste-button',
+                                    title='Copies the clipboard to the selected slice',
+                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
                             ],
                                 className='grid grid-cols-2 gap-2 gap-2 p-2'

@@ -55,6 +55,7 @@ class AppState:
         self.slice_pixel_depth = None
         self.slice_mask = None
         self.upscaler = None
+        self.clipboard_image = None
 
         # XXX - make this configurable
         self.camera_position = np.array([0, 0, -100], dtype=np.float32)

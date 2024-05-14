@@ -508,6 +508,70 @@ def delete_slice_request(n_clicks, filename, logs):
 
     return state.serve_main_image(state.imgData), True, logs, ""
 
+@app.callback(Output('logs-data', 'data', allow_duplicate=True),
+              Input('copy-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def copy_to_clipboard(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.slice_mask is None:
+        logs.append("No mask selected")
+        return logs
+    
+    if state.selected_slice is not None:
+        image = state.slice_image_composed(state.selected_slice, grayscale=False).copy()
+    else:
+        image = np.array(state.imgData.convert('RGBA'))
+    image[:,:,3] = state.slice_mask
+    
+    state.clipboard_image = image
+
+    logs.append("Copied mask to clipboard")
+    return logs
+
+
+@app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
+              Output('logs-data', 'data', allow_duplicate=True),
+              Output('loading-upload', 'children', allow_duplicate=True),
+              Input('paste-button', 'n_clicks'),
+              State('application-state-filename', 'data'),
+              State('logs-data', 'data'),
+              prevent_initial_call=True)
+def paste_clipboard_request(n_clicks, filename, logs):
+    if n_clicks is None:
+        raise PreventUpdate()
+
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.clipboard_image is None:
+        logs.append("Nothing in the clipboard")
+        return no_update, logs, no_update
+
+    if state.selected_slice is None:
+        logs.append("No slice selected")
+        return no_update, logs, no_update
+
+    image = state.clipboard_image
+    # updates the image slice in place - dangerous
+    blend_with_alpha(state.image_slices[state.selected_slice], image)
+
+    image_filename = filename_add_version(
+        state.image_slices_filenames[state.selected_slice])
+    state.image_slices_filenames[state.selected_slice] = image_filename
+    state.to_file(filename, save_image_slices=True,
+                  save_depth_map=False, save_input_image=False)
+
+    logs.append(f"Pasted clipboard to slice {state.selected_slice}")
+    return True, logs, ""
 
 @app.callback(Output('update-slice-request', 'data', allow_duplicate=True),
               Output('logs-data', 'data', allow_duplicate=True),
