@@ -160,6 +160,11 @@ app.clientside_callback(
     Input('evScroll', 'n_events'),
 )
 
+app.clientside_callback(
+    ClientsideFunction(namespace='clientside',
+                       function_name='suppress_contextmenu'),
+    Output(C.CTR_INPUT_IMAGE, 'id'), Input(C.CTR_INPUT_IMAGE, 'id')
+)
 
 components.make_segmentation_callbacks(app)
 components.make_canvas_callbacks(app)
@@ -375,6 +380,8 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
 
     clientX = e["clientX"]
     clientY = e["clientY"]
+    shiftClick = e["shiftKey"]
+    ctrlClick = e["ctrlKey"]
 
     rectTop = rect_data["top"]
     rectLeft = rect_data["left"]
@@ -388,7 +395,7 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
         state.imgData, x, y, rectWidth, rectHeight)
 
     # we need to find the depth even if we use instance segmentation
-    state.slice_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
+    new_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
     state.slice_pixel = (pixel_x, pixel_y)
     state.slice_pixel_depth = depth
 
@@ -401,8 +408,16 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
         if state.selected_slice is not None:
             image = state.slice_image_composed(state.selected_slice, grayscale=False)
         state.segmentation_model.segment_image(image)
-        state.slice_mask = state.segmentation_model.mask_at_point(
+        new_mask = state.segmentation_model.mask_at_point(
             (pixel_x, pixel_y))
+        
+    # allow mask manipulation with add and subtract via shift and ctrl click
+    if state.slice_mask is None or not (shiftClick or ctrlClick):
+        state.slice_mask = new_mask
+    elif shiftClick:
+        state.slice_mask = np.maximum(state.slice_mask, new_mask)
+    elif ctrlClick:
+        state.slice_mask = np.minimum(state.slice_mask, 255 - new_mask)
 
     if state.slice_mask is not None:
         result = state.apply_mask(image, state.slice_mask)

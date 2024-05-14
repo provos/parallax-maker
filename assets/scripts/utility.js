@@ -381,6 +381,40 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                     break;
             }
             return window.dash_clientside.no_update;
+        },
+        suppress_contextmenu: function (id) {
+            console.log('Suppressing context menu for', id);
+            var element = document.getElementById(id);
+            element.addEventListener('contextmenu', (e) => {
+                // Check if the ctrl key was pressed
+                if (e.ctrlKey) {
+                    // Prevent the default action
+                    e.preventDefault();
+
+                    // Clone the original event properties
+                    const newEvent = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        composed: true,
+                        view: e.view,
+                        detail: e.detail,
+                        screenX: e.screenX,
+                        screenY: e.screenY,
+                        clientX: e.clientX,
+                        clientY: e.clientY,
+                        ctrlKey: e.ctrlKey,
+                        altKey: e.altKey,
+                        shiftKey: e.shiftKey,
+                        metaKey: e.metaKey,
+                        button: e.button,
+                        relatedTarget: e.relatedTarget
+                    });
+
+                    // Dispatch the new event to the original target
+                    e.target.dispatchEvent(newEvent);
+                }
+            });
+            return window.dash_clientside.no_update
         }
     }
 });

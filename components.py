@@ -35,7 +35,7 @@ def get_canvas_paint_events():
 
 def get_image_click_event():
     return {"event": "click", "props": [
-        "type", "clientX", "clientY", "offsetX", "offsetY"]}
+        "type", "clientX", "clientY", "offsetX", "offsetY", "ctrlKey", "shiftKey"]}
 
 
 def make_input_image_container(
@@ -72,7 +72,7 @@ def make_input_image_container(
                         html.Canvas(
                             id=canvas_id,
                             className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-10'
-                            ),
+                        ),
                         id=C.CANVAS_PAINT, events=get_canvas_paint_events(), logging=False
                     ),
                     html.Canvas(
@@ -90,7 +90,8 @@ def make_input_image_container(
         ),
         make_segmentation_tools_container(),
         make_inpainting_tools_container(),
-    ], className=outer_class_name
+    ], className=outer_class_name,
+        id=C.CTR_INPUT_IMAGE
     )
 
 
@@ -418,7 +419,7 @@ def make_inpainting_container_callbacks(app):
 
     @app.callback(
         Output(C.TEXT_POSITIVE_PROMPT, 'value'),
-        Output(C.TEXT_NEGATIVE_PROMPT , 'value'),
+        Output(C.TEXT_NEGATIVE_PROMPT, 'value'),
         Input(C.STORE_RESTORE_STATE, 'data'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         prevent_initial_call=True)
@@ -476,7 +477,7 @@ def make_inpainting_container_callbacks(app):
         State(C.INPUT_EXTERNAL_SERVER, 'value'),
         State(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
         State(C.TEXT_POSITIVE_PROMPT, 'value'),
-        State(C.TEXT_NEGATIVE_PROMPT , 'value'),
+        State(C.TEXT_NEGATIVE_PROMPT, 'value'),
         State(C.SLIDER_INPAINT_STRENGTH, 'value'),
         State(C.SLIDER_INPAINT_GUIDANCE, 'value'),
         State(C.SLIDER_MASK_PADDING, 'value'),
@@ -639,7 +640,7 @@ def make_inpainting_container_callbacks(app):
             f'Inpainting applied to slice {index} with new image {image_filename}')
 
         return True, logs, True
-    
+
     return update_inpainting_image_display
 
 
@@ -893,12 +894,12 @@ def make_configuration_div():
 def make_3d_export_div():
     return html.Div([
         dcc.Loading(id=C.LOADING_GLTF,
-                    children=html.Div(id=C.CTR_GLTF_OUTPUT )),
+                    children=html.Div(id=C.CTR_GLTF_OUTPUT)),
         html.Button(
             html.Div([
                 html.Label('Create glTF Scene'),
                 html.I(className='fa-solid fa-cube pl-1')]),
-            id=C.BTN_GLTF_CREATE ,
+            id=C.BTN_GLTF_CREATE,
             className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'),
         html.Button(
             html.Div([

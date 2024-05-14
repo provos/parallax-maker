@@ -30,6 +30,7 @@ STORE_UPDATE_THRESHOLD_CONTAINER = 'update-thresholds-container'
 TEXT_POSITIVE_PROMPT = 'positive-prompt'
 TEXT_NEGATIVE_PROMPT = 'negative-prompt'
 
+CTR_INPUT_IMAGE = 'input-image-container'
 IMAGE = 'image'
 CANVAS = 'canvas'
 UPLOAD_IMAGE = 'upload-image'
