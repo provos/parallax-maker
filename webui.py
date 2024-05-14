@@ -87,15 +87,15 @@ eventScroll = {"event": "scroll", "props": ["type", "scrollLeft", "scrollTop"]}
 app.layout = html.Div([
     EventListener(events=[eventScroll], logging=True, id="evScroll"),
     # dcc.Store stores all application state
-    dcc.Store(id='application-state-filename'),
-    dcc.Store(id='restore-state'),  # trigger to restore state
-    dcc.Store(id='rect-data'),  # Store for rect coordinates
+    dcc.Store(id=C.STORE_APPSTATE_FILENAME),
+    dcc.Store(id=C.STORE_RESTORE_STATE),  # trigger to restore state
+    dcc.Store(id=C.STORE_RECT_DATA),  # Store for rect coordinates
     dcc.Store(id=C.LOGS_DATA, data=[]),  # Store for logs
     # Trigger for generating depth map
-    dcc.Store(id='trigger-generate-depthmap'),
-    dcc.Store(id='trigger-update-depthmap'),  # Trigger for updating depth map
+    dcc.Store(id=C.STORE_TRIGGER_GEN_DEPTHMAP),
+    dcc.Store(id=C.STORE_TRIGGER_UPDATE_DEPTHMAP),  # Trigger for updating depth map
     # Trigger for updating thresholds
-    dcc.Store(id='update-thresholds-container'),
+    dcc.Store(id=C.STORE_UPDATE_THRESHOLD_CONTAINER),
     # App Layout
     html.Header("Parallax Maker",
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
@@ -105,15 +105,15 @@ app.layout = html.Div([
             ['2D', '3D'],
             [
                 components.make_input_image_container(
-                    upload_id='upload-image',
-                    image_id='image', event_id='el',
-                    canvas_id='canvas',
+                    upload_id=C.UPLOAD_IMAGE,
+                    image_id=C.IMAGE, event_id='el',
+                    canvas_id=C.CANVAS,
                     outer_class_name='w-full col-span-3'),
                 html.Div(
-                    id="model-viewer-container",
+                    id=C.CTR_MODEL_VIEWER,
                     children=[
                         html.Iframe(
-                            id="model-viewer",
+                            id=C.IFRAME_MODEL_VIEWER,
                             srcDoc=get_no_gltf_available(),
                             style={'height': '70vh'},
                             className='w-full h-full bg-gray-400 p-2'
@@ -129,7 +129,7 @@ app.layout = html.Div([
             [
                 html.Div([
                     components.make_depth_map_container(
-                        depth_map_id='depth-map-container'),
+                        depth_map_id=C.CTR_DEPTH_MAP),
                     components.make_mode_selector(),
                 ], className='w-full', id='depth-map-column'),
                 components.make_slice_generation_container(),
@@ -155,8 +155,8 @@ app.scripts.config.serve_locally = True
 app.clientside_callback(
     ClientsideFunction(namespace='clientside',
                        function_name='store_rect_coords'),
-    Output('rect-data', 'data'),
-    Input('image', 'src'),
+    Output(C.STORE_RECT_DATA, 'data'),
+    Input(C.IMAGE, 'src'),
     Input('evScroll', 'n_events'),
 )
 
@@ -202,10 +202,10 @@ def update_progress(n):
 
 @app.callback(
     Output({'type': 'threshold-slider', 'index': ALL}, 'value'),
-    Output('image', 'src', allow_duplicate=True),
+    Output(C.IMAGE, 'src', allow_duplicate=True),
     Input({'type': 'threshold-slider', 'index': ALL}, 'value'),
     State(C.SLIDER_NUM_SLICES, 'value'),
-    State('application-state-filename', 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True
 )
 def update_threshold_values(threshold_values, num_slices, filename):
@@ -253,8 +253,8 @@ def update_threshold_values(threshold_values, num_slices, filename):
 
 @app.callback(
     Output(C.CTR_THRESHOLDS, 'children'),
-    Input('update-thresholds-container', 'data'),
-    State('application-state-filename', 'data'),
+    Input(C.STORE_UPDATE_THRESHOLD_CONTAINER, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True
 )
 def update_thresholds_html(value, filename):
@@ -281,12 +281,12 @@ def update_thresholds_html(value, filename):
 
 
 @app.callback(
-    Output('update-thresholds-container', 'data', allow_duplicate=True),
+    Output(C.STORE_UPDATE_THRESHOLD_CONTAINER, 'data', allow_duplicate=True),
     Output(C.LOGS_DATA, 'data', allow_duplicate=True),
     # triggers regeneration of slices if we have them already
-    Input('depth-map-container', 'children'),
+    Input(C.CTR_DEPTH_MAP, 'children'),
     Input(C.SLIDER_NUM_SLICES, 'value'),
-    State('application-state-filename', 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     State(C.LOGS_DATA, 'data'),
     prevent_initial_call=True
 )
@@ -318,14 +318,14 @@ def update_thresholds(contents, num_slices, filename, logs_data):
     return True, logs_data
 
 
-@app.callback(Output('application-state-filename', 'data', allow_duplicate=True),
+@app.callback(Output(C.STORE_APPSTATE_FILENAME, 'data', allow_duplicate=True),
               Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
-              Output('trigger-generate-depthmap',
+              Output(C.STORE_TRIGGER_GEN_DEPTHMAP,
                      'data', allow_duplicate=True),
-              Output('image', 'src', allow_duplicate=True),
-              Output('depth-map-container', 'children', allow_duplicate=True),
+              Output(C.IMAGE, 'src', allow_duplicate=True),
+              Output(C.CTR_DEPTH_MAP, 'children', allow_duplicate=True),
               Output(C.PROGRESS_INTERVAL, 'disabled', allow_duplicate=True),
-              Input('upload-image', 'contents'),
+              Input(C.UPLOAD_IMAGE, 'contents'),
               State({'type': f'tab-content-main', 'index': ALL}, 'className'),
               prevent_initial_call=True)
 def update_input_image(contents, classnames):
@@ -353,14 +353,14 @@ def update_input_image(contents, classnames):
         className='w-full p-0 object-scale-down'), False
 
 
-@app.callback(Output('image', 'src', allow_duplicate=True),
+@app.callback(Output(C.IMAGE, 'src', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data'),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input("el", "n_events"),
               State("el", "event"),
-              State('rect-data', 'data'),
-              State('mode-selector', 'value'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_RECT_DATA, 'data'),
+              State(C.DROPDOWN_MODE_SELECTOR, 'value'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True
               )
@@ -415,19 +415,19 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
 
     return img_data, logs_data, ""
 
-@app.callback(Output('trigger-generate-depthmap', 'data'),
-              Input('generate-depthmap-button', 'n_clicks'),
-              State('application-state-filename', 'data'),
+@app.callback(Output(C.STORE_TRIGGER_GEN_DEPTHMAP, 'data'),
+              Input(C.BTN_GENERATE_DEPTHMAP, 'n_clicks'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def generate_depth_map_from_button(n_clicks, filename):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
     return True
 
-@app.callback(Output('trigger-update-depthmap', 'data'),
+@app.callback(Output(C.STORE_TRIGGER_UPDATE_DEPTHMAP, 'data'),
               Output(C.DEPTHMAP_OUTPUT, 'children'),
-              Input('trigger-generate-depthmap', 'data'),
-              State('application-state-filename', 'data'),
+              Input(C.STORE_TRIGGER_GEN_DEPTHMAP, 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.DROPDOWN_DEPTH_MODEL, 'value'),
               prevent_initial_call=True)
 def generate_depth_map_callback(ignored_data, filename, model):
@@ -458,9 +458,9 @@ def generate_depth_map_callback(ignored_data, filename, model):
     return True, ""
 
 
-@app.callback(Output('depth-map-container', 'children'),
-              Input('trigger-update-depthmap', 'data'),
-              State('application-state-filename', 'data'),
+@app.callback(Output(C.CTR_DEPTH_MAP, 'children'),
+              Input(C.STORE_TRIGGER_UPDATE_DEPTHMAP, 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def update_depth_map_callback(ignored_data, filename):
     if filename is None:
@@ -480,12 +480,12 @@ def update_depth_map_callback(ignored_data, filename):
         id='depthmap-image'), ""
 
 
-@app.callback(Output('image', 'src', allow_duplicate=True),
+@app.callback(Output(C.IMAGE, 'src', allow_duplicate=True),
               Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input(C.BTN_DELETE_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def delete_slice_request(n_clicks, filename, logs):
@@ -512,7 +512,7 @@ def delete_slice_request(n_clicks, filename, logs):
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Input(C.BTN_COPY_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def copy_to_clipboard(n_clicks, filename, logs):
@@ -543,7 +543,7 @@ def copy_to_clipboard(n_clicks, filename, logs):
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input(C.BTN_PASTE_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def paste_clipboard_request(n_clicks, filename, logs):
@@ -579,7 +579,7 @@ def paste_clipboard_request(n_clicks, filename, logs):
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input(C.BTN_REMOVE_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def remove_mask_slice_request(n_clicks, filename, logs):
@@ -615,7 +615,7 @@ def remove_mask_slice_request(n_clicks, filename, logs):
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input(C.BTN_ADD_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def add_mask_slice_request(n_clicks, filename, logs):
@@ -652,7 +652,7 @@ def add_mask_slice_request(n_clicks, filename, logs):
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input(C.BTN_CREATE_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def create_single_slice_request(n_clicks, filename, logs):
@@ -687,7 +687,7 @@ def create_single_slice_request(n_clicks, filename, logs):
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Input(C.BTN_BALANCE_SLICE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def balance_slices_request(n_clicks, filename, logs):
@@ -720,9 +720,9 @@ def generate_slices_request(n_clicks):
 
 @app.callback(Output(C.CTR_SLICE_IMAGES, 'children'),
               Output('gen-slice-output', 'children', allow_duplicate=True),
-              Output('image', 'src', allow_duplicate=True),
+              Output(C.IMAGE, 'src', allow_duplicate=True),
               Input(C.STORE_UPDATE_SLICE, 'data'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def update_slices(ignored_data, filename):
     if filename is None:
@@ -829,7 +829,7 @@ def display_depth_input(n_clicks, class_name):
     Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
     Input({'type': 'depth-input', 'index': ALL}, 'value'),
     Input({'type': 'depth-input', 'index': ALL}, 'n_submit'),
-    State('application-state-filename', 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True
 )
 def record_depth_input(values, n_submits, filename):
@@ -857,7 +857,7 @@ def record_depth_input(values, n_submits, filename):
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Input({'type': 'slice-undo-backwards', 'index': ALL}, 'n_clicks'),
               Input({'type': 'slice-undo-forwards', 'index': ALL}, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
     if filename is None:
@@ -891,7 +891,7 @@ def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output('gen-slice-output', 'children'),
               Input(C.STORE_GENERATE_SLICE, 'data'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def generate_slices(ignored_data, filename):
     if filename is None:
@@ -914,13 +914,13 @@ def generate_slices(ignored_data, filename):
     return True, ""
 
 
-@app.callback(Output('image', 'src'),
+@app.callback(Output(C.IMAGE, 'src'),
               Output({'type': 'slice', 'index': ALL}, 'className'),
               Input({'type': 'slice', 'index': ALL}, 'n_clicks'),
               State({'type': 'slice', 'index': ALL}, 'id'),
               State({'type': 'slice', 'index': ALL}, 'src'),
               State({'type': 'slice', 'index': ALL}, 'className'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def display_slice(n_clicks, id, src, classnames, filename):
     if filename is None or n_clicks is None or any(n_clicks) is False:
@@ -945,9 +945,9 @@ def display_slice(n_clicks, id, src, classnames, filename):
 
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
-              Output('gltf-loading', 'children', allow_duplicate=True),
-              Input('upscale-textures', 'n_clicks'),
-              State('application-state-filename', 'data'),
+              Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
+              Input(C.BTN_UPSCALE_TEXTURES, 'n_clicks'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def upscale_texture(n_clicks, filename, logs):
@@ -963,14 +963,14 @@ def upscale_texture(n_clicks, filename, logs):
     return logs, ""
 
 
-@app.callback(Output('download-gltf', 'data'),
-              Output('gltf-loading', 'children', allow_duplicate=True),
-              Input('gltf-export', 'n_clicks'),
-              State('application-state-filename', 'data'),
-              State('camera-distance-slider', 'value'),
-              State('max-distance-slider', 'value'),
-              State('focal-length-slider', 'value'),
-              State('displacement-slider', 'value'),
+@app.callback(Output(C.DOWNLOAD_GLTF, 'data'),
+              Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
+              Input(C.BTN_GLTF_EXPORT, 'n_clicks'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              State(C.SLIDER_CAMERA_DISTANCE, 'value'),
+              State(C.SLIDER_MAX_DISTANCE, 'value'),
+              State(C.SLIDER_FOCAL_LENGTH, 'value'),
+              State(C.SLIDER_DISPLACEMENT, 'value'),
               prevent_initial_call=True
               )
 def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
@@ -987,13 +987,13 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
 
 # XXX - this and the callback above can be chained to avoid code duplication
 @app.callback(Output('model-viewer', 'srcDoc', allow_duplicate=True),
-              Output('gltf-loading', 'children', allow_duplicate=True),
-              Input('gltf-create', 'n_clicks'),
-              State('application-state-filename', 'data'),
-              State('camera-distance-slider', 'value'),
-              State('max-distance-slider', 'value'),
-              State('focal-length-slider', 'value'),
-              State('displacement-slider', 'value'),
+              Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
+              Input(C.BTN_GLTF_CREATE , 'n_clicks'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              State(C.SLIDER_CAMERA_DISTANCE, 'value'),
+              State(C.SLIDER_MAX_DISTANCE, 'value'),
+              State(C.SLIDER_FOCAL_LENGTH, 'value'),
+              State(C.SLIDER_DISPLACEMENT, 'value'),
               State(C.DROPDOWN_DEPTH_MODEL, 'value'),
               prevent_initial_call=True
               )
@@ -1059,7 +1059,7 @@ def export_state_as_gltf(
 
 @app.callback(Output(C.DOWNLOAD_IMAGE, 'data'),
               Input({'type': 'slice-info', 'index': ALL}, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def download_image(n_clicks, filename):
     if filename is None or n_clicks is None or ctx.triggered_id is None:
@@ -1081,7 +1081,7 @@ def download_image(n_clicks, filename):
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Input({'type': 'slice-upload', 'index': ALL}, 'contents'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def slice_upload(contents, filename, logs):
@@ -1118,10 +1118,10 @@ def slice_upload(contents, filename, logs):
 
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
-              Output('gen-animation-output', 'children'),
-              Input('animation-export', 'n_clicks'),
-              State('application-state-filename', 'data'),
-              State('number-of-frames-slider', 'value'),
+              Output(C.ANIMATION_OUTPUT, 'children'),
+              Input(C.BTN_EXPORT_ANIMATION, 'n_clicks'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              State(C.SLIDER_NUM_FRAMES, 'value'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def export_animation(n_clicks, filename, num_frames, logs):
@@ -1150,8 +1150,8 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
 @app.callback(
     Output(C.INPUT_EXTERNAL_SERVER, 'value'),
-    Input('restore-state', 'data'),
-    State('application-state-filename', 'data'),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True)
 def update_external_server_address(value, filename):
     if filename is None:
@@ -1163,8 +1163,8 @@ def update_external_server_address(value, filename):
 
 @app.callback(
     Output('model-viewer', 'srcDoc'),
-    Input('restore-state', 'data'),
-    State('application-state-filename', 'data'),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True)
 def update_model_viewer(value, filename):
     if filename is None:
@@ -1178,8 +1178,8 @@ def update_model_viewer(value, filename):
 
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
-              Input('restore-state', 'data'),
-              State('application-state-filename', 'data'),
+              Input(C.STORE_RESTORE_STATE, 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
 def restore_state_slices(value, filename):
     if filename is None:
@@ -1193,8 +1193,8 @@ def restore_state_slices(value, filename):
     return True
 
 
-@app.callback(Output('trigger-update-depthmap', 'data', allow_duplicate=True),
-              Input('restore-state', 'data'),
+@app.callback(Output(C.STORE_TRIGGER_UPDATE_DEPTHMAP, 'data', allow_duplicate=True),
+              Input(C.STORE_RESTORE_STATE, 'data'),
               prevent_initial_call=True)
 def restore_state_depthmap(value):
     return True
@@ -1202,10 +1202,10 @@ def restore_state_depthmap(value):
 
 @app.callback(
     # XXX - generate depth-map via separate callback
-    Output('application-state-filename', 'data'),
-    Output('restore-state', 'data'),
-    Output('image', 'src', allow_duplicate=True),
-    Output('update-thresholds-container', 'data', allow_duplicate=True),
+    Output(C.STORE_APPSTATE_FILENAME, 'data'),
+    Output(C.STORE_RESTORE_STATE, 'data'),
+    Output(C.IMAGE, 'src', allow_duplicate=True),
+    Output(C.STORE_UPDATE_THRESHOLD_CONTAINER, 'data', allow_duplicate=True),
     Output(C.SLIDER_NUM_SLICES, 'value'),
     Output(C.LOGS_DATA, 'data', allow_duplicate=True),
     Input(C.UPLOAD_STATE, 'contents'),
@@ -1235,7 +1235,7 @@ def restore_state(contents, logs):
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Input(C.BTN_SAVE_STATE, 'n_clicks'),
-              State('application-state-filename', 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
 def save_state(n_clicks, filename, logs):

@@ -11,6 +11,8 @@ import numpy as np
 from PIL import Image, ImageDraw
 from pathlib import Path
 
+import constants as C
+
 
 def timeit(func):
     @wraps(func)
@@ -349,7 +351,7 @@ def get_gltf_iframe(gltf_uri):
     </head>
     <body>
     <model-viewer
-        id="model-viewer"
+        id="{C.IFRAME_MODEL_VIEWER}"
         src="{gltf_uri}"
         alt="glTF Scene"
         ar
