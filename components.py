@@ -15,6 +15,7 @@ from dash.dependencies import Input, Output, State, ALL, ClientsideFunction
 from dash.exceptions import PreventUpdate
 
 # Local application/library specific imports
+import constants as C
 from automatic1111 import make_models_request
 from comfyui import get_history, patch_inpainting_workflow
 from controller import AppState
@@ -47,14 +48,14 @@ def make_input_image_container(
 
     return html.Div([
         html.Label('Input Image', className='font-bold mb-2 ml-3'),
-        dcc.Store(id='canvas-ignore'),  # we don't read this data
+        dcc.Store(id=C.CANVAS_IGNORE),  # we don't read this data
         dcc.Upload(
             id=upload_id,
             disabled=False,
             children=html.Div(
                 [
                     dcc.Loading(
-                        id='loading-upload',
+                        id=C.LOADING_UPLOAD,
                         children=[],
                         fullscreen=False,  # Ensure not to use fullscreen
                         # Center in the Upload container
@@ -72,7 +73,7 @@ def make_input_image_container(
                             id=canvas_id,
                             className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-10'
                             ),
-                        id='canvas-paint', events=get_canvas_paint_events(), logging=False
+                        id=C.CANVAS_PAINT, events=get_canvas_paint_events(), logging=False
                     ),
                     html.Canvas(
                         id=preview_canvas_id,
@@ -97,14 +98,14 @@ def make_inpainting_tools_container():
     return html.Div([
         # Div for existing canvas tools
         html.Div([
-            dcc.Store(id='canvas-data'),  # saves to disk
-            dcc.Store(id='canvas-mask-data'),
+            dcc.Store(id=C.CANVAS_DATA),  # saves to disk
+            dcc.Store(id=C.CANVAS_MASK_DATA),
             html.Div([
-                    html.Button('Clear', id='clear-canvas',
+                    html.Button('Clear', id=C.BTN_CLEAR_CANVAS,
                                 className='bg-blue-500 text-white p-2 rounded-md mr-1'),
-                    html.Button('Erase', id='erase-mode-canvas',
+                    html.Button('Erase', id=C.BTN_ERASE_MODE,
                                 className='bg-blue-500 text-white p-2 rounded-md mr-1'),
-                    html.Button('Load', id='load-canvas',
+                    html.Button('Load', id=C.BTN_LOAD_CANVAS,
                                 className='bg-blue-500 text-white p-2 rounded-md'),
                     ], className='flex justify-between')
         ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1'),
@@ -112,38 +113,38 @@ def make_inpainting_tools_container():
         # Div for navigation buttons arranged just in a single row
         html.Div([
             html.Div([
-                html.Button(html.I(className="fa fa-magnifying-glass-minus"), id='nav-zoom-out',
+                html.Button(html.I(className="fa fa-magnifying-glass-minus"), id=C.NAV_ZOOM_OUT,
                             className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                html.Button(html.I(className="fa fa-arrow-up"), id='nav-up',
+                html.Button(html.I(className="fa fa-arrow-up"), id=C.NAV_UP,
                             className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                html.Button(html.I(className="fa fa-arrow-left"), id='nav-left',
+                html.Button(html.I(className="fa fa-arrow-left"), id=C.NAV_LEFT,
                             className='bg-blue-500 text-white p-1 rounded-full mr-1'),
                 html.Button(html.I(className="fa fa-circle"), id='nav-reset',
                             className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                html.Button(html.I(className="fa fa-arrow-right"), id='nav-right',
+                html.Button(html.I(className="fa fa-arrow-right"), id=C.NAV_RIGHT,
                             className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                html.Button(html.I(className="fa fa-arrow-down"), id='nav-down',
+                html.Button(html.I(className="fa fa-arrow-down"), id=C.NAV_DOWN,
                             className='bg-blue-500 text-white p-1 rounded-full mr-1'),
-                html.Button(html.I(className="fa fa-magnifying-glass-plus"), id='nav-zoom-in',
+                html.Button(html.I(className="fa fa-magnifying-glass-plus"), id=C.NAV_ZOOM_IN,
                             className='bg-blue-500 text-white p-1 rounded-full'),
             ], className='flex justify-between'),
         ], className='flex justify-center items-centergap-1 p-1 bg-gray-200 rounded-md mt-1'),
 
-    ], id='canvas-buttons', className='flex gap-2')
+    ], id=C.CTR_CANVAS_BUTTONS, className='flex gap-2')
 
 
 def make_segmentation_tools_container():
     return html.Div([
         html.Div([
             html.Div([
-                html.Button(["Invert ", html.I(className="fa fa-adjust")], id='invert-mask',
+                html.Button(["Invert ", html.I(className="fa fa-adjust")], id=C.SEG_INVERT_MASK,
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
-                html.Button(["Feather ", html.I(className="fa fa-wind")], id='feather-mask',
+                html.Button(["Feather ", html.I(className="fa fa-wind")], id=C.SEG_FEATHER_MASK,
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
             ], className='flex justify-between')
         ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1')
     ],
-        id='segmentation-buttons',
+        id=C.CTR_SEG_BUTTONS,
         className='inline-block')
 
 
@@ -151,13 +152,13 @@ def make_tools_callbacks(app):
     @app.callback(
         Output('canvas', 'className'),
         Output('image', 'className'),
-        Output('canvas-buttons', 'className'),
-        Output('segmentation-buttons', 'className'),
+        Output(C.CTR_CANVAS_BUTTONS, 'className'),
+        Output(C.CTR_SEG_BUTTONS, 'className'),
         Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
         State('canvas', 'className'),
         State('image', 'className'),
-        State('canvas-buttons', 'className'),
-        State('segmentation-buttons', 'className'),
+        State(C.CTR_CANVAS_BUTTONS, 'className'),
+        State(C.CTR_SEG_BUTTONS, 'className'),
     )
     def update_events(tab_class_names, canvas_class_name, image_class_name,
                       inpaint_btns_class, segment_btns_class):
@@ -197,9 +198,9 @@ def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
                  className='w-full min-h-60 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
                  ),
         dcc.Loading(
-            id='loading',
+            id=C.LOADING_DEPTHMAP,
             type='default',
-            children=html.Div(id='gen-depthmap-output')
+            children=html.Div(id=C.DEPTHMAP_OUTPUT)
         ),
         html.Button(
             html.Div([
@@ -209,14 +210,14 @@ def make_depth_map_container(depth_map_id: str = 'depth-map-container'):
             className='bg-blue-500 text-white p-2 rounded-md mt-2 mb-2'
         ),
         html.Div([
-            dcc.Interval(id='progress-interval', interval=500, n_intervals=0),
-            html.Div(id='progress-bar-container',
+            dcc.Interval(id=C.PROGRESS_INTERVAL, interval=500, n_intervals=0),
+            html.Div(id=C.CTR_PROGRESS_BAR,
                      className='h-3 w-full bg-gray-200 rounded-lg'),
         ], className='p-2'),
     ], className='w-full')
 
 
-def make_thresholds_container(thresholds_id: str = 'thresholds-container'):
+def make_thresholds_container(thresholds_id: str = C.CTR_THRESHOLDS):
     return html.Div([
         html.Label('Thresholds', className='font-bold mb-2 ml-3'),
         html.Div(id=thresholds_id,
@@ -226,13 +227,13 @@ def make_thresholds_container(thresholds_id: str = 'thresholds-container'):
 
 def make_slice_generation_container():
     return html.Div([
-                    dcc.Store(id='generate-slice-request'),
-                    dcc.Store(id='update-slice-request'),
-                    dcc.Download(id='download-image'),
+                    dcc.Store(id=C.STORE_GENERATE_SLICE),
+                    dcc.Store(id=C.STORE_UPDATE_SLICE),
+                    dcc.Download(id=C.DOWNLOAD_IMAGE),
                     html.Div([
                         html.Div([
                             make_thresholds_container(
-                                thresholds_id='thresholds-container'),
+                                thresholds_id=C.CTR_THRESHOLDS),
                         ],
                             className='w-full col-span-3',
                         ),
@@ -244,7 +245,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Generate'),
                                         html.I(className='fa-solid fa-images pl-1')]),
-                                    id='generate-slice-button',
+                                    id=C.BTN_GENERATE_SLICE,
                                     title='Generate image slices from the input image using the depth map',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1 mr-2'
                                 ),
@@ -252,7 +253,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Balance'),
                                         html.I(className='fa-solid fa-arrows-left-right pl-1')]),
-                                    id='balance-slice-button',
+                                    id=C.BTN_BALANCE_SLICE,
                                     title='Rebalances the depths of the image slices evenly',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -260,7 +261,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Create'),
                                         html.I(className='fa-solid fa-square-plus pl-1')]),
-                                    id='create-slice-button',
+                                    id=C.BTN_CREATE_SLICE,
                                     title='Creates a slice from the current mask',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -268,7 +269,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Delete'),
                                         html.I(className='fa-solid fa-trash-can pl-1')]),
-                                    id='delete-slice-button',
+                                    id=C.BTN_DELETE_SLICE,
                                     title='Deletes the currently selected slice',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -276,7 +277,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Add'),
                                         html.I(className='fa-solid fa-brush pl-1')]),
-                                    id='add-to-slice-button',
+                                    id=C.BTN_ADD_SLICE,
                                     title='Adds the current mask to the selected slice',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -284,7 +285,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Remove'),
                                         html.I(className='fa-solid fa-eraser pl-1')]),
-                                    id='remove-from-slice-button',
+                                    id=C.BTN_REMOVE_SLICE,
                                     title='Removes the current mask from the selected slice',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -292,7 +293,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Copy'),
                                         html.I(className='fa-solid fa-brush pl-1')]),
-                                    id='copy-button',
+                                    id=C.BTN_COPY_SLICE,
                                     title='Copies the current mask to the clipboard',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -300,7 +301,7 @@ def make_slice_generation_container():
                                     html.Div([
                                         html.Label('Paste'),
                                         html.I(className='fa-solid fa-eraser pl-1')]),
-                                    id='paste-button',
+                                    id=C.BTN_PASTE_SLICE,
                                     title='Copies the clipboard to the selected slice',
                                     className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
                                 ),
@@ -312,24 +313,23 @@ def make_slice_generation_container():
                     ],
                         className='grid grid-cols-5 gap-4 p-2'
                     ),
-                    dcc.Loading(id="generate-slices",
+                    dcc.Loading(id=C.LOADING_GENERATE_SLICE,
                                 children=html.Div(id="gen-slice-output")),
-                    html.Div(id='slice-img-container',
+                    html.Div(id=C.CTR_SLICE_IMAGES,
                              className='min-h-8 w-full grid grid-cols-3 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
                     ],
                     className='w-full overflow-auto',
-                    id='slice-generation-column',
                     style={'height': '69vh'},
                     )
 
 
 def make_inpainting_container():
     return html.Div([
-        dcc.Store(id='inpainting-request'),
+        dcc.Store(id=C.STORE_INPAINTING),
         html.Div([
             html.Label('Positive Prompt'),
             dcc.Textarea(
-                id='positive-prompt',
+                id=C.TEXT_POSITIVE_PROMPT,
                 placeholder='Enter a positive generative AI prompt...',
                 className='w-full p-2 border border-gray-300 rounded-md mb-2',
                 style={'height': '100px'}
@@ -338,7 +338,7 @@ def make_inpainting_container():
         html.Div([
             html.Label('Negative Prompt'),
             dcc.Textarea(
-                id='negative-prompt',
+                id=C.TEXT_NEGATIVE_PROMPT,
                 placeholder='Enter a negative prompt...',
                 className='w-full p-2 border border-gray-300 rounded-md mb-2',
             )
@@ -346,7 +346,7 @@ def make_inpainting_container():
         html.Div([
             html.Label('Strength'),
             dcc.Slider(
-                id='inpaint-stength',
+                id=C.SLIDER_INPAINT_STRENGTH,
                 min=0,
                 max=1,
                 step=0.01,
@@ -358,7 +358,7 @@ def make_inpainting_container():
         html.Div([
             html.Label('Guidance Scale'),
             dcc.Slider(
-                id='inpaint-guidance',
+                id=C.SLIDER_INPAINT_GUIDANCE,
                 min=1,
                 max=15,
                 step=0.25,
@@ -372,7 +372,7 @@ def make_inpainting_container():
                 html.Label('Generate Inpainting'),
                 html.I(className='fa-solid fa-paint-brush pl-1')
             ]),
-            id='generate-inpainting-button',
+            id=C.BTN_GENERATE_INPAINTING,
             className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
         ),
         html.Button(
@@ -380,19 +380,19 @@ def make_inpainting_container():
                 html.Label('Erase'),
                 html.I(className='fa-solid fa-trash-can pl-1')
             ]),
-            id='erase-inpainting-button',
+            id=C.BTN_ERASE_INPAINTING,
             className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3',
             title='Clear the painted areas from the selected image',
         ),
         dcc.Loading(
-            id="generate-inpainting",
-            children=html.Div(id="inpainting-output")
+            id=C.LOADING_GENERATE_INPAINTING,
+            children=html.Div(id=C.CTR_INPAINTING_OUTPUT)
         ),
         html.Div(
-            id='inpainting-img-container',
+            id=C.CTR_INPAINTING_IMAGES,
             children=[
                 html.Div(
-                    id='inpainting-image-display',
+                    id=C.CTR_INPAINTING_DISPLAY,
                     className='grid grid-cols-3 gap-2'
                 ),
             ],
@@ -400,25 +400,25 @@ def make_inpainting_container():
         ),
         html.Button(
             'Apply Selected Image',
-            id='apply-inpainting-button',
+            id=C.BTN_APPLY_INPAINTING,
             className='bg-green-500 text-white p-2 rounded-md mt-2',
             disabled=True
         )
 
-    ], className='w-full', id='inpainting-column')
+    ], className='w-full', id=C.CTR_INPAINTING_COLUNM)
 
 
 def make_inpainting_container_callbacks(app):
     @app.callback(
-        Output('apply-inpainting-button', 'disabled'),
-        Input('inpainting-image-display', 'children')
+        Output(C.BTN_APPLY_INPAINTING, 'disabled'),
+        Input(C.CTR_INPAINTING_DISPLAY, 'children')
     )
     def enable_apply_inpainting_button(children):
         return False if children else True
 
     @app.callback(
-        Output('positive-prompt', 'value'),
-        Output('negative-prompt', 'value'),
+        Output(C.TEXT_POSITIVE_PROMPT, 'value'),
+        Output(C.TEXT_NEGATIVE_PROMPT , 'value'),
         Input('restore-state', 'data'),
         State('application-state-filename', 'data'),
         prevent_initial_call=True)
@@ -430,11 +430,11 @@ def make_inpainting_container_callbacks(app):
         return state.positive_prompt, state.negative_prompt
 
     @app.callback(
-        Output('update-slice-request', 'data', allow_duplicate=True),
-        Output('logs-data', 'data', allow_duplicate=True),
-        Input('erase-inpainting-button', 'n_clicks'),
+        Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
+        Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+        Input(C.BTN_ERASE_INPAINTING, 'n_clicks'),
         State('application-state-filename', 'data'),
-        State('logs-data', 'data'),
+        State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
     def erase_inpainting(n_clicks, filename, logs):
         if n_clicks is None or filename is None:
@@ -468,19 +468,19 @@ def make_inpainting_container_callbacks(app):
         return True, logs
 
     @app.callback(
-        Output('inpainting-image-display', 'children'),
-        Output('generate-inpainting', 'children'),
-        Input('generate-inpainting-button', 'n_clicks'),
+        Output(C.CTR_INPAINTING_DISPLAY, 'children'),
+        Output(C.LOADING_GENERATE_INPAINTING, 'children'),
+        Input(C.BTN_GENERATE_INPAINTING, 'n_clicks'),
         State('application-state-filename', 'data'),
-        State('inpainting-model-dropdown', 'value'),
-        State('external-server-address', 'value'),
-        State('comfyui-workflow-upload', 'contents'),
-        State('positive-prompt', 'value'),
-        State('negative-prompt', 'value'),
-        State('inpaint-stength', 'value'),
-        State('inpaint-guidance', 'value'),
-        State('mask-padding-slider', 'value'),
-        State('mask-blur-slider', 'value'),
+        State(C.DROPDOWN_INPAINT_MODEL, 'value'),
+        State(C.INPUT_EXTERNAL_SERVER, 'value'),
+        State(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
+        State(C.TEXT_POSITIVE_PROMPT, 'value'),
+        State(C.TEXT_NEGATIVE_PROMPT , 'value'),
+        State(C.SLIDER_INPAINT_STRENGTH, 'value'),
+        State(C.SLIDER_INPAINT_GUIDANCE, 'value'),
+        State(C.SLIDER_MASK_PADDING, 'value'),
+        State(C.SLIDER_MASK_BLUR, 'value'),
         prevent_initial_call=True
     )
     def update_inpainting_image_display(
@@ -564,18 +564,18 @@ def make_inpainting_container_callbacks(app):
             children.append(
                 html.Img(src=to_image_url(new_image),
                          className='w-full h-full object-contain',
-                         id={'type': 'inpainting-image', 'index': i})
+                         id={'type': C.ID_INPAINTING_IMAGE, 'index': i})
             )
         return children, []
 
     @app.callback(
         Output('image', 'src', allow_duplicate=True),
-        Output({'type': 'inpainting-image', 'index': ALL}, 'className'),
-        Output('loading-upload', 'children', allow_duplicate=True),
-        Input({'type': 'inpainting-image', 'index': ALL}, 'n_clicks'),
+        Output({'type': C.ID_INPAINTING_IMAGE, 'index': ALL}, 'className'),
+        Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
+        Input({'type': C.ID_INPAINTING_IMAGE, 'index': ALL}, 'n_clicks'),
         State('application-state-filename', 'data'),
-        State({'type': 'inpainting-image', 'index': ALL}, 'src'),
-        State({'type': 'inpainting-image', 'index': ALL}, 'className'),
+        State({'type': C.ID_INPAINTING_IMAGE, 'index': ALL}, 'src'),
+        State({'type': C.ID_INPAINTING_IMAGE, 'index': ALL}, 'className'),
         prevent_initial_call=True)
     def select_inpainting_image(n_clicks, filename, images, classnames):
         if n_clicks is None or filename is None:
@@ -605,13 +605,13 @@ def make_inpainting_container_callbacks(app):
         return images[index], new_classnames, ""
 
     @app.callback(
-        Output('inpainting-request', 'data'),
-        Output('logs-data', 'data', allow_duplicate=True),
-        Output('update-slice-request', 'data', allow_duplicate=True),
-        Input('apply-inpainting-button', 'n_clicks'),
+        Output(C.STORE_INPAINTING, 'data'),
+        Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+        Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
+        Input(C.BTN_APPLY_INPAINTING, 'n_clicks'),
         State('application-state-filename', 'data'),
-        State({'type': 'inpainting-image', 'index': ALL}, 'src'),
-        State('logs-data', 'data'),
+        State({'type': C.ID_INPAINTING_IMAGE, 'index': ALL}, 'src'),
+        State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
     def apply_inpainting(n_clicks, filename, inpainted_images, logs):
         if n_clicks is None or filename is None:
@@ -648,13 +648,13 @@ def make_configuration_callbacks(app):
     failure_class = ' bg-red-200'
 
     @app.callback(
-        Output('comfyui-workflow-upload', 'contents'),
-        Output('comfyui-workflow-upload', 'children'),
-        Output('logs-data', 'data', allow_duplicate=True),
-        Input('comfyui-workflow-upload', 'contents'),
-        State('comfyui-workflow-upload', 'filename'),
+        Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
+        Output(C.UPLOAD_COMFYUI_WORKFLOW, 'children'),
+        Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+        Input(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
+        State(C.UPLOAD_COMFYUI_WORKFLOW, 'filename'),
         State('application-state-filename', 'data'),
-        State('logs-data', 'data'),
+        State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
     def validate_workflow(contents, upload_name, filename, logs):
         if contents is None:
@@ -684,11 +684,11 @@ def make_configuration_callbacks(app):
         return no_update, upload_name, logs
 
     @app.callback(
-        Output('automatic-config-container', 'className'),
-        Output('comfyui-workflow-container', 'className'),
-        Input('inpainting-model-dropdown', 'value'),
-        State('automatic-config-container', 'className'),
-        State('comfyui-workflow-container', 'className'),
+        Output(C.CTR_AUTOMATIC_CONFIG, 'className'),
+        Output(C.CTR_COMFYUI_WORKFLOW, 'className'),
+        Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
+        State(C.CTR_AUTOMATIC_CONFIG, 'className'),
+        State(C.CTR_COMFYUI_WORKFLOW, 'className'),
     )
     def toggle_automatic_config(value, class_name_server, class_name_workflow):
         class_name_server = class_name_server.replace(' hidden', '')
@@ -701,9 +701,9 @@ def make_configuration_callbacks(app):
         return class_name_server, class_name_workflow
 
     @app.callback(
-        Output('external-server-address', 'className', allow_duplicate=True),
-        Input('external-server-address', 'value'),
-        State('external-server-address', 'className'),
+        Output(C.INPUT_EXTERNAL_SERVER, 'className', allow_duplicate=True),
+        Input(C.INPUT_EXTERNAL_SERVER, 'value'),
+        State(C.INPUT_EXTERNAL_SERVER, 'className'),
         State('application-state-filename', 'data'),
         prevent_initial_call=True)
     def reset_external_server_address(value, class_name, filename):
@@ -717,13 +717,13 @@ def make_configuration_callbacks(app):
         return class_name.replace(success_class, '').replace(failure_class, '')
 
     @app.callback(
-        Output('logs-data', 'data', allow_duplicate=True),
-        Output('external-server-address', 'className'),
-        Input('external-test-connection-button', 'n_clicks'),
-        State('external-server-address', 'value'),
-        State('external-server-address', 'className'),
-        State('inpainting-model-dropdown', 'value'),
-        State('logs-data', 'data'),
+        Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+        Output(C.INPUT_EXTERNAL_SERVER, 'className'),
+        Input(C.BTN_EXTERNAL_TEST_CONNECTION, 'n_clicks'),
+        State(C.INPUT_EXTERNAL_SERVER, 'value'),
+        State(C.INPUT_EXTERNAL_SERVER, 'className'),
+        State(C.DROPDOWN_INPAINT_MODEL, 'value'),
+        State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
     def test_external_connection(n_clicks, server_address, class_name, model, logs):
         if n_clicks is None:
@@ -762,7 +762,7 @@ def make_configuration_div():
         html.Div([
             html.Label('Number of Slices'),
             dcc.Slider(
-                id='num-slices-slider',
+                id=C.SLIDER_NUM_SLICES,
                 min=2,
                 max=10,
                 step=1,
@@ -773,7 +773,7 @@ def make_configuration_div():
         html.Div([
             html.Label('Depth Module Algorithm'),
             dcc.Dropdown(
-                id='depth-module-dropdown',
+                id=C.DROPDOWN_DEPTH_MODEL,
                 options=[
                     {'label': 'MiDaS', 'value': 'midas'},
                     {'label': 'ZoeDepth', 'value': 'zoedepth'},
@@ -785,7 +785,7 @@ def make_configuration_div():
         html.Div([
             html.Label('Inpainting Model'),
             dcc.Dropdown(
-                id='inpainting-model-dropdown',
+                id=C.DROPDOWN_INPAINT_MODEL,
                 options=[
                     {'label': 'Kadinksy',
                         'value': 'kandinsky-community/kandinsky-2-2-decoder-inpaint'},
@@ -802,7 +802,7 @@ def make_configuration_div():
             html.Label('A1111/ComfyUI Server Address'),
             html.Div([
                 dcc.Input(
-                    id='external-server-address',
+                    id=C.INPUT_EXTERNAL_SERVER,
                     value='localhost:7860',
                     type='text',
                     debounce=True,
@@ -813,7 +813,7 @@ def make_configuration_div():
                         html.Label('Test Connection'),
                         html.I(className='fa-solid fa-network-wired pl-1')
                     ]),
-                    id='external-test-connection-button',
+                    id=C.BTN_EXTERNAL_TEST_CONNECTION,
                     # Adjust the width and other margin as needed
                     className='bg-blue-500 text-white p-2 rounded-md mb-2 ml-2'
                 ),
@@ -826,21 +826,21 @@ def make_configuration_div():
                     children=['Drag and Drop or ', html.I(
                         className='fa-solid fa-upload'), ' to upload'],
                     className='p-2 border border-gray-300 rounded-md mb-2 flex-grow',
-                    id='comfyui-workflow-upload',
+                    id=C.UPLOAD_COMFYUI_WORKFLOW,
                 ),
             ],
-                id='comfyui-workflow-container',
+                id=C.CTR_COMFYUI_WORKFLOW,
                 className='w-full'
             ),
         ],
-            id='automatic-config-container',
+            id=C.CTR_AUTOMATIC_CONFIG,
             className='w-full'),
         html.Div([
             html.Label('Inpainting Parameters'),
             html.Div([
                 html.Label('Mask Padding'),
                 dcc.Slider(
-                    id='mask-padding-slider',
+                    id=C.SLIDER_MASK_PADDING,
                     min=0,
                     max=100,
                     step=10,
@@ -849,7 +849,7 @@ def make_configuration_div():
                 ),
                 html.Label('Mask Blur'),
                 dcc.Slider(
-                    id='mask-blur-slider',
+                    id=C.SLIDER_MASK_BLUR,
                     min=0,
                     max=100,
                     step=10,
@@ -870,7 +870,7 @@ def make_configuration_div():
                                     html.I(className='fa-solid fa-upload pl-1')]),
                                 className='bg-blue-500 text-white p-2 rounded-md mb-2'
                             ),
-                            id='upload-state',
+                            id=C.UPLOAD_STATE,
                             multiple=False,
                         ),
                         html.Button(
@@ -879,7 +879,7 @@ def make_configuration_div():
                                 html.I(className='fa-solid fa-download pl-1')],
                                 className='bg-blue-500 text-white p-2 rounded-md mb-2'
                             ),
-                            id='save-state'
+                            id=C.BTN_SAVE_STATE
                         )
                     ],
                     className='flex flex-row gap-4'
@@ -1066,10 +1066,10 @@ def make_tabs_callback(app, tab_id: str):
 
 def make_segmentation_callbacks(app):
     @app.callback(Output('image', 'src', allow_duplicate=True),
-                  Output('logs-data', 'data', allow_duplicate=True),
-                  Input('invert-mask', 'n_clicks'),
+                  Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+                  Input(C.SEG_INVERT_MASK, 'n_clicks'),
                   State('application-state-filename', 'data'),
-                  State('logs-data', 'data'),
+                  State(C.LOGS_DATA, 'data'),
                   prevent_initial_call=True)
     def invert_mask(n_clicks, filename, logs):
         if n_clicks is None or filename is None:
@@ -1088,10 +1088,10 @@ def make_segmentation_callbacks(app):
         return image, logs
 
     @app.callback(Output('image', 'src', allow_duplicate=True),
-                  Output('logs-data', 'data', allow_duplicate=True),
-                  Input('feather-mask', 'n_clicks'),
+                  Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+                  Input(C.SEG_FEATHER_MASK, 'n_clicks'),
                   State('application-state-filename', 'data'),
-                  State('logs-data', 'data'),
+                  State(C.LOGS_DATA, 'data'),
                   prevent_initial_call=True)
     def blur_mask(n_clicks, filename, logs):
         if n_clicks is None or filename is None:
@@ -1114,10 +1114,10 @@ def make_segmentation_callbacks(app):
 
 
 def make_canvas_callbacks(app):
-    @app.callback(Output('logs-data', 'data', allow_duplicate=True),
-                  Input('canvas-data', 'data'),
+    @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+                  Input(C.CANVAS_DATA, 'data'),
                   State('application-state-filename', 'data'),
-                  State('logs-data', 'data'),
+                  State(C.LOGS_DATA, 'data'),
                   prevent_initial_call=True)
     def save_slice_mask(data, filename, logs):
         if data is None or filename is None:
@@ -1157,11 +1157,11 @@ def make_canvas_callbacks(app):
 
         return logs
 
-    @app.callback(Output('canvas-mask-data', 'data'),
-                  Output('logs-data', 'data', allow_duplicate=True),
-                  Input('load-canvas', 'n_clicks'),
+    @app.callback(Output(C.CANVAS_MASK_DATA, 'data'),
+                  Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+                  Input(C.BTN_LOAD_CANVAS, 'n_clicks'),
                   State('application-state-filename', 'data'),
-                  State('logs-data', 'data'),
+                  State(C.LOGS_DATA, 'data'),
                   prevent_initial_call=True)
     def load_canvas_mask(n_clicks, filename, logs):
         if n_clicks is None or filename is None:
@@ -1194,30 +1194,30 @@ def make_canvas_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_load'),
-        Output('canvas-ignore', 'data', allow_duplicate=True),
-        Input('canvas-mask-data', 'data'),
+        Output(C.CANVAS_IGNORE, 'data', allow_duplicate=True),
+        Input(C.CANVAS_MASK_DATA, 'data'),
         prevent_initial_call=True
     )
 
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_draw'),
-        Output('canvas-data', 'data', allow_duplicate=True),
-        Input('canvas-paint', 'event'),
+        Output(C.CANVAS_DATA, 'data', allow_duplicate=True),
+        Input(C.CANVAS_PAINT, 'event'),
         prevent_initial_call=True
     )
 
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
-        Output('canvas-data', 'data'),
-        Input('clear-canvas', 'n_clicks'),
+        Output(C.CANVAS_DATA, 'data'),
+        Input(C.BTN_CLEAR_CANVAS, 'n_clicks'),
     )
 
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
-        Output('canvas-ignore', 'data'),
+        Output(C.CANVAS_IGNORE, 'data'),
         # XXX - this will kill the canvas during inpainting - bad
         Input('image', 'src'),
     )
@@ -1225,8 +1225,8 @@ def make_canvas_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_toggle_erase'),
-        Output('erase-mode-canvas', 'className'),
-        Input('erase-mode-canvas', 'n_clicks'),
+        Output(C.BTN_ERASE_MODE, 'className'),
+        Input(C.BTN_ERASE_MODE, 'n_clicks'),
         prevent_initial_call=True
     )
 
@@ -1234,17 +1234,17 @@ def make_canvas_callbacks(app):
 def make_navigation_callbacks(app):
     @app.callback(
         Output('image', 'src', allow_duplicate=True),
-        Output('logs-data', 'data', allow_duplicate=True),
+        Output(C.LOGS_DATA, 'data', allow_duplicate=True),
         Input('nav-reset', 'n_clicks'),
-        Input('nav-up', 'n_clicks'),
-        Input('nav-down', 'n_clicks'),
-        Input('nav-left', 'n_clicks'),
-        Input('nav-right', 'n_clicks'),
-        Input('nav-zoom-in', 'n_clicks'),
-        Input('nav-zoom-out', 'n_clicks'),
+        Input(C.NAV_UP, 'n_clicks'),
+        Input(C.NAV_DOWN, 'n_clicks'),
+        Input(C.NAV_LEFT, 'n_clicks'),
+        Input(C.NAV_RIGHT, 'n_clicks'),
+        Input(C.NAV_ZOOM_IN, 'n_clicks'),
+        Input(C.NAV_ZOOM_OUT, 'n_clicks'),
         State('application-state-filename', 'data'),
         State('camera-distance-slider', 'value'),
-        State('logs-data', 'data'),
+        State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
     def navigate_image(reset, up, down, left, right, zoom_in, zoom_out, filename, camera_distance, logs):
         if filename is None:
@@ -1270,12 +1270,12 @@ def make_navigation_callbacks(app):
             # Move the camera position based on the navigation button clicked
             # The distance should be configurable
             switch = {
-                'nav-up': np.array([0, -1, 0], dtype=np.float32),
-                'nav-down': np.array([0, 1, 0], dtype=np.float32),
-                'nav-left': np.array([-1, 0, 0], dtype=np.float32),
-                'nav-right': np.array([1, 0, 0], dtype=np.float32),
-                'nav-zoom-out': np.array([0, 0, -1], dtype=np.float32),
-                'nav-zoom-in': np.array([0, 0, 1], dtype=np.float32),
+                C.NAV_UP: np.array([0, -1, 0], dtype=np.float32),
+                C.NAV_DOWN: np.array([0, 1, 0], dtype=np.float32),
+                C.NAV_LEFT: np.array([-1, 0, 0], dtype=np.float32),
+                C.NAV_RIGHT: np.array([1, 0, 0], dtype=np.float32),
+                C.NAV_ZOOM_OUT: np.array([0, 0, -1], dtype=np.float32),
+                C.NAV_ZOOM_IN: np.array([0, 0, 1], dtype=np.float32),
             }
 
             camera_position += switch[nav_clicked]

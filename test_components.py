@@ -10,6 +10,7 @@ from dash import html
 
 from dash.exceptions import PreventUpdate
 
+import constants as C
 from controller import AppState
 from components import (
     make_inpainting_container_callbacks,
@@ -91,7 +92,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         self.assertEqual(len(results[0]), 3)  # Assuming 3 images are expected
         for i, img in enumerate(results[0]):
             id = img.id
-            self.assertDictEqual(id, {'type': 'inpainting-image', 'index': i})
+            self.assertDictEqual(id, {'type': C.ID_INPAINTING_IMAGE, 'index': i})
             img_data = img.src
             # Assuming you have some format to represent the image
             img = Image.open(io.BytesIO(
@@ -163,7 +164,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         self.assertEqual(len(results[0]), 3)  # Assuming 3 images are expected
         for i, img in enumerate(results[0]):
             id = img.id
-            self.assertDictEqual(id, {'type': 'inpainting-image', 'index': i})
+            self.assertDictEqual(id, {'type': C.ID_INPAINTING_IMAGE, 'index': i})
             img_data = img.src
             # Assuming you have some format to represent the image
             img = Image.open(io.BytesIO(
