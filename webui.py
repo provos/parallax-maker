@@ -100,6 +100,10 @@ app.layout = html.Div([
     html.Header("Parallax Maker",
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
     html.Main([
+        html.Div(
+            ['Some helpful text to guide the user'],
+            id=C.CTR_HELP_WINDOW,
+            className='hidden absolute w-64 p-2 bg-yellow-100 border border-black z-40'),
         components.make_tabs(
             'viewer',
             ['2D', '3D'],

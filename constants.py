@@ -115,3 +115,5 @@ BTN_UPSCALE_TEXTURES = 'upscale-textures'
 
 CTR_MODEL_VIEWER = 'model-viewer-container'
 IFRAME_MODEL_VIEWER = 'model-viewer'
+
+CTR_HELP_WINDOW = 'help-window'

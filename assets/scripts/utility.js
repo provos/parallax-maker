@@ -384,6 +384,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         },
         suppress_contextmenu: function (id) {
             console.log('Suppressing context menu for', id);
+            setupHelper(id);
             var element = document.getElementById(id);
             element.addEventListener('contextmenu', (e) => {
                 // Check if the ctrl key was pressed
@@ -392,23 +393,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                     e.preventDefault();
 
                     // Clone the original event properties
-                    const newEvent = new MouseEvent('click', {
-                        bubbles: true,
-                        cancelable: true,
-                        composed: true,
-                        view: e.view,
-                        detail: e.detail,
-                        screenX: e.screenX,
-                        screenY: e.screenY,
-                        clientX: e.clientX,
-                        clientY: e.clientY,
-                        ctrlKey: e.ctrlKey,
-                        altKey: e.altKey,
-                        shiftKey: e.shiftKey,
-                        metaKey: e.metaKey,
-                        button: e.button,
-                        relatedTarget: e.relatedTarget
-                    });
+                    const newEvent = cloneEvent(e, 'click');
 
                     // Dispatch the new event to the original target
                     e.target.dispatchEvent(newEvent);
@@ -418,3 +403,92 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
         }
     }
 });
+
+function cloneEvent(e, type) {
+    return new MouseEvent(type, {
+        bubbles: true,
+        cancelable: true,
+        composed: true,
+        view: e.view,
+        detail: e.detail,
+        screenX: e.screenX,
+        screenY: e.screenY,
+        clientX: e.clientX,
+        clientY: e.clientY,
+        ctrlKey: e.ctrlKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+        metaKey: e.metaKey,
+        button: e.button,
+        relatedTarget: e.relatedTarget
+    });
+}
+
+function setupHelper(id) {
+    console.log('Setting up helper for', id);
+    var element = document.getElementById(id);
+    if (element === null) {
+        console.log('No element found with id', id);
+        return;
+    }
+
+    // Reference to the help window element
+    const helpWindow = document.getElementById('help-window');
+
+    // Set the time (in milliseconds) to wait before showing the help window
+    const delay = 3000; // 3 seconds
+
+    let timer;
+    let mouseX = 0;
+    let mouseY = 0;
+
+    // Function to show the help window
+    const showHelpWindow = () => {
+        helpWindow.style.left = `${mouseX + 10}px`;
+        helpWindow.style.top = `${mouseY + 10}px`;
+        helpWindow.classList.remove('hidden');
+
+        // Create a list of different help texts
+        const helpTexts = [
+            'Segmentation: Click on the element in the image to create a mask for it',
+            'Segmentation: Control-click to remove the element from the mask',
+            'Inpainting: Drag Alt + Right-click to adjust brush size',
+            'Inpainting: Use the mouse wheel to zoom in and out of the image',
+            'Segmentation: Shift-click to add the element to the mask',
+        ];
+        // Randomly select a help text
+        const helpText = helpTexts[Math.floor(Math.random() * helpTexts.length)];
+        helpWindow.innerHTML = helpText;
+
+    }
+
+    // Function to hide the help window
+    const hideHelpWindow = () => {
+        helpWindow.classList.add('hidden');
+    }
+
+    // Function to reset the timer
+    const resetTimer = () => {
+        hideHelpWindow();
+        clearTimeout(timer);
+        timer = setTimeout(showHelpWindow, delay);
+    }
+
+    const endTimer = () => {
+        clearTimeout(timer);
+        hideHelpWindow();
+    }
+
+    // Event listener to update mouse coordinates
+    element.addEventListener('mousemove', (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        resetTimer();
+    });
+
+    // Add event listeners for other actions to reset the timer
+    element.addEventListener('mousedown', resetTimer); // For mouse clicks
+    element.addEventListener('keypress', resetTimer); // For keyboard events
+    element.addEventListener('mouseout', endTimer); // Stop showing help when mouse leaves the element
+    element.addEventListener('mouseenter', resetTimer); // Start timer when the mouse enters the element
+}
