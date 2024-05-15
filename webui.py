@@ -96,6 +96,8 @@ app.layout = html.Div([
     dcc.Store(id=C.STORE_TRIGGER_UPDATE_DEPTHMAP),  # Trigger for updating depth map
     # Trigger for updating thresholds
     dcc.Store(id=C.STORE_UPDATE_THRESHOLD_CONTAINER),
+    # Context for the help window
+    dcc.Store(id=C.STORE_CURRENT_TAB),
     # App Layout
     html.Header("Parallax Maker",
                 className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
@@ -168,6 +170,12 @@ app.clientside_callback(
     ClientsideFunction(namespace='clientside',
                        function_name='suppress_contextmenu'),
     Output(C.CTR_INPUT_IMAGE, 'id'), Input(C.CTR_INPUT_IMAGE, 'id')
+)
+
+app.clientside_callback(
+    ClientsideFunction(namespace='clientside',
+                       function_name='store_current_tab'),
+    Output(C.STORE_CURRENT_TAB, 'data'), Input(C.STORE_CURRENT_TAB, 'data')
 )
 
 components.make_segmentation_callbacks(app)
@@ -1267,6 +1275,17 @@ def save_state(n_clicks, filename, logs):
     logs.append(f"Saved state to {filename}")
 
     return logs
+
+
+@app.callback(Output(C.STORE_CURRENT_TAB, 'data', allow_duplicate=True),
+              Input({'type': 'tab-content-main', 'index': ALL}, 'className'),
+              prevent_initial_call=True)
+def update_current_tab(classnames):
+    names = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration']
+    for i, classname in enumerate(classnames):
+        if 'hidden' not in classname:
+            return names[i]
+    return no_update
 
 
 if __name__ == '__main__':

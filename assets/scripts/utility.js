@@ -10,6 +10,8 @@ let isErasing = false;
 let lastX = 0;
 let lastY = 0;
 
+let currentTab = 'Mode'; // Default tab is 'Mode' - should not be hardcoded
+
 // For Zooming
 let zoomLevel = 1;
 let zoomFactor = 1.1;
@@ -242,6 +244,15 @@ function resolveRect(graphElement, resolve) {
 
 window.dash_clientside = Object.assign({}, window.dash_clientside, {
     clientside: {
+        store_current_tab: function (tab) {
+            if (tab == null) {
+                console.log('No tab found');
+            } else {
+                console.log('Current tab:', tab);
+                currentTab = tab;
+            }
+            return window.dash_clientside.no_update;
+        },
         store_rect_coords: function () {
             return new Promise((resolve, reject) => {
                 const graphElement = document.getElementById('image');
@@ -449,17 +460,31 @@ function setupHelper(id) {
         helpWindow.classList.remove('hidden');
 
         // Create a list of different help texts
-        const helpTexts = [
-            'Segmentation: Click on the element in the image to create a mask for it',
-            'Segmentation: Control-click to remove the element from the mask',
-            'Inpainting: Drag Alt + Right-click to adjust brush size',
-            'Inpainting: Use the mouse wheel to zoom in and out of the image',
-            'Segmentation: Shift-click to add the element to the mask',
-        ];
-        // Randomly select a help text
-        const helpText = helpTexts[Math.floor(Math.random() * helpTexts.length)];
-        helpWindow.innerHTML = helpText;
+        const helpTexts = {
+            segmentation: [
+                'Click on the element in the image to create a mask for it',
+                'Control-click to remove the element from the mask',
+                'Shift-click to add the element to the mask'
+            ],
+            inpainting: [
+                'Drag Alt + Right-click to adjust brush size',
+                'Use the mouse wheel to zoom in and out of the image'
+            ]
+        };
 
+        // check that the current mode is in the help texts
+        if (currentTab.toLowerCase() in helpTexts) {
+            var modeSpecificHelpTexts = helpTexts[currentTab.toLowerCase()];
+        } else {
+            var modeSpecificHelpTexts = [
+                'Drag an image to the input box to start the workflow',
+                'Continue your work by restoring your state in the configuration tab'
+            ];
+        }
+
+        // Randomly select a help text
+        const helpText = modeSpecificHelpTexts[Math.floor(Math.random() * modeSpecificHelpTexts.length)];
+        helpWindow.innerHTML = helpText;
     }
 
     // Function to hide the help window
