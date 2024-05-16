@@ -468,18 +468,39 @@ function setupHelper(id) {
             ],
             inpainting: [
                 'Drag Alt + Right-click to adjust brush size',
-                'Use the mouse wheel to zoom in and out of the image'
+                'Use the mouse wheel to zoom in and out of the image',
+                'You can clean up the image by panting over the areas you want to remove and ' + 
+                'pressing the erase button to remove them'
+            ],
+            export: [
+                'Click on the export button to download a glTF scene for Blender',
+                'Using mesh displacement will give the scene more 3D depth. Try it out!',
+                'Upscaling the textures will allow you to zoom in more on the scene.'
+            ],
+            configuration: [
+                'State is saved automatically in a new folder in the directory you are running ' +
+                'Parallax Maker in. Eventually, save state will give you a zip file.',
+                'You can restore your state by clicking the load button and ' +
+                'navigating to the directory on your local machine where the tool is running.',
             ]
         };
 
-        // check that the current mode is in the help texts
-        if (currentTab.toLowerCase() in helpTexts) {
-            var modeSpecificHelpTexts = helpTexts[currentTab.toLowerCase()];
-        } else {
+        var image = document.getElementById('image');
+        if (image.src == '') {
             var modeSpecificHelpTexts = [
-                'Drag an image to the input box to start the workflow',
-                'Continue your work by restoring your state in the configuration tab'
+                'Drag an image to the input image box to start the workflow',
+                'To start working with Parallax Maker, you need to drag an image to the input box'
             ];
+        } else {
+            // check that the current mode is in the help texts
+            if (currentTab.toLowerCase() in helpTexts) {
+                var modeSpecificHelpTexts = helpTexts[currentTab.toLowerCase()];
+            } else {
+                var modeSpecificHelpTexts = [
+                    'Watch the Youtube tutorial to learn how to use the tool',
+                    'Continue your work by restoring your state in the configuration tab'
+                ];
+            }
         }
 
         // Randomly select a help text
