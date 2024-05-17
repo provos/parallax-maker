@@ -1078,8 +1078,8 @@ def make_segmentation_callbacks(app):
 
         state = AppState.from_cache(filename)
         if state.slice_mask is None:
-            logs.append('No mask to invert')
-            return no_update, logs
+            shape = (state.imgData.size[1], state.imgData.size[0])
+            state.slice_mask = np.zeros(shape, dtype=np.uint8)
 
         state.slice_mask = 255 - state.slice_mask
 
