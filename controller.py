@@ -37,8 +37,8 @@ class AppState:
 
         self.depth_model_name = None
 
-        self.positive_prompt = ""
-        self.negative_prompt = ""
+        self.positive_prompts = []
+        self.negative_prompts = []
         
         self.server_address = None
 
@@ -105,15 +105,20 @@ class AppState:
         
         filename = self.image_slices_filenames[slice_index]
         image = self.image_slices[slice_index]
+        positive_prompt = self.positive_prompts[slice_index]
+        negative_prompt = self.negative_prompts[slice_index]
         
         # remove it from the lists
         self.image_depths.pop(slice_index)
         self.image_slices_filenames.pop(slice_index)
         self.image_slices.pop(slice_index)
+        self.positive_prompts.pop(slice_index)
+        self.negative_prompts.pop(slice_index)
         
-        return self.add_slice(image, depth, filename=filename)
+        return self.add_slice(image, depth, filename=filename,
+                              positive_prompt=positive_prompt, negative_prompt=negative_prompt)
     
-    def add_slice(self, slice_image, depth, filename=None):
+    def add_slice(self, slice_image, depth, filename=None, positive_prompt='', negative_prompt=''):
         """Adds the image as a new slice at the provided depth."""
         if filename is None:
             filename = str(Path(self.filename) / f"image_slice_{len(self.image_slices)}.png")
@@ -126,6 +131,8 @@ class AppState:
         self.image_depths.insert(index, depth)
         self.image_slices_filenames.insert(index, filename)
         self.image_slices.insert(index, slice_image)
+        self.positive_prompts.insert(index, positive_prompt)
+        self.negative_prompts.insert(index, negative_prompt)
         
         if index > 0:
             # make sure the depth values are all unique
@@ -142,6 +149,8 @@ class AppState:
         self.image_slices.pop(slice_index)
         self.image_depths.pop(slice_index)
         self.image_slices_filenames.pop(slice_index)
+        self.positive_prompts.pop(slice_index)
+        self.negative_prompts.pop(slice_index)
         self.selected_slice = None
         self.slice_pixel = None
         self.slice_pixel_depth = None
@@ -154,6 +163,8 @@ class AppState:
         self.image_slices = []
         self.image_depths = []
         self.image_slices_filenames = []
+        self.positive_prompts = []
+        self.negative_prompts = []
         self.selected_slice = None
         self.selected_inpainting = None
         self.slice_pixel = None
@@ -282,7 +293,7 @@ class AppState:
         img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
         return img
 
-    def read_image_slices(self):
+    def _read_image_slices(self):
         self.image_slices = [None] * len(self.image_slices_filenames)
         for i in range(len(self.image_slices_filenames)):
             self.image_slices[i] = self._read_image_slice(i)
@@ -443,7 +454,7 @@ class AppState:
         # read the input image
         img_file = Path(file_path) / AppState.IMAGE_FILE
         self.imgData = Image.open(img_file)
-        self.read_image_slices()
+        self._read_image_slices()
 
         # read the depth map and turn it into a numpy array
         depth_map_file = Path(file_path) / AppState.DEPTH_MAP_FILE
@@ -510,9 +521,10 @@ class AppState:
             'imgThresholds': self.imgThresholds,
             'image_depths': self.image_depths,
             'image_slices_filenames': self.image_slices_filenames,
-            'positive_prompt': self.positive_prompt,
-            'negative_prompt': self.negative_prompt,
+            'positive_prompts': self.positive_prompts,
+            'negative_prompts': self.negative_prompts,
         }
+        
         if self.depth_model_name is not None:
             data['depth_model_name'] = self.depth_model_name
         if self.server_address is not None:
@@ -544,10 +556,16 @@ class AppState:
         
         state.depth_model_name = data['depth_model_name'] if 'depth_model_name' in data else None
         
-        state.positive_prompt = data['positive_prompt'] if 'positive_prompt' in data else ''
-        state.negative_prompt = data['negative_prompt'] if 'negative_prompt' in data else ''
+        empty = [''] * len(state.image_slices_filenames)
+        state.positive_prompts = data['positive_prompts'] if 'positive_prompts' in data else empty
+        state.negative_prompts = data['negative_prompts'] if 'negative_prompts' in data else empty
         
         state.server_address = data['server_address'] if 'server_address' in data else None
+        
+        # check dats structures have consistent lengths
+        assert len(state.image_slices_filenames) == len(state.image_depths)
+        assert len(state.image_slices_filenames) == len(state.positive_prompts)
+        assert len(state.image_slices_filenames) == len(state.negative_prompts)
         
         # check that all filenames start with the filename as prefix
         state.check_pathnames()

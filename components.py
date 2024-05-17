@@ -418,19 +418,6 @@ def make_inpainting_container_callbacks(app):
         return False if children else True
 
     @app.callback(
-        Output(C.TEXT_POSITIVE_PROMPT, 'value'),
-        Output(C.TEXT_NEGATIVE_PROMPT, 'value'),
-        Input(C.STORE_RESTORE_STATE, 'data'),
-        State(C.STORE_APPSTATE_FILENAME, 'data'),
-        prevent_initial_call=True)
-    def restore_prompts(restore_state, filename):
-        if filename is None:
-            raise PreventUpdate()
-
-        state = AppState.from_cache(filename)
-        return state.positive_prompt, state.negative_prompt
-
-    @app.callback(
         Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
         Output(C.LOGS_DATA, 'data', allow_duplicate=True),
         Input(C.BTN_ERASE_INPAINTING, 'n_clicks'),
@@ -508,8 +495,8 @@ def make_inpainting_container_callbacks(app):
         if negative_prompt is None:
             negative_prompt = ''
 
-        state.positive_prompt = positive_prompt
-        state.negative_prompt = negative_prompt
+        state.positive_prompts[state.selected_slice] = positive_prompt
+        state.negative_prompts[state.selected_slice] = negative_prompt
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 

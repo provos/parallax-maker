@@ -131,9 +131,9 @@ class TestChangeSliceDepth(unittest.TestCase):
         self.state.filename = 'test'
 
         # Add some initial slices
-        self.state.add_slice('image-1', 5)
-        self.state.add_slice('image-2', 10)
-        self.state.add_slice('image-3', 15)
+        self.state.add_slice('image-1', 5, positive_prompt="one", negative_prompt="two")
+        self.state.add_slice('image-2', 10, positive_prompt="three", negative_prompt="four")
+        self.state.add_slice('image-3', 15, positive_prompt="blue", negative_prompt="green")
 
     def test_change_slice_depth_same_depth(self):
         # Get the initial state
@@ -167,6 +167,8 @@ class TestChangeSliceDepth(unittest.TestCase):
 
         # Check that the depth of the second slice is updated
         self.assertEqual(self.state.image_depths[new_index], depth)
+        self.assertEqual(self.state.positive_prompts[new_index], "three")
+        self.assertEqual(self.state.negative_prompts[new_index], "four")
 
         # Check that the other slices and depths remain unchanged
         self.assertEqual(self.state.image_slices[1], initial_slices[0])
@@ -201,8 +203,8 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.image_depths, [])
         self.assertEqual(state.image_slices_filenames, [])
         self.assertEqual(state.depth_model_name, None)
-        self.assertEqual(state.positive_prompt, '')
-        self.assertEqual(state.negative_prompt, '')
+        self.assertEqual(state.positive_prompts, [])
+        self.assertEqual(state.negative_prompts, [])
         self.assertEqual(state.server_address, None)
 
     def test_from_json_full(self):
@@ -211,14 +213,14 @@ class TestFromJson(unittest.TestCase):
             "filename": "appstate-test",
             "num_slices": 10,
             "imgThresholds": [0, 255],
-            "image_depths": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            "image_depths": [0, 1, 2],
             "image_slices_filenames": [
                 "appstate-test/image1.png",
                 "appstate-test/image2.png",
                 "appstate-test/image3.png"],
             "depth_model_name": "model",
-            "positive_prompt": "positive",
-            "negative_prompt": "negative",
+            "positive_prompts": ["one fish", "two fish", "red fish"],
+            "negative_prompts": ["blue fish", "new fish", "old fish"],
             "server_address": "http://localhost:8000"
         }
         '''
@@ -227,16 +229,17 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.filename, 'appstate-test')
         self.assertEqual(state.num_slices, 10)
         self.assertEqual(state.imgThresholds, [0, 255])
-        self.assertEqual(state.image_depths, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        self.assertEqual(state.image_depths, [0, 1, 2])
         self.assertEqual(state.image_slices_filenames, [
-                         "appstate-test/image1.png", 
+                         "appstate-test/image1.png",
                          "appstate-test/image2.png",
                          "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, "model")
-        self.assertEqual(state.positive_prompt, "positive")
-        self.assertEqual(state.negative_prompt, "negative")
+        self.assertEqual(state.positive_prompts, [
+            "one fish", "two fish", "red fish"])
+        self.assertEqual(state.negative_prompts, [
+            "blue fish", "new fish", "old fish"])
         self.assertEqual(state.server_address, "http://localhost:8000")
-        
 
     def test_from_json_partial(self):
         json_data = '''
@@ -244,7 +247,7 @@ class TestFromJson(unittest.TestCase):
                 "filename": "appstate-test",
                 "num_slices": 10,
                 "imgThresholds": [0, 255],
-                "image_depths": [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+                "image_depths": [0, 1, 2],
                 "image_slices_filenames": [
                     "appstate-test/image1.png",
                     "appstate-test/image2.png",
@@ -256,16 +259,15 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.filename, 'appstate-test')
         self.assertEqual(state.num_slices, 10)
         self.assertEqual(state.imgThresholds, [0, 255])
-        self.assertEqual(state.image_depths, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9])
+        self.assertEqual(state.image_depths, [0, 1, 2])
         self.assertEqual(state.image_slices_filenames, [
             "appstate-test/image1.png",
             "appstate-test/image2.png",
             "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, None)
-        self.assertEqual(state.positive_prompt, "")
-        self.assertEqual(state.negative_prompt, "")
+        self.assertEqual(state.positive_prompts, [""]*3)
+        self.assertEqual(state.negative_prompts, [""]*3)
         self.assertEqual(state.server_address, None)
-
 
 
 if __name__ == '__main__':

@@ -676,6 +676,8 @@ def add_mask_slice_request(n_clicks, filename, logs):
 
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
+              Output(C.TEXT_POSITIVE_PROMPT, 'value', allow_duplicate=True),
+              Output(C.TEXT_NEGATIVE_PROMPT, 'value', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
               Input(C.BTN_CREATE_SLICE, 'n_clicks'),
@@ -692,7 +694,7 @@ def create_single_slice_request(n_clicks, filename, logs):
     state = AppState.from_cache(filename)
     if state.imgData is None:
         logs.append("No image available")
-        return no_update, logs, no_update
+        return no_update, no_update, no_update, logs, no_update
     
     if state.slice_mask is None:
         # create an empty image that the user can inpaint if they want to
@@ -708,7 +710,7 @@ def create_single_slice_request(n_clicks, filename, logs):
 
     logs.append("Created a slice from the mask")
 
-    return True, logs, ""
+    return True, "", "", logs, ""
 
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
@@ -943,6 +945,8 @@ def generate_slices(ignored_data, filename):
 
 @app.callback(Output(C.IMAGE, 'src'),
               Output({'type': 'slice', 'index': ALL}, 'className'),
+              Output(C.TEXT_POSITIVE_PROMPT, 'value', allow_duplicate=True),
+              Output(C.TEXT_NEGATIVE_PROMPT, 'value', allow_duplicate=True),
               Input({'type': 'slice', 'index': ALL}, 'n_clicks'),
               State({'type': 'slice', 'index': ALL}, 'id'),
               State({'type': 'slice', 'index': ALL}, 'src'),
@@ -958,9 +962,13 @@ def display_slice(n_clicks, id, src, classnames, filename):
     index = ctx.triggered_id['index']
 
     # if we are already displaying the slice, then we should remove it
+    positive_prompt = ""
+    negative_prompt = ""
     if state.selected_slice != index:
         state.selected_slice = index
         result = state.serve_slice_image_composed(index)
+        positive_prompt = state.positive_prompts[index]
+        negative_prompt = state.negative_prompts[index]
     else:
         state.selected_slice = None
         result = state.serve_input_image()
@@ -968,7 +976,7 @@ def display_slice(n_clicks, id, src, classnames, filename):
     new_classnames = highlight_selected_element(
         classnames, state.selected_slice, HIGHLIGHT_COLOR)
 
-    return result, new_classnames
+    return result, new_classnames, positive_prompt, negative_prompt
 
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
