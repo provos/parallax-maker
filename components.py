@@ -629,6 +629,23 @@ def make_inpainting_container_callbacks(app):
             f'Inpainting applied to slice {index} with new image {image_filename}')
 
         return True, logs, True
+    
+    @app.callback(Output(C.TEXT_POSITIVE_PROMPT, 'disabled'),
+                  Output(C.TEXT_NEGATIVE_PROMPT, 'disabled'),
+                  Output(C.BTN_GENERATE_INPAINTING, 'disabled'),
+                  Output(C.BTN_ERASE_INPAINTING, 'disabled'),
+                  Input(C.STORE_INPAINTING, 'data'),
+                  State(C.STORE_APPSTATE_FILENAME, 'data'),
+                  prevent_initial_call=True)
+    def toggle_inpainting_prompts(ignore, filename):
+        if filename is None:
+            return True, True, True, True
+        
+        state = AppState.from_cache(filename)
+        if state.selected_slice is None:
+            return True, True, True, True
+        
+        return False, False, False, False
 
     return update_inpainting_image_display
 
@@ -1225,6 +1242,7 @@ def make_navigation_callbacks(app):
     @app.callback(
         Output(C.IMAGE, 'src', allow_duplicate=True),
         Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+        Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
         Input(C.NAV_RESET, 'n_clicks'),
         Input(C.NAV_UP, 'n_clicks'),
         Input(C.NAV_DOWN, 'n_clicks'),
@@ -1249,7 +1267,7 @@ def make_navigation_callbacks(app):
 
         if len(state.image_slices) == 0:
             logs.append('No image slices to navigate')
-            return no_update, logs
+            return no_update, logs, True
 
         camera_position = state.camera_position
 
@@ -1281,7 +1299,7 @@ def make_navigation_callbacks(app):
 
         logs.append(f'Navigated to new camera position {camera_position}')
 
-        return state.serve_main_image(image), logs
+        return state.serve_main_image(image), logs, True
 
 
 def make_mode_selector():

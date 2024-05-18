@@ -857,6 +857,7 @@ def display_depth_input(n_clicks, class_name):
 
 @app.callback(
     Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
+    Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
     Input({'type': 'depth-input', 'index': ALL}, 'value'),
     Input({'type': 'depth-input', 'index': ALL}, 'n_submit'),
     State(C.STORE_APPSTATE_FILENAME, 'data'),
@@ -881,7 +882,7 @@ def record_depth_input(values, n_submits, filename):
         
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
-    return True
+    return True, True
 
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
@@ -948,6 +949,7 @@ def generate_slices(ignored_data, filename):
               Output({'type': 'slice', 'index': ALL}, 'className'),
               Output(C.TEXT_POSITIVE_PROMPT, 'value', allow_duplicate=True),
               Output(C.TEXT_NEGATIVE_PROMPT, 'value', allow_duplicate=True),
+              Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
               Input({'type': 'slice', 'index': ALL}, 'n_clicks'),
               State({'type': 'slice', 'index': ALL}, 'id'),
               State({'type': 'slice', 'index': ALL}, 'src'),
@@ -977,7 +979,7 @@ def display_slice(n_clicks, id, src, classnames, filename):
     new_classnames = highlight_selected_element(
         classnames, state.selected_slice, HIGHLIGHT_COLOR)
 
-    return result, new_classnames, positive_prompt, negative_prompt
+    return result, new_classnames, positive_prompt, negative_prompt, True
 
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
@@ -1186,6 +1188,12 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
     return logs, ""
 
+@app.callback(
+    Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    prevent_initial_call=True)
+def restore_inpainting(value):
+    return True
 
 @app.callback(
     Output(C.INPUT_EXTERNAL_SERVER, 'value'),
