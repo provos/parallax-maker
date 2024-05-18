@@ -469,6 +469,7 @@ def make_inpainting_container_callbacks(app):
         State(C.SLIDER_INPAINT_GUIDANCE, 'value'),
         State(C.SLIDER_MASK_PADDING, 'value'),
         State(C.SLIDER_MASK_BLUR, 'value'),
+        running=[(Output(C.BTN_GENERATE_INPAINTING, 'disabled'), True, False)],
         prevent_initial_call=True
     )
     def update_inpainting_image_display(
@@ -544,6 +545,7 @@ def make_inpainting_container_callbacks(app):
             new_image = pipeline.inpaint(
                 positive_prompt, negative_prompt, image, mask,
                 strength=strength, guidance_scale=guidance_scale,
+                blur_radius=blur, padding=padding,
                 crop=True)
             images.append(new_image)
 
