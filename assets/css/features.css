@@ -31,3 +31,7 @@
     /* Allow clicks and events to pass through */
     opacity: 0.5;
 }
+
+button:disabled {
+    background-color: #BBD;
+}

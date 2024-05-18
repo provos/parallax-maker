@@ -445,6 +445,7 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
 @app.callback(Output(C.STORE_TRIGGER_GEN_DEPTHMAP, 'data'),
               Input(C.BTN_GENERATE_DEPTHMAP, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
+              running=[(Output(C.BTN_GENERATE_DEPTHMAP, 'disabled'), True, False)],
               prevent_initial_call=True)
 def generate_depth_map_from_button(n_clicks, filename):
     if n_clicks is None or filename is None:
@@ -984,6 +985,7 @@ def display_slice(n_clicks, id, src, classnames, filename):
               Input(C.BTN_UPSCALE_TEXTURES, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
+              running=[(Output(C.BTN_UPSCALE_TEXTURES, 'disabled'), True, False)],
               prevent_initial_call=True)
 def upscale_texture(n_clicks, filename, logs):
     if filename is None:
@@ -1006,6 +1008,7 @@ def upscale_texture(n_clicks, filename, logs):
               State(C.SLIDER_MAX_DISTANCE, 'value'),
               State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.SLIDER_DISPLACEMENT, 'value'),
+              running=[(Output(C.BTN_GLTF_EXPORT, 'disabled'), True, False)],
               prevent_initial_call=True
               )
 def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
@@ -1030,6 +1033,7 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
               State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.SLIDER_DISPLACEMENT, 'value'),
               State(C.DROPDOWN_DEPTH_MODEL, 'value'),
+              running=[(Output(C.BTN_GLTF_CREATE, 'disabled'), True, False)],
               prevent_initial_call=True
               )
 def gltf_create(
