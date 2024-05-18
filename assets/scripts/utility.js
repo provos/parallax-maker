@@ -96,7 +96,7 @@ function draw(e) {
     if (currentSlice == null) {
         return;
     }
-    
+
     if (!isDrawing) {
         if (isAltRightDragging) {
             // Adjust size based on drag distance
@@ -518,7 +518,7 @@ function setupHelper(id) {
             } else {
                 var modeSpecificHelpTexts = [
                     'Watch the Youtube tutorial to learn how to use the tool',
-                    'Continue your work by restoring your state in the configuration tab'
+                    'Ask for help on Github by creating an issue in the repository',
                 ];
             }
         }
