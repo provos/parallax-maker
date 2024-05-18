@@ -48,7 +48,7 @@ def make_input_image_container(
 
     return html.Div([
         html.Label('Input Image', className='font-bold mb-2 ml-3'),
-        dcc.Store(id=C.CANVAS_IGNORE),  # we don't read this data
+        dcc.Store(id=C.STORE_IGNORE),  # we don't read this data
         dcc.Upload(
             id=upload_id,
             disabled=False,
@@ -101,6 +101,7 @@ def make_inpainting_tools_container():
         html.Div([
             dcc.Store(id=C.CANVAS_DATA),  # saves to disk
             dcc.Store(id=C.CANVAS_MASK_DATA),
+            dcc.Store(id=C.STORE_SELECTED_SLICE), # keeps track of the selected slice for Javascript
             html.Div([
                     html.Button('Clear', id=C.BTN_CLEAR_CANVAS,
                                 className='bg-blue-500 text-white p-2 rounded-md mr-1'),
@@ -630,22 +631,24 @@ def make_inpainting_container_callbacks(app):
 
         return True, logs, True
     
+    # this is called when the selected slice changes
     @app.callback(Output(C.TEXT_POSITIVE_PROMPT, 'disabled'),
                   Output(C.TEXT_NEGATIVE_PROMPT, 'disabled'),
                   Output(C.BTN_GENERATE_INPAINTING, 'disabled'),
                   Output(C.BTN_ERASE_INPAINTING, 'disabled'),
+                  Output(C.STORE_SELECTED_SLICE, 'data'),
                   Input(C.STORE_INPAINTING, 'data'),
                   State(C.STORE_APPSTATE_FILENAME, 'data'),
                   prevent_initial_call=True)
-    def toggle_inpainting_prompts(ignore, filename):
+    def react_selected_slice_change(ignore, filename):
         if filename is None:
-            return True, True, True, True
+            return True, True, True, True, None
         
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
-            return True, True, True, True
+            return True, True, True, True, None
         
-        return False, False, False, False
+        return False, False, False, False, state.selected_slice
 
     return update_inpainting_image_display
 
@@ -1201,7 +1204,7 @@ def make_canvas_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_load'),
-        Output(C.CANVAS_IGNORE, 'data', allow_duplicate=True),
+        Output(C.STORE_IGNORE, 'data', allow_duplicate=True),
         Input(C.CANVAS_MASK_DATA, 'data'),
         prevent_initial_call=True
     )
@@ -1224,7 +1227,7 @@ def make_canvas_callbacks(app):
     app.clientside_callback(
         ClientsideFunction(namespace='clientside',
                            function_name='canvas_clear'),
-        Output(C.CANVAS_IGNORE, 'data'),
+        Output(C.STORE_IGNORE, 'data'),
         # XXX - this will kill the canvas during inpainting - bad
         Input(C.IMAGE, 'src'),
     )

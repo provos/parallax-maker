@@ -14,9 +14,10 @@ ANIMATION_OUTPUT = 'gen-animation-output'
 
 CANVAS_DATA = 'canvas-data'
 CANVAS_MASK_DATA = 'canvas-mask-data'
-CANVAS_IGNORE = 'canvas-ignore'
 CANVAS_PAINT = 'canvas-paint'
 
+STORE_SELECTED_SLICE = 'selected-slice'
+STORE_IGNORE = 'store-ignore'
 STORE_GENERATE_SLICE = 'generate-slice-request'
 STORE_UPDATE_SLICE = 'update-slice-request'
 STORE_INPAINTING = 'inpainting-request'

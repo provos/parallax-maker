@@ -11,6 +11,7 @@ let lastX = 0;
 let lastY = 0;
 
 let currentTab = 'Mode'; // Default tab is 'Mode' - should not be hardcoded
+let currentSlice = null; // Default slice is null
 
 // For Zooming
 let zoomLevel = 1;
@@ -92,6 +93,10 @@ function adjustBrushSize(deltaX) {
 
 // Function to draw on the canvas
 function draw(e) {
+    if (currentSlice == null) {
+        return;
+    }
+    
     if (!isDrawing) {
         if (isAltRightDragging) {
             // Adjust size based on drag distance
@@ -368,6 +373,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 gPreviewCtx = setupCanvasCtx(previewCanvas);
             }
 
+            // we can't draw if we don't have a slice
+            if (currentSlice == null) {
+                return window.dash_clientside.no_update;
+            }
+
             switch (event.type) {
                 case 'mousedown':
                 case 'touchstart':
@@ -411,6 +421,11 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 }
             });
             return window.dash_clientside.no_update
+        },
+        record_selected_slice: function (slice) {
+            console.log('Selected slice:', slice);
+            currentSlice = slice;
+            return slice;
         }
     }
 });
@@ -490,6 +505,11 @@ function setupHelper(id) {
             var modeSpecificHelpTexts = [
                 'Drag an image to the input image box to start the workflow',
                 'To start working with Parallax Maker, you need to drag an image to the input box'
+            ];
+        } else if (currentSlice == null && currentTab == 'Inpainting') {
+            var modeSpecificHelpTexts = [
+                'Select a slice in the segmentation tab to start working with the inpainting tool',
+                'To start the inpainting workflow, you need to select a slice in the segmentation tab'
             ];
         } else {
             // check that the current mode is in the help texts

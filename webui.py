@@ -29,11 +29,12 @@ from utils import (
 from depth import DepthEstimationModel
 from instance import SegmentationModel
 from inpainting import InpaintingModel
+from clientside import make_clientside_callbacks
 
 
 import dash
 from dash import dcc, html, ctx, no_update
-from dash.dependencies import Input, Output, State, ClientsideFunction
+from dash.dependencies import Input, Output, State
 from dash.dependencies import ALL, MATCH
 from dash_extensions import EventListener
 from dash.exceptions import PreventUpdate
@@ -158,25 +159,7 @@ app.layout = html.Div([
 
 app.scripts.config.serve_locally = True
 
-app.clientside_callback(
-    ClientsideFunction(namespace='clientside',
-                       function_name='store_rect_coords'),
-    Output(C.STORE_RECT_DATA, 'data'),
-    Input(C.IMAGE, 'src'),
-    Input('evScroll', 'n_events'),
-)
-
-app.clientside_callback(
-    ClientsideFunction(namespace='clientside',
-                       function_name='suppress_contextmenu'),
-    Output(C.CTR_INPUT_IMAGE, 'id'), Input(C.CTR_INPUT_IMAGE, 'id')
-)
-
-app.clientside_callback(
-    ClientsideFunction(namespace='clientside',
-                       function_name='store_current_tab'),
-    Output(C.STORE_CURRENT_TAB, 'data'), Input(C.STORE_CURRENT_TAB, 'data')
-)
+make_clientside_callbacks(app)
 
 components.make_segmentation_callbacks(app)
 components.make_canvas_callbacks(app)
