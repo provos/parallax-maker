@@ -567,10 +567,10 @@ def copy_to_clipboard(n_clicks, filename, logs):
         return logs
 
     if state.selected_slice is not None:
-        image = state.slice_image_composed(
-            state.selected_slice, grayscale=False).copy()
+        image = state.slice_image_composed(state.selected_slice, grayscale=False)
     else:
-        image = np.array(state.imgData.convert('RGBA'))
+        image = state.imgData
+    image = np.array(image.convert('RGBA'))
     image[:, :, 3] = state.slice_mask
 
     state.clipboard_image = image

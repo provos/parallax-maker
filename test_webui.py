@@ -1,12 +1,12 @@
 import unittest
 
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 from dash.exceptions import PreventUpdate
 from PIL import Image
 import numpy as np
 
 import webui
-from webui import update_threshold_values, click_event
+from webui import update_threshold_values, click_event, copy_to_clipboard
 from controller import AppState
 import constants as C
 
@@ -147,6 +147,68 @@ class TestClickEvent(unittest.TestCase):
         self.mock_state.apply_mask.assert_called_once()
         self.assertEqual(
             result[0], self.mock_state.serve_main_image.return_value)
+
+
+class TestCopyToClipboard(unittest.TestCase):
+
+    @patch('webui.AppState.from_cache')
+    def test_copy_to_clipboard_no_clicks(self, mock_from_cache):
+        # Test when n_clicks is None, should raise PreventUpdate
+        with self.assertRaises(PreventUpdate):
+            copy_to_clipboard(None, 'some_filename', [])
+
+    @patch('webui.AppState.from_cache')
+    def test_copy_to_clipboard_no_filename(self, mock_from_cache):
+        # Test when filename is None, should raise PreventUpdate
+        with self.assertRaises(PreventUpdate):
+            copy_to_clipboard(1, None, [])
+
+    @patch('webui.AppState.from_cache')
+    def test_copy_to_clipboard_no_mask_selected(self, mock_from_cache):
+        # Mock AppState with no slice_mask
+        mock_state = MagicMock()
+        mock_state.slice_mask = None
+        mock_from_cache.return_value = mock_state
+
+        # Test when no mask is selected
+        logs = []
+        result = copy_to_clipboard(1, 'some_filename', logs)
+        self.assertEqual(result, ["No mask selected"])
+
+    @patch('webui.AppState.from_cache')
+    def test_copy_to_clipboard_with_mask_and_slice(self, mock_from_cache):
+        # Mock AppState with a slice_mask and a selected slice
+        mock_state = MagicMock()
+        mock_state.slice_mask = np.zeros((100, 100))
+        mock_state.selected_slice = 'selected_slice'
+        mock_state.slice_image_composed.return_value = MagicMock(
+            convert=lambda mode: Image.new('RGBA', (100, 100)))
+
+        mock_from_cache.return_value = mock_state
+
+        logs = []
+        result = copy_to_clipboard(1, 'some_filename', logs)
+        self.assertEqual(result, ["Copied mask to clipboard"])
+        self.assertTrue(mock_state.clipboard_image is not None)
+        np.testing.assert_array_equal(mock_state.clipboard_image[:, :, 3], mock_state.slice_mask)
+        
+    @patch('webui.AppState.from_cache')
+    def test_copy_to_clipboard_with_mask_no_slice(self, mock_from_cache):
+        mock_image = Image.new('RGBA', (100, 100))
+        
+        # Mock AppState with a slice_mask and no selected slice
+        mock_state = MagicMock()
+        mock_state.slice_mask = np.zeros((100, 100))
+        mock_state.selected_slice = None
+        mock_state.imgData = mock_image
+
+        mock_from_cache.return_value = mock_state
+
+        logs = []
+        result = copy_to_clipboard(1, 'some_filename', logs)
+        self.assertEqual(result, ["Copied mask to clipboard"])
+        self.assertTrue(mock_state.clipboard_image is not None)
+        np.testing.assert_array_equal(mock_state.clipboard_image[:, : , 3], mock_state.slice_mask)
 
 
 if __name__ == '__main__':
