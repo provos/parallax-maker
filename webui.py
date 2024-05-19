@@ -403,7 +403,8 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
         if state.selected_slice is not None:
             image = state.slice_image_composed(state.selected_slice, grayscale=False)
         state.segmentation_model.segment_image(image)
-        new_mask = state.segmentation_model.mask_at_point(
+        # XXX - allow selection of the cheap vs the expensive alogrithm
+        new_mask = state.segmentation_model.mask_at_point_blended(
             (pixel_x, pixel_y))
         
     # allow mask manipulation with add and subtract via shift and ctrl click
