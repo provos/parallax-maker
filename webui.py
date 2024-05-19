@@ -1180,6 +1180,7 @@ def slice_upload(contents, filename, logs):
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.SLIDER_NUM_FRAMES, 'value'),
               State(C.LOGS_DATA, 'data'),
+              running=[(Output(C.BTN_EXPORT_ANIMATION, 'disabled'), True, False)],
               prevent_initial_call=True)
 def export_animation(n_clicks, filename, num_frames, logs):
     if n_clicks is None or filename is None:

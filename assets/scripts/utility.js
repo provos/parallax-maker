@@ -345,6 +345,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 return '';
             }
             gPreviewCtx.clearRect(0, 0, gPreviewCtx.canvas.width, gPreviewCtx.canvas.height);
+            gPreviewCtx = null;
             return '';
         },
         canvas_toggle_erase: function () {
