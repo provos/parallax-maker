@@ -49,8 +49,8 @@ class TestSegmentationModel(unittest.TestCase):
                            'rotate_180', 'rotate_270', 'flip_h', 'flip_v']
         for transformation in transformations:
             inverse_transformed_mask = self.model._inverse_transform(
-                self.mock_image, transformation)
-            self.assertIsInstance(inverse_transformed_mask, Image.Image)
+                self.mock_mask, transformation)
+            self.assertIsInstance(inverse_transformed_mask, np.ndarray)
 
     def test_filter_mask(self):
         masks = []

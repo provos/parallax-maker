@@ -111,11 +111,11 @@ class SegmentationModel:
             transformed_image, transformed_point = SegmentationModel._transform(
                 image, point_xy, transformation)
             self.segment_image(transformed_image)
-            mask_at_point = executor(transformed_point)
-            mask = Image.fromarray(mask_at_point).convert("RGB")
+            mask = executor(transformed_point)
             if mask is not None:
                 mask = SegmentationModel._inverse_transform(mask, transformation)
-                assert mask.size == image.size, f"Mask size {mask.size} does not match image size {image.size} for transformation {transformation}"
+                mask_size = (mask.shape[1], mask.shape[0])
+                assert mask_size == image.size, f"Mask size {mask_size} does not match image size {image.size} for transformation {transformation}"
                 computed_masks.append(mask)
                 
         self.image = image
@@ -246,18 +246,23 @@ class SegmentationModel:
 
     @staticmethod
     def _inverse_transform(mask, transformation):
+        mask = Image.fromarray(mask)
         if transformation == 'rotate_90':
-            return mask.rotate(90, expand=True)
+            result = mask.rotate(90, expand=True)
         elif transformation == 'rotate_180':
-            return mask.rotate(180, expand=True)
+            result = mask.rotate(180, expand=True)
         elif transformation == 'rotate_270':
-            return mask.rotate(270, expand=True)
+            result = mask.rotate(270, expand=True)
         elif transformation == 'flip_h':
-            return mask.transpose(Image.FLIP_LEFT_RIGHT)
+            result = mask.transpose(Image.FLIP_LEFT_RIGHT)
         elif transformation == 'flip_v':
-            return mask.transpose(Image.FLIP_TOP_BOTTOM)
+            result = mask.transpose(Image.FLIP_TOP_BOTTOM)
         else:
-            return mask
+            result = mask
+        
+        result = np.array(result)    
+        
+        return result
 
     @staticmethod
     def _filter_mask(masks):

@@ -239,7 +239,7 @@ def remove_mask_from_alpha(image, mask):
         numpy.ndarray: The modified image with the masked region removed from the alpha channel.
     """
     assert image.shape[2] == 4, "Image must have an alpha channel"
-    assert image.shape[:2] == mask.shape, "Image and mask must have the same dimensions"
+    assert image.shape[:2] == mask.shape, f"Image and mask must have the same dimensions: {image.shape[:2]} vs {mask.shape}"
     
     inverted_mask = 1 - mask/255.0
     slice_mask = image[:, :, 3] / 255.0
