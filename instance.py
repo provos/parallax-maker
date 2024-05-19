@@ -7,6 +7,9 @@ Segment Anything seems superior to Mask2Former.
 Supports two models:
 - Mask2Former: https://huggingface.co/facebook/mask2former-swin-large-coco-instance
 - SAM: https://huggingface.co/facebook/sam-vit-huge
+
+Todo:
+ - Create support for HQ-SAM: https://github.com/SysCV/sam-hq?tab=readme-ov-file
 '''
 
 from PIL import Image
@@ -168,7 +171,10 @@ class SegmentationModel:
             self.load_model()
 
         input_points = [[point_xy]]
-        inputs = self.image_processor(self.image, input_points=input_points,
+        input_labels = [[1]]
+        inputs = self.image_processor(self.image,
+                                      input_points=input_points,
+                                      input_labels=input_labels,
                                       return_tensors="pt")
         # convert inputs to dtype torch.float32
         inputs = inputs.to(torch.float32).to(self.model.device)
@@ -222,27 +228,38 @@ class SegmentationModel:
 
     @staticmethod
     def _transform(image, point, transformation):
-        # Rotation 90 degrees
+        return (SegmentationModel._transform_image(image, transformation),
+                SegmentationModel._transform_point(point, transformation, image.size))
+    
+    @staticmethod
+    def _transform_image(image, transformation):
         if transformation == 'rotate_90':
-            return image.rotate(-90, expand=True), SegmentationModel._rotate_point(point, 90, image.size)
-
-        # Rotation 180 degrees
-        if transformation == 'rotate_180':
-            return image.rotate(-180, expand=True), SegmentationModel._rotate_point(point, 180, image.size)
-
-        # Rotation 270 degrees
-        if transformation == 'rotate_270':
-            return image.rotate(-270, expand=True), SegmentationModel._rotate_point(point, 270, image.size)
-
-        # Horizontal Flip
-        if transformation == 'flip_h':
-            return image.transpose(Image.FLIP_LEFT_RIGHT), (image.size[0] - point[0], point[1])
-
-        # Vertical Flip
-        if transformation == 'flip_v':
-            return image.transpose(Image.FLIP_TOP_BOTTOM), (point[0], image.size[1] - point[1])
-
-        return image, point
+            return image.rotate(90, expand=True)
+        elif transformation == 'rotate_180':
+            return image.rotate(180, expand=True)
+        elif transformation == 'rotate_270':
+            return image.rotate(270, expand=True)
+        elif transformation == 'flip_h':
+            return image.transpose(Image.FLIP_LEFT_RIGHT)
+        elif transformation == 'flip_v':
+            return image.transpose(Image.FLIP_TOP_BOTTOM)
+        else:
+            return image
+        
+    @staticmethod
+    def _transform_point(point, transformation, image_size):
+        if transformation == 'rotate_90':
+            return SegmentationModel._rotate_point(point, 90, image_size)
+        elif transformation == 'rotate_180':
+            return SegmentationModel._rotate_point(point, 180, image_size)
+        elif transformation == 'rotate_270':
+            return SegmentationModel._rotate_point(point, 270, image_size)
+        elif transformation == 'flip_h':
+            return (image_size[0] - point[0], point[1])
+        elif transformation == 'flip_v':
+            return (point[0], image_size[1] - point[1])
+        else:
+            return point
 
     @staticmethod
     def _inverse_transform(mask, transformation):
