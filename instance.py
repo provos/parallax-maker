@@ -78,7 +78,7 @@ class SegmentationModel:
         self.mask = run_pipeline[self.model_name]()
         return self.mask
 
-    def mask_at_point(self, point_xy):
+    def _get_mask_at_point_function(self):
         needs_mask = {
             "mask2former": True,
             "sam": False
@@ -90,8 +90,47 @@ class SegmentationModel:
             "mask2former": self.mask_at_point_mask2former,
             "sam": self.mask_at_point_sam
         }
-        return run_pipeline[self.model_name](point_xy)
+        return run_pipeline[self.model_name]
 
+
+    def mask_at_point(self, point_xy):
+        executor = self._get_mask_at_point_function()
+        if executor is None:
+            return None
+        return executor(point_xy)
+    
+    def mask_at_point_blended(self, point_xy):
+        executor = self._get_mask_at_point_function()
+        
+        # Apply segmentation function to each transformed image
+        transforms = ['identity', 'rotate_90',
+                    'rotate_180', 'rotate_270', 'flip_h', 'flip_v']
+        computed_masks = []
+        image = self.image.copy()
+        for transformation in transforms:
+            transformed_image, transformed_point = SegmentationModel._transform(
+                image, point_xy, transformation)
+            self.segment_image(transformed_image)
+            mask_at_point = executor(transformed_point)
+            mask = Image.fromarray(mask_at_point).convert("RGB")
+            if mask is not None:
+                mask = SegmentationModel._inverse_transform(mask, transformation)
+                assert mask.size == image.size, f"Mask size {mask.size} does not match image size {image.size} for transformation {transformation}"
+                computed_masks.append(mask)
+                
+        self.image = image
+
+        computed_masks = SegmentationModel._filter_mask(computed_masks)
+        blended_mask = np.array(computed_masks[0]).astype(np.float16)
+        for mask in computed_masks[1:]:
+            # print the max mask value in the console
+            blended_mask += np.array(mask).astype(np.float16)
+
+        blended_mask /= len(computed_masks)
+        blended_mask = blended_mask.astype(np.uint8)
+        
+        return blended_mask
+        
     def segment_image_mask2former(self):
         if self.model is None:
             self.load_model()
@@ -163,23 +202,104 @@ class SegmentationModel:
         
         return mask_image
 
+    # Function to rotate point around the image center for specific angles
+    @staticmethod
+    def _rotate_point(point, angle, image_size):
+        assert angle in [0, 90, 180, 270]
+        ox, oy = image_size[0] // 2, image_size[1] // 2
+        x, y = point[0] - ox, point[1] - oy
+
+        if angle == 90:
+            new_x, new_y = oy - y, x + ox
+        elif angle == 180:
+            new_x, new_y = ox - x, oy - y
+        elif angle == 270:
+            new_x, new_y = y + oy, ox - x
+        else:
+            new_x, new_y = point
+
+        return int(new_x), int(new_y)
+
+    @staticmethod
+    def _transform(image, point, transformation):
+        # Rotation 90 degrees
+        if transformation == 'rotate_90':
+            return image.rotate(-90, expand=True), SegmentationModel._rotate_point(point, 90, image.size)
+
+        # Rotation 180 degrees
+        if transformation == 'rotate_180':
+            return image.rotate(-180, expand=True), SegmentationModel._rotate_point(point, 180, image.size)
+
+        # Rotation 270 degrees
+        if transformation == 'rotate_270':
+            return image.rotate(-270, expand=True), SegmentationModel._rotate_point(point, 270, image.size)
+
+        # Horizontal Flip
+        if transformation == 'flip_h':
+            return image.transpose(Image.FLIP_LEFT_RIGHT), (image.size[0] - point[0], point[1])
+
+        # Vertical Flip
+        if transformation == 'flip_v':
+            return image.transpose(Image.FLIP_TOP_BOTTOM), (point[0], image.size[1] - point[1])
+
+        return image, point
+
+    @staticmethod
+    def _inverse_transform(mask, transformation):
+        if transformation == 'rotate_90':
+            return mask.rotate(90, expand=True)
+        elif transformation == 'rotate_180':
+            return mask.rotate(180, expand=True)
+        elif transformation == 'rotate_270':
+            return mask.rotate(270, expand=True)
+        elif transformation == 'flip_h':
+            return mask.transpose(Image.FLIP_LEFT_RIGHT)
+        elif transformation == 'flip_v':
+            return mask.transpose(Image.FLIP_TOP_BOTTOM)
+        else:
+            return mask
+
+    @staticmethod
+    def _filter_mask(masks):
+        selected_pixels = []
+        for mask in masks:
+            # compute the number of pixels in the mask
+            num_pixels = np.sum(mask)
+            selected_pixels.append(num_pixels)
+        
+        # compute the median and standard deviation of the number of pixels
+        median_pixels = np.median(selected_pixels)
+        std_pixels = np.std(selected_pixels)
+
+        print(f"Median pixels: {median_pixels}, Std pixels: {std_pixels}")
+        
+        # filter out masks that have less than the median number of pixels
+        filtered_masks = []
+        for mask in masks:
+            num_pixels = np.sum(mask)
+            if num_pixels >= median_pixels - std_pixels:
+                filtered_masks.append(mask)
+            else:
+                print(f"Filtering mask with {num_pixels} pixels")
+
+        return filtered_masks
+
 
 if __name__ == "__main__":
     filename = "input.jpg"
 
     model = SegmentationModel()
     image = Image.open(filename)
-    mask = model.segment_image(image)
-
+    
+    # Apply segmentation function to original image
     point_xy = (500, 600)
+    mask = model.segment_image(image)
+    mask_at_point = model.mask_at_point_blended(point_xy)
+    mask = Image.fromarray(mask_at_point).convert("RGB")
+            
+    result = image_overlay(image, mask)
 
     # draw a circle at the point on image
-    mask_at_point = model.mask_at_point(point_xy)
-    mask = Image.fromarray(mask_at_point).convert("RGB")
-
-    if mask is not None:
-        result = image_overlay(image, mask)
-
     draw_circle(result, point_xy, 20)
 
     result.save("segmented_image.png")
