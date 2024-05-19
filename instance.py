@@ -351,7 +351,7 @@ class SegmentationModel:
         filtered_masks = []
         for mask in masks:
             num_pixels = np.sum(mask)
-            if num_pixels >= median_pixels - std_pixels:
+            if num_pixels >= median_pixels - std_pixels and num_pixels <= median_pixels + std_pixels:
                 filtered_masks.append(mask)
             else:
                 print(f"Filtering mask with {num_pixels} pixels")
