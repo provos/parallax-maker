@@ -166,15 +166,48 @@ class SegmentationModel:
         # this is a no-op for sam as the model needs to be guided by an input point
         return None
 
-    def mask_at_point_sam(self, point_xy):
+    def mask_at_point_sam(self, point_input):
+        """
+        Masks the given points using the SAM algorithm.
+
+        Args:
+            point_input (tuple, list, dict): The input points to be masked. It can be one of the following:
+                - tuple: A single point.
+                - list of tuples: Multiple points.
+                - dict with 'positive_points' and 'negative_points' keys: Lists of positive and negative points.
+
+        Returns:
+            list: The masked points.
+
+        Raises:
+            ValueError: If the input is invalid.
+
+        """
+        positive_points = []
+        negative_points = []
+        if isinstance(point_input, tuple):
+            # Single point case
+            positive_points = [point_input]
+        elif isinstance(point_input, list) and all(isinstance(item, tuple) for item in point_input):
+            # List of points case
+            positive_points = point_input
+        elif isinstance(point_input, dict) and 'positive_points' in point_input and 'negative_points' in point_input:
+            # Lists of positive and negative points case
+            positive_points = point_input['positive_points']
+            negative_points = point_input['negative_points']
+        else:
+            raise ValueError("Invalid input for mask_at_point function.")
+        return self._mask_at_point_sam(positive_points, negative_points)
+
+    def _mask_at_point_sam(self, positive_points, negative_points):
         if self.model is None:
             self.load_model()
 
-        input_points = [[point_xy]]
-        input_labels = [[1]]
+        input_points = positive_points + negative_points
+        input_labels = [1]*len(positive_points) + [0]*len(negative_points)
         inputs = self.image_processor(self.image,
-                                      input_points=input_points,
-                                      input_labels=input_labels,
+                                      input_points=[input_points],
+                                      input_labels=[input_labels],
                                       return_tensors="pt")
         # convert inputs to dtype torch.float32
         inputs = inputs.to(torch.float32).to(self.model.device)
@@ -243,6 +276,30 @@ class SegmentationModel:
         
     @staticmethod
     def _transform_point(point, transformation, image_size):
+        if isinstance(point, tuple):
+            return SegmentationModel._transform_point_single(point, transformation, image_size)
+        elif isinstance(point, list) and all(isinstance(item, tuple) for item in point):
+            transformed_points = []
+            for p in point:
+                transformed_points.append(SegmentationModel._transform_point_single(p, transformation, image_size))
+            return transformed_points
+        elif isinstance(point, dict) and 'positive_points' in point and 'negative_points' in point:
+            positive_points = point['positive_points']
+            negative_points = point['negative_points']
+            transformed_points = {
+                'positive_points': [],
+                'negative_points': []
+            }
+            for p in positive_points:
+                transformed_points['positive_points'].append(SegmentationModel._transform_point_single(p, transformation, image_size))
+            for n in negative_points:
+                transformed_points['negative_points'].append(SegmentationModel._transform_point_single(n, transformation, image_size))
+            return transformed_points
+        else:
+            raise ValueError("Invalid input for _transform_point function.")
+        
+    @staticmethod
+    def _transform_point_single(point, transformation, image_size):
         if transformation == 'rotate_90':
             return SegmentationModel._rotate_point(point, 90, image_size)
         elif transformation == 'rotate_180':
@@ -310,13 +367,21 @@ if __name__ == "__main__":
     
     # Apply segmentation function to original image
     point_xy = (500, 600)
+    negative_point_xy = (200, 600)
     mask = model.segment_image(image)
-    mask_at_point = model.mask_at_point_blended(point_xy)
+    
+    point_input = {
+        'positive_points': [point_xy],
+        'negative_points': [negative_point_xy]
+    }
+    
+    mask_at_point = model.mask_at_point_blended(point_input)
     mask = Image.fromarray(mask_at_point).convert("RGB")
             
     result = image_overlay(image, mask)
 
     # draw a circle at the point on image
-    draw_circle(result, point_xy, 20)
+    draw_circle(result, point_xy, 20, fill_color=(0, 255, 0))
+    draw_circle(result, negative_point_xy, 20, fill_color=(255, 0, 0))
 
     result.save("segmented_image.png")

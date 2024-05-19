@@ -12,6 +12,7 @@ class TestSegmentationModel(unittest.TestCase):
         self.model = SegmentationModel("sam")
         self.mock_image = Image.new('RGB', (120, 90), color='white')
         self.mock_point = (50, 50)
+        self.mock_points = [(50, 50), (60, 60), (70, 70)]
         self.mock_mask = np.zeros((90, 120), np.uint8)
         self.mock_mask[40:60, 40:60] = 255
 
@@ -36,7 +37,7 @@ class TestSegmentationModel(unittest.TestCase):
             self.assertIsInstance(transformed_point, tuple)
             self.assertEqual(len(transformed_point), 2)
 
-    def test_rotate_point(self):
+    def test_rotate_point_single(self):
         angles = [0, 90, 180, 270]
         image_size = (120, 90)
         for angle in angles:
@@ -44,6 +45,18 @@ class TestSegmentationModel(unittest.TestCase):
                 self.mock_point, angle, image_size)
             self.assertIsInstance(rotated_point, tuple)
             self.assertEqual(len(rotated_point), 2)
+
+    def test_transform_point_multiple(self):
+        transformations = ['identity', 'rotate_90',
+                           'rotate_180', 'rotate_270', 'flip_h', 'flip_v']
+        image_size = (120, 90)
+        for transformation in transformations:
+            rotated_point = self.model._transform_point(
+                self.mock_points, transformation, image_size)
+            self.assertIsInstance(rotated_point, list)
+            for point in rotated_point:
+                self.assertIsInstance(point, tuple)
+                self.assertEqual(len(point), 2)
 
     def test_inverse_transform(self):
         transformations = ['identity', 'rotate_90',
