@@ -111,8 +111,8 @@ class SegmentationModel:
         computed_masks = []
         image = self.image.copy()
         for transformation in transforms:
-            transformed_image, transformed_point = SegmentationModel._transform(
-                image, point_xy, transformation)
+            transformed_image = SegmentationModel._transform_image(image, transformation)
+            transformed_point = SegmentationModel._transform_point(point_xy, transformation, image.size)
             self.segment_image(transformed_image)
             mask = executor(transformed_point)
             if mask is not None:
@@ -227,18 +227,13 @@ class SegmentationModel:
         return int(new_x), int(new_y)
 
     @staticmethod
-    def _transform(image, point, transformation):
-        return (SegmentationModel._transform_image(image, transformation),
-                SegmentationModel._transform_point(point, transformation, image.size))
-    
-    @staticmethod
     def _transform_image(image, transformation):
         if transformation == 'rotate_90':
-            return image.rotate(90, expand=True)
+            return image.rotate(-90, expand=True)
         elif transformation == 'rotate_180':
-            return image.rotate(180, expand=True)
+            return image.rotate(-180, expand=True)
         elif transformation == 'rotate_270':
-            return image.rotate(270, expand=True)
+            return image.rotate(-270, expand=True)
         elif transformation == 'flip_h':
             return image.transpose(Image.FLIP_LEFT_RIGHT)
         elif transformation == 'flip_v':

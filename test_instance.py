@@ -29,8 +29,9 @@ class TestSegmentationModel(unittest.TestCase):
         transformations = ['identity', 'rotate_90',
                            'rotate_180', 'rotate_270', 'flip_h', 'flip_v']
         for transformation in transformations:
-            transformed_image, transformed_point = self.model._transform(
-                self.mock_image, self.mock_point, transformation)
+            transformed_image = self.model._transform_image(self.mock_image, transformation)
+            transformed_point = self.model._transform_point(
+                self.mock_point, transformation, self.mock_image.size)
             self.assertIsInstance(transformed_image, Image.Image)
             self.assertIsInstance(transformed_point, tuple)
             self.assertEqual(len(transformed_point), 2)
@@ -48,8 +49,7 @@ class TestSegmentationModel(unittest.TestCase):
         transformations = ['identity', 'rotate_90',
                            'rotate_180', 'rotate_270', 'flip_h', 'flip_v']
         for transformation in transformations:
-            transformed_image, _ = self.model._transform(
-                self.mock_image, self.mock_point, transformation)
+            transformed_image = self.model._transform_image(self.mock_image, transformation)
             inverse_transformed_mask = self.model._inverse_transform(
                 np.array(transformed_image), transformation)
             self.assertIsInstance(inverse_transformed_mask, np.ndarray)
