@@ -10,13 +10,13 @@ class TestSegmentationModel(unittest.TestCase):
 
     def setUp(self):
         self.model = SegmentationModel("sam")
-        self.mock_image = Image.new('RGB', (100, 100), color='white')
+        self.mock_image = Image.new('RGB', (120, 90), color='white')
         self.mock_point = (50, 50)
-        self.mock_mask = np.zeros((100, 100), np.uint8)
+        self.mock_mask = np.zeros((90, 120), np.uint8)
         self.mock_mask[40:60, 40:60] = 255
 
         patcher = patch.object(
-            SegmentationModel, 'segment_image', return_value=self.mock_mask)
+            SegmentationModel, 'segment_image_mask2former', return_value=self.mock_mask)
         self.mock_segment_image = patcher.start()
         self.addCleanup(patcher.stop)
 
@@ -37,7 +37,7 @@ class TestSegmentationModel(unittest.TestCase):
 
     def test_rotate_point(self):
         angles = [0, 90, 180, 270]
-        image_size = (100, 100)
+        image_size = (120, 90)
         for angle in angles:
             rotated_point = self.model._rotate_point(
                 self.mock_point, angle, image_size)
@@ -48,14 +48,18 @@ class TestSegmentationModel(unittest.TestCase):
         transformations = ['identity', 'rotate_90',
                            'rotate_180', 'rotate_270', 'flip_h', 'flip_v']
         for transformation in transformations:
+            transformed_image, _ = self.model._transform(
+                self.mock_image, self.mock_point, transformation)
             inverse_transformed_mask = self.model._inverse_transform(
-                self.mock_mask, transformation)
+                np.array(transformed_image), transformation)
             self.assertIsInstance(inverse_transformed_mask, np.ndarray)
+            it_mask = Image.fromarray(inverse_transformed_mask)
+            self.assertEqual(self.mock_image.size, it_mask.size)
 
     def test_filter_mask(self):
         masks = []
         for _ in range(5):
-            m = np.zeros((100, 100), np.uint8)
+            m = np.zeros((90, 120), np.uint8)
             m[40:60, 40:60] = 255
             masks.append(Image.fromarray(m))
 
@@ -63,8 +67,14 @@ class TestSegmentationModel(unittest.TestCase):
         self.assertIsInstance(filtered_masks, list)
         self.assertGreater(len(filtered_masks), 0)
 
-    @patch.object(SegmentationModel, '_get_mask_at_point_function', return_value=lambda point: np.zeros((100, 100), np.uint8))
+    @patch.object(SegmentationModel, '_get_mask_at_point_function')
     def test_mask_at_point_blended(self, mock_get_mask_at_point_function):
+        def mock_mask_function(point):
+            width, height = self.model.image.size
+            return np.zeros((height, width), np.uint8)
+
+        mock_get_mask_at_point_function.return_value = mock_mask_function
+
         self.model.image = self.mock_image
         blended_mask = self.model.mask_at_point_blended(self.mock_point)
         self.assertIsInstance(blended_mask, np.ndarray)
