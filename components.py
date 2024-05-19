@@ -43,12 +43,14 @@ def make_input_image_container(
         image_id: str = C.IMAGE,
         event_id: str = 'el',
         canvas_id: str = C.CANVAS,
-        preview_canvas_id: str = 'preview-canvas',
+        preview_canvas_id: str = C.PREVIEW_CANVAS,
         outer_class_name: str = 'w-full col-span-2'):
 
     return html.Div([
         html.Label('Input Image', className='font-bold mb-2 ml-3'),
         dcc.Store(id=C.STORE_IGNORE),  # we don't read this data
+        dcc.Store(id=C.STORE_CLICKED_POINT),
+        dcc.Store(id=C.STORE_CLEAR_PREVIEW),
         dcc.Upload(
             id=upload_id,
             disabled=False,
@@ -142,6 +144,10 @@ def make_segmentation_tools_container():
                 html.Button(["Invert ", html.I(className="fa fa-adjust")], id=C.SEG_INVERT_MASK,
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                 html.Button(["Feather ", html.I(className="fa fa-wind")], id=C.SEG_FEATHER_MASK,
+                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                html.Button(["Multi ", html.I(className="fa fa-wand-magic-sparkles")], id=C.SEG_MULTI_POINT,
+                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                html.Button(["Commit ", html.I(className="fa fa-person-running")], id=C.SEG_MULTI_COMMIT,
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
             ], className='flex justify-between')
         ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1')
@@ -1121,6 +1127,40 @@ def make_segmentation_callbacks(app):
         logs.append(f'Feathered mask by {feather_amount} pixels')
 
         return image, logs
+    
+    @app.callback(Output(C.SEG_MULTI_COMMIT, 'disabled'),
+                  Output(C.SEG_MULTI_POINT, 'disabled'),
+                  Input(C.DROPDOWN_MODE_SELECTOR, 'value'),
+                  Input(C.STORE_APPSTATE_FILENAME, 'data'),
+    )
+    def toggle_segmentation_buttons(value, filename):
+        if value == 'segment' and filename is not None:
+            return False, False
+        return True, True
+
+    @app.callback(Output(C.SEG_MULTI_POINT, 'className'),
+                  Output(C.STORE_CLEAR_PREVIEW, 'data', allow_duplicate=True),
+                  Input(C.SEG_MULTI_POINT, 'n_clicks'),
+                  State(C.STORE_APPSTATE_FILENAME, 'data'),
+                  State(C.SEG_MULTI_POINT, 'className'),
+                  prevent_initial_call=True)
+    def toggle_multi_point(n_clicks, filename, class_name):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+        
+        state = AppState.from_cache(filename)
+        
+        selected_color = 'bg-green-500'
+        deselected_color = 'bg-blue-500'
+        
+        # if it's blue, we'll switch to green and turn on multi-point mode
+        state.multi_point_mode = True if 'bg-blue-500' in class_name else False
+        state.points_selected = []
+        if deselected_color in class_name:
+            class_name = class_name.replace(deselected_color, selected_color)
+        else:
+            class_name = class_name.replace(selected_color, deselected_color)
+        return class_name, True
 
 
 def make_canvas_callbacks(app):

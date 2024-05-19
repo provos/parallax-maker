@@ -63,6 +63,17 @@ function previewBrush(e) {
     lastBrushRadius = brushRadius;
 }
 
+function previewPoint(e) {
+    const [currentX, currentY] = translateCoordinates(e);
+
+    const pixelRatio = getPixelRatio(gPreviewCtx);
+    gPreviewCtx.beginPath();
+    gPreviewCtx.arc(currentX, currentY, 5 * pixelRatio, 0, 2 * Math.PI);
+
+    color = e.ctrlKey ? 'rgba(255, 0, 0, 1)' : 'rgba(0, 255, 0, 1)';
+    gPreviewCtx.fillStyle = color;
+    gPreviewCtx.fill();
+}
 
 // Function to start drawing
 function startDrawing(e) {
@@ -328,6 +339,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             gCtx = null;
             return '';
         },
+        preview_canvas_clear: function () {
+            if (gPreviewCtx === null) {
+                console.log('No preview context found');
+                return '';
+            }
+            gPreviewCtx.clearRect(0, 0, gPreviewCtx.canvas.width, gPreviewCtx.canvas.height);
+            return '';
+        },
         canvas_toggle_erase: function () {
             className = 'bg-blue-500 text-white p-2 rounded-md';
             if (gCtx === null) {
@@ -420,12 +439,23 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                     e.target.dispatchEvent(newEvent);
                 }
             });
-            return window.dash_clientside.no_update
+            return window.dash_clientside.no_update;
         },
         record_selected_slice: function (slice) {
             console.log('Selected slice:', slice);
             currentSlice = slice;
             return slice;
+        },
+        visualize_point: function (e) {
+            console.log('Previewing visualized point:', e);
+            var previewCanvas = document.getElementById('preview-canvas');
+            if (gPreviewCtx === null) {
+                gPreviewCtx = setupCanvasCtx(previewCanvas);
+            }
+
+            previewPoint(e);
+
+            return window.dash_clientside.no_update;
         }
     }
 });

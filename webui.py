@@ -23,7 +23,7 @@ from segmentation import (
 )
 import components
 from utils import (
-    filename_add_version, find_pixel_from_click, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available,
+    filename_add_version, find_pixel_from_event, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available,
     highlight_selected_element
 )
 from depth import DepthEstimationModel
@@ -94,7 +94,8 @@ app.layout = html.Div([
     dcc.Store(id=C.LOGS_DATA, data=[]),  # Store for logs
     # Trigger for generating depth map
     dcc.Store(id=C.STORE_TRIGGER_GEN_DEPTHMAP),
-    dcc.Store(id=C.STORE_TRIGGER_UPDATE_DEPTHMAP),  # Trigger for updating depth map
+    # Trigger for updating depth map
+    dcc.Store(id=C.STORE_TRIGGER_UPDATE_DEPTHMAP),
     # Trigger for updating thresholds
     dcc.Store(id=C.STORE_UPDATE_THRESHOLD_CONTAINER),
     # Context for the help window
@@ -356,6 +357,8 @@ def update_input_image(contents, classnames):
 @app.callback(Output(C.IMAGE, 'src', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data'),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
+              Output(C.STORE_CLICKED_POINT, 'data'),
+              Input(C.SEG_MULTI_COMMIT, 'n_clicks'),
               Input("el", "n_events"),
               State("el", "event"),
               State(C.STORE_RECT_DATA, 'data'),
@@ -364,49 +367,72 @@ def update_input_image(contents, classnames):
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True
               )
-def click_event(n_events, e, rect_data, mode, filename, logs_data):
+def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
-    if e is None or rect_data is None or state.imgData is None:
-        raise PreventUpdate()
+    t_id = ctx.triggered_id
+    shiftClick = False
+    ctrlClick = False
+    
+    if t_id == 'el':
+        if e is None or rect_data is None or state.imgData is None:
+            raise PreventUpdate()
 
-    clientX = e["clientX"]
-    clientY = e["clientY"]
-    shiftClick = e["shiftKey"]
-    ctrlClick = e["ctrlKey"]
+        pixel_x, pixel_y = find_pixel_from_event(state, e, rect_data)
 
-    rectTop = rect_data["top"]
-    rectLeft = rect_data["left"]
-    rectWidth = rect_data["width"]
-    rectHeight = rect_data["height"]
+        # we need to find the depth even if we use instance segmentation
+        new_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
+        state.slice_pixel = (pixel_x, pixel_y)
+        state.slice_pixel_depth = depth
 
-    x = clientX - rectLeft
-    y = clientY - rectTop
+        logs_data.append(
+            f"Click event at pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
 
-    pixel_x, pixel_y = find_pixel_from_click(
-        state.imgData, x, y, rectWidth, rectHeight)
-
-    # we need to find the depth even if we use instance segmentation
-    new_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
-    state.slice_pixel = (pixel_x, pixel_y)
-    state.slice_pixel_depth = depth
+        shiftClick = e["shiftKey"]
+        ctrlClick = e["ctrlKey"]
+    elif t_id != C.SEG_MULTI_COMMIT:
+        raise ValueError(f"Unexpected trigger {t_id}")
 
     image = state.imgData
     if mode == 'segment':
+        positive_points = []
+        negative_points = []
+
+        if state.multi_point_mode:
+            # if we are still selecting points, add them to the state
+            if t_id != C.SEG_MULTI_COMMIT:
+                state.points_selected.append(((pixel_x, pixel_y), ctrlClick))
+                return no_update, no_update, no_update, e
+            # if we are committing the points, add them to the positive and negative points
+            for point, ctrl_click in state.points_selected:
+                if ctrl_click:
+                    negative_points.append(point)
+                else:
+                    positive_points.append(point)
+        else:
+            positive_points.append((pixel_x, pixel_y))
+
         if state.segmentation_model == None:
             state.segmentation_model = SegmentationModel()
         # if we have a slice, take it and compose the background image over it
-        print(f"Selected slice: {state.selected_slice}")
         if state.selected_slice is not None:
-            image = state.slice_image_composed(state.selected_slice, grayscale=False)
+            image = state.slice_image_composed(
+                state.selected_slice, grayscale=False)
         state.segmentation_model.segment_image(image)
         # XXX - allow selection of the cheap vs the expensive alogrithm
         new_mask = state.segmentation_model.mask_at_point_blended(
-            (pixel_x, pixel_y))
+            {
+                'positive_points': positive_points,
+                'negative_points': negative_points
+            })
         
+        logs_data.append(
+            f"Committed points {positive_points} and {negative_points} for Segment Anything")
+
+
     # allow mask manipulation with add and subtract via shift and ctrl click
     if state.slice_mask is None or not (shiftClick or ctrlClick):
         state.slice_mask = new_mask
@@ -421,20 +447,20 @@ def click_event(n_events, e, rect_data, mode, filename, logs_data):
     else:
         img_data = state.serve_main_image(state.imgData)
 
-    logs_data.append(
-        f"Click event at ({clientX}, {clientY}) R:({rectLeft}, {rectTop}) in pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}")
+    return img_data, logs_data, "", no_update
 
-    return img_data, logs_data, ""
 
 @app.callback(Output(C.STORE_TRIGGER_GEN_DEPTHMAP, 'data'),
               Input(C.BTN_GENERATE_DEPTHMAP, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
-              running=[(Output(C.BTN_GENERATE_DEPTHMAP, 'disabled'), True, False)],
+              running=[
+                  (Output(C.BTN_GENERATE_DEPTHMAP, 'disabled'), True, False)],
               prevent_initial_call=True)
 def generate_depth_map_from_button(n_clicks, filename):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
     return True
+
 
 @app.callback(Output(C.STORE_TRIGGER_UPDATE_DEPTHMAP, 'data'),
               Output(C.DEPTHMAP_OUTPUT, 'children'),
@@ -448,7 +474,7 @@ def generate_depth_map_callback(ignored_data, filename, model):
 
     print(f'Received a request to generate a depth map for state f{filename}')
     state = AppState.from_cache(filename)
-    
+
     # we should update the depth model name more consistently
     state.depth_model_name = model
 
@@ -522,6 +548,7 @@ def delete_slice_request(n_clicks, filename, logs):
 
     return state.serve_main_image(state.imgData), True, logs, ""
 
+
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Input(C.BTN_COPY_SLICE, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
@@ -538,13 +565,14 @@ def copy_to_clipboard(n_clicks, filename, logs):
     if state.slice_mask is None:
         logs.append("No mask selected")
         return logs
-    
+
     if state.selected_slice is not None:
-        image = state.slice_image_composed(state.selected_slice, grayscale=False).copy()
+        image = state.slice_image_composed(
+            state.selected_slice, grayscale=False).copy()
     else:
         image = np.array(state.imgData.convert('RGBA'))
-    image[:,:,3] = state.slice_mask
-    
+    image[:, :, 3] = state.slice_mask
+
     state.clipboard_image = image
 
     logs.append("Copied mask to clipboard")
@@ -587,6 +615,7 @@ def paste_clipboard_request(n_clicks, filename, logs):
     logs.append(f"Pasted clipboard to slice {state.selected_slice}")
     return True, logs, ""
 
+
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
               Output(C.LOADING_UPLOAD, 'children', allow_duplicate=True),
@@ -612,7 +641,7 @@ def remove_mask_slice_request(n_clicks, filename, logs):
 
     final_mask = remove_mask_from_alpha(
         state.image_slices[state.selected_slice], state.slice_mask)
-    state.image_slices[state.selected_slice][:, :, 3] = final_mask    
+    state.image_slices[state.selected_slice][:, :, 3] = final_mask
 
     image_filename = filename_add_version(
         state.image_slices_filenames[state.selected_slice])
@@ -622,6 +651,7 @@ def remove_mask_slice_request(n_clicks, filename, logs):
 
     logs.append(f"Removed mask from slice {state.selected_slice}")
     return True, logs, ""
+
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
@@ -654,8 +684,9 @@ def add_mask_slice_request(n_clicks, filename, logs):
     image_filename = filename_add_version(
         state.image_slices_filenames[state.selected_slice])
     state.image_slices_filenames[state.selected_slice] = image_filename
-    state.to_file(filename, save_image_slices=True, save_depth_map=False, save_input_image=False)
-    
+    state.to_file(filename, save_image_slices=True,
+                  save_depth_map=False, save_input_image=False)
+
     logs.append(f"Added mask to slice {state.selected_slice}")
     return True, logs, ""
 
@@ -680,7 +711,7 @@ def create_single_slice_request(n_clicks, filename, logs):
     if state.imgData is None:
         logs.append("No image available")
         return no_update, no_update, no_update, logs, no_update
-    
+
     if state.slice_mask is None:
         # create an empty image that the user can inpaint if they want to
         image = Image.new('RGBA', state.imgData.size, (0, 0, 0, 0))
@@ -834,7 +865,7 @@ def update_slices(ignored_data, filename):
 def display_depth_input(n_clicks, class_name):
     if n_clicks is None:
         raise PreventUpdate()
-    
+
     class_name = class_name.replace('hidden', '')
     return class_name
 
@@ -850,20 +881,20 @@ def display_depth_input(n_clicks, class_name):
 def record_depth_input(values, n_submits, filename):
     if filename is None or values is None or n_submits is None:
         raise PreventUpdate()
-    
+
     index = ctx.triggered_id['index']
     if n_submits[index] is None:
         raise PreventUpdate()
-    
+
     value = int(values[index])
-    
+
     # need to re-order and validate the depth values
     state = AppState.from_cache(filename)
-    
+
     new_index = state.change_slice_depth(index, value)
     if index != new_index:
         state.selected_slice = None
-        
+
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
     return True, True
@@ -1012,7 +1043,7 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
 # XXX - this and the callback above can be chained to avoid code duplication
 @app.callback(Output('model-viewer', 'srcDoc', allow_duplicate=True),
               Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
-              Input(C.BTN_GLTF_CREATE , 'n_clicks'),
+              Input(C.BTN_GLTF_CREATE, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.SLIDER_CAMERA_DISTANCE, 'value'),
               State(C.SLIDER_MAX_DISTANCE, 'value'),
@@ -1023,9 +1054,9 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
               prevent_initial_call=True
               )
 def gltf_create(
-    n_clicks, filename,
-    camera_distance, max_distance, focal_length,
-    displacement_scale, model_name):
+        n_clicks, filename,
+        camera_distance, max_distance, focal_length,
+        displacement_scale, model_name):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
@@ -1041,9 +1072,9 @@ def gltf_create(
 
 
 def export_state_as_gltf(
-    state, filename,
-    camera_distance, max_distance, focal_length,
-    displacement_scale, model='midas'):
+        state, filename,
+        camera_distance, max_distance, focal_length,
+        displacement_scale, model='midas'):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.image_depths, camera_distance, max_distance, focal_length)
@@ -1059,7 +1090,8 @@ def export_state_as_gltf(
                     state.depth_estimation_model = model
                 depth_map = generate_depth_map(
                     image[:, :, :3], model=state.depth_estimation_model)
-                depth_map = postprocess_depth_map(depth_map, image[:, :, 3], final_blur=50)
+                depth_map = postprocess_depth_map(
+                    depth_map, image[:, :, 3], final_blur=50)
                 Image.fromarray(depth_map).save(
                     depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
@@ -1172,12 +1204,14 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
     return logs, ""
 
+
 @app.callback(
     Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
     Input(C.STORE_RESTORE_STATE, 'data'),
     prevent_initial_call=True)
 def restore_inpainting(value):
     return True
+
 
 @app.callback(
     Output(C.INPUT_EXTERNAL_SERVER, 'value'),
@@ -1295,14 +1329,14 @@ def update_current_tab(classnames):
 if __name__ == '__main__':
     os.environ['DISABLE_TELEMETRY'] = 'YES'
     os.environ['PYTORCH_ENABLE_MPS_FALLBACK'] = '1'
-    
+
     # parse command line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', type=int, default=8050)
     parser.add_argument('--prefetch-models', type=str, default=None,
                         help='Either "all" or "default"')
     args = parser.parse_args()
-    
+
     if not serving.is_running_from_reloader():
         if args.prefetch_models in ['all', 'default']:
             print("Prefetching models")
@@ -1315,7 +1349,8 @@ if __name__ == '__main__':
                 SegmentationModel().load_model()
                 InpaintingModel().load_model()
         elif args.prefetch_models is not None:
-            print(f'Invalid prefetch models argument: {args.prefetch_models}; use "all" or "default"')
+            print(
+                f'Invalid prefetch models argument: {args.prefetch_models}; use "all" or "default"')
             exit(1)
-    
+
     app.run_server(port=args.port, debug=True)

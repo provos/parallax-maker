@@ -209,6 +209,21 @@ def find_pixel_from_click(img_data, x, y, width, height):
     return int(x * x_ratio), int(y * y_ratio)
 
 
+def find_pixel_from_event(state, e, rect_data):
+    clientX = e["clientX"]
+    clientY = e["clientY"]
+
+    rectTop = rect_data["top"]
+    rectLeft = rect_data["left"]
+    rectWidth = rect_data["width"]
+    rectHeight = rect_data["height"]
+
+    x = clientX - rectLeft
+    y = clientY - rectTop
+
+    return find_pixel_from_click(state.imgData, x, y, rectWidth, rectHeight)
+
+
 def feather_mask(mask, num_expand=50):
     """
     Expand and feather a mask.

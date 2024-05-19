@@ -32,3 +32,19 @@ def make_clientside_callbacks(app):
         Input(C.STORE_SELECTED_SLICE, 'data'),
         prevent_initial_call=True
     )
+
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='visualize_point'),
+        Output(C.STORE_IGNORE, 'data', allow_duplicate=True),
+        Input(C.STORE_CLICKED_POINT, 'data'),
+        prevent_initial_call=True
+    )
+    
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='preview_canvas_clear'),
+        Output(C.STORE_IGNORE, 'data', allow_duplicate=True),
+        Input(C.STORE_CLEAR_PREVIEW, 'data'),
+        prevent_initial_call=True
+    )
