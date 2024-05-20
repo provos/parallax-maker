@@ -1,3 +1,5 @@
+![Hacking On Parallax Maker](example/hacking.gif)
+
 # Installation and First Usage
 
 Create a new environment with python 3.10 via *conda* or *venv* and then use pip to install the dependencies.
