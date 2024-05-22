@@ -1179,26 +1179,27 @@ def slice_upload(contents, filename, logs):
               Input(C.BTN_EXPORT_ANIMATION, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.SLIDER_NUM_FRAMES, 'value'),
+              State(C.SLIDER_CAMERA_DISTANCE, 'value'),
+              State(C.SLIDER_MAX_DISTANCE, 'value'),
+              State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.LOGS_DATA, 'data'),
               running=[(Output(C.BTN_EXPORT_ANIMATION, 'disabled'), True, False)],
               prevent_initial_call=True)
-def export_animation(n_clicks, filename, num_frames, logs):
+def export_animation(n_clicks, filename, num_frames, camera_distance, max_distance, focal_length, logs):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
-    camera_distance = 100.0
-    max_distance = 500.0
-    focal_length = 100.0
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices, state.image_depths, camera_distance, max_distance, focal_length)
 
     # Render the initial view
-    camera_position = np.array([0, 0, -100], dtype=np.float32)
+    camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)
     render_image_sequence(
         filename,
         state.image_slices, card_corners_3d_list, camera_matrix, camera_position,
+        push_distance=camera_distance*0.75, # XXX - make configurable
         num_frames=num_frames)
 
     logs.append(f"Exported {num_frames} frames to animation")
