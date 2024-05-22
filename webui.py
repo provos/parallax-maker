@@ -1066,7 +1066,7 @@ def gltf_create(
     export_state_as_gltf(
         state, filename,
         camera_distance, max_distance, focal_length,
-        displacement_scale, model=model_name)
+        displacement_scale, modelname=model_name)
 
     return get_gltf_iframe(state.serve_model_file()), ""
 
@@ -1074,7 +1074,7 @@ def gltf_create(
 def export_state_as_gltf(
         state, filename,
         camera_distance, max_distance, focal_length,
-        displacement_scale, model='midas'):
+        displacement_scale, modelname='midas'):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.image_depths, camera_distance, max_distance, focal_length)
@@ -1085,7 +1085,7 @@ def export_state_as_gltf(
             print(f"Generating depth map for slice {i}")
             depth_filename = state.depth_filename(i)
             if not depth_filename.exists():
-                model = DepthEstimationModel(model=model)
+                model = DepthEstimationModel(model=modelname)
                 if model != state.depth_estimation_model:
                     state.depth_estimation_model = model
                 depth_map = generate_depth_map(

@@ -23,7 +23,7 @@ class DepthEstimationModel:
     MODELS = ["midas", "zoedepth", "dinov2"]
     
     def __init__(self, model="midas"):
-        assert model in self.MODELS
+        assert model in self.MODELS, f"Model {model} must be one of {self.MODELS}"
         self._model_name = model
         self.model = None
         self.transforms = None
