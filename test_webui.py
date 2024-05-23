@@ -4,10 +4,11 @@ from unittest.mock import patch, MagicMock
 from dash.exceptions import PreventUpdate
 from PIL import Image
 import numpy as np
+from pathlib import Path
 
-import webui
-from webui import update_threshold_values, click_event, copy_to_clipboard
+from webui import update_threshold_values, click_event, copy_to_clipboard, export_state_as_gltf
 from controller import AppState
+from segmentation import setup_camera_and_cards
 import constants as C
 
 
@@ -190,12 +191,13 @@ class TestCopyToClipboard(unittest.TestCase):
         result = copy_to_clipboard(1, 'some_filename', logs)
         self.assertEqual(result, ["Copied mask to clipboard"])
         self.assertTrue(mock_state.clipboard_image is not None)
-        np.testing.assert_array_equal(mock_state.clipboard_image[:, :, 3], mock_state.slice_mask)
-        
+        np.testing.assert_array_equal(
+            mock_state.clipboard_image[:, :, 3], mock_state.slice_mask)
+
     @patch('webui.AppState.from_cache')
     def test_copy_to_clipboard_with_mask_no_slice(self, mock_from_cache):
         mock_image = Image.new('RGBA', (100, 100))
-        
+
         # Mock AppState with a slice_mask and no selected slice
         mock_state = MagicMock()
         mock_state.slice_mask = np.zeros((100, 100))
@@ -208,7 +210,135 @@ class TestCopyToClipboard(unittest.TestCase):
         result = copy_to_clipboard(1, 'some_filename', logs)
         self.assertEqual(result, ["Copied mask to clipboard"])
         self.assertTrue(mock_state.clipboard_image is not None)
-        np.testing.assert_array_equal(mock_state.clipboard_image[:, : , 3], mock_state.slice_mask)
+        np.testing.assert_array_equal(
+            mock_state.clipboard_image[:, :, 3], mock_state.slice_mask)
+
+
+class TextExportGltf(unittest.TestCase):
+    def setUp(self):
+        self.state = MagicMock()
+        self.state.image_slices = [
+            np.zeros((100, 100, 4), dtype=np.uint8) for _ in range(3)]
+        self.state.image_depths = [
+            np.zeros((100, 100), dtype=np.float32) for _ in range(3)]
+        self.state.depth_filename.return_value = Path("depth_file.png")
+        self.state.upscaled_filename.return_value = Path("upscaled_file.png")
+        self.state.image_slices_filenames = [
+            Path(f"slice_{i}.png") for i in range(3)]
+        self.state.MODEL_FILE = "model.gltf"
+
+    @patch("webui.generate_depth_map")
+    @patch("webui.postprocess_depth_map")
+    @patch("webui.export_gltf")
+    def test_export_state_as_gltf(self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map):
+        # Test case 1: Displacement scale is 0
+        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
+            self.state.image_slices, self.state.image_depths, 10, 100, 50)
+        mock_export_gltf.return_value = Path("output.gltf")
+
+        result = export_state_as_gltf(
+            self.state, "output_dir", 10, 100, 50, 0, "midas")
+
+        self.assertEqual(result, Path("output.gltf"))
+        mock_generate_depth_map.assert_not_called()
+        mock_postprocess_depth_map.assert_not_called()
+
+        # Compare individual elements of card_corners_3d_list
+        expected_call = mock_export_gltf.call_args_list[0]
+        expected_args, expected_kwargs = expected_call
+        self.assertEqual(expected_args[0], Path("output_dir/model.gltf"))
+        self.assertAlmostEqual(expected_args[1], float(
+            camera_matrix[0, 2]) / camera_matrix[1, 2])
+        self.assertEqual(expected_args[2], 50)
+        self.assertEqual(expected_args[3], 10)
+        for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
+            np.testing.assert_array_almost_equal(
+                expected_corner, actual_corner)
+        self.assertEqual(expected_args[5], self.state.image_slices_filenames)
+        self.assertEqual(expected_args[6], [])
+        self.assertEqual(expected_kwargs["displacement_scale"], 0)
+
+    @patch("PIL.Image.fromarray")
+    @patch("webui.generate_depth_map")
+    @patch("webui.postprocess_depth_map")
+    @patch("webui.export_gltf")
+    def test_export_state_as_gltf_with_displacement(
+            self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map, mock_image_fromarray):
+        # Test case 2: Displacement scale is greater than 0
+        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
+            self.state.image_slices, self.state.image_depths, 10, 100, 50)
+
+        mock_export_gltf.return_value = Path("output.gltf")
+
+        mock_generate_depth_map.return_value = np.zeros(
+            (100, 100), dtype=np.float32)
+        mock_postprocess_depth_map.return_value = np.zeros(
+            (100, 100), dtype=np.uint8)
+
+        # path does not exist
+        mock_depth_file = MagicMock()
+        self.state.depth_filename.return_value = mock_depth_file
+        mock_depth_file.exists.return_value = False
+        mock_depth_file.return_value = Path("depth_file.png")
+
+        # mocking depthmap image saving
+        mock_image = MagicMock(spec=Image.Image)
+        mock_image_fromarray.return_value = mock_image
+
+        result = export_state_as_gltf(
+            self.state, "output_dir", 10, 100, 50, 1, "midas")
+
+        self.assertEqual(result, Path("output.gltf"))
+        self.assertEqual(mock_generate_depth_map.call_count, 3)
+        self.assertEqual(mock_postprocess_depth_map.call_count, 3)
+        self.assertEqual(mock_image_fromarray.call_count, 3)
+        mock_image.save.assert_called_with(mock_depth_file, compress_level=1)
+
+        # Compare individual elements of card_corners_3d_list
+        expected_call = mock_export_gltf.call_args_list[0]
+        expected_args, expected_kwargs = expected_call
+        self.assertEqual(expected_args[0], Path("output_dir/model.gltf"))
+        self.assertAlmostEqual(expected_args[1], float(
+            camera_matrix[0, 2]) / camera_matrix[1, 2])
+        self.assertEqual(expected_args[2], 50)
+        self.assertEqual(expected_args[3], 10)
+        for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
+            np.testing.assert_array_almost_equal(
+                expected_corner, actual_corner)
+        self.assertEqual(expected_args[5], self.state.image_slices_filenames)
+        self.assertEqual(expected_args[6], [mock_depth_file] * 3)
+        self.assertEqual(expected_kwargs["displacement_scale"], 1)
+
+    @patch("webui.export_gltf")
+    def test_export_state_as_gltf_with_upscaled(self, mock_export_gltf):
+        # Test case 3: Upscaled slices exist
+        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
+            self.state.image_slices, self.state.image_depths, 10, 100, 50)
+
+        # Pretend the upscaled file exists
+        mock_upscaled_file = MagicMock()
+        mock_upscaled_file.exists.return_value = True
+        self.state.upscaled_filename.return_value = mock_upscaled_file
+
+        result = export_state_as_gltf(
+            self.state, "output_dir", 10, 100, 50, 1, "midas")
+
+        # Compare individual elements of card_corners_3d_list
+        expected_call = mock_export_gltf.call_args_list[0]
+        expected_args, expected_kwargs = expected_call
+        self.assertEqual(expected_args[0], Path("output_dir/model.gltf"))
+        self.assertAlmostEqual(expected_args[1], float(
+            camera_matrix[0, 2]) / camera_matrix[1, 2])
+        self.assertEqual(expected_args[2], 50)
+        self.assertEqual(expected_args[3], 10)
+        for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
+            np.testing.assert_array_almost_equal(
+                expected_corner, actual_corner)
+        self.assertEqual(expected_args[5], [mock_upscaled_file] * 3)
+        self.assertEqual(expected_args[6], [Path("depth_file.png")] * 3)
+        self.assertEqual(expected_kwargs["displacement_scale"], 1)
+
+    # TODO: Add more test cases for setup_camera_and_cards, generate_depth_map, postprocess_depth_map, and export_gltf
 
 
 if __name__ == '__main__':
