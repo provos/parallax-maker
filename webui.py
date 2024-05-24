@@ -676,6 +676,7 @@ def add_mask_slice_request(n_clicks, filename, logs):
         logs.append("No slice selected")
         return no_update, logs, no_update
 
+    # XXX - should we create an option to copy from the compose image?
     image = create_slice_from_mask(
         state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     # updates the image slice in place - dangerous
