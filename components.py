@@ -609,6 +609,7 @@ def make_inpainting_container_callbacks(app):
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         State({'type': C.ID_INPAINTING_IMAGE, 'index': ALL}, 'src'),
         State(C.LOGS_DATA, 'data'),
+        running=[(Output(C.BTN_APPLY_INPAINTING, 'disabled'), True, False)],
         prevent_initial_call=True)
     def apply_inpainting(n_clicks, filename, inpainted_images, logs):
         if n_clicks is None or filename is None:
