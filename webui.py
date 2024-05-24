@@ -947,12 +947,15 @@ def generate_slices(ignored_data, filename):
     if state.depthMapData is None:
         raise PreventUpdate()
 
+    # XXX - refactor the state update into the AppState class
     state.image_slices, state.image_depths = generate_image_slices(
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
         num_expand=EXPAND_MASK)
     state.image_slices_filenames = []
+    state.positive_prompts = ["" for _ in state.image_slices]
+    state.negative_prompts = ["" for _ in state.image_slices]
 
     print(f'Generated {len(state.image_slices)} image slices; saving to file')
     state.to_file(filename)
