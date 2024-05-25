@@ -23,8 +23,9 @@ from segmentation import (
 )
 import components
 from utils import (
-    filename_add_version, find_pixel_from_event, postprocess_depth_map, get_gltf_iframe, get_no_gltf_available,
-    highlight_selected_element
+    filename_add_version, find_pixel_from_event, postprocess_depth_map,
+    get_gltf_iframe, get_no_gltf_available,
+    highlight_selected_element, to_data_url
 )
 from depth import DepthEstimationModel
 from instance import SegmentationModel
@@ -376,7 +377,7 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
     t_id = ctx.triggered_id
     shiftClick = False
     ctrlClick = False
-    
+
     if t_id == 'el':
         if e is None or rect_data is None or state.imgData is None:
             raise PreventUpdate()
@@ -428,10 +429,9 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
                 'positive_points': positive_points,
                 'negative_points': negative_points
             })
-        
+
         logs_data.append(
             f"Committed points {positive_points} and {negative_points} for Segment Anything")
-
 
     # allow mask manipulation with add and subtract via shift and ctrl click
     if state.slice_mask is None or not (shiftClick or ctrlClick):
@@ -474,9 +474,6 @@ def generate_depth_map_callback(ignored_data, filename, model):
 
     print(f'Received a request to generate a depth map for state f{filename}')
     state = AppState.from_cache(filename)
-
-    # we should update the depth model name more consistently
-    state.depth_model_name = model
 
     PIL_image = state.imgData
 
@@ -567,7 +564,8 @@ def copy_to_clipboard(n_clicks, filename, logs):
         return logs
 
     if state.selected_slice is not None:
-        image = state.slice_image_composed(state.selected_slice, grayscale=False)
+        image = state.slice_image_composed(
+            state.selected_slice, grayscale=False)
     else:
         image = state.imgData
     image = np.array(image.convert('RGBA'))
@@ -1044,7 +1042,36 @@ def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length,
     return dcc.send_file(gltf_path, filename='scene.gltf'), ""
 
 
+@app.callback(Input(C.DROPDOWN_DEPTH_MODEL, 'value'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              prevent_initial_call=True)
+def remember_depth_model(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    state.depth_model_name = value
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
+    return
+
+
+@app.callback(Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              prevent_initial_call=True)
+def remember_inpaint_model(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    state.inpainting_model_name = value
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
+    return
+
 # XXX - this and the callback above can be chained to avoid code duplication
+
+
 @app.callback(Output('model-viewer', 'srcDoc', allow_duplicate=True),
               Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
               Input(C.BTN_GLTF_CREATE, 'n_clicks'),
@@ -1065,8 +1092,6 @@ def gltf_create(
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    state.depth_model_name = model_name
-
     export_state_as_gltf(
         state, filename,
         camera_distance, max_distance, focal_length,
@@ -1203,7 +1228,7 @@ def export_animation(n_clicks, filename, num_frames, camera_distance, max_distan
     render_image_sequence(
         filename,
         state.image_slices, card_corners_3d_list, camera_matrix, camera_position,
-        push_distance=camera_distance*0.75, # XXX - make configurable
+        push_distance=camera_distance*0.75,  # XXX - make configurable
         num_frames=num_frames)
 
     logs.append(f"Exported {num_frames} frames to animation")
@@ -1217,6 +1242,39 @@ def export_animation(n_clicks, filename, num_frames, camera_distance, max_distan
     prevent_initial_call=True)
 def restore_inpainting(value):
     return True
+
+@app.callback(
+        Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents', allow_duplicate=True),
+        Output(C.UPLOAD_COMFYUI_WORKFLOW, 'filename', allow_duplicate=True),
+        Input(C.STORE_RESTORE_STATE, 'data'),
+        State(C.STORE_APPSTATE_FILENAME, 'data'),
+        prevent_initial_call=True)
+def restore_workflow(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.workflow_path().exists():
+        workflow = state.workflow_path().read_bytes()
+        return to_data_url(workflow), state.workflow_path().name
+    return no_update, no_update
+
+@app.callback(
+    Output(C.DROPDOWN_DEPTH_MODEL, 'value'),
+    Output(C.DROPDOWN_INPAINT_MODEL, 'value'),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
+    prevent_initial_call=True)
+def restore_models(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+
+    depth_model_name = state.depth_model_name if state.depth_model_name else no_update
+    inpainting_model_name = state.inpainting_model_name if state.inpainting_model_name else no_update
+
+    return depth_model_name, inpainting_model_name
 
 
 @app.callback(

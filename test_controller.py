@@ -203,6 +203,7 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.image_depths, [])
         self.assertEqual(state.image_slices_filenames, [])
         self.assertEqual(state.depth_model_name, None)
+        self.assertEqual(state.inpainting_model_name, None)
         self.assertEqual(state.positive_prompts, [])
         self.assertEqual(state.negative_prompts, [])
         self.assertEqual(state.server_address, None)
@@ -219,6 +220,7 @@ class TestFromJson(unittest.TestCase):
                 "appstate-test/image2.png",
                 "appstate-test/image3.png"],
             "depth_model_name": "model",
+            "inpainting_model_name": "inpainting",
             "positive_prompts": ["one fish", "two fish", "red fish"],
             "negative_prompts": ["blue fish", "new fish", "old fish"],
             "server_address": "http://localhost:8000"
@@ -235,6 +237,7 @@ class TestFromJson(unittest.TestCase):
                          "appstate-test/image2.png",
                          "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, "model")
+        self.assertEqual(state.inpainting_model_name, "inpainting")
         self.assertEqual(state.positive_prompts, [
             "one fish", "two fish", "red fish"])
         self.assertEqual(state.negative_prompts, [
@@ -265,6 +268,7 @@ class TestFromJson(unittest.TestCase):
             "appstate-test/image2.png",
             "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, None)
+        self.assertEqual(state.inpainting_model_name, None)
         self.assertEqual(state.positive_prompts, [""]*3)
         self.assertEqual(state.negative_prompts, [""]*3)
         self.assertEqual(state.server_address, None)

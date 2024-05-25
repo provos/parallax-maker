@@ -36,6 +36,7 @@ class AppState:
         self.image_slices_filenames = []
 
         self.depth_model_name = None
+        self.inpainting_model_name = None
 
         self.positive_prompts = []
         self.negative_prompts = []
@@ -530,6 +531,8 @@ class AppState:
         
         if self.depth_model_name is not None:
             data['depth_model_name'] = self.depth_model_name
+        if self.inpainting_model_name is not None:
+            data['inpainting_model_name'] = self.inpainting_model_name
         if self.server_address is not None:
             data['server_address'] = self.server_address
         return json.dumps(data)
@@ -558,6 +561,7 @@ class AppState:
         state.image_slices_filenames = data['image_slices_filenames']
         
         state.depth_model_name = data['depth_model_name'] if 'depth_model_name' in data else None
+        state.inpainting_model_name = data['inpainting_model_name'] if 'inpainting_model_name' in data else None
         
         empty = [''] * len(state.image_slices_filenames)
         state.positive_prompts = data['positive_prompts'] if 'positive_prompts' in data else empty

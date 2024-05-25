@@ -65,9 +65,12 @@ def to_image_url(img_data):
         img_data = Image.fromarray(img_data)
     buffered = io.BytesIO()
     img_data.save(buffered, format="PNG")
-    img_str = base64.b64encode(buffered.getvalue()).decode('utf-8')
-    return f"data:image/png;base64,{img_str}"
+    return to_data_url(buffered.getvalue())
 
+def to_data_url(data):
+    """Converts binary data to a data URL."""
+    url_str = base64.b64encode(data).decode('utf-8')
+    return f"data:image/png;base64,{url_str}"
 
 def torch_get_device():
     """
