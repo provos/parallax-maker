@@ -657,6 +657,7 @@ def remove_mask_slice_request(n_clicks, filename, logs):
               Input(C.BTN_ADD_SLICE, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
+              running=[(Output(C.BTN_ADD_SLICE, 'disabled'), True, False)],
               prevent_initial_call=True)
 def add_mask_slice_request(n_clicks, filename, logs):
     if n_clicks is None:
@@ -674,7 +675,7 @@ def add_mask_slice_request(n_clicks, filename, logs):
         logs.append("No slice selected")
         return no_update, logs, no_update
 
-    # XXX - should we create an option to copy from the compose image?
+    # XXX - should we create an option to copy from the composed image?
     image = create_slice_from_mask(
         state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     # updates the image slice in place - dangerous
@@ -698,6 +699,7 @@ def add_mask_slice_request(n_clicks, filename, logs):
               Input(C.BTN_CREATE_SLICE, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
+              running=[(Output(C.BTN_CREATE_SLICE, 'disabled'), True, False)],
               prevent_initial_call=True)
 def create_single_slice_request(n_clicks, filename, logs):
     if n_clicks is None:

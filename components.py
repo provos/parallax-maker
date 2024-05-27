@@ -430,6 +430,7 @@ def make_inpainting_container_callbacks(app):
         Input(C.BTN_ERASE_INPAINTING, 'n_clicks'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         State(C.LOGS_DATA, 'data'),
+        running=[(Output(C.BTN_ERASE_INPAINTING, 'disabled'), True, False)],
         prevent_initial_call=True)
     def erase_inpainting(n_clicks, filename, logs):
         if n_clicks is None or filename is None:
