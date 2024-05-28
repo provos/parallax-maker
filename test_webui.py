@@ -221,7 +221,12 @@ class TextExportGltf(unittest.TestCase):
             np.zeros((100, 100, 4), dtype=np.uint8) for _ in range(3)]
         self.state.image_depths = [
             np.zeros((100, 100), dtype=np.float32) for _ in range(3)]
-        self.state.depth_filename.return_value = Path("depth_file.png")
+
+        # mocking depthmap file requires both exists and return_value
+        self.mock_depth_file = MagicMock()
+        self.state.depth_filename.return_value = self.mock_depth_file
+        self.mock_depth_file.exists.return_value = True
+        
         self.state.upscaled_filename.return_value = Path("upscaled_file.png")
         self.state.image_slices_filenames = [
             Path(f"slice_{i}.png") for i in range(3)]
@@ -276,10 +281,7 @@ class TextExportGltf(unittest.TestCase):
             (100, 100), dtype=np.uint8)
 
         # path does not exist
-        mock_depth_file = MagicMock()
-        self.state.depth_filename.return_value = mock_depth_file
-        mock_depth_file.exists.return_value = False
-        mock_depth_file.return_value = Path("depth_file.png")
+        self.mock_depth_file.exists.return_value = False
 
         # mocking depthmap image saving
         mock_image = MagicMock(spec=Image.Image)
@@ -292,7 +294,7 @@ class TextExportGltf(unittest.TestCase):
         self.assertEqual(mock_generate_depth_map.call_count, 3)
         self.assertEqual(mock_postprocess_depth_map.call_count, 3)
         self.assertEqual(mock_image_fromarray.call_count, 3)
-        mock_image.save.assert_called_with(mock_depth_file, compress_level=1)
+        mock_image.save.assert_called_with(self.mock_depth_file, compress_level=1)
 
         # Compare individual elements of card_corners_3d_list
         expected_call = mock_export_gltf.call_args_list[0]
@@ -306,7 +308,7 @@ class TextExportGltf(unittest.TestCase):
             np.testing.assert_array_almost_equal(
                 expected_corner, actual_corner)
         self.assertEqual(expected_args[5], self.state.image_slices_filenames)
-        self.assertEqual(expected_args[6], [mock_depth_file] * 3)
+        self.assertEqual(expected_args[6], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
     @patch("webui.export_gltf")
@@ -335,7 +337,7 @@ class TextExportGltf(unittest.TestCase):
             np.testing.assert_array_almost_equal(
                 expected_corner, actual_corner)
         self.assertEqual(expected_args[5], [mock_upscaled_file] * 3)
-        self.assertEqual(expected_args[6], [Path("depth_file.png")] * 3)
+        self.assertEqual(expected_args[6], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
     # TODO: Add more test cases for setup_camera_and_cards, generate_depth_map, postprocess_depth_map, and export_gltf
