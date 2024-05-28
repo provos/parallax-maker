@@ -1296,9 +1296,11 @@ def make_navigation_callbacks(app):
         Input(C.NAV_ZOOM_OUT, 'n_clicks'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         State(C.SLIDER_CAMERA_DISTANCE, 'value'),
+        State(C.SLIDER_FOCAL_LENGTH, 'value'),
+        State(C.SLIDER_MAX_DISTANCE, 'value'),
         State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
-    def navigate_image(reset, up, down, left, right, zoom_in, zoom_out, filename, camera_distance, logs):
+    def navigate_image(reset, up, down, left, right, zoom_in, zoom_out, filename, camera_distance, focal_length, max_distance, logs):
         if filename is None:
             raise PreventUpdate()
 
@@ -1333,6 +1335,9 @@ def make_navigation_callbacks(app):
             camera_position += switch[nav_clicked]
 
         state.camera_position = camera_position
+        state.camera_distance = camera_distance
+        state.focal_length = focal_length
+        state.max_distance = max_distance
 
         camera_matrix, card_corners_3d_list = setup_camera_and_cards(
             state.image_slices, state.image_depths,
