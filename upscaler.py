@@ -24,7 +24,7 @@ from utils import torch_get_device, premultiply_alpha_numpy
 
 class Upscaler:
     def __init__(self, model_name="swin2sr"):
-        assert model_name in ["swin2sr"]
+        assert model_name in ["swin2sr", "simple"]
         self.model_name = model_name
         self.model = None
         self.image_processor = None
@@ -32,6 +32,8 @@ class Upscaler:
     def create_model(self):
         if self.model_name == "swin2sr":
             self.model, self.image_processor = self.load_swin2sr_model()
+        elif self.model_name == "simple":
+            self.model, self.image_processor = None, None
 
     def __eq__(self, other):
         if not isinstance(other, Upscaler):
@@ -75,9 +77,13 @@ class Upscaler:
         if self.model is None:
             self.create_model()
 
+        # Ensure the overlap is an even number
+        if overlap % 2 != 0:
+            overlap += 1
+
         # Calculate the number of tiles
         width, height = image.size
-        step_size = tile_size - overlap
+        step_size = tile_size - overlap // 2
         num_tiles_x = (width + step_size - 1) // step_size
         num_tiles_y = (height + step_size - 1) // step_size
 
@@ -117,8 +123,26 @@ class Upscaler:
             upscaled_image = premultiply_alpha_numpy(upscaled_image)
         
         return upscaled_image
-
+    
     def upscale_tile(self, tile):
+        if self.model_name == "swin2sr":
+            return self._upscale_tile_swin2sr(tile)
+        elif self.model_name == "simple":
+            return self._upscale_tile_simple(tile)
+        
+    def _upscale_tile_simple(self, tile):
+        """
+        Upscales a tile using a simple bicubic interpolation.
+
+        Args:
+            tile: The input tile to be upscaled.
+
+        Returns:
+            An Image object representing the upscaled tile.
+        """
+        return tile.resize((tile.width * 2, tile.height * 2), Image.BICUBIC)
+
+    def _upscale_tile_swin2sr(self, tile):
         """
         Upscales a tile using a given model and image processor.
 
@@ -170,7 +194,7 @@ class Upscaler:
 
 
 if __name__ == "__main__":
-    upscaler = Upscaler()
+    upscaler = Upscaler(model_name="simple")
     image = Image.open("appstate-feBWVeXR/image_slice_1_v2.png")
     upscaled_image = upscaler.upscale_image_tiled(image, tile_size=512, overlap=64)
     upscaled_image.save("upscaled_image.png")
