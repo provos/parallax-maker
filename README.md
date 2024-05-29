@@ -36,7 +36,10 @@ ffmpeg -framerate 24 -i rendered_image_%03d.png -filter_complex "fps=5,scale=480
 
 # 3D Export
 
-The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender. To utilize depth of field camera effects for the Blender scene, the material needs to be changed to **ALPHA HASHED**.
+The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender.
+
+> [!TIP]
+> To utilize depth of field camera effects for the Blender scene, the material needs to be changed to **ALPHA HASHED**.
 
 ![Blender Scene View](example/blender_view.png)
 
@@ -49,10 +52,13 @@ A simple Dash based Web UI provides a browser assisted workflow to generated sli
 
 ![Web UI 3D Example](example/webui_3d.jpg)
 
-# Watch the Video
-[![Watch the video](example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
-
 # Advanced Use Cases
 Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialzied inpainting models and workflows. Here is [an example](example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
 
 ![Example configuration for ComfyUI](example/external_config.png)
+
+# Watch the Video
+[![Watch the video](example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
+
+# Tutorials
+[![Segementation and Inpainting Tutorial](example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)

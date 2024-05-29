@@ -39,6 +39,7 @@ CANVAS = 'canvas'
 PREVIEW_CANVAS = 'preview-canvas'
 UPLOAD_IMAGE = 'upload-image'
 UPLOAD_STATE = 'upload-state'
+UPLOAD_SLICE = 'slice-upload'
 BTN_SAVE_STATE = 'save-state'
 
 SLIDER_INPAINT_STRENGTH = 'inpaint-strength'

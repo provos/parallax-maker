@@ -840,7 +840,7 @@ def update_slices(ignored_data, filename):
                     html.Div(children=slice_name,
                              className='text-center text-overlay p-1')
                 ], style={'position': 'relative'}),
-                id={'type': 'slice-upload', 'index': i},
+                id={'type': C.UPLOAD_SLICE, 'index': i},
                 disable_click=True,
             )
         )
@@ -1168,7 +1168,7 @@ def download_image(n_clicks, filename):
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.LOGS_DATA, 'data', allow_duplicate=True),
-              Input({'type': 'slice-upload', 'index': ALL}, 'contents'),
+              Input({'type': C.UPLOAD_SLICE, 'index': ALL}, 'contents'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.LOGS_DATA, 'data'),
               prevent_initial_call=True)
@@ -1245,12 +1245,13 @@ def export_animation(n_clicks, filename, num_frames, camera_distance, max_distan
 def restore_inpainting(value):
     return True
 
+
 @app.callback(
-        Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents', allow_duplicate=True),
-        Output(C.UPLOAD_COMFYUI_WORKFLOW, 'filename', allow_duplicate=True),
-        Input(C.STORE_RESTORE_STATE, 'data'),
-        State(C.STORE_APPSTATE_FILENAME, 'data'),
-        prevent_initial_call=True)
+    Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents', allow_duplicate=True),
+    Output(C.UPLOAD_COMFYUI_WORKFLOW, 'filename', allow_duplicate=True),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
+    prevent_initial_call=True)
 def restore_workflow(value, filename):
     if filename is None:
         raise PreventUpdate()
@@ -1260,6 +1261,7 @@ def restore_workflow(value, filename):
         workflow = state.workflow_path().read_bytes()
         return to_data_url(workflow), state.workflow_path().name
     return no_update, no_update
+
 
 @app.callback(
     Output(C.DROPDOWN_DEPTH_MODEL, 'value'),
