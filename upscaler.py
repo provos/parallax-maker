@@ -18,6 +18,7 @@ from PIL import Image
 import torch
 from transformers import AutoImageProcessor, Swin2SRForImageSuperResolution
 import numpy as np
+from scipy.ndimage import zoom
 
 from utils import torch_get_device, premultiply_alpha_numpy
 
@@ -55,24 +56,22 @@ class Upscaler:
         Upscales an image using a tiled approach.
 
         Args:
-            image (PIL.Image.Image): The input image file.
+            image (np.ndarray): The input image array.
             tile_size (int, optional): The size of each tile. Defaults to 512.
             overlap (int, optional): The overlap between adjacent tiles. Defaults to 64.
 
         Returns:
-            PIL.Image.Image: The upscaled image.
+            np.ndarray: The upscaled image array.
         """
-        # Convert the image if it's a numpy array
-        if isinstance(image, np.ndarray):
-            image = Image.fromarray(image)
-        alpha = None
-        if image.mode == "RGBA":
-            alpha = image.getchannel("A")
-            # double the size of the alpha image
-            double_size = (image.size[0] * 2, image.size[1] * 2) 
-            alpha = alpha.resize(double_size, Image.BICUBIC)
+        if isinstance(image, Image.Image):
+            image = np.array(image)
             
-        image = image.convert("RGB")
+        alpha = None
+        if image.shape[2] == 4:  # RGBA image
+            alpha = image[:, :, 3]
+            # double the size of the alpha channel using bicubic interpolation
+            alpha = zoom(alpha, 2, order=3)
+            image = image[:, :, :3]  # Remove alpha channel
 
         if self.model is None:
             self.create_model()
@@ -82,15 +81,16 @@ class Upscaler:
             overlap += 1
 
         # Calculate the number of tiles
-        width, height = image.size
+        height, width, _ = image.shape
         step_size = tile_size - overlap // 2
         num_tiles_x = (width + step_size - 1) // step_size
         num_tiles_y = (height + step_size - 1) // step_size
 
-        # Create a new image to store the upscaled result
-        upscaled_width = width * 2
+        # Create a new array to store the upscaled result
         upscaled_height = height * 2
-        upscaled_image = Image.new("RGB", (upscaled_width, upscaled_height))
+        upscaled_width = width * 2
+        upscaled_image = np.zeros(
+            (upscaled_height, upscaled_width, 3), dtype=np.uint8)
 
         # Iterate over the tiles
         for y in range(num_tiles_y):
@@ -102,28 +102,51 @@ class Upscaler:
                 bottom = min(top + tile_size, height)
 
                 print(
-                    f"Processing tile ({y}, {x} with coordinates ({left}, {top}, {right}, {bottom})")
+                    f"Processing tile ({y}, {x}) with coordinates ({left}, {top}, {right}, {bottom})")
 
                 # Extract the current tile from the image
-                tile = image.crop((left, top, right, bottom))
+                tile = image[top:bottom, left:right]
+                tile = Image.fromarray(tile) # XXX - revisit whether we can keep this as a numpy array
                 upscaled_tile = self.upscale_tile(tile)
+                upscaled_tile = np.array(upscaled_tile)
 
                 # Calculate the coordinates to paste the upscaled tile
                 place_left = x * step_size * 2
                 place_top = y * step_size * 2
-                place_right = place_left + upscaled_tile.width
-                place_bottom = place_top + upscaled_tile.height
+                place_right = place_left + upscaled_tile.shape[1]
+                place_bottom = place_top + upscaled_tile.shape[0]
 
                 self.integrate_tile(upscaled_tile, upscaled_image, place_left,
                                     place_top, place_right, place_bottom, x, y, overlap)
 
-        # Save the upscaled image
-        if alpha:
-            upscaled_image.putalpha(alpha)
+        # Combine the upscaled image with the alpha channel if present
+        if alpha is not None:
+            upscaled_image = np.dstack((upscaled_image, alpha))
             upscaled_image = premultiply_alpha_numpy(upscaled_image)
-        
+
         return upscaled_image
-    
+
+    @staticmethod
+    def integrate_tile(tile, image, left, top, right, bottom, tile_x, tile_y, overlap):
+        height, width, _ = tile.shape
+
+        # Create an alpha channel for the tile
+        alpha = np.ones((height, width), dtype=np.float32)
+        if tile_x > 0 and tile_y > 0:
+            alpha[:overlap, :overlap] = np.outer(
+                np.linspace(0, 1, overlap), np.linspace(0, 1, overlap))
+        elif tile_x > 0:
+            alpha[:, :overlap] = np.linspace(0, 1, overlap)
+        elif tile_y > 0:
+            alpha[:overlap, :] = np.linspace(0, 1, overlap).reshape(-1, 1)
+
+        # Reshape the alpha channel to match the tile shape
+        alpha = alpha.reshape(height, width, 1)
+
+        # Apply the tile with alpha blending to the image
+        image[top:bottom, left:right] = (
+            alpha * tile + (1 - alpha) * image[top:bottom, left:right]).astype(np.uint8)
+
     def upscale_tile(self, tile):
         if self.model_name == "swin2sr":
             return self._upscale_tile_swin2sr(tile)
@@ -166,31 +189,6 @@ class Upscaler:
         output = (output * 255.0).round().astype(np.uint8)
 
         return Image.fromarray(output)
-
-    @staticmethod
-    def integrate_tile(tile, image, left, top, right, bottom, tile_x, tile_y, overlap):
-        if tile_x > 0:
-            left_strip = tile.crop((0, 0, overlap, tile.height))
-            blended = Image.blend(left_strip, image.crop(
-                (left, top, left + overlap, bottom)), 0.5)
-            image.paste(blended, (left, top, left + overlap, bottom))
-            if overlap > tile.width:
-                # Skip the tile if the overlap is greater than the tile width
-                return
-            tile = tile.crop((overlap, 0, tile.width, tile.height))
-            left += overlap
-        if tile_y > 0:
-            top_strip = tile.crop((0, 0, tile.width, overlap))
-            blended = Image.blend(top_strip, image.crop(
-                (left, top, right, top + overlap)), 0.5)
-            image.paste(blended, (left, top, right, top + overlap))
-            if overlap > tile.height:
-                # Skip the tile if the overlap is greater than the tile height
-                return
-            tile = tile.crop((0, overlap, tile.width, tile.height))
-            top += overlap
-        # Paste the upscaled tile onto the upscaled image
-        image.paste(tile, (left, top, right, bottom))
 
 
 if __name__ == "__main__":
