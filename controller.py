@@ -389,7 +389,7 @@ class AppState:
             filename = self.upscaled_filename(i)
             if not Path(filename).exists():
                 print(f"Upscaling image slice: {filename}")
-                upscaled_image = self.upscaler.upscale_image_tiled(slice_image, tile_size=512, overlap=64)
+                upscaled_image = self.upscaler.upscale_image_tiled(slice_image, overlap=64)
                 upscaled_image.save(filename)
                 print(f"Saved upscaled image slice: {filename}")
 

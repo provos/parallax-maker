@@ -17,7 +17,7 @@ blended to ensure smoother transitions between tiles.
 from PIL import Image
 import torch
 from transformers import AutoImageProcessor, Swin2SRForImageSuperResolution
-from diffusers import StableDiffusionLatentUpscalePipeline, StableDiffusionPipeline
+from diffusers import StableDiffusionLatentUpscalePipeline
 
 import numpy as np
 from scipy.ndimage import zoom
@@ -26,7 +26,7 @@ from utils import torch_get_device, premultiply_alpha_numpy
 
 
 class Upscaler:
-    def __init__(self, model_name="swin2sr"):
+    def __init__(self, model_name="diffusion"):
         assert model_name in ["swin2sr", "simple", "diffusion"]
         self.model_name = model_name
         self.model = None
@@ -59,15 +59,11 @@ class Upscaler:
         return model, image_processor
     
     def load_diffusion_model(self):
-        # Load pre-trained Stable Diffusion model and upscaler
-        pipeline = StableDiffusionPipeline.from_pretrained(
-            "CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
-        pipeline.to(torch_get_device())
-
+        # Load pre-trained Stable Diffusion upscaler
         upscaler = StableDiffusionLatentUpscalePipeline.from_pretrained(
             "stabilityai/sd-x2-latent-upscaler", torch_dtype=torch.float16)
         upscaler.to(torch_get_device())
-        return upscaler, pipeline
+        return upscaler, None
 
     def upscale_image_tiled(self, image, overlap=64, prompt=None, negative_prompt=None):
         """
