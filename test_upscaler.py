@@ -26,7 +26,7 @@ class TestUpscaler(unittest.TestCase):
                 with patch.object(self.upscaler, 'integrate_tile') as mock_integrate:
                     # Call the function to test
                     upscaled_image = self.upscaler.upscale_image_tiled(
-                        self.input_image, tile_size=512, overlap=64)
+                        self.input_image, overlap=64)
 
                     # Check that integrate_tile was called the correct number of times (expected 3x3 grid based on sizes).
                     self.assertEqual(mock_integrate.call_count, 9)
@@ -40,7 +40,7 @@ class TestUpscaler(unittest.TestCase):
                 with patch.object(self.upscaler, 'integrate_tile') as mock_integrate:
                     # Call the function to test
                     upscaled_image = self.upscaler.upscale_image_tiled(
-                        self.input_image, tile_size=512, overlap=0)
+                        self.input_image, overlap=0)
 
                     # Check that integrate_tile was called the correct number of times (expected 2x2 grid based on sizes).
                     self.assertEqual(mock_integrate.call_count, 4)

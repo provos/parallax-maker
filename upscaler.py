@@ -17,6 +17,8 @@ blended to ensure smoother transitions between tiles.
 from PIL import Image
 import torch
 from transformers import AutoImageProcessor, Swin2SRForImageSuperResolution
+from diffusers import StableDiffusionLatentUpscalePipeline, StableDiffusionPipeline
+
 import numpy as np
 from scipy.ndimage import zoom
 
@@ -25,16 +27,21 @@ from utils import torch_get_device, premultiply_alpha_numpy
 
 class Upscaler:
     def __init__(self, model_name="swin2sr"):
-        assert model_name in ["swin2sr", "simple"]
+        assert model_name in ["swin2sr", "simple", "diffusion"]
         self.model_name = model_name
         self.model = None
         self.image_processor = None
+        self.tile_size = 512
+        self.scale_factor = 2
 
     def create_model(self):
         if self.model_name == "swin2sr":
             self.model, self.image_processor = self.load_swin2sr_model()
         elif self.model_name == "simple":
             self.model, self.image_processor = None, None
+            self.tile_size = 1024
+        elif self.model_name == "diffusion":
+            self.model, self.image_processor = self.load_diffusion_model()
 
     def __eq__(self, other):
         if not isinstance(other, Upscaler):
@@ -50,14 +57,24 @@ class Upscaler:
         model.to(torch_get_device())
 
         return model, image_processor
+    
+    def load_diffusion_model(self):
+        # Load pre-trained Stable Diffusion model and upscaler
+        pipeline = StableDiffusionPipeline.from_pretrained(
+            "CompVis/stable-diffusion-v1-4", torch_dtype=torch.float16)
+        pipeline.to(torch_get_device())
 
-    def upscale_image_tiled(self, image, tile_size=512, overlap=64):
+        upscaler = StableDiffusionLatentUpscalePipeline.from_pretrained(
+            "stabilityai/sd-x2-latent-upscaler", torch_dtype=torch.float16)
+        upscaler.to(torch_get_device())
+        return upscaler, pipeline
+
+    def upscale_image_tiled(self, image, overlap=64, prompt=None, negative_prompt=None):
         """
         Upscales an image using a tiled approach.
 
         Args:
             image (np.ndarray): The input image array.
-            tile_size (int, optional): The size of each tile. Defaults to 512.
             overlap (int, optional): The overlap between adjacent tiles. Defaults to 64.
 
         Returns:
@@ -70,25 +87,25 @@ class Upscaler:
         if image.shape[2] == 4:  # RGBA image
             alpha = image[:, :, 3]
             # double the size of the alpha channel using bicubic interpolation
-            alpha = zoom(alpha, 2, order=3)
+            alpha = zoom(alpha, self.scale_factor, order=3)
             image = image[:, :, :3]  # Remove alpha channel
 
         if self.model is None:
             self.create_model()
 
-        # Ensure the overlap is an even number
-        if overlap % 2 != 0:
-            overlap += 1
+        # Ensure the overlap can be divided by the scale factor
+        if overlap % self.scale_factor != 0:
+            overlap = (overlap // self.scale_factor + 1) * self.scale_factor
 
         # Calculate the number of tiles
         height, width, _ = image.shape
-        step_size = tile_size - overlap // 2
+        step_size = self.tile_size - overlap // self.scale_factor
         num_tiles_x = (width + step_size - 1) // step_size
         num_tiles_y = (height + step_size - 1) // step_size
 
         # Create a new array to store the upscaled result
-        upscaled_height = height * 2
-        upscaled_width = width * 2
+        upscaled_height = height * self.scale_factor
+        upscaled_width = width * self.scale_factor
         upscaled_image = np.zeros(
             (upscaled_height, upscaled_width, 3), dtype=np.uint8)
 
@@ -98,8 +115,8 @@ class Upscaler:
                 # Calculate the coordinates of the current tile
                 left = x * step_size
                 top = y * step_size
-                right = min(left + tile_size, width)
-                bottom = min(top + tile_size, height)
+                right = min(left + self.tile_size, width)
+                bottom = min(top + self.tile_size, height)
 
                 print(
                     f"Processing tile ({y}, {x}) with coordinates ({left}, {top}, {right}, {bottom})")
@@ -107,7 +124,15 @@ class Upscaler:
                 # Extract the current tile from the image
                 tile = image[top:bottom, left:right]
                 tile = Image.fromarray(tile) # XXX - revisit whether we can keep this as a numpy array
-                upscaled_tile = self.upscale_tile(tile)
+                
+                cur_width, cur_height = tile.size
+                if cur_width % 64 != 0 or cur_height % 64 != 0:
+                    tile = tile.resize((cur_width + (64 - cur_width % 64),
+                                        cur_height + (64 - cur_height % 64)))                
+                upscaled_tile = self.upscale_tile(tile, prompt, negative_prompt)
+                if tile.size != (cur_width, cur_height):
+                    upscaled_tile = upscaled_tile.resize(
+                        (cur_width * self.scale_factor, cur_height * self.scale_factor))
                 upscaled_tile = np.array(upscaled_tile)
 
                 # Calculate the coordinates to paste the upscaled tile
@@ -123,6 +148,8 @@ class Upscaler:
         if alpha is not None:
             upscaled_image = np.dstack((upscaled_image, alpha))
             upscaled_image = premultiply_alpha_numpy(upscaled_image)
+        else:
+            upscaled_image = Image.fromarray(upscaled_image)
 
         return upscaled_image
 
@@ -147,11 +174,25 @@ class Upscaler:
         image[top:bottom, left:right] = (
             alpha * tile + (1 - alpha) * image[top:bottom, left:right]).astype(np.uint8)
 
-    def upscale_tile(self, tile):
+    def upscale_tile(self, tile, prompt=None, negative_prompt=None):
         if self.model_name == "swin2sr":
             return self._upscale_tile_swin2sr(tile)
         elif self.model_name == "simple":
             return self._upscale_tile_simple(tile)
+        elif self.model_name == "diffusion":
+            return self._upscale_tile_diffusion(tile, prompt, negative_prompt)
+        
+    def _upscale_tile_diffusion(self, tile, prompt, negative_prompt):
+        prompt = '' if prompt is None else prompt
+        negative_prompt = '' if negative_prompt is None else negative_prompt
+        result = self.model(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            num_inference_steps=20,
+            image=tile,
+            guidance_scale=2,
+        ).images[0]
+        return result
         
     def _upscale_tile_simple(self, tile):
         """
@@ -192,7 +233,9 @@ class Upscaler:
 
 
 if __name__ == "__main__":
-    upscaler = Upscaler(model_name="simple")
-    image = Image.open("appstate-feBWVeXR/image_slice_1_v2.png")
-    upscaled_image = upscaler.upscale_image_tiled(image, tile_size=512, overlap=64)
+    upscaler = Upscaler(model_name="diffusion")
+    image = Image.open("image_slice_2.png")
+    upscaled_image = upscaler.upscale_image_tiled(
+        image, overlap=64,
+        prompt='badlands')
     upscaled_image.save("upscaled_image.png")
