@@ -153,6 +153,10 @@ class Upscaler:
     def integrate_tile(tile, image, left, top, right, bottom, tile_x, tile_y, overlap):
         height, width, _ = tile.shape
 
+        # xxx - should be move before upscaling
+        if overlap >= height or overlap >= width:
+            return
+
         # Create an alpha channel for the tile
         alpha = np.ones((height, width), dtype=np.float32)
         if tile_x > 0 and tile_y > 0:
