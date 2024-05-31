@@ -1184,8 +1184,17 @@ def slice_upload(contents, filename, logs):
     if contents[index] is None:
         raise PreventUpdate()
 
+    # current aspect ratio
+    aspect_ratio = state.imgData.size[0] / state.imgData.size[1]
+
     content = contents[index]
     image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))
+    image = image.convert('RGBA')
+    
+    if image.size[0] / image.size[1] != aspect_ratio:
+        logs.append('Fixing aspect ratio from {image.size[0] / image.size[1]} to {aspect_ratio}')
+        image = image.resize((int(aspect_ratio*image.size[1]), image.size[1]))
+    
     state.image_slices[index] = np.array(image)
 
     # add a version number to the filename and increase if it already exists
