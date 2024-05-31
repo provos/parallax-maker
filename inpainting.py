@@ -137,6 +137,10 @@ class InpaintingModel:
             init_image = Image.fromarray(init_image)
         if not isinstance(mask_image, Image.Image):
             mask_image = Image.fromarray(mask_image)
+            
+        # Convert images to RGBA mode
+        if init_image.mode != 'RGBA':
+            init_image = init_image.convert('RGBA')
         
         original_init_image = init_image.copy()
 
