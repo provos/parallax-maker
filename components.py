@@ -546,6 +546,7 @@ def make_inpainting_container_callbacks(app):
 
             # patch the image
             image = patch_image(image, mask)
+            num_images = 3
         else:
             assert tid == C.BTN_ENHANCE
             def upscale_image(input_image):
@@ -555,9 +556,10 @@ def make_inpainting_container_callbacks(app):
                 upscaled_image[:, :, 3] = input_image[:, :, 3]
                 return upscaled_image
             execute = lambda input_image: upscale_image(input_image)
+            num_images = 2
                 
         images = []
-        for i in range(3):
+        for i in range(num_images):
             new_image = execute(image)
             images.append(new_image)
 

@@ -80,12 +80,13 @@ class Upscaler:
         bounding_box = None
         if image.shape[2] == 4:  # RGBA image
             alpha = image[:, :, 3]
+            bounding_box = find_bounding_box(alpha, padding=0)
+
             # double the size of the alpha channel using bicubic interpolation
             alpha = zoom(alpha, self.scale_factor, order=3)
             image = image[:, :, :3]  # Remove alpha channel
             
             # crop the image to the bounding box
-            bounding_box = find_bounding_box(alpha)
             orig_image = image
             image = image[bounding_box[1]:bounding_box[3], bounding_box[0]:bounding_box[2]]
 
@@ -192,8 +193,9 @@ class Upscaler:
         rescaled_tile = zoom(tile, (2, 2, 1), order=3)
         mask_image = np.ones(rescaled_tile.shape[:2], dtype=np.uint8)
         mask_image *= 255
+        scale = 2 if len(prompt) or len(negative_prompt) else 0
         tile = self.inpainting_model.inpaint(prompt, negative_prompt, rescaled_tile, mask_image,
-                                             strength=0.1, guidance_scale=2.0,
+                                             strength=0.2, guidance_scale=scale,
                                              num_inference_steps=75,
                                              padding=0, blur_radius=0)
         tile = tile.convert("RGB")
