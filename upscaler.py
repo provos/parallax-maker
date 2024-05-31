@@ -22,7 +22,7 @@ from inpainting import InpaintingModel
 import numpy as np
 from scipy.ndimage import zoom
 
-from utils import torch_get_device, premultiply_alpha_numpy
+from utils import torch_get_device, premultiply_alpha_numpy, find_bounding_box
 import argparse
 
 
@@ -77,11 +77,17 @@ class Upscaler:
             image = np.array(image)
             
         alpha = None
+        bounding_box = None
         if image.shape[2] == 4:  # RGBA image
             alpha = image[:, :, 3]
             # double the size of the alpha channel using bicubic interpolation
             alpha = zoom(alpha, self.scale_factor, order=3)
             image = image[:, :, :3]  # Remove alpha channel
+            
+            # crop the image to the bounding box
+            bounding_box = find_bounding_box(alpha)
+            orig_image = image
+            image = image[bounding_box[1]:bounding_box[3], bounding_box[0]:bounding_box[2]]
 
         if self.model is None:
             self.create_model()
@@ -139,7 +145,10 @@ class Upscaler:
 
         # Combine the upscaled image with the alpha channel if present
         if alpha is not None:
-            upscaled_image = np.dstack((upscaled_image, alpha))
+            image = zoom(orig_image, (self.scale_factor, self.scale_factor, 1), order=3)
+            bounding_box = [coord * self.scale_factor for coord in bounding_box]
+            image[bounding_box[1]:bounding_box[3], bounding_box[0]:bounding_box[2]] = upscaled_image
+            upscaled_image = np.dstack((image, alpha))
             upscaled_image = premultiply_alpha_numpy(upscaled_image)
         else:
             upscaled_image = Image.fromarray(upscaled_image)

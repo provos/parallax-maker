@@ -93,13 +93,17 @@ def find_bounding_box(mask_image, padding=50):
     Finds the bounding box of a given mask image.
 
     Args:
-        mask_image (PIL.Image.Image): The mask image.
+        mask_image (PIL.Image.Image or np.array): The mask image.
         padding (int, optional): The padding to apply to the bounding box. Defaults to 50.
 
     Returns:
         tuple: A tuple containing the coordinates of the bounding box in the format (xmin, ymin, xmax, ymax).
     """
-    mask_array = np.array(mask_image)
+    if isinstance(mask_image, Image.Image):
+        mask_array = np.array(mask_image)
+    else:
+        mask_array = mask_image   
+        
     nonzero_y, nonzero_x = np.nonzero(mask_array > 0)
     if len(nonzero_x) == 0 or len(nonzero_y) == 0:
         return (0, 0, 0, 0)
