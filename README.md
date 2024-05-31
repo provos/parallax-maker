@@ -36,10 +36,13 @@ ffmpeg -framerate 24 -i rendered_image_%03d.png -filter_complex "fps=5,scale=480
 
 # 3D Export
 
-The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender.
+The tool also supports generating a glTF2.0 scene file that an be easily imported into 3D apps like Blender or Unreal Engine.
 
 > [!TIP]
 > To utilize depth of field camera effects for the Blender scene, the material needs to be changed to **ALPHA HASHED**.
+> [!TIP]
+> To utilize depth of field camera effects for Unreal Engine, the material needs to be changed to **Translucent Masked**.
+
 
 ![Blender Scene View](example/blender_view.png)
 
