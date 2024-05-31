@@ -41,7 +41,7 @@ class Upscaler:
             self.model, self.image_processor = self.load_swin2sr_model()
         elif self.model_name == "simple":
             self.model, self.image_processor = None, None
-            self.tile_size = 1024
+            self.tile_size = 512
         elif self.model_name == "inpainting":
             assert self.inpainting_model is not None
             self.model, self.image_processor = self.inpainting_model, None
@@ -169,10 +169,13 @@ class Upscaler:
         if tile_x > 0 and tile_y > 0:
             alpha[:overlap, :overlap] = np.outer(
                 np.linspace(0, 1, overlap), np.linspace(0, 1, overlap))
-        elif tile_x > 0:
-            alpha[:, :overlap] = np.linspace(0, 1, overlap)
-        elif tile_y > 0:
-            alpha[:overlap, :] = np.linspace(0, 1, overlap).reshape(-1, 1)
+        if tile_x > 0:
+            new_alpha = np.tile(np.linspace(0, 1, overlap), (height, 1))
+            alpha[:, :overlap] = np.minimum(alpha[:, :overlap], new_alpha)
+
+        if tile_y > 0:
+            new_alpha = np.tile(np.linspace(0, 1, overlap).reshape(-1, 1), (1, width))
+            alpha[:overlap, :] = np.minimum(alpha[:overlap, :], new_alpha)
 
         # Reshape the alpha channel to match the tile shape
         alpha = alpha.reshape(height, width, 1)
