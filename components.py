@@ -622,15 +622,22 @@ def make_inpainting_container_callbacks(app):
         print(f'Applying inpainting image {index}')
 
         # give a visual highlight on the selected children
+        return_image = no_update
         new_classnames = []
         selected_background = ' bg-green-200'
         for i, classname in enumerate(classnames):
+            already_selected = selected_background in classname
             classname = classname.replace(selected_background, '')
             if i == index:
-                classname += selected_background
+                if not already_selected:
+                    classname += selected_background
+                    return_image = images[i]
+                else:
+                    mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
+                    return_image = state.serve_slice_image_composed(state.selected_slice, mode)
             new_classnames.append(classname)
 
-        return images[index], new_classnames, ""
+        return return_image, new_classnames, ""
 
     @app.callback(
         Output(C.STORE_INPAINTING, 'data'),
