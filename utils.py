@@ -552,7 +552,7 @@ def create_checkerboard(height, width, size):
     """
     checkerboard = np.zeros((height, width), dtype=np.uint8)
     light_color = 200
-    dark_color = 55
+    dark_color = 75
     for i in range(0, height, size):
         for j in range(0, width, size):
             color = light_color if (

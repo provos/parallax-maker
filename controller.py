@@ -226,8 +226,11 @@ class AppState:
     def serve_slice_image(self, slice_index):
         """Serves the image slice with the specified index."""
         assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
-        image_path = self.image_slices_filenames[slice_index]
+            self.image_slices_filenames)        
+        image_path = self.checkerboard_filename(slice_index)
+        if not image_path.exists():
+            image = self.slice_image_composed(slice_index, mode=CompositeMode.CHECKERBOARD)
+            image.save(image_path)
         image_path = Path(self.SRV_DIR) / image_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
@@ -293,6 +296,10 @@ class AppState:
             self.image_slices_filenames)
         file_path = Path(self.image_slices_filenames[slice_index])
         return file_path.parent / f"{file_path.stem}_{suffix}.png"
+
+    def checkerboard_filename(self, slice_index):
+        """Returns the checkerboard filename for the specified slice index."""
+        return self._make_filename(slice_index, 'checkerboard')
 
     def depth_filename(self, slice_index):
         """Returns the depth filename for the specified slice index."""
