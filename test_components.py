@@ -8,10 +8,7 @@ from PIL import Image
 import dash
 from dash import html
 
-from dash.exceptions import PreventUpdate
-
 import constants as C
-from controller import AppState
 import numpy as np
 from components import (
     make_inpainting_container_callbacks,
@@ -38,7 +35,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
     @patch('components.Image.fromarray')
     @patch('components.Path')
     @patch('controller.AppState.from_cache')
-    @patch('components.InpaintingModel')
+    @patch('inpainting.InpaintingModel')
     def test_callback_triggered_comfyui(
         self, mock_model, mock_from_cache, mock_path, mock_image_open, mock_image_fromarray, mock_callback_context):\
         # Mock callback context
@@ -114,7 +111,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
     @patch('components.Image.fromarray')
     @patch('components.Path')
     @patch('controller.AppState.from_cache')
-    @patch('components.InpaintingModel')
+    @patch('inpainting.InpaintingModel')
     def test_callback_triggered_normal(
             self, mock_model, mock_from_cache, mock_path, mock_image_open, mock_image_fromarray, mock_callback_context):
         # Mock callback context

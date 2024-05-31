@@ -29,7 +29,7 @@ from utils import (
 )
 from depth import DepthEstimationModel
 from instance import SegmentationModel
-from inpainting import InpaintingModel
+from inpainting import InpaintingModel, create_inpainting_pipeline
 from clientside import make_clientside_callbacks
 
 
@@ -1008,14 +1008,20 @@ def display_slice(n_clicks, id, src, classnames, filename):
               Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
               Input(C.BTN_UPSCALE_TEXTURES, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
+              State(C.DROPDOWN_INPAINT_MODEL, 'value'),
+              State(C.INPUT_EXTERNAL_SERVER, 'value'),
+              State(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
               State(C.LOGS_DATA, 'data'),
               running=[(Output(C.BTN_UPSCALE_TEXTURES, 'disabled'), True, False)],
               prevent_initial_call=True)
-def upscale_texture(n_clicks, filename, logs):
+def upscale_texture(n_clicks, filename, model_name, server_address, workflow, logs):
     if filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    
+    # this create the pipeline in state and will be used by upscale slices
+    create_inpainting_pipeline(model_name, server_address, workflow, state)
 
     state.upscale_slices()
 

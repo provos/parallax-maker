@@ -20,7 +20,7 @@ from automatic1111 import make_models_request
 from comfyui import get_history, patch_inpainting_workflow
 from controller import AppState, CompositeMode
 from utils import to_image_url, filename_add_version
-from inpainting import InpaintingModel, patch_image
+from inpainting import patch_image, create_inpainting_pipeline
 from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
 
 
@@ -528,33 +528,7 @@ def make_inpainting_container_callbacks(app):
 
         image = state.image_slices[index]
 
-        workflow_path = None
-        if model == 'comfyui':
-            if workflow is not None and len(workflow) > 0:
-                workflow_path = state.workflow_path()
-
-                need_to_update = False
-                if not workflow_path.exists():
-                    need_to_update = True
-                else:
-                    old_workflow = workflow_path.read_bytes()
-                    if old_workflow != workflow:
-                        need_to_update = True
-
-                if need_to_update:
-                    # dcc.Upload always has the format 'data:filetype;base64,'
-                    workflow = workflow.split(',')[1]
-                    workflow = base64.b64decode(workflow)
-                    workflow_path.write_bytes(workflow)
-                    print('ComfyUI workflow updated')
-
-        pipeline = InpaintingModel(
-            model,
-            server_address=server_address,
-            workflow_path=workflow_path)
-        if state.pipeline_spec is None or state.pipeline_spec != pipeline:
-            state.pipeline_spec = pipeline
-            pipeline.load_model()
+        pipeline = create_inpainting_pipeline(model, server_address, workflow, state)
 
         if tid == C.BTN_GENERATE_INPAINTING:
             mask_filename = state.mask_filename(index)
