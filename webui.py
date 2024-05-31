@@ -42,7 +42,7 @@ from dash.exceptions import PreventUpdate
 from flask import send_file
 from werkzeug import serving
 
-from controller import AppState
+from controller import AppState, CompositeMode
 
 # Globals
 EXPAND_MASK = 5
@@ -849,7 +849,9 @@ def update_slices(ignored_data, filename):
     if state.selected_slice is not None:
         assert state.selected_slice >= 0 and state.selected_slice < len(
             state.image_slices)
-        img_data = state.serve_slice_image_composed(state.selected_slice)
+        mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
+        img_data = state.serve_slice_image_composed(
+            state.selected_slice, mode=mode)
         state.slice_pixel = None
         state.slice_mask = None
         state.slice_depth = None
@@ -988,7 +990,8 @@ def display_slice(n_clicks, id, src, classnames, filename):
     negative_prompt = ""
     if state.selected_slice != index:
         state.selected_slice = index
-        result = state.serve_slice_image_composed(index)
+        mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
+        result = state.serve_slice_image_composed(index, mode=mode)
         positive_prompt = state.positive_prompts[index]
         negative_prompt = state.negative_prompts[index]
     else:
@@ -1193,11 +1196,12 @@ def slice_upload(contents, filename, logs):
     content = contents[index]
     image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))
     image = image.convert('RGBA')
-    
+
     if image.size[0] / image.size[1] != aspect_ratio:
-        logs.append('Fixing aspect ratio from {image.size[0] / image.size[1]} to {aspect_ratio}')
+        logs.append(
+            'Fixing aspect ratio from {image.size[0] / image.size[1]} to {aspect_ratio}')
         image = image.resize((int(aspect_ratio*image.size[1]), image.size[1]))
-    
+
     state.image_slices[index] = np.array(image)
 
     # add a version number to the filename and increase if it already exists

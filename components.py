@@ -18,7 +18,7 @@ from dash.exceptions import PreventUpdate
 import constants as C
 from automatic1111 import make_models_request
 from comfyui import get_history, patch_inpainting_workflow
-from controller import AppState
+from controller import AppState, CompositeMode
 from utils import to_image_url, filename_add_version
 from inpainting import InpaintingModel, patch_image
 from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
@@ -103,7 +103,8 @@ def make_inpainting_tools_container():
         html.Div([
             dcc.Store(id=C.CANVAS_DATA),  # saves to disk
             dcc.Store(id=C.CANVAS_MASK_DATA),
-            dcc.Store(id=C.STORE_SELECTED_SLICE), # keeps track of the selected slice for Javascript
+            # keeps track of the selected slice for Javascript
+            dcc.Store(id=C.STORE_SELECTED_SLICE),
             html.Div([
                     html.Button('Clear', id=C.BTN_CLEAR_CANVAS,
                                 className='bg-blue-500 text-white p-2 rounded-md mr-1'),
@@ -141,9 +142,14 @@ def make_segmentation_tools_container():
     return html.Div([
         html.Div([
             html.Div([
+                html.Button([html.I(className="fa fa-clone")], id=C.SEG_TOGGLE_CHECKERBOARD,
+                            title='Toggle checkerboard background',
+                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                 html.Button(["Invert ", html.I(className="fa fa-adjust")], id=C.SEG_INVERT_MASK,
+                            title='Invert the current mask',
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                 html.Button(["Feather ", html.I(className="fa fa-wind")], id=C.SEG_FEATHER_MASK,
+                            title='Feather the current mask',
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
                 html.Button(["Multi ", html.I(className="fa fa-wand-magic-sparkles")], id=C.SEG_MULTI_POINT,
                             className='bg-blue-500 text-white p-2 rounded-md mr-1'),
@@ -638,7 +644,7 @@ def make_inpainting_container_callbacks(app):
             f'Inpainting applied to slice {index} with new image {image_filename}')
 
         return True, logs, True
-    
+
     # this is called when the selected slice changes
     @app.callback(Output(C.TEXT_POSITIVE_PROMPT, 'disabled'),
                   Output(C.TEXT_NEGATIVE_PROMPT, 'disabled'),
@@ -651,11 +657,11 @@ def make_inpainting_container_callbacks(app):
     def react_selected_slice_change(ignore, filename):
         if filename is None:
             return True, True, True, True, None
-        
+
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
             return True, True, True, True, None
-        
+
         return False, False, False, False, state.selected_slice
 
     return update_inpainting_image_display
@@ -1137,12 +1143,12 @@ def make_segmentation_callbacks(app):
         logs.append(f'Feathered mask by {feather_amount} pixels')
 
         return image, logs
-    
+
     @app.callback(Output(C.SEG_MULTI_COMMIT, 'disabled'),
                   Output(C.SEG_MULTI_POINT, 'disabled'),
                   Input(C.DROPDOWN_MODE_SELECTOR, 'value'),
                   Input(C.STORE_APPSTATE_FILENAME, 'data'),
-    )
+                  )
     def toggle_segmentation_buttons(value, filename):
         if value == 'segment' and filename is not None:
             return False, False
@@ -1157,12 +1163,12 @@ def make_segmentation_callbacks(app):
     def toggle_multi_point(n_clicks, filename, class_name):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
-        
+
         state = AppState.from_cache(filename)
-        
+
         selected_color = 'bg-green-500'
         deselected_color = 'bg-blue-500'
-        
+
         # if it's blue, we'll switch to green and turn on multi-point mode
         state.multi_point_mode = True if 'bg-blue-500' in class_name else False
         state.points_selected = []
@@ -1171,6 +1177,38 @@ def make_segmentation_callbacks(app):
         else:
             class_name = class_name.replace(selected_color, deselected_color)
         return class_name, True
+
+    @app.callback(Output(C.SEG_TOGGLE_CHECKERBOARD, 'className'),
+                  Output('gen-slice-output', 'children', allow_duplicate=True),
+                  Output(C.IMAGE, 'src', allow_duplicate=True),
+                  Input(C.SEG_TOGGLE_CHECKERBOARD, 'n_clicks'),
+                  State(C.STORE_APPSTATE_FILENAME, 'data'),
+                  State(C.SEG_TOGGLE_CHECKERBOARD, 'className'),
+                  prevent_initial_call=True)
+    def toggle_checkerboard(n_clicks, filename, class_name):
+        if n_clicks is None or filename is None:
+            raise PreventUpdate()
+
+        state = AppState.from_cache(filename)
+
+        selected_color = 'bg-green-500'
+        deselected_color = 'bg-blue-500'
+
+        if deselected_color in class_name:
+            class_name = class_name.replace(deselected_color, selected_color)
+        else:
+            class_name = class_name.replace(selected_color, deselected_color)
+
+        state.use_checkerboard = selected_color in class_name
+
+        img_data = no_update
+        if state.selected_slice is not None:
+            assert state.selected_slice >= 0 and state.selected_slice < len(
+                state.image_slices)
+            mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
+            img_data = state.serve_slice_image_composed(state.selected_slice, mode=mode)
+
+        return class_name, "", img_data
 
 
 def make_canvas_callbacks(app):

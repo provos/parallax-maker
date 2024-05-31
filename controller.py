@@ -7,12 +7,19 @@ import string
 import time
 from PIL import Image
 from io import BytesIO
+from enum import Enum
 import numpy as np
 import cv2
 from pathlib import Path
-from utils import filename_previous_version, filename_add_version, apply_color_tint
+from utils import filename_previous_version, filename_add_version, apply_color_tint, create_checkerboard
 from segmentation import mask_from_depth
 from upscaler import Upscaler
+
+
+class CompositeMode(Enum):
+    GRAYSCALE = 1
+    CHECKERBOARD = 2
+    NONE = 3
 
 
 class AppState:
@@ -40,24 +47,26 @@ class AppState:
 
         self.positive_prompts = []
         self.negative_prompts = []
-        
+
         self.server_address = None
 
         # no JSON serialization for items below
         self.image_slices = []
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec() for inpainting
-        self.depth_estimation_model = None # DepthEstimationModel() for depth estimation
-        self.segmentation_model = None # SegmentationModel() for segmentation
+        self.depth_estimation_model = None  # DepthEstimationModel() for depth estimation
+        self.segmentation_model = None  # SegmentationModel() for segmentation
         self.selected_inpainting = None
         self.result_tinted = None
         self.grayscale_tinted = None
+        self.checkerboard = None
         self.slice_pixel = None
         self.slice_pixel_depth = None
         self.slice_mask = None
         self.upscaler = None
         self.clipboard_image = None
-        
+
+        self.use_checkerboard = False
         self.multi_point_mode = False
         self.points_selected = []
 
@@ -81,13 +90,14 @@ class AppState:
         if not isinstance(mask, Image.Image):
             mask = Image.fromarray(mask)
         mask = mask.convert('L')
-        
+
         if image is not self.imgData:
             if not isinstance(image, Image.Image):
                 image = Image.fromarray(image)
             image = image.convert('RGB')
             result_tinted = apply_color_tint(image, (150, 255, 0), 0.3)
-            grayscale_tinted = apply_color_tint(image.convert('L').convert('RGB'), (0, 0, 150), 0.1)
+            grayscale_tinted = apply_color_tint(
+                image.convert('L').convert('RGB'), (0, 0, 150), 0.1)
         else:
             if self.result_tinted is None or self.grayscale_tinted is None:
                 self.create_tints()
@@ -99,33 +109,34 @@ class AppState:
             result_tinted, grayscale_tinted, mask)
 
         return final_result
-    
+
     def change_slice_depth(self, slice_index, depth):
         """Changes the depth of the slice at the specified index."""
         assert slice_index >= 0 and slice_index < len(self.image_slices)
-        
+
         if depth == self.image_depths[slice_index]:
             return slice_index
-        
+
         filename = self.image_slices_filenames[slice_index]
         image = self.image_slices[slice_index]
         positive_prompt = self.positive_prompts[slice_index]
         negative_prompt = self.negative_prompts[slice_index]
-        
+
         # remove it from the lists
         self.image_depths.pop(slice_index)
         self.image_slices_filenames.pop(slice_index)
         self.image_slices.pop(slice_index)
         self.positive_prompts.pop(slice_index)
         self.negative_prompts.pop(slice_index)
-        
+
         return self.add_slice(image, depth, filename=filename,
                               positive_prompt=positive_prompt, negative_prompt=negative_prompt)
-    
+
     def add_slice(self, slice_image, depth, filename=None, positive_prompt='', negative_prompt=''):
         """Adds the image as a new slice at the provided depth."""
         if filename is None:
-            filename = str(Path(self.filename) / f"image_slice_{len(self.image_slices)}.png")
+            filename = str(Path(self.filename) /
+                           f"image_slice_{len(self.image_slices)}.png")
         # find the index where the depth should be inserted
         index = len(self.image_depths)
         for i, d in enumerate(self.image_depths):
@@ -137,15 +148,15 @@ class AppState:
         self.image_slices.insert(index, slice_image)
         self.positive_prompts.insert(index, positive_prompt)
         self.negative_prompts.insert(index, negative_prompt)
-        
+
         if index > 0:
             # make sure the depth values are all unique
             for i in range(index, len(self.image_slices)):
                 if self.image_depths[i] == self.image_depths[i-1]:
                     self.image_depths[i] += 1
-                    
+
         return index
-    
+
     def delete_slice(self, slice_index):
         """Deletes the slice at the specified index."""
         if slice_index < 0 or slice_index >= len(self.image_slices):
@@ -159,10 +170,10 @@ class AppState:
         self.slice_pixel = None
         self.slice_pixel_depth = None
         self.slice_mask = None
-        
+
         # XXX - decide whether to delete the corresponding files
         return True
-    
+
     def reset_image_slices(self):
         self.image_slices = []
         self.image_depths = []
@@ -174,11 +185,12 @@ class AppState:
         self.slice_pixel = None
         self.slice_mask = None
         self.slice_pixel_depth = None
-        
+
     def balance_slices_depths(self):
         """Equally distribute the depths of the image slices."""
         self.image_depths[0] = 0
-        self.image_depths[1:] = [int(i * 255 / (self.num_slices - 1)) for i in range(1, self.num_slices)]
+        self.image_depths[1:] = [int(i * 255 / (self.num_slices - 1))
+                                 for i in range(1, self.num_slices)]
 
     def depth_slice_from_pixel(self, pixel_x, pixel_y):
         depth = -1  # for log below
@@ -219,25 +231,35 @@ class AppState:
         image_path = Path(self.SRV_DIR) / image_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
-    
-    def slice_image_composed(self, slice_index, grayscale=True):
+
+    def slice_image_composed(self, slice_index, mode: CompositeMode = CompositeMode.NONE):
         """Composes the slice image over the main image."""
         assert slice_index >= 0 and slice_index < len(
             self.image_slices_filenames)
         slice_image = self.image_slices[slice_index]
         if not isinstance(slice_image, Image.Image):
             slice_image = Image.fromarray(slice_image)
-        if self.grayscale_tinted is None:
-            self.create_tints()
+
+        composite = self.imgData
+        if mode == CompositeMode.GRAYSCALE:
+            if self.grayscale_tinted is None:
+                self.create_tints()
+            composite = self.grayscale_tinted
+        elif mode == CompositeMode.CHECKERBOARD:
+            if self.checkerboard is None:
+                self.checkerboard = create_checkerboard(
+                    slice_image.size[1], slice_image.size[0], 32)
+            composite = Image.fromarray(self.checkerboard)
+
         full_image = Image.composite(
-            slice_image, self.grayscale_tinted if grayscale else self.imgData, slice_image.getchannel('A'))
+            slice_image, composite, slice_image.getchannel('A'))
         return full_image
-    
-    def serve_slice_image_composed(self, slice_index):
+
+    def serve_slice_image_composed(self, slice_index, mode: CompositeMode):
         """Serves the slice image composed over the gray main image."""
-        full_image = self.slice_image_composed(slice_index)
+        full_image = self.slice_image_composed(slice_index, mode=mode)
         return self.serve_main_image(full_image)
-    
+
     def serve_input_image(self):
         """Serves the input image from the state directory."""
         filename = Path(self.filename) / self.IMAGE_FILE
@@ -261,7 +283,7 @@ class AppState:
         image_path = Path(self.SRV_DIR) / save_path
         unique_id = int(time.time())
         return f'/{str(image_path)}?v={unique_id}'
-    
+
     def workflow_path(self):
         """Returns the workflow path."""
         return Path(self.filename) / self.WORKFLOW
@@ -279,7 +301,7 @@ class AppState:
     def mask_filename(self, slice_index):
         """Returns the mask filename for the specified slice index."""
         return self._make_filename(slice_index, 'mask')
-    
+
     def upscaled_filename(self, slice_index):
         """Returns the upscaled filename for the specified slice index."""
         return self._make_filename(slice_index, 'upscaled')
@@ -380,18 +402,20 @@ class AppState:
             output_image_path = self.image_slices_filenames[i]
             print(f"Saving image slice: {output_image_path}")
             slice_image.save(str(output_image_path))
-            
+
     def upscale_slices(self):
         if self.upscaler is None:
             self.upscaler = Upscaler()
-            
+
         for i, slice_image in enumerate(self.image_slices):
             filename = self.upscaled_filename(i)
             if not Path(filename).exists():
                 prompt = self.positive_prompts[i]
                 negative_prompt = self.negative_prompts[i]
-                print(f"Upscaling image slice: {filename} with '{prompt}'/'{negative_prompt}'")
-                upscaled_image = self.upscaler.upscale_image_tiled(slice_image, overlap=64, prompt=prompt, negative_prompt=negative_prompt)
+                print(
+                    f"Upscaling image slice: {filename} with '{prompt}'/'{negative_prompt}'")
+                upscaled_image = self.upscaler.upscale_image_tiled(
+                    slice_image, overlap=64, prompt=prompt, negative_prompt=negative_prompt)
                 upscaled_image.save(filename)
                 print(f"Saved upscaled image slice: {filename}")
 
@@ -530,7 +554,7 @@ class AppState:
             'positive_prompts': self.positive_prompts,
             'negative_prompts': self.negative_prompts,
         }
-        
+
         if self.depth_model_name is not None:
             data['depth_model_name'] = self.depth_model_name
         if self.inpainting_model_name is not None:
@@ -561,33 +585,35 @@ class AppState:
         state.imgThresholds = data['imgThresholds']
         state.image_depths = data['image_depths'] if 'image_depths' in data else state.imgThresholds[1:]
         state.image_slices_filenames = data['image_slices_filenames']
-        
+
         state.depth_model_name = data['depth_model_name'] if 'depth_model_name' in data else None
         state.inpainting_model_name = data['inpainting_model_name'] if 'inpainting_model_name' in data else None
-        
+
         empty = [''] * len(state.image_slices_filenames)
         state.positive_prompts = data['positive_prompts'] if 'positive_prompts' in data else empty
         state.negative_prompts = data['negative_prompts'] if 'negative_prompts' in data else empty
-        
+
         state.server_address = data['server_address'] if 'server_address' in data else None
-        
+
         # check dats structures have consistent lengths
         assert len(state.image_slices_filenames) == len(state.image_depths)
         assert len(state.image_slices_filenames) == len(state.positive_prompts)
         assert len(state.image_slices_filenames) == len(state.negative_prompts)
-        
+
         # check that all filenames start with the filename as prefix
         state.check_pathnames()
-            
+
         return state
-    
+
     def check_pathnames(self):
         """Check that all pathnames are valid."""
-        
+
         cwd = Path().cwd()
         root = Path(self.filename).resolve()
-        assert str(root).startswith(str(cwd / 'appstate-')), f"Invalid filename: {self.filename}"
-        
+        assert str(root).startswith(str(cwd / 'appstate-')
+                                    ), f"Invalid filename: {self.filename}"
+
         for filename in self.image_slices_filenames:
             filename = Path(filename).resolve()
-            assert str(filename).startswith(str(root)), f"Invalid filename: {filename}"
+            assert str(filename).startswith(
+                str(root)), f"Invalid filename: {filename}"

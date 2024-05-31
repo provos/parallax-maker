@@ -67,10 +67,12 @@ def to_image_url(img_data):
     img_data.save(buffered, format="PNG")
     return to_data_url(buffered.getvalue())
 
+
 def to_data_url(data):
     """Converts binary data to a data URL."""
     url_str = base64.b64encode(data).decode('utf-8')
     return f"data:image/png;base64,{url_str}"
+
 
 def torch_get_device():
     """
@@ -178,6 +180,7 @@ def find_square_bounding_box(mask_image, padding=50):
     square_box = find_square_from_bounding_box(*bounding_box)
     fit_box = move_bounding_box_to_image(mask_image, square_box)
     return fit_box
+
 
 def image_overlay(image, segmented_image):
     """
@@ -388,6 +391,7 @@ def get_gltf_iframe(gltf_uri):
     </html>
     '''
 
+
 def get_no_gltf_available():
     return '''
     <html>
@@ -532,3 +536,30 @@ def highlight_selected_element(classnames, index, highlight_class='bg-green-200'
 
         new_classnames.append(classname)
     return new_classnames
+
+
+def create_checkerboard(height, width, size):
+    """
+    Create a checkerboard pattern.
+
+    Args:
+        height (int): The height of the checkerboard.
+        width (int): The width of the checkerboard.
+        size (int): The size of each square in the checkerboard.
+
+    Returns:
+        numpy.ndarray: The checkerboard pattern.
+    """
+    checkerboard = np.zeros((height, width), dtype=np.uint8)
+    light_color = 200
+    dark_color = 55
+    for i in range(0, height, size):
+        for j in range(0, width, size):
+            color = light_color if (
+                i // size + j // size) % 2 == 0 else dark_color
+            checkerboard[i:i + size, j:j + size] = color
+
+    # promote to 3 channels
+    checkerboard = np.stack([checkerboard] * 3, axis=-1)
+
+    return checkerboard

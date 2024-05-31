@@ -107,6 +107,7 @@ NAV_ZOOM_IN = 'nav-zoom-in'
 NAV_RESET = 'nav-reset'
 
 CTR_SEG_BUTTONS = 'segmentation-buttons'
+SEG_TOGGLE_CHECKERBOARD = 'toggle-checkerboard'
 SEG_INVERT_MASK = 'invert-mask'
 SEG_FEATHER_MASK = 'feather-mask'
 SEG_MULTI_POINT = 'multi-point'
