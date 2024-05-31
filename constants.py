@@ -125,3 +125,5 @@ IFRAME_MODEL_VIEWER = 'model-viewer'
 
 CTR_HELP_WINDOW = 'help-window'
 STORE_CURRENT_TAB = 'current-tab'
+
+CHECKLIST_DOF = 'toggle-dof-support'	

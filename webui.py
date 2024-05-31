@@ -1029,17 +1029,18 @@ def upscale_texture(n_clicks, filename, logs):
               State(C.SLIDER_MAX_DISTANCE, 'value'),
               State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.SLIDER_DISPLACEMENT, 'value'),
+              State(C.CHECKLIST_DOF, 'value'),
               running=[(Output(C.BTN_GLTF_EXPORT, 'disabled'), True, False)],
               prevent_initial_call=True
               )
-def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale):
+def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale, dof):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
     gltf_path = export_state_as_gltf(
-        state, filename, camera_distance, max_distance, focal_length, displacement_scale)
+        state, filename, camera_distance, max_distance, focal_length, displacement_scale, support_dof=('dof' in dof))
 
     return dcc.send_file(gltf_path, filename='scene.gltf'), ""
 
@@ -1083,13 +1084,14 @@ def remember_inpaint_model(value, filename):
               State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.SLIDER_DISPLACEMENT, 'value'),
               State(C.DROPDOWN_DEPTH_MODEL, 'value'),
+              State(C.CHECKLIST_DOF, 'value'),
               running=[(Output(C.BTN_GLTF_CREATE, 'disabled'), True, False)],
               prevent_initial_call=True
               )
 def gltf_create(
         n_clicks, filename,
         camera_distance, max_distance, focal_length,
-        displacement_scale, model_name):
+        displacement_scale, model_name, dof):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
@@ -1097,7 +1099,7 @@ def gltf_create(
     export_state_as_gltf(
         state, filename,
         camera_distance, max_distance, focal_length,
-        displacement_scale, modelname=model_name)
+        displacement_scale, modelname=model_name, support_dof=('dof' in dof))
 
     return get_gltf_iframe(state.serve_model_file()), ""
 
@@ -1105,7 +1107,7 @@ def gltf_create(
 def export_state_as_gltf(
         state, filename,
         camera_distance, max_distance, focal_length,
-        displacement_scale, modelname='midas'):
+        displacement_scale, modelname='midas', support_dof=False):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
         state.image_depths, camera_distance, max_distance, focal_length)
@@ -1140,7 +1142,8 @@ def export_state_as_gltf(
     output_path = Path(filename) / state.MODEL_FILE
     gltf_path = export_gltf(output_path, aspect_ratio, focal_length, camera_distance,
                             card_corners_3d_list, slices_filenames, depth_filenames,
-                            displacement_scale=displacement_scale)
+                            displacement_scale=displacement_scale,
+                            support_dof=support_dof)
 
     return gltf_path
 

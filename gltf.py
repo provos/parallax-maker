@@ -309,7 +309,8 @@ def export_gltf(
     image_paths,
     depth_paths = [],
     displacement_scale=0.0,
-    inline_images=True):
+    inline_images=True,
+    support_dof=False):
     """
     Export the camera, cards, and image slices to a glTF file.
 
@@ -341,6 +342,8 @@ def export_gltf(
     scene.nodes.append(camera_index)
 
     subdivisions = 500
+    
+    alpha_mode = "MASK" if support_dof else "BLEND"
 
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
@@ -374,8 +377,8 @@ def export_gltf(
             emissiveTexture=gltf.TextureInfo(
                 index=i
             ),
-            alphaMode="BLEND",
-            # alphaCutoff=0.5 if alphaMode is "MASK"
+            alphaMode=alpha_mode,
+            alphaCutoff=0.5,
             doubleSided=True
         )
 
