@@ -114,6 +114,30 @@ class InpaintingModel:
     def inpaint(self, prompt, negative_prompt, init_image, mask_image,
                 strength=0.7, guidance_scale=8, num_inference_steps=50, padding=50, blur_radius=50,
                 crop=False, seed=-1):
+        """
+        Perform inpainting on an image using the specified model.
+
+        Args:
+            prompt (str): The prompt for the inpainting process.
+            negative_prompt (str): The negative prompt for the inpainting process.
+            init_image (PIL.Image.Image or np.array): The initial image to be inpainted.
+            mask_image (PIL.Image.Image or np.array): The mask image indicating the areas to be inpainted.
+            strength (float, optional): The strength of the inpainting process. Defaults to 0.7.
+            guidance_scale (int, optional): The guidance scale for the inpainting process. Defaults to 8.
+            num_inference_steps (int, optional): The number of inference steps for the inpainting process. Defaults to 50.
+            padding (int, optional): The padding value for cropping the image. Defaults to 50.
+            blur_radius (int, optional): The blur radius for feathering the mask image. Defaults to 50.
+            crop (bool, optional): Whether to crop the image after inpainting. Defaults to False.
+            seed (int, optional): The seed value for the inpainting process. Defaults to -1.
+
+        Returns:
+            PIL.Image.Image: The inpainted image.
+        """
+        if not isinstance(init_image, Image.Image):
+            init_image = Image.fromarray(init_image)
+        if not isinstance(mask_image, Image.Image):
+            mask_image = Image.fromarray(mask_image)
+        
         original_init_image = init_image.copy()
 
         if crop:

@@ -12,6 +12,7 @@ from dash.exceptions import PreventUpdate
 
 import constants as C
 from controller import AppState
+import numpy as np
 from components import (
     make_inpainting_container_callbacks,
     make_inpainting_container,
@@ -32,13 +33,17 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         self._update_inpainting_image_display = make_inpainting_container_callbacks(
             self.app)
 
+    @patch('components.ctx', new_callable=MagicMock)
     @patch('components.Image.open')
     @patch('components.Image.fromarray')
     @patch('components.Path')
     @patch('controller.AppState.from_cache')
     @patch('components.InpaintingModel')
     def test_callback_triggered_comfyui(
-        self, mock_model, mock_from_cache, mock_path, mock_image_open, mock_image_fromarray):
+        self, mock_model, mock_from_cache, mock_path, mock_image_open, mock_image_fromarray, mock_callback_context):\
+        # Mock callback context
+        mock_callback_context.triggered_id = C.BTN_GENERATE_INPAINTING
+        
         # Setup test data
         n_clicks = 1
         filename = 'test_filename'
@@ -60,7 +65,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         state = MagicMock()
         state.selected_slice = 0  # Ensure this matches the state expected by the function
         state.mask_filename.return_value = 'mask_0.png'
-        state.image_slices = [Image.new('RGBA', (100, 100))]
+        state.image_slices = [np.zeros((100,100, 4))]
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
 
@@ -81,7 +86,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
 
         # Call the function under test
         results = self._update_inpainting_image_display(
-            n_clicks, filename, model,
+            n_clicks, None, filename, model,
             server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
@@ -104,13 +109,17 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # If this is expected to be an empty list
         self.assertEqual(len(results[1]), 0)
 
+    @patch('components.ctx', new_callable=MagicMock)
     @patch('components.Image.open')
     @patch('components.Image.fromarray')
     @patch('components.Path')
     @patch('controller.AppState.from_cache')
     @patch('components.InpaintingModel')
     def test_callback_triggered_normal(
-            self, mock_model, mock_from_cache, mock_path, mock_image_open, mock_image_fromarray):
+            self, mock_model, mock_from_cache, mock_path, mock_image_open, mock_image_fromarray, mock_callback_context):
+        # Mock callback context
+        mock_callback_context.triggered_id = C.BTN_GENERATE_INPAINTING
+
         # Setup test data
         n_clicks = 1
         filename = 'test_filename'
@@ -132,7 +141,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         state = MagicMock()
         state.selected_slice = 0  # Ensure this matches the state expected by the function
         state.mask_filename.return_value = 'mask_0.png'
-        state.image_slices = [Image.new('RGBA', (100, 100))]
+        state.image_slices = [np.zeros((100, 100, 4))]
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
 
@@ -153,7 +162,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
 
         # Call the function under test
         results = self._update_inpainting_image_display(
-            n_clicks, filename, model,
+            n_clicks, None, filename, model,
             server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,

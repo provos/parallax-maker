@@ -70,7 +70,7 @@ class Upscaler:
         Upscales an image using a tiled approach.
 
         Args:
-            image (np.ndarray): The input image array.
+            image (PIL.Image or np.ndarray): The input image array.
             overlap (int, optional): The overlap between adjacent tiles. Defaults to 64.
 
         Returns:
@@ -185,12 +185,13 @@ class Upscaler:
     def _upscale_tile_diffusion(self, tile, prompt, negative_prompt):
         prompt = '' if prompt is None else prompt
         negative_prompt = '' if negative_prompt is None else negative_prompt
+        scale = 2.0 if prompt != '' or negative_prompt != '' else 0.0
         result = self.model(
             prompt=prompt,
             negative_prompt=negative_prompt,
-            num_inference_steps=20,
+            num_inference_steps=40,
             image=tile,
-            guidance_scale=2,
+            guidance_scale=scale,
         ).images[0]
         return result
         

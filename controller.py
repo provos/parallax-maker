@@ -409,11 +409,15 @@ class AppState:
             output_image_path = self.image_slices_filenames[i]
             print(f"Saving image slice: {output_image_path}")
             slice_image.save(str(output_image_path))
-
-    def upscale_slices(self):
+            
+    def upscale_image(self, image, prompt='', negative_prompt=''):
         if self.upscaler is None:
             self.upscaler = Upscaler()
+        upscaled_image = self.upscaler.upscale_image_tiled(
+            image, overlap=64, prompt=prompt, negative_prompt=negative_prompt)
+        return upscaled_image
 
+    def upscale_slices(self):
         for i, slice_image in enumerate(self.image_slices):
             filename = self.upscaled_filename(i)
             if not Path(filename).exists():
@@ -421,8 +425,7 @@ class AppState:
                 negative_prompt = self.negative_prompts[i]
                 print(
                     f"Upscaling image slice: {filename} with '{prompt}'/'{negative_prompt}'")
-                upscaled_image = self.upscaler.upscale_image_tiled(
-                    slice_image, overlap=64, prompt=prompt, negative_prompt=negative_prompt)
+                upscaled_image = self.upscale_image(slice_image, prompt=prompt, negative_prompt=negative_prompt)
                 upscaled_image.save(filename)
                 print(f"Saved upscaled image slice: {filename}")
 

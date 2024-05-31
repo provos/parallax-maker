@@ -383,10 +383,18 @@ def make_inpainting_container():
         ], className='w-full'),
         html.Button(
             html.Div([
-                html.Label('Generate Inpainting'),
+                html.Label('Generate'),
                 html.I(className='fa-solid fa-paint-brush pl-1')
             ]),
             id=C.BTN_GENERATE_INPAINTING,
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
+        ),
+        html.Button(
+            html.Div([
+                html.Label('Enhance'),
+                html.I(className='fa-solid fa-wand-magic-sparkles pl-1')
+            ]),
+            id=C.BTN_ENHANCE,
             className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
         ),
         html.Button(
@@ -473,6 +481,7 @@ def make_inpainting_container_callbacks(app):
         Output(C.CTR_INPAINTING_DISPLAY, 'children'),
         Output(C.LOADING_GENERATE_INPAINTING, 'children'),
         Input(C.BTN_GENERATE_INPAINTING, 'n_clicks'),
+        Input(C.BTN_ENHANCE, 'n_clicks'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         State(C.DROPDOWN_INPAINT_MODEL, 'value'),
         State(C.INPUT_EXTERNAL_SERVER, 'value'),
@@ -483,16 +492,20 @@ def make_inpainting_container_callbacks(app):
         State(C.SLIDER_INPAINT_GUIDANCE, 'value'),
         State(C.SLIDER_MASK_PADDING, 'value'),
         State(C.SLIDER_MASK_BLUR, 'value'),
-        running=[(Output(C.BTN_GENERATE_INPAINTING, 'disabled'), True, False)],
+        running=[(Output(C.BTN_GENERATE_INPAINTING, 'disabled'), True, False),
+                 (Output(C.BTN_ENHANCE, 'disabled'), True, False)],
         prevent_initial_call=True
     )
     def update_inpainting_image_display(
-            n_clicks, filename, model,
+            n_clicks_one, n_clicks_two, filename, model,
             server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur):
-        if n_clicks is None or filename is None:
+        if n_clicks_one is None and n_clicks_two is None:
+            raise PreventUpdate()
+        
+        if filename is None:
             raise PreventUpdate()
 
         state = AppState.from_cache(filename)
@@ -500,10 +513,6 @@ def make_inpainting_container_callbacks(app):
             raise PreventUpdate()  # XXX - write controller logic to clear this on image changes
 
         index = state.selected_slice
-        mask_filename = state.mask_filename(index)
-        if not Path(mask_filename).exists():
-            raise PreventUpdate()
-
         # An empty prompt is OK.
         if positive_prompt is None:
             positive_prompt = ''
@@ -515,52 +524,67 @@ def make_inpainting_container_callbacks(app):
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
-        workflow_path = None
-        if model == 'comfyui':
-            if workflow is not None and len(workflow) > 0:
-                workflow_path = state.workflow_path()
-
-                need_to_update = False
-                if not workflow_path.exists():
-                    need_to_update = True
-                else:
-                    old_workflow = workflow_path.read_bytes()
-                    if old_workflow != workflow:
-                        need_to_update = True
-
-                if need_to_update:
-                    # dcc.Upload always has the format 'data:filetype;base64,'
-                    workflow = workflow.split(',')[1]
-                    workflow = base64.b64decode(workflow)
-                    workflow_path.write_bytes(workflow)
-                    print('ComfyUI workflow updated')
-
-        pipeline = InpaintingModel(
-            model,
-            server_address=server_address,
-            workflow_path=workflow_path)
-        if state.pipeline_spec is None or state.pipeline_spec != pipeline:
-            state.pipeline_spec = pipeline
-            pipeline.load_model()
+        tid = ctx.triggered_id
 
         image = state.image_slices[index]
-        # check if image is a PIL image and convert it if necessary
-        # XXX - refactor to make this always a PIL image
-        if not isinstance(image, Image.Image):
-            image = Image.fromarray(image, mode='RGBA')
-        mask = Image.open(mask_filename).convert('L')
 
-        # patch the image
-        image = patch_image(np.array(image), np.array(mask))
-        image = Image.fromarray(image)
+        if tid == C.BTN_GENERATE_INPAINTING:
+            mask_filename = state.mask_filename(index)
+            if not Path(mask_filename).exists():
+                raise PreventUpdate()
 
-        images = []
-        for i in range(3):
-            new_image = pipeline.inpaint(
-                positive_prompt, negative_prompt, image, mask,
+            workflow_path = None
+            if model == 'comfyui':
+                if workflow is not None and len(workflow) > 0:
+                    workflow_path = state.workflow_path()
+
+                    need_to_update = False
+                    if not workflow_path.exists():
+                        need_to_update = True
+                    else:
+                        old_workflow = workflow_path.read_bytes()
+                        if old_workflow != workflow:
+                            need_to_update = True
+
+                    if need_to_update:
+                        # dcc.Upload always has the format 'data:filetype;base64,'
+                        workflow = workflow.split(',')[1]
+                        workflow = base64.b64decode(workflow)
+                        workflow_path.write_bytes(workflow)
+                        print('ComfyUI workflow updated')
+
+            pipeline = InpaintingModel(
+                model,
+                server_address=server_address,
+                workflow_path=workflow_path)
+            if state.pipeline_spec is None or state.pipeline_spec != pipeline:
+                state.pipeline_spec = pipeline
+                pipeline.load_model()
+            
+            mask = Image.open(mask_filename).convert('L')
+            mask = np.array(mask)
+
+            execute = lambda input_image: pipeline.inpaint(
+                positive_prompt, negative_prompt, input_image, mask,
                 strength=strength, guidance_scale=guidance_scale,
                 blur_radius=blur, padding=padding,
                 crop=True)
+
+            # patch the image
+            image = patch_image(image, mask)
+        else:
+            assert tid == C.BTN_ENHANCE
+            def upscale_image(input_image):
+                upscaled_image = state.upscale_image(input_image, prompt=positive_prompt, negative_prompt=negative_prompt)
+                upscaled_image = upscaled_image.resize((input_image.shape[1], input_image.shape[0]), Image.BICUBIC)
+                upscaled_image = np.array(upscaled_image)
+                upscaled_image[:, :, 3] = input_image[:, :, 3]
+                return upscaled_image
+            execute = lambda input_image: upscale_image(input_image)
+                
+        images = []
+        for i in range(3):
+            new_image = execute(image)
             images.append(new_image)
 
         children = []
@@ -649,6 +673,7 @@ def make_inpainting_container_callbacks(app):
     @app.callback(Output(C.TEXT_POSITIVE_PROMPT, 'disabled'),
                   Output(C.TEXT_NEGATIVE_PROMPT, 'disabled'),
                   Output(C.BTN_GENERATE_INPAINTING, 'disabled'),
+                  Output(C.BTN_ENHANCE, 'disabled'),
                   Output(C.BTN_ERASE_INPAINTING, 'disabled'),
                   Output(C.STORE_SELECTED_SLICE, 'data'),
                   Input(C.STORE_INPAINTING, 'data'),
@@ -656,13 +681,13 @@ def make_inpainting_container_callbacks(app):
                   prevent_initial_call=True)
     def react_selected_slice_change(ignore, filename):
         if filename is None:
-            return True, True, True, True, None
+            return True, True, True, True, True, None
 
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
-            return True, True, True, True, None
+            return True, True, True, True, True, None
 
-        return False, False, False, False, state.selected_slice
+        return False, False, False, False, False, state.selected_slice
 
     return update_inpainting_image_display
 
