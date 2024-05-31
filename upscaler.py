@@ -17,20 +17,22 @@ blended to ensure smoother transitions between tiles.
 from PIL import Image
 import torch
 from transformers import AutoImageProcessor, Swin2SRForImageSuperResolution
-from diffusers import StableDiffusionLatentUpscalePipeline
+from inpainting import InpaintingModel
 
 import numpy as np
 from scipy.ndimage import zoom
 
 from utils import torch_get_device, premultiply_alpha_numpy
+import argparse
 
 
 class Upscaler:
-    def __init__(self, model_name="diffusion"):
-        assert model_name in ["swin2sr", "simple", "diffusion"]
+    def __init__(self, model_name="swin2sr", inpainting_model=None):
+        assert model_name in ["swin2sr", "simple", "inpainting"]
         self.model_name = model_name
         self.model = None
         self.image_processor = None
+        self.inpainting_model = inpainting_model
         self.tile_size = 512
         self.scale_factor = 2
 
@@ -40,8 +42,10 @@ class Upscaler:
         elif self.model_name == "simple":
             self.model, self.image_processor = None, None
             self.tile_size = 1024
-        elif self.model_name == "diffusion":
-            self.model, self.image_processor = self.load_diffusion_model()
+        elif self.model_name == "inpainting":
+            assert self.inpainting_model is not None
+            self.model, self.image_processor = self.inpainting_model, None
+            self.tile_size = self.inpainting_model.dimension//2
 
     def __eq__(self, other):
         if not isinstance(other, Upscaler):
@@ -58,13 +62,6 @@ class Upscaler:
 
         return model, image_processor
     
-    def load_diffusion_model(self):
-        # Load pre-trained Stable Diffusion upscaler
-        upscaler = StableDiffusionLatentUpscalePipeline.from_pretrained(
-            "stabilityai/sd-x2-latent-upscaler", torch_dtype=torch.float16)
-        upscaler.to(torch_get_device())
-        return upscaler, None
-
     def upscale_image_tiled(self, image, overlap=64, prompt=None, negative_prompt=None):
         """
         Upscales an image using a tiled approach.
@@ -179,21 +176,19 @@ class Upscaler:
             return self._upscale_tile_swin2sr(tile)
         elif self.model_name == "simple":
             return self._upscale_tile_simple(tile)
-        elif self.model_name == "diffusion":
-            return self._upscale_tile_diffusion(tile, prompt, negative_prompt)
+        elif self.model_name == "inpainting":
+            return self._upscale_tile_inpainting(tile, prompt, negative_prompt)
         
-    def _upscale_tile_diffusion(self, tile, prompt, negative_prompt):
-        prompt = '' if prompt is None else prompt
-        negative_prompt = '' if negative_prompt is None else negative_prompt
-        scale = 2.0 if prompt != '' or negative_prompt != '' else 0.0
-        result = self.model(
-            prompt=prompt,
-            negative_prompt=negative_prompt,
-            num_inference_steps=40,
-            image=tile,
-            guidance_scale=scale,
-        ).images[0]
-        return result
+    def _upscale_tile_inpainting(self, tile, prompt, negative_prompt):
+        rescaled_tile = zoom(tile, (2, 2, 1), order=3)
+        mask_image = np.ones(rescaled_tile.shape[:2], dtype=np.uint8)
+        mask_image *= 255
+        tile = self.inpainting_model.inpaint(prompt, negative_prompt, rescaled_tile, mask_image,
+                                             strength=0.1, guidance_scale=2.0,
+                                             num_inference_steps=75,
+                                             padding=0, blur_radius=0)
+        tile = tile.convert("RGB")
+        return tile
         
     def _upscale_tile_simple(self, tile):
         """
@@ -234,8 +229,16 @@ class Upscaler:
 
 
 if __name__ == "__main__":
-    upscaler = Upscaler(model_name="diffusion")
-    image = Image.open("image_slice_2.png")
+    parser = argparse.ArgumentParser(description="Image Upscaling")
+    parser.add_argument("-i", "--input", type=str,
+                        default='input.jpg',
+                        help="Input image path")
+    args = parser.parse_args()
+
+    model = InpaintingModel()
+    model.load_model()
+    upscaler = Upscaler(model_name="inpainting", inpainting_model=model)
+    image = Image.open(args.input)
     upscaled_image = upscaler.upscale_image_tiled(
         image, overlap=64,
         prompt='badlands')

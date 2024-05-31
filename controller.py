@@ -412,7 +412,11 @@ class AppState:
             
     def upscale_image(self, image, prompt='', negative_prompt=''):
         if self.upscaler is None:
-            self.upscaler = Upscaler()
+            if self.pipeline_spec is None:
+                self.upscaler = Upscaler()
+            else:
+                self.pipeline_spec.load_model()
+                self.upscaler = Upscaler(model_name='inpainting', inpainting_model=self.pipeline_spec)
         upscaled_image = self.upscaler.upscale_image_tiled(
             image, overlap=64, prompt=prompt, negative_prompt=negative_prompt)
         return upscaled_image
