@@ -551,7 +551,8 @@ def make_inpainting_container_callbacks(app):
             assert tid == C.BTN_ENHANCE
             def upscale_image(input_image):
                 upscaled_image = state.upscale_image(input_image, prompt=positive_prompt, negative_prompt=negative_prompt)
-                upscaled_image = upscaled_image.resize((input_image.shape[1], input_image.shape[0]), Image.BICUBIC)
+                upscaled_image = upscaled_image.resize(
+                    (input_image.shape[1], input_image.shape[0]), Image.LANCZOS)
                 upscaled_image = np.array(upscaled_image)
                 upscaled_image[:, :, 3] = input_image[:, :, 3]
                 return upscaled_image

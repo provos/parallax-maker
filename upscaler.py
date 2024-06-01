@@ -193,12 +193,13 @@ class Upscaler:
             return self._upscale_tile_inpainting(tile, prompt, negative_prompt)
         
     def _upscale_tile_inpainting(self, tile, prompt, negative_prompt):
-        rescaled_tile = zoom(tile, (2, 2, 1), order=3)
+        rescaled_tile = tile.resize((tile.size[0] * 2, tile.size[1] * 2), Image.LANCZOS)
+        rescaled_tile = np.array(rescaled_tile)
         mask_image = np.ones(rescaled_tile.shape[:2], dtype=np.uint8)
         mask_image *= 255
         scale = 2 if len(prompt) or len(negative_prompt) else 0
         tile = self.inpainting_model.inpaint(prompt, negative_prompt, rescaled_tile, mask_image,
-                                             strength=0.2, guidance_scale=scale,
+                                             strength=0.25, guidance_scale=scale,
                                              num_inference_steps=75,
                                              padding=0, blur_radius=0)
         tile = tile.convert("RGB")
