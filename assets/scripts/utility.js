@@ -239,11 +239,21 @@ function setupMainCanvas(canvas) {
         e.preventDefault();
     });
     canvas.addEventListener('wheel', handleWheel);
-    window.addEventListener('resize', () => {
+
+    function resetContext() {
         gCtx = null;
         gPreviewCtx = null;
         gRect = null;
+    }
+
+    window.addEventListener('resize', resetContext);
+
+    // add a resize observer to the canvas and recompute the rect
+    const resizeObserver = new ResizeObserver(entries => {
+        gRect = canvas.getBoundingClientRect();
     });
+
+    resizeObserver.observe(canvas);
 }
 
 function drawCallback(e) {
