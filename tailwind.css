@@ -37,6 +37,7 @@
 
 .help-box {
   @apply bg-yellow-100 border border-black;
+  @apply dark:bg-yellow-200 dark:border-gray-700 dark:text-slate-700;
 }
 
 textarea {
