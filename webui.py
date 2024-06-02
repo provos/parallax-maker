@@ -1196,8 +1196,8 @@ def slice_upload(contents, filename, logs):
     if contents[index] is None:
         raise PreventUpdate()
 
-    # current aspect ratio
-    aspect_ratio = state.imgData.size[0] / state.imgData.size[1]
+    # current aspect ratio for the given slice
+    aspect_ratio = state.image_slices[index].shape[1] / state.image_slices[index].shape[0]
 
     content = contents[index]
     image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))

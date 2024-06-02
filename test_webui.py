@@ -6,9 +6,10 @@ from PIL import Image
 import numpy as np
 from pathlib import Path
 
-from webui import update_threshold_values, click_event, copy_to_clipboard, export_state_as_gltf
+from webui import update_threshold_values, click_event, copy_to_clipboard, export_state_as_gltf, slice_upload
 from controller import AppState
 from segmentation import setup_camera_and_cards
+from utils import to_image_url
 import constants as C
 
 
@@ -341,6 +342,93 @@ class TextExportGltf(unittest.TestCase):
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
     # TODO: Add more test cases for setup_camera_and_cards, generate_depth_map, postprocess_depth_map, and export_gltf
+
+
+class TestSliceUpload(unittest.TestCase):
+    @patch('webui.ctx')
+    @patch('webui.AppState.from_cache')
+    def test_filename_none(self, mock_from_cache, mock_ctx):
+        with self.assertRaises(PreventUpdate):
+            slice_upload(None, None, None)
+        mock_from_cache.assert_not_called()
+
+    @patch('webui.ctx')
+    @patch('webui.AppState.from_cache')
+    def test_empty_image_slices(self, mock_from_cache, mock_ctx):
+        mock_state = MagicMock(spec=AppState)
+        mock_state.image_slices = []
+        mock_from_cache.return_value = mock_state
+
+        with self.assertRaises(PreventUpdate):
+            slice_upload(None, 'appstate-random', None)
+        mock_from_cache.assert_called_once_with('appstate-random')
+
+    @patch('webui.ctx')
+    @patch('webui.AppState.from_cache')
+    def test_contents_none(self, mock_from_cache, mock_ctx):
+        mock_state = MagicMock(spec=AppState)
+        mock_state.image_slices = [np.zeros((100, 100, 4))]
+        mock_from_cache.return_value = mock_state
+        mock_ctx.triggered_id = {'index': 0}
+
+        with self.assertRaises(PreventUpdate):
+            slice_upload([None], 'appstate-random', None)
+        mock_from_cache.assert_called_once_with('appstate-random')
+
+    @patch('webui.ctx')
+    @patch('webui.AppState.from_cache')
+    @patch('webui.filename_add_version')
+    @patch('webui.blend_with_alpha')
+    def test_valid_upload(self, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
+        mock_state = MagicMock(spec=AppState)
+        mock_state.image_slices = [
+            np.zeros((100, 100, 4), dtype=np.uint8),
+            np.ones((100, 100, 4), dtype=np.uint8)]
+        mock_state.image_slices_filenames = ['slice0.png', 'slice1.png']
+        mock_from_cache.return_value = mock_state
+        mock_ctx.triggered_id = {'index': 1}
+        mock_filename_add_version.return_value = 'slice1_v1.png'
+
+        content = to_image_url(np.ones((100, 100, 4), dtype=np.uint8))
+        
+        result = slice_upload([None, content], 'appstate-random', [])
+
+        self.assertEqual(result[0], True)
+        self.assertEqual(len(result[1]), 1)
+        self.assertIn(
+            'Received image slice upload for slice 1 at slice1_v1.png', result[1][0])
+        mock_from_cache.assert_called_once_with('appstate-random')
+        mock_filename_add_version.assert_called_once_with('slice1.png')
+        mock_blend.assert_called_once()
+        mock_state.to_file.assert_called_once_with('appstate-random')
+        self.assertIsInstance(mock_state.imgData, Image.Image)
+
+    @patch('webui.ctx')
+    @patch('webui.AppState.from_cache')
+    @patch('webui.filename_add_version')
+    @patch('webui.blend_with_alpha')
+    def test_valid_upload_different_ratio(self, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
+        mock_state = MagicMock(spec=AppState)
+        mock_state.image_slices = [
+            np.zeros((100, 100, 4), dtype=np.uint8),
+            np.ones((100, 100, 4), dtype=np.uint8)]
+        mock_state.image_slices_filenames = ['slice0.png', 'slice1.png']
+        mock_from_cache.return_value = mock_state
+        mock_ctx.triggered_id = {'index': 1}
+        mock_filename_add_version.return_value = 'slice1_v1.png'
+
+        content = to_image_url(np.ones((110, 99, 4), dtype=np.uint8))
+
+        result = slice_upload([None, content], 'appstate-random', [])
+
+        self.assertEqual(result[0], True)
+        self.assertEqual(len(result[1]), 2)
+        self.assertIn('Fixing aspect ratio from', result[1][0])
+        mock_from_cache.assert_called_once_with('appstate-random')
+        mock_filename_add_version.assert_called_once_with('slice1.png')
+        mock_blend.assert_called_once()
+        mock_state.to_file.assert_called_once_with('appstate-random')
+        self.assertIsInstance(mock_state.imgData, Image.Image)
 
 
 if __name__ == '__main__':
