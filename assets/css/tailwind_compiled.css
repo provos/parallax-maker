@@ -1174,6 +1174,13 @@ button.progress-bar-fill:where(.dark, .dark *) {
   color: rgb(255 255 255 / var(--tw-text-opacity));
 }
 
+.nav-button:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(96 165 250 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
+}
+
 .tools-container {
   display: flex;
   justify-content: space-between;

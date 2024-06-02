@@ -96,7 +96,8 @@ button.color-is-selected {
 }
 
 .nav-button {
-  @apply bg-blue-500 text-white p-1 rounded-full
+  @apply bg-blue-500 text-white p-1 rounded-full;
+  @apply dark:bg-blue-400 dark:text-slate-200;
 }
 
 .tools-container {
