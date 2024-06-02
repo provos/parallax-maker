@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+.title-header {
+  @apply text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center;
+}
+
+.footer {
+  @apply text-center text-gray-500 p-2;
+}
+
+.help-box {
+  @apply bg-yellow-100 border border-black;
+}
+
+button.color-not-selected {
+  @apply bg-blue-500;
+}
+
+button.color-is-selected {
+  @apply bg-green-500 text-white;
+}
+
+.failure-color {
+  @apply bg-red-300 text-white;
+}
+
+.erase-color {
+  @apply bg-red-500 text-white;
+}
+
+.color-is-selected-light {
+  @apply bg-green-200;
+}
+
+.has-history-color {
+  @apply text-emerald-400;
+}
+
+.no-history-color {
+  @apply text-orange-800;
+}
+
+.progress-bar {
+  @apply h-3 w-full bg-gray-200 rounded-lg;
+}
+
+.progress-bar-fill {
+  @apply color-is-selected w-0 h-full rounded-lg transition-all;
+}
+
+.general-element {
+  @apply bg-blue-500 text-white p-2 rounded-md;
+}
+
+.nav-button {
+  @apply bg-blue-500 text-white p-1 rounded-full
+}
+
+.tools-container {
+  @apply flex justify-between;
+}
+
+.tools-backdrop {
+  @apply flex justify-center p-1 bg-gray-200 rounded-md mt-1;
+}
+
+.general-border {
+  @apply border-dashed border-2 border-blue-500 rounded-md p-2;
+}
+
+.general-container {
+  @apply w-full general-border items-center justify-center;
+}
+
+.light-border {
+  @apply p-2 border border-gray-300 rounded-md mb-2;
+}
+
+.gltf-container {
+  @apply w-full h-full bg-gray-400 p-2;
+}
+
+.depth-number-text {
+  @apply text-amber-800 text-opacity-50 text-center;
+}
+
+.depth-number-position {
+  @apply absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2;
+}
+
+.depth-number-display {
+  @apply depth-number-text depth-number-position text-6xl; 
+}
+
+.depth-number-input {
+  @apply depth-number-text depth-number-position z-10 w-full h-full text-3xl sm:text-4xl md:text-5xl lg:text-6xl;
+}

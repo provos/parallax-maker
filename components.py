@@ -82,7 +82,7 @@ def make_input_image_container(
                         className='absolute top-0 left-0 w-full h-full object-contain object-left-top opacity-50 z-20'
                     ),
                 ],
-                className='relative h-full w-full min-h-60 border-dashed border-2 border-blue-500 rounded-md p-2 flex items-center justify-center overflow-hidden',
+                className='general-container relative flex h-full overflow-hidden',
                 style={'height': '67vh'},
             ),
             style={'height': '67vh'},
@@ -107,33 +107,33 @@ def make_inpainting_tools_container():
             dcc.Store(id=C.STORE_SELECTED_SLICE),
             html.Div([
                     html.Button('Clear', id=C.BTN_CLEAR_CANVAS,
-                                className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                                className='general-element mr-1'),
                     html.Button('Erase', id=C.BTN_ERASE_MODE,
-                                className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                                className='general-element mr-1'),
                     html.Button('Load', id=C.BTN_LOAD_CANVAS,
-                                className='bg-blue-500 text-white p-2 rounded-md'),
-                    ], className='flex justify-between')
-        ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1'),
+                                className='general-element'),
+                    ], className='tools-container')
+        ], className='tools-backdrop items-center'),
 
         # Div for navigation buttons arranged just in a single row
         html.Div([
             html.Div([
                 html.Button(html.I(className="fa fa-magnifying-glass-minus"), id=C.NAV_ZOOM_OUT,
-                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                            className='nav-button mr-1'),
                 html.Button(html.I(className="fa fa-arrow-up"), id=C.NAV_UP,
-                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                            className='nav-button mr-1'),
                 html.Button(html.I(className="fa fa-arrow-left"), id=C.NAV_LEFT,
-                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                            className='nav-button mr-1'),
                 html.Button(html.I(className="fa fa-circle"), id=C.NAV_RESET,
-                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                            className='nav-button mr-1'),
                 html.Button(html.I(className="fa fa-arrow-right"), id=C.NAV_RIGHT,
-                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                            className='nav-button mr-1'),
                 html.Button(html.I(className="fa fa-arrow-down"), id=C.NAV_DOWN,
-                            className='bg-blue-500 text-white p-1 rounded-full mr-1'),
+                            className='nav-button mr-1'),
                 html.Button(html.I(className="fa fa-magnifying-glass-plus"), id=C.NAV_ZOOM_IN,
-                            className='bg-blue-500 text-white p-1 rounded-full'),
-            ], className='flex justify-between'),
-        ], className='flex justify-center items-centergap-1 p-1 bg-gray-200 rounded-md mt-1'),
+                            className='nav-button'),
+            ], className='tools-container'),
+        ], className='tools-backdrop items-centergap-1'),
 
     ], id=C.CTR_CANVAS_BUTTONS, className='flex gap-2')
 
@@ -144,19 +144,19 @@ def make_segmentation_tools_container():
             html.Div([
                 html.Button([html.I(className="fa fa-clone")], id=C.SEG_TOGGLE_CHECKERBOARD,
                             title='Toggle checkerboard background',
-                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                            className='general-element color-not-selected mr-1'),
                 html.Button(["Invert ", html.I(className="fa fa-adjust")], id=C.SEG_INVERT_MASK,
                             title='Invert the current mask',
-                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                            className='general-element mr-1'),
                 html.Button(["Feather ", html.I(className="fa fa-wind")], id=C.SEG_FEATHER_MASK,
                             title='Feather the current mask',
-                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                            className='general-element mr-1'),
                 html.Button(["Multi ", html.I(className="fa fa-wand-magic-sparkles")], id=C.SEG_MULTI_POINT,
-                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                            className='general-element color-not-selected mr-1'),
                 html.Button(["Commit ", html.I(className="fa fa-person-running")], id=C.SEG_MULTI_COMMIT,
-                            className='bg-blue-500 text-white p-2 rounded-md mr-1'),
+                            className='general-element mr-1'),
             ], className='flex justify-between')
-        ], className='flex justify-center items-center p-1 bg-gray-200 rounded-md mt-1')
+        ], className='tools-backdrop items-center')
     ],
         id=C.CTR_SEG_BUTTONS,
         className='inline-block')
@@ -209,7 +209,7 @@ def make_depth_map_container(depth_map_id: str = C.CTR_DEPTH_MAP):
     return html.Div([
         html.Label('Depth Map', className='font-bold mb-2 ml-3'),
         html.Div(id=depth_map_id,
-                 className='w-full min-h-60 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
+                 className='general-container min-h-60',
                  ),
         dcc.Loading(
             id=C.LOADING_DEPTHMAP,
@@ -221,12 +221,12 @@ def make_depth_map_container(depth_map_id: str = C.CTR_DEPTH_MAP):
                 html.Label('Regenerate Depth Map'),
                 html.I(className='fa-solid fa-image pl-1')]),
             id=C.BTN_GENERATE_DEPTHMAP,
-            className='bg-blue-500 text-white p-2 rounded-md mt-2 mb-2'
+            className='general-element mt-2 mb-2'
         ),
         html.Div([
             dcc.Interval(id=C.PROGRESS_INTERVAL, interval=500, n_intervals=0),
             html.Div(id=C.CTR_PROGRESS_BAR,
-                     className='h-3 w-full bg-gray-200 rounded-lg'),
+                     className='progress-bar'),
         ], className='p-2'),
     ], className='w-full')
 
@@ -235,7 +235,7 @@ def make_thresholds_container(thresholds_id: str = C.CTR_THRESHOLDS):
     return html.Div([
         html.Label('Thresholds', className='font-bold mb-2 ml-3'),
         html.Div(id=thresholds_id,
-                 className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md'),
+                 className='general-border min-h-8 w-full flex-auto grow'),
     ], className='w-full mb-2')
 
 
@@ -261,7 +261,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-images pl-1')]),
                                     id=C.BTN_GENERATE_SLICE,
                                     title='Generate image slices from the input image using the depth map',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1 mr-2'
+                                    className='w-full general-element mb-1 mr-2'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -269,7 +269,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-arrows-left-right pl-1')]),
                                     id=C.BTN_BALANCE_SLICE,
                                     title='Rebalances the depths of the image slices evenly',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -277,7 +277,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-square-plus pl-1')]),
                                     id=C.BTN_CREATE_SLICE,
                                     title='Creates a slice from the current mask',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -285,7 +285,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-trash-can pl-1')]),
                                     id=C.BTN_DELETE_SLICE,
                                     title='Deletes the currently selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -293,7 +293,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-brush pl-1')]),
                                     id=C.BTN_ADD_SLICE,
                                     title='Adds the current mask to the selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -301,7 +301,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-eraser pl-1')]),
                                     id=C.BTN_REMOVE_SLICE,
                                     title='Removes the current mask from the selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -309,7 +309,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-brush pl-1')]),
                                     id=C.BTN_COPY_SLICE,
                                     title='Copies the current mask to the clipboard',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                                 html.Button(
                                     html.Div([
@@ -317,7 +317,7 @@ def make_slice_generation_container():
                                         html.I(className='fa-solid fa-eraser pl-1')]),
                                     id=C.BTN_PASTE_SLICE,
                                     title='Copies the clipboard to the selected slice',
-                                    className='w-full bg-blue-500 text-white p-2 rounded-md mb-1'
+                                    className='w-full general-element mb-1'
                                 ),
                             ],
                                 className='grid grid-cols-2 gap-2 gap-2 p-2'
@@ -330,7 +330,7 @@ def make_slice_generation_container():
                     dcc.Loading(id=C.LOADING_GENERATE_SLICE,
                                 children=html.Div(id="gen-slice-output")),
                     html.Div(id=C.CTR_SLICE_IMAGES,
-                             className='min-h-8 w-full grid grid-cols-3 gap-1 border-dashed border-2 border-blue-500 rounded-md p-2 overflow-auto'),
+                             className='general-border min-h-8 w-full grid grid-cols-3 gap-1 overflow-auto'),
                     ],
                     className='w-full overflow-auto',
                     style={'height': '69vh'},
@@ -345,7 +345,7 @@ def make_inpainting_container():
             dcc.Textarea(
                 id=C.TEXT_POSITIVE_PROMPT,
                 placeholder='Enter a positive generative AI prompt...',
-                className='w-full p-2 border border-gray-300 rounded-md mb-2',
+                className='w-full light-border',
                 style={'height': '100px'}
             )
         ]),
@@ -354,7 +354,7 @@ def make_inpainting_container():
             dcc.Textarea(
                 id=C.TEXT_NEGATIVE_PROMPT,
                 placeholder='Enter a negative prompt...',
-                className='w-full p-2 border border-gray-300 rounded-md mb-2',
+                className='w-full light-border',
             )
         ]),
         html.Div([
@@ -388,7 +388,7 @@ def make_inpainting_container():
             ]),
             id=C.BTN_GENERATE_INPAINTING,
             title='Inpaint the areas of the selected image based on the painted mask',
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
+            className='general-element mb-2 mt-3 mr-2'
         ),
         html.Button(
             html.Div([
@@ -397,7 +397,7 @@ def make_inpainting_container():
             ]),
             id=C.BTN_FILL_INPAINTING,
             title='Fill all empty areas of the selected image via inpainting',
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
+            className='general-element mb-2 mt-3 mr-2'
         ),
         html.Button(
             html.Div([
@@ -406,7 +406,7 @@ def make_inpainting_container():
             ]),
             id=C.BTN_ENHANCE,
             title='Use inpainting to enhance the selected image via up and downscaling',
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
+            className='general-element mb-2 mt-3 mr-2'
         ),
         html.Button(
             html.Div([
@@ -414,7 +414,7 @@ def make_inpainting_container():
                 html.I(className='fa-solid fa-trash-can pl-1')
             ]),
             id=C.BTN_ERASE_INPAINTING,
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3',
+            className='general-element mb-2 mt-3',
             title='Clear the painted areas from the selected image',
         ),
         dcc.Loading(
@@ -429,12 +429,12 @@ def make_inpainting_container():
                     className='grid grid-cols-3 gap-2'
                 ),
             ],
-            className='w-full min-h-8 border-dashed border-2 border-blue-500 rounded-md p-2'
+            className='general-border w-full min-h-8'
         ),
         html.Button(
             'Apply Selected Image',
             id=C.BTN_APPLY_INPAINTING,
-            className='bg-green-500 text-white p-2 rounded-md mt-2',
+            className='color-is-selected p-2 rounded-md mt-2',
             disabled=True
         )
 
@@ -517,7 +517,7 @@ def make_inpainting_container_callbacks(app):
             padding, blur):
         if n_clicks_one is None and n_clicks_two is None and n_clicks_three is None:
             raise PreventUpdate()
-        
+
         if filename is None:
             raise PreventUpdate()
 
@@ -541,21 +541,22 @@ def make_inpainting_container_callbacks(app):
 
         image = state.image_slices[index]
 
-        pipeline = create_inpainting_pipeline(model, server_address, workflow, state)
+        pipeline = create_inpainting_pipeline(
+            model, server_address, workflow, state)
 
         if tid == C.BTN_GENERATE_INPAINTING or tid == C.BTN_FILL_INPAINTING:
             if tid == C.BTN_GENERATE_INPAINTING:
                 mask_filename = state.mask_filename(index)
                 if not Path(mask_filename).exists():
                     raise PreventUpdate()
-                
+
                 mask = Image.open(mask_filename).convert('L')
                 mask = np.array(mask)
             else:
                 # we'll fill everything that does not have an alpha
                 mask = 255 - image[:, :, 3]
 
-            execute = lambda input_image: pipeline.inpaint(
+            def execute(input_image): return pipeline.inpaint(
                 positive_prompt, negative_prompt, input_image, mask,
                 strength=strength, guidance_scale=guidance_scale,
                 blur_radius=blur, padding=padding,
@@ -566,16 +567,19 @@ def make_inpainting_container_callbacks(app):
             num_images = 3
         else:
             assert tid == C.BTN_ENHANCE
+
             def upscale_image(input_image):
-                upscaled_image = state.upscale_image(input_image, prompt=positive_prompt, negative_prompt=negative_prompt)
+                upscaled_image = state.upscale_image(
+                    input_image, prompt=positive_prompt, negative_prompt=negative_prompt)
                 upscaled_image = upscaled_image.resize(
                     (input_image.shape[1], input_image.shape[0]), Image.LANCZOS)
                 upscaled_image = np.array(upscaled_image)
                 upscaled_image[:, :, 3] = input_image[:, :, 3]
                 return upscaled_image
-            execute = lambda input_image: upscale_image(input_image)
+
+            def execute(input_image): return upscale_image(input_image)
             num_images = 2
-                
+
         images = []
         for i in range(num_images):
             new_image = execute(image)
@@ -618,7 +622,7 @@ def make_inpainting_container_callbacks(app):
         # give a visual highlight on the selected children
         return_image = no_update
         new_classnames = []
-        selected_background = ' bg-green-200'
+        selected_background = ' color-is-selected-light'
         for i, classname in enumerate(classnames):
             already_selected = selected_background in classname
             classname = classname.replace(selected_background, '')
@@ -628,7 +632,8 @@ def make_inpainting_container_callbacks(app):
                     return_image = images[i]
                 else:
                     mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
-                    return_image = state.serve_slice_image_composed(state.selected_slice, mode)
+                    return_image = state.serve_slice_image_composed(
+                        state.selected_slice, mode)
             new_classnames.append(classname)
 
         return return_image, new_classnames, ""
@@ -695,8 +700,8 @@ def make_inpainting_container_callbacks(app):
 
 
 def make_configuration_callbacks(app):
-    success_class = ' bg-green-200'
-    failure_class = ' bg-red-200'
+    success_class = ' color-is-selected-light'
+    failure_class = ' failure-color'
 
     @app.callback(
         Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
@@ -857,7 +862,7 @@ def make_configuration_div():
                     value='localhost:7860',
                     type='text',
                     debounce=True,
-                    className='p-2 border border-gray-300 rounded-md mb-2 flex-grow'
+                    className='light-border flex-grow'
                 ),
                 html.Button(
                     html.Div([
@@ -866,7 +871,7 @@ def make_configuration_div():
                     ]),
                     id=C.BTN_EXTERNAL_TEST_CONNECTION,
                     # Adjust the width and other margin as needed
-                    className='bg-blue-500 text-white p-2 rounded-md mb-2 ml-2'
+                    className='general-element mb-2 ml-2'
                 ),
             ],
                 # Set the container to display flex for a row layout
@@ -876,7 +881,7 @@ def make_configuration_div():
                 dcc.Upload(
                     children=['Drag and Drop or ', html.I(
                         className='fa-solid fa-upload'), ' to upload'],
-                    className='p-2 border border-gray-300 rounded-md mb-2 flex-grow',
+                    className='light-border flex-grow',
                     id=C.UPLOAD_COMFYUI_WORKFLOW,
                 ),
             ],
@@ -907,7 +912,7 @@ def make_configuration_div():
                     value=50,
                     marks={i * 10: str(i * 10) for i in range(21)}
                 ),
-            ], className='w-full min-h-8 border-dashed border-2 border-blue-500 rounded-md p-2')
+            ], className='general-border w-full min-h-8')
         ], className='w-full'),
         html.Div(
             [
@@ -919,7 +924,7 @@ def make_configuration_div():
                                 html.Div([
                                     html.Label('Load State'),
                                     html.I(className='fa-solid fa-upload pl-1')]),
-                                className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                                className='general-element mb-2'
                             ),
                             id=C.UPLOAD_STATE,
                             multiple=False,
@@ -928,7 +933,7 @@ def make_configuration_div():
                             html.Div([
                                 html.Label('Save State'),
                                 html.I(className='fa-solid fa-download pl-1')],
-                                className='bg-blue-500 text-white p-2 rounded-md mb-2'
+                                className='general-element mb-2'
                             ),
                             id=C.BTN_SAVE_STATE
                         )
@@ -950,19 +955,19 @@ def make_3d_export_div():
                 html.Label('Create glTF Scene'),
                 html.I(className='fa-solid fa-cube pl-1')]),
             id=C.BTN_GLTF_CREATE,
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'),
+            className='general-element mb-2 mr-2'),
         html.Button(
             html.Div([
                 html.Label('Export glTF Scene'),
                 html.I(className='fa-solid fa-download pl-1')]),
             id=C.BTN_GLTF_EXPORT,
-            className='bg-blue-500 text-white p-2 rounded-md mb-2 mr-2'),
+            className='general-element mb-2 mr-2'),
         html.Button(
             html.Div([
                 html.Label('Upscale Textures'),
                 html.I(className='fa-solid fa-maximize pl-1')]),
             id=C.BTN_UPSCALE_TEXTURES,
-            className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+            className='general-element mb-2'),
         dcc.Checklist(
             id=C.CHECKLIST_DOF,
             options=[{"label": html.Span("Support Depth of Field Effect",
@@ -986,7 +991,7 @@ def make_3d_export_div():
         ),
         dcc.Download(id=C.DOWNLOAD_GLTF)
     ],
-        className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md p-2 mb-2'
+        className='general-border min-h-8 w-full flex-auto grow mb-2'
     )
 
 
@@ -997,14 +1002,14 @@ def make_animation_export_div():
                 html.Label('Export Animation'),
                 html.I(className='fa-solid fa-download pl-1')]),
             id=C.BTN_EXPORT_ANIMATION,
-            className='bg-blue-500 text-white p-2 rounded-md mb-2'),
+            className='general-element mb-2'),
         dcc.Loading(id=C.LOADING_ANIMATION,
                     children=html.Div(id=C.ANIMATION_OUTPUT)),
         make_slider(C.SLIDER_NUM_FRAMES,
                     'Number of Frames', 0, 300, 1, 100),
         dcc.Download(id=C.DOWNLOAD_ANIMATION)
     ],
-        className='min-h-8 w-full flex-auto grow border-dashed border-2 border-blue-400 rounded-md p-2 mb-2'
+        className='min-h-8 w-full flex-auto grow general-border mb-2'
     )
 
 
@@ -1027,7 +1032,7 @@ def make_slider(slider_id: str, label: str, min_value: int, max_value: int, step
 def make_logs_container(logs_id: str = 'log'):
     return html.Div([
         html.Div(id=logs_id,
-                 className='flex-auto flex-col h-24 w-full border-dashed border-2 border-blue-400 rounded-md p-2 overflow-y-auto')
+                 className='flex-auto flex-col h-24 w-full general-border overflow-y-auto')
     ], className='w-full p-2 align-bottom'
     )
 
@@ -1040,7 +1045,7 @@ def make_label_container(label: str, children: list):
         html.Div(
             children,
             id=f"{norm_label}-container",
-            className='w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2',
+            className='general-container min-h-80',
         )
     ], className='w-full')
 
@@ -1077,7 +1082,7 @@ def make_tabs(tab_id: str, tab_names: list, tab_contents: list, outer_class_name
         ))
 
     contents = []
-    container_class_name = 'w-full min-h-80 justify-center items-center border-dashed border-2 border-blue-500 rounded-md p-2'
+    container_class_name = 'general-container min-h-80'
     for i, tab_content in enumerate(tab_contents):
         class_name = container_class_name
         if i > 0:
@@ -1193,11 +1198,11 @@ def make_segmentation_callbacks(app):
 
         state = AppState.from_cache(filename)
 
-        selected_color = 'bg-green-500'
-        deselected_color = 'bg-blue-500'
+        selected_color = 'color-is-selected'
+        deselected_color = 'color-not-selected'
 
         # if it's blue, we'll switch to green and turn on multi-point mode
-        state.multi_point_mode = True if 'bg-blue-500' in class_name else False
+        state.multi_point_mode = True if deselected_color in class_name else False
         state.points_selected = []
         if deselected_color in class_name:
             class_name = class_name.replace(deselected_color, selected_color)
@@ -1218,8 +1223,8 @@ def make_segmentation_callbacks(app):
 
         state = AppState.from_cache(filename)
 
-        selected_color = 'bg-green-500'
-        deselected_color = 'bg-blue-500'
+        selected_color = 'color-is-selected'
+        deselected_color = 'color-not-selected'
 
         if deselected_color in class_name:
             class_name = class_name.replace(deselected_color, selected_color)
@@ -1233,7 +1238,8 @@ def make_segmentation_callbacks(app):
             assert state.selected_slice >= 0 and state.selected_slice < len(
                 state.image_slices)
             mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
-            img_data = state.serve_slice_image_composed(state.selected_slice, mode=mode)
+            img_data = state.serve_slice_image_composed(
+                state.selected_slice, mode=mode)
 
         return class_name, "", img_data
 

@@ -153,3 +153,7 @@ cython_debug/
 test.py
 tmp-images/
 .DS_Store
+
+# Node modules
+node_modules/
+package-lock.json

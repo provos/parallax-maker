@@ -349,7 +349,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             return '';
         },
         canvas_toggle_erase: function () {
-            className = 'bg-blue-500 text-white p-2 rounded-md';
+            className = 'general-element';
             if (gCtx === null) {
                 isErasing = false;
                 console.log('No context found');
@@ -358,7 +358,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
             pixelRatio = getPixelRatio(gCtx);
             isErasing = !isErasing;
             if (isErasing) {
-                className = 'bg-red-500 text-white p-2 rounded-md';
+                className = 'erase-color p-2 rounded-md';
                 gCtx.globalCompositeOperation = 'destination-out';
                 gCtx.strokeStyle = 'rgba(0,0,0,1)';
                 gCtx.lineWidth = eraseWidth * pixelRatio;

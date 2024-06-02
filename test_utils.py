@@ -83,7 +83,7 @@ class TestFilenameAddVersion(unittest.TestCase):
         expected_result = "/path/to/image_v3.png"
 
         # Assert that the result is as expected
-        self.assertEqual(result, expected_result)        
+        self.assertEqual(result, expected_result)
 
     def test_filename_previous_version(self):
         # Define the input filename
@@ -97,7 +97,7 @@ class TestFilenameAddVersion(unittest.TestCase):
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
-        
+
         # Call the function
         result = filename_previous_version(result)
 
@@ -116,22 +116,23 @@ class TestFilenameAddVersion(unittest.TestCase):
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
-        
+
 
 class TestHighLightSelectedElement(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
-        
+
         self.classnames = [
             'text-white',
             'text-brown',
             'text-black',
         ]
-        self.highlight_classname = 'bg-green-300'
-        
+        self.highlight_classname = 'color-is-selected'
+
     def test_highlight_selected_element(self):
-        result = highlight_selected_element(self.classnames, 0, self.highlight_classname)
-        
+        result = highlight_selected_element(
+            self.classnames, 0, self.highlight_classname)
+
         expected_result = self.classnames.copy()
         expected_result[0] += f' {self.highlight_classname}'
 
@@ -143,7 +144,8 @@ class TestHighLightSelectedElement(unittest.TestCase):
         expected_result = self.classnames
         classnames[1] += f' {self.highlight_classname}'
 
-        result = highlight_selected_element(classnames, None, self.highlight_classname)
+        result = highlight_selected_element(
+            classnames, None, self.highlight_classname)
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)

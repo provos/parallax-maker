@@ -1,0 +1,21 @@
+{
+  "name": "parallax-maker",
+  "version": "1.0.0",
+  "description": "This is not a node package. I just want to compile tailwindcss.",
+  "main": "index.js",
+  "directories": {
+    "example": "example"
+  },
+  "scripts": {
+    "build": "tailwindcss -i ./tailwind.css -o ./assets/css/tailwind_compiled.css",
+    "watch": "tailwindcss -i ./tailwind.css -o ./assets/css/tailwind_compiled.css --watch",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Niels Provos",
+  "license": "AGPL-3.0-only",
+  "dependencies": {
+    "autoprefixer": "^10.4.19",
+    "postcss": "^8.4.38",
+    "tailwindcss": "^3.4.3"
+  }
+}

@@ -46,7 +46,7 @@ from controller import AppState, CompositeMode
 
 # Globals
 EXPAND_MASK = 5
-HIGHLIGHT_COLOR = 'bg-green-200'
+HIGHLIGHT_COLOR = 'color-is-selected-light'
 
 # Progress tracking variables
 current_progress = -1
@@ -62,7 +62,6 @@ def progress_callback(current, total):
 # call the ability to add external scripts
 external_scripts = [
     # add the tailwind cdn url hosting the files with the utility classes
-    {'src': 'https://cdn.tailwindcss.com'},
     {'src': 'https://kit.fontawesome.com/48f728cfc9.js'},
 ]
 
@@ -103,12 +102,12 @@ app.layout = html.Div([
     dcc.Store(id=C.STORE_CURRENT_TAB),
     # App Layout
     html.Header("Parallax Maker",
-                className='text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center'),
+                className='title-header'),
     html.Main([
         html.Div(
             ['Some helpful text to guide the user'],
             id=C.CTR_HELP_WINDOW,
-            className='hidden absolute w-64 p-2 bg-yellow-100 border border-black z-40'),
+            className='help-box hidden absolute w-64 p-2 z-40'),
         components.make_tabs(
             'viewer',
             ['2D', '3D'],
@@ -125,7 +124,7 @@ app.layout = html.Div([
                             id=C.IFRAME_MODEL_VIEWER,
                             srcDoc=get_no_gltf_available(),
                             style={'height': '70vh'},
-                            className='w-full h-full bg-gray-400 p-2'
+                            className='gltf-container'
                         )
                     ]
                 ),
@@ -155,8 +154,7 @@ app.layout = html.Div([
         ),
     ], className='grid grid-cols-5 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
-    html.Footer('© 2024 Niels Provos',
-                className='text-center text-gray-500 p-2'),
+    html.Footer('© 2024 Niels Provos', className='footer'),
 ])
 
 app.scripts.config.serve_locally = True
@@ -196,7 +194,7 @@ def update_logs(data):
     prevent_initial_call=True
 )
 def update_progress(n):
-    progress_bar = html.Div(className='w-0 h-full bg-green-500 rounded-lg transition-all',
+    progress_bar = html.Div(className='progress-bar-fill',
                             style={'width': f'{max(0, current_progress)}%'})
     interval_disabled = current_progress >= total_progress or current_progress == -1
     return progress_bar, interval_disabled
@@ -782,8 +780,8 @@ def update_slices(ignored_data, filename):
     if state.depthMapData is None:
         raise PreventUpdate()
 
-    caret_color_enabled = "text-emerald-400"
-    caret_color_disabled = "text-orange-800"
+    caret_color_enabled = "has-history-color"
+    caret_color_disabled = "no-history-color"
 
     img_container = []
     assert len(state.image_slices) == len(state.image_slices_filenames)
@@ -824,10 +822,10 @@ def update_slices(ignored_data, filename):
                         # The number to display
                         children=f"{int(state.image_depths[i])}",
                         id={'type': 'depth-display', 'index': i},
-                        className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-6xl text-amber-800 text-opacity-50 text-center'
+                        className='depth-number-display'
                     ),
                     dcc.Input(id={'type': 'depth-input', 'index': i},
-                              className='absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-center z-10 w-full h-full text-3xl sm:text-4xl md:text-5xl lg:text-6xl text-amber-800 text-opacity-50 hidden',
+                              className='depth-number-input hidden',
                               type='number',
                               debounce=True,
                               inputMode='numeric',
@@ -1019,7 +1017,7 @@ def upscale_texture(n_clicks, filename, model_name, server_address, workflow, lo
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    
+
     # this create the pipeline in state and will be used by upscale slices
     create_inpainting_pipeline(model_name, server_address, workflow, state)
 
@@ -1197,7 +1195,8 @@ def slice_upload(contents, filename, logs):
         raise PreventUpdate()
 
     # current aspect ratio for the given slice
-    aspect_ratio = state.image_slices[index].shape[1] / state.image_slices[index].shape[0]
+    aspect_ratio = state.image_slices[index].shape[1] / \
+        state.image_slices[index].shape[0]
 
     content = contents[index]
     image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))

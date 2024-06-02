@@ -102,8 +102,8 @@ def find_bounding_box(mask_image, padding=50):
     if isinstance(mask_image, Image.Image):
         mask_array = np.array(mask_image)
     else:
-        mask_array = mask_image   
-        
+        mask_array = mask_image
+
     nonzero_y, nonzero_x = np.nonzero(mask_array > 0)
     if len(nonzero_x) == 0 or len(nonzero_y) == 0:
         return (0, 0, 0, 0)
@@ -519,14 +519,14 @@ COCO_CATEGORIES = [
 ]
 
 
-def highlight_selected_element(classnames, index, highlight_class='bg-green-200'):
+def highlight_selected_element(classnames, index, highlight_class='color-is-selected-light'):
     """
     Highlights the selected element in a list of classnames by adding a highlight class.
 
     Args:
         classnames (list): List of classnames.
         index (int): Index of the element to be highlighted.
-        highlight_class (str, optional): The highlight class to be added. Defaults to 'bg-green-200'.
+        highlight_class (str, optional): The highlight class to be added. Defaults to 'color-is-selected-light'.
 
     Returns:
         list: A new list of classnames with the selected element highlighted.
