@@ -1,5 +1,8 @@
 LOGS_DATA = 'logs-data'
 
+ICON_DARK_MODE = 'dark-mode-icon'
+BTN_DARK_MODE = 'dark-mode-toggle'
+
 LOADING_UPLOAD = 'loading-upload'
 LOADING_DEPTHMAP = 'loading-depthmap'
 LOADING_GENERATE_SLICE = 'loading-generate-slice'

@@ -101,8 +101,16 @@ app.layout = html.Div([
     # Context for the help window
     dcc.Store(id=C.STORE_CURRENT_TAB),
     # App Layout
-    html.Header("Parallax Maker",
-                className='title-header'),
+    html.Header([
+        html.Div([
+            html.Button([
+                html.I(className='fas fa-moon', id=C.ICON_DARK_MODE)
+            ], id=C.BTN_DARK_MODE,
+                n_clicks=0, className='dark-mode-toggle')
+        ], className='header-left'),
+        html.H1("Parallax Maker", className='title-text'),
+        html.Div([], className='header-right')
+    ], className='title-header'),
     html.Main([
         html.Div(
             ['Some helpful text to guide the user'],
@@ -155,7 +163,10 @@ app.layout = html.Div([
     ], className='grid grid-cols-5 gap-4 p-2'),
     components.make_logs_container(logs_id='log'),
     html.Footer('© 2024 Niels Provos', className='footer'),
-])
+],
+    id='app-container',
+    className='min-h-screen'
+)
 
 app.scripts.config.serve_locally = True
 
@@ -173,6 +184,18 @@ components.make_tabs_callback(app, 'viewer')
 components.make_tabs_callback(app, 'main')
 components.make_tools_callbacks(app)
 
+
+@app.callback(
+    Output('app-container', 'className'),
+    Output(C.ICON_DARK_MODE, 'className'),
+    Input(C.BTN_DARK_MODE, 'n_clicks'),
+    prevent_initial_call=True
+)
+def toggle_dark_mode(n_clicks):
+    if n_clicks % 2 == 1:
+        return 'dark min-h-screen', 'fas fa-sun'
+    else:
+        return 'min-h-screen', 'fas fa-moon'
 
 # Callback for the logs
 

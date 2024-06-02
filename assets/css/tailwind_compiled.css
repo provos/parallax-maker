@@ -716,6 +716,10 @@ video {
   min-height: 20rem;
 }
 
+.min-h-screen {
+  min-height: 100vh;
+}
+
 .w-64 {
   width: 16rem;
 }
@@ -915,17 +919,81 @@ video {
   filter: var(--tw-blur) var(--tw-brightness) var(--tw-contrast) var(--tw-grayscale) var(--tw-hue-rotate) var(--tw-invert) var(--tw-saturate) var(--tw-sepia) var(--tw-drop-shadow);
 }
 
+#app-container {
+  --tw-bg-opacity: 1;
+  background-color: rgb(255 255 255 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(31 41 55 / var(--tw-text-opacity));
+}
+
+#app-container:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(24 24 27 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(203 213 225 / var(--tw-text-opacity));
+}
+
 .title-header {
   margin-bottom: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   --tw-bg-opacity: 1;
   background-color: rgb(30 64 175 / var(--tw-bg-opacity));
-  padding: 0.5rem;
+  padding: 1rem;
+  --tw-text-opacity: 1;
+  color: rgb(255 255 255 / var(--tw-text-opacity));
+}
+
+.title-header:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(96 165 250 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(0 0 0 / var(--tw-text-opacity));
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+}
+
+.header-right {
+  width: 120px;
+}
+
+.title-text {
+  flex-grow: 1;
   text-align: center;
   font-size: 1.5rem;
   line-height: 2rem;
   font-weight: 700;
+}
+
+.dark-mode-toggle {
+  border-radius: 0.375rem;
+  --tw-bg-opacity: 1;
+  background-color: rgb(37 99 235 / var(--tw-bg-opacity));
+  padding-left: 1rem;
+  padding-right: 1rem;
+  padding-top: 0.5rem;
+  padding-bottom: 0.5rem;
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity));
+}
+
+.dark-mode-toggle:hover {
+  --tw-bg-opacity: 1;
+  background-color: rgb(29 78 216 / var(--tw-bg-opacity));
+}
+
+.dark-mode-toggle:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(217 119 6 / var(--tw-bg-opacity));
+}
+
+.dark-mode-toggle:hover:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(245 158 11 / var(--tw-bg-opacity));
 }
 
 .footer {
@@ -933,6 +1001,11 @@ video {
   text-align: center;
   --tw-text-opacity: 1;
   color: rgb(107 114 128 / var(--tw-text-opacity));
+}
+
+.footer:where(.dark, .dark *) {
+  --tw-text-opacity: 1;
+  color: rgb(148 163 184 / var(--tw-text-opacity));
 }
 
 .help-box {
@@ -943,9 +1016,44 @@ video {
   background-color: rgb(254 249 195 / var(--tw-bg-opacity));
 }
 
+button:disabled {
+  --tw-bg-opacity: 1;
+  background-color: rgb(209 213 219 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(107 114 128 / var(--tw-text-opacity));
+}
+
+button:disabled:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(82 82 91 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(203 213 225 / var(--tw-text-opacity));
+}
+
 button.color-not-selected {
   --tw-bg-opacity: 1;
   background-color: rgb(59 130 246 / var(--tw-bg-opacity));
+}
+
+button.color-not-selected:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(96 165 250 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
+}
+
+button.color-not-selected:disabled {
+  --tw-bg-opacity: 1;
+  background-color: rgb(209 213 219 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(107 114 128 / var(--tw-text-opacity));
+}
+
+button.color-not-selected:disabled:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(82 82 91 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(203 213 225 / var(--tw-text-opacity));
 }
 
 button.color-is-selected {
@@ -953,6 +1061,13 @@ button.color-is-selected {
   background-color: rgb(34 197 94 / var(--tw-bg-opacity));
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity));
+}
+
+button.color-is-selected:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(74 222 128 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
 }
 
 .failure-color {
@@ -992,6 +1107,11 @@ button.color-is-selected {
   background-color: rgb(229 231 235 / var(--tw-bg-opacity));
 }
 
+.progress-bar:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(39 39 42 / var(--tw-bg-opacity));
+}
+
 .progress-bar-fill {
   height: 100%;
   width: 0px;
@@ -1008,6 +1128,13 @@ button.progress-bar-fill {
   color: rgb(255 255 255 / var(--tw-text-opacity));
 }
 
+button.progress-bar-fill:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(74 222 128 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
+}
+
 .general-element {
   border-radius: 0.375rem;
   --tw-bg-opacity: 1;
@@ -1015,6 +1142,13 @@ button.progress-bar-fill {
   padding: 0.5rem;
   --tw-text-opacity: 1;
   color: rgb(255 255 255 / var(--tw-text-opacity));
+}
+
+.general-element:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(96 165 250 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
 }
 
 .nav-button {
@@ -1041,6 +1175,11 @@ button.progress-bar-fill {
   padding: 0.25rem;
 }
 
+.tools-backdrop:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(39 39 42 / var(--tw-bg-opacity));
+}
+
 .general-border {
   border-radius: 0.375rem;
   border-width: 2px;
@@ -1048,6 +1187,11 @@ button.progress-bar-fill {
   --tw-border-opacity: 1;
   border-color: rgb(59 130 246 / var(--tw-border-opacity));
   padding: 0.5rem;
+}
+
+.general-border:where(.dark, .dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(96 165 250 / var(--tw-border-opacity));
 }
 
 .general-container {
@@ -1062,6 +1206,11 @@ button.progress-bar-fill {
   padding: 0.5rem;
 }
 
+.general-container:where(.dark, .dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(96 165 250 / var(--tw-border-opacity));
+}
+
 .light-border {
   margin-bottom: 0.5rem;
   border-radius: 0.375rem;
@@ -1069,6 +1218,11 @@ button.progress-bar-fill {
   --tw-border-opacity: 1;
   border-color: rgb(209 213 219 / var(--tw-border-opacity));
   padding: 0.5rem;
+}
+
+.light-border:where(.dark, .dark *) {
+  --tw-border-opacity: 1;
+  border-color: rgb(55 65 81 / var(--tw-border-opacity));
 }
 
 .gltf-container {
@@ -1079,9 +1233,21 @@ button.progress-bar-fill {
   padding: 0.5rem;
 }
 
+.gltf-container:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(39 39 42 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(156 163 175 / var(--tw-text-opacity));
+}
+
 .depth-number-text {
   text-align: center;
   color: rgb(146 64 14 / var(--tw-text-opacity));
+  --tw-text-opacity: 0.5;
+}
+
+.depth-number-text:where(.dark, .dark *) {
+  color: rgb(252 211 77 / var(--tw-text-opacity));
   --tw-text-opacity: 0.5;
 }
 
@@ -1100,6 +1266,14 @@ button.progress-bar-fill {
   text-align: center;
   color: rgb(146 64 14 / var(--tw-text-opacity));
   --tw-text-opacity: 0.5;
+}
+
+.depth-number-display:where(.dark, .dark *) {
+  color: rgb(252 211 77 / var(--tw-text-opacity));
+  --tw-text-opacity: 0.5;
+}
+
+.depth-number-display {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1117,6 +1291,14 @@ button.progress-bar-fill {
   text-align: center;
   color: rgb(146 64 14 / var(--tw-text-opacity));
   --tw-text-opacity: 0.5;
+}
+
+.depth-number-input:where(.dark, .dark *) {
+  color: rgb(252 211 77 / var(--tw-text-opacity));
+  --tw-text-opacity: 0.5;
+}
+
+.depth-number-input {
   position: absolute;
   top: 50%;
   left: 50%;
@@ -1144,4 +1326,73 @@ button.progress-bar-fill {
     font-size: 3.75rem;
     line-height: 1;
   }
+}
+
+.general-dropdown .Select-control {
+  border-radius: 0.375rem;
+  --tw-bg-opacity: 1;
+  background-color: rgb(243 244 246 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(31 41 55 / var(--tw-text-opacity));
+}
+
+.general-dropdown .Select-control:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(39 39 42 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
+}
+
+.general-dropdown .Select-menu-outer {
+  --tw-bg-opacity: 1;
+  background-color: rgb(243 244 246 / var(--tw-bg-opacity));
+}
+
+.general-dropdown .Select-menu-outer:where(.dark, .dark *) {
+  --tw-bg-opacity: 1;
+  background-color: rgb(39 39 42 / var(--tw-bg-opacity));
+  --tw-text-opacity: 1;
+  color: rgb(226 232 240 / var(--tw-text-opacity));
+}
+
+/* React is overriding the colors here and so we need to add !important */
+
+.general-dropdown .Select-option {
+  --tw-text-opacity: 1 !important;
+  color: rgb(31 41 55 / var(--tw-text-opacity)) !important;
+}
+
+.general-dropdown .Select-option:hover {
+  --tw-bg-opacity: 1 !important;
+  background-color: rgb(229 231 235 / var(--tw-bg-opacity)) !important;
+}
+
+.general-dropdown .Select-option:where(.dark, .dark *) {
+  --tw-text-opacity: 1 !important;
+  color: rgb(226 232 240 / var(--tw-text-opacity)) !important;
+}
+
+.general-dropdown .Select-option:hover:where(.dark, .dark *) {
+  --tw-bg-opacity: 1 !important;
+  background-color: rgb(75 85 99 / var(--tw-bg-opacity)) !important;
+}
+
+.general-dropdown .Select-value-label {
+  --tw-text-opacity: 1 !important;
+  color: rgb(31 41 55 / var(--tw-text-opacity)) !important;
+}
+
+.general-dropdown .Select-value-label:hover {
+  --tw-bg-opacity: 1 !important;
+  background-color: rgb(229 231 235 / var(--tw-bg-opacity)) !important;
+}
+
+.general-dropdown .Select-value-label:where(.dark, .dark *) {
+  --tw-text-opacity: 1 !important;
+  color: rgb(226 232 240 / var(--tw-text-opacity)) !important;
+}
+
+.general-dropdown .Select-value-label:hover:where(.dark, .dark *) {
+  --tw-bg-opacity: 1 !important;
+  background-color: rgb(75 85 99 / var(--tw-bg-opacity)) !important;
 }

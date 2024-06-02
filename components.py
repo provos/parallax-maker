@@ -835,7 +835,8 @@ def make_configuration_div():
                     {'label': 'ZoeDepth', 'value': 'zoedepth'},
                     {'label': 'DINOv2', 'value': 'dinov2'}
                 ],
-                value='midas'
+                value='midas',
+                className='general-dropdown',
             )
         ], className='w-full'),
         html.Div([
@@ -851,7 +852,8 @@ def make_configuration_div():
                     {'label': 'Automatic1111', 'value': 'automatic1111'},
                     {'label': 'ComfyUI', 'value': 'comfyui'},
                 ],
-                value='diffusers/stable-diffusion-xl-1.0-inpainting-0.1'
+                value='diffusers/stable-diffusion-xl-1.0-inpainting-0.1',
+                className='general-dropdown',
             )
         ], className='w-full'),
         html.Div([
@@ -1442,7 +1444,8 @@ def make_mode_selector():
                         {'label': 'Depth Map', 'value': 'depth'},
                         {'label': 'Instance Segmentation', 'value': 'segment'},
                     ],
-                    value='depth'
+                    value='depth',
+                    className='general-dropdown',
                 ),
             ], className='w-full'),
             html.Div([

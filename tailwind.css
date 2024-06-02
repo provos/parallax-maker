@@ -2,24 +2,58 @@
 @tailwind components;
 @tailwind utilities;
 
+#app-container {
+  @apply bg-white text-gray-800;
+  @apply dark:bg-zinc-900 dark:text-slate-300;
+}
+
 .title-header {
-  @apply text-2xl font-bold bg-blue-800 text-white p-2 mb-4 text-center;
+  @apply flex justify-between items-center bg-blue-800 text-white p-4 mb-4;
+  @apply dark:text-black dark:bg-blue-400;
+}
+
+.header-left {  
+  @apply flex items-center;
+}
+
+.header-right {
+  @apply w-[120px];
+}
+
+.title-text {
+  @apply text-2xl font-bold text-center flex-grow;
+}
+
+.dark-mode-toggle {
+  @apply px-4 py-2 bg-blue-600 text-white rounded-md;
+  @apply hover:bg-blue-700;
+  @apply dark:bg-amber-600 dark:hover:bg-amber-500;
 }
 
 .footer {
   @apply text-center text-gray-500 p-2;
+  @apply dark:text-slate-400;
 }
 
 .help-box {
   @apply bg-yellow-100 border border-black;
 }
 
+button:disabled {
+  @apply bg-gray-300 text-gray-500;
+  @apply dark:bg-zinc-600 dark:text-slate-300;
+}
+
 button.color-not-selected {
   @apply bg-blue-500;
+  @apply dark:bg-blue-400 dark:text-slate-200;
+  @apply disabled:bg-gray-300 disabled:text-gray-500;
+  @apply dark:disabled:bg-zinc-600 dark:disabled:text-slate-300;
 }
 
 button.color-is-selected {
   @apply bg-green-500 text-white;
+  @apply dark:bg-green-400 dark:text-slate-200;
 }
 
 .failure-color {
@@ -44,6 +78,7 @@ button.color-is-selected {
 
 .progress-bar {
   @apply h-3 w-full bg-gray-200 rounded-lg;
+  @apply dark:bg-zinc-800;
 }
 
 .progress-bar-fill {
@@ -52,6 +87,7 @@ button.color-is-selected {
 
 .general-element {
   @apply bg-blue-500 text-white p-2 rounded-md;
+  @apply dark:bg-blue-400 dark:text-slate-200;
 }
 
 .nav-button {
@@ -64,10 +100,12 @@ button.color-is-selected {
 
 .tools-backdrop {
   @apply flex justify-center p-1 bg-gray-200 rounded-md mt-1;
+  @apply dark:bg-zinc-800;
 }
 
 .general-border {
   @apply border-dashed border-2 border-blue-500 rounded-md p-2;
+  @apply dark:border-blue-400;
 }
 
 .general-container {
@@ -76,14 +114,17 @@ button.color-is-selected {
 
 .light-border {
   @apply p-2 border border-gray-300 rounded-md mb-2;
+  @apply dark:border-gray-700;
 }
 
 .gltf-container {
   @apply w-full h-full bg-gray-400 p-2;
+  @apply dark:bg-zinc-800 dark:text-gray-400;
 }
 
 .depth-number-text {
   @apply text-amber-800 text-opacity-50 text-center;
+  @apply dark:text-amber-300 dark:text-opacity-50;
 }
 
 .depth-number-position {
@@ -96,4 +137,21 @@ button.color-is-selected {
 
 .depth-number-input {
   @apply depth-number-text depth-number-position z-10 w-full h-full text-3xl sm:text-4xl md:text-5xl lg:text-6xl;
+}
+
+.general-dropdown .Select-control {
+  @apply bg-gray-100 dark:bg-zinc-800 text-gray-800 dark:text-slate-200 rounded-md;
+}
+
+.general-dropdown .Select-menu-outer {
+  @apply bg-gray-100 dark:bg-zinc-800 dark:text-slate-200;
+}
+
+/* React is overriding the colors here and so we need to add !important */
+.general-dropdown .Select-option {
+  @apply text-gray-800 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-600 !important;
+}
+
+.general-dropdown .Select-value-label {
+  @apply text-gray-800 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-600 !important;
 }
