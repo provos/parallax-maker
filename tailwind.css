@@ -39,6 +39,11 @@
   @apply bg-yellow-100 border border-black;
 }
 
+textarea {
+  @apply text-gray-800 bg-white;
+  @apply dark:text-slate-300 dark:bg-zinc-800;
+}
+
 button:disabled {
   @apply bg-gray-300 text-gray-500;
   @apply dark:bg-zinc-600 dark:text-slate-300;
