@@ -150,7 +150,10 @@ class InpaintingModel:
             init_image = init_image.crop(bounding_box)
             mask_image = mask_image.crop(bounding_box)
 
-        blurred_mask = feather_mask(mask_image, num_expand=blur_radius)
+        if blur_radius > 0:
+            blurred_mask = feather_mask(mask_image, num_expand=blur_radius)
+        else:
+            blurred_mask = mask_image
 
         # resize images to match the model input size
         dimension = self.get_dimension()

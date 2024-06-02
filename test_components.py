@@ -83,7 +83,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
 
         # Call the function under test
         results = self._update_inpainting_image_display(
-            n_clicks, None, filename, model,
+            n_clicks, None, None, filename, model,
             server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
@@ -159,7 +159,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
 
         # Call the function under test
         results = self._update_inpainting_image_display(
-            n_clicks, None, filename, model,
+            n_clicks, None, None, filename, model,
             server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,

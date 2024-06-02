@@ -387,6 +387,16 @@ def make_inpainting_container():
                 html.I(className='fa-solid fa-paint-brush pl-1')
             ]),
             id=C.BTN_GENERATE_INPAINTING,
+            title='Inpaint the areas of the selected image based on the painted mask',
+            className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
+        ),
+        html.Button(
+            html.Div([
+                html.Label('Fill'),
+                html.I(className='fa-solid fa-fill pl-1')
+            ]),
+            id=C.BTN_FILL_INPAINTING,
+            title='Fill all empty areas of the selected image via inpainting',
             className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
         ),
         html.Button(
@@ -395,6 +405,7 @@ def make_inpainting_container():
                 html.I(className='fa-solid fa-wand-magic-sparkles pl-1')
             ]),
             id=C.BTN_ENHANCE,
+            title='Use inpainting to enhance the selected image via up and downscaling',
             className='bg-blue-500 text-white p-2 rounded-md mb-2 mt-3 mr-2'
         ),
         html.Button(
@@ -481,6 +492,7 @@ def make_inpainting_container_callbacks(app):
         Output(C.CTR_INPAINTING_DISPLAY, 'children'),
         Output(C.LOADING_GENERATE_INPAINTING, 'children'),
         Input(C.BTN_GENERATE_INPAINTING, 'n_clicks'),
+        Input(C.BTN_FILL_INPAINTING, 'n_clicks'),
         Input(C.BTN_ENHANCE, 'n_clicks'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         State(C.DROPDOWN_INPAINT_MODEL, 'value'),
@@ -493,16 +505,17 @@ def make_inpainting_container_callbacks(app):
         State(C.SLIDER_MASK_PADDING, 'value'),
         State(C.SLIDER_MASK_BLUR, 'value'),
         running=[(Output(C.BTN_GENERATE_INPAINTING, 'disabled'), True, False),
+                 (Output(C.BTN_FILL_INPAINTING, 'disabled'), True, False),
                  (Output(C.BTN_ENHANCE, 'disabled'), True, False)],
         prevent_initial_call=True
     )
     def update_inpainting_image_display(
-            n_clicks_one, n_clicks_two, filename, model,
+            n_clicks_one, n_clicks_two, n_clicks_three, filename, model,
             server_address, workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur):
-        if n_clicks_one is None and n_clicks_two is None:
+        if n_clicks_one is None and n_clicks_two is None and n_clicks_three is None:
             raise PreventUpdate()
         
         if filename is None:
@@ -530,13 +543,17 @@ def make_inpainting_container_callbacks(app):
 
         pipeline = create_inpainting_pipeline(model, server_address, workflow, state)
 
-        if tid == C.BTN_GENERATE_INPAINTING:
-            mask_filename = state.mask_filename(index)
-            if not Path(mask_filename).exists():
-                raise PreventUpdate()
-            
-            mask = Image.open(mask_filename).convert('L')
-            mask = np.array(mask)
+        if tid == C.BTN_GENERATE_INPAINTING or tid == C.BTN_FILL_INPAINTING:
+            if tid == C.BTN_GENERATE_INPAINTING:
+                mask_filename = state.mask_filename(index)
+                if not Path(mask_filename).exists():
+                    raise PreventUpdate()
+                
+                mask = Image.open(mask_filename).convert('L')
+                mask = np.array(mask)
+            else:
+                # we'll fill everything that does not have an alpha
+                mask = 255 - image[:, :, 3]
 
             execute = lambda input_image: pipeline.inpaint(
                 positive_prompt, negative_prompt, input_image, mask,
@@ -657,6 +674,7 @@ def make_inpainting_container_callbacks(app):
     @app.callback(Output(C.TEXT_POSITIVE_PROMPT, 'disabled'),
                   Output(C.TEXT_NEGATIVE_PROMPT, 'disabled'),
                   Output(C.BTN_GENERATE_INPAINTING, 'disabled'),
+                  Output(C.BTN_FILL_INPAINTING, 'disabled'),
                   Output(C.BTN_ENHANCE, 'disabled'),
                   Output(C.BTN_ERASE_INPAINTING, 'disabled'),
                   Output(C.STORE_SELECTED_SLICE, 'data'),
@@ -665,13 +683,13 @@ def make_inpainting_container_callbacks(app):
                   prevent_initial_call=True)
     def react_selected_slice_change(ignore, filename):
         if filename is None:
-            return True, True, True, True, True, None
+            return True, True, True, True, True, True, None
 
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
-            return True, True, True, True, True, None
+            return True, True, True, True, True, True, None
 
-        return False, False, False, False, False, state.selected_slice
+        return False, False, False, False, False, False, state.selected_slice
 
     return update_inpainting_image_display
 

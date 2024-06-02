@@ -75,6 +75,7 @@ CTR_THRESHOLDS = 'thresholds-container'
 CTR_SLICE_IMAGES = 'slice-img-container'
 
 BTN_GENERATE_INPAINTING = 'generate-inpainting-button'
+BTN_FILL_INPAINTING = 'fill-inpainting-button'
 BTN_ENHANCE = 'enhance-button'
 BTN_ERASE_INPAINTING = 'erase-inpainting-button'
 BTN_APPLY_INPAINTING = 'apply-inpainting-button'
