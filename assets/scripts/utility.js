@@ -36,6 +36,12 @@ const resizeObserver = new ResizeObserver(entries => {
     gRect = canvas.getBoundingClientRect();
 });
 
+function resetContext() {
+    gCtx = null;
+    gPreviewCtx = null;
+    gRect = null;
+}
+
 function clearPreviewCanvas() {
     // Clear previous preview (if any)
     if (lastPreviewX !== null && lastPreviewY !== null) {
@@ -246,12 +252,6 @@ function setupMainCanvas(canvas) {
     });
     canvas.addEventListener('wheel', handleWheel);
 
-    function resetContext() {
-        gCtx = null;
-        gPreviewCtx = null;
-        gRect = null;
-    }
-
     window.addEventListener('resize', resetContext);
 
     resizeObserver.observe(canvas);
@@ -278,6 +278,7 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
                 console.log('Current tab:', tab);
                 currentTab = tab;
             }
+            resetContext();
             return window.dash_clientside.no_update;
         },
         store_rect_coords: function () {
