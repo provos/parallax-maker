@@ -358,29 +358,31 @@ def make_inpainting_container():
             )
         ]),
         html.Div([
-            html.Label('Strength'),
-            dcc.Slider(
-                id=C.SLIDER_INPAINT_STRENGTH,
-                min=0,
-                max=1,
-                step=0.01,
-                value=0.8,
-                marks=None,
-                tooltip={"placement": "bottom", "always_visible": True}
-            ),
-        ], className='w-full'),
-        html.Div([
-            html.Label('Guidance Scale'),
-            dcc.Slider(
-                id=C.SLIDER_INPAINT_GUIDANCE,
-                min=1,
-                max=15,
-                step=0.25,
-                value=7.5,
-                marks=None,
-                tooltip={"placement": "bottom", "always_visible": True}
-            ),
-        ], className='w-full'),
+            html.Div([
+                html.Label('Strength'),
+                dcc.Slider(
+                    id=C.SLIDER_INPAINT_STRENGTH,
+                    min=0,
+                    max=1,
+                    step=0.01,
+                    value=0.8,
+                    marks=None,
+                    tooltip={"placement": "bottom", "always_visible": True}
+                ),
+            ], className='w-full p-2'),
+            html.Div([
+                html.Label('Guidance Scale'),
+                dcc.Slider(
+                    id=C.SLIDER_INPAINT_GUIDANCE,
+                    min=1,
+                    max=15,
+                    step=0.25,
+                    value=7.5,
+                    marks=None,
+                    tooltip={"placement": "bottom", "always_visible": True}
+                ),
+            ], className='w-full p-2'),
+        ], className='flex w-full'),
         html.Button(
             html.Div([
                 html.Label('Generate'),
