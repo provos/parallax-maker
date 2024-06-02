@@ -893,19 +893,19 @@ def make_configuration_div():
                 dcc.Slider(
                     id=C.SLIDER_MASK_PADDING,
                     min=0,
-                    max=100,
+                    max=200,
                     step=10,
                     value=50,
-                    marks={i * 10: str(i * 10) for i in range(11)}
+                    marks={i * 10: str(i * 10) for i in range(21)}
                 ),
                 html.Label('Mask Blur'),
                 dcc.Slider(
                     id=C.SLIDER_MASK_BLUR,
                     min=0,
-                    max=100,
+                    max=200,
                     step=10,
                     value=50,
-                    marks={i * 10: str(i * 10) for i in range(11)}
+                    marks={i * 10: str(i * 10) for i in range(21)}
                 ),
             ], className='w-full min-h-8 border-dashed border-2 border-blue-500 rounded-md p-2')
         ], className='w-full'),
