@@ -30,6 +30,12 @@ let gRect = null;
 
 let gPreviewCtx = null;
 
+// setup a resize observer to the canvas and recompute the rect
+const resizeObserver = new ResizeObserver(entries => {
+    var canvas = entries[0].target;
+    gRect = canvas.getBoundingClientRect();
+});
+
 function clearPreviewCanvas() {
     // Clear previous preview (if any)
     if (lastPreviewX !== null && lastPreviewY !== null) {
@@ -247,11 +253,6 @@ function setupMainCanvas(canvas) {
     }
 
     window.addEventListener('resize', resetContext);
-
-    // add a resize observer to the canvas and recompute the rect
-    const resizeObserver = new ResizeObserver(entries => {
-        gRect = canvas.getBoundingClientRect();
-    });
 
     resizeObserver.observe(canvas);
 }
