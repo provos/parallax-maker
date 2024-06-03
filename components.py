@@ -22,6 +22,7 @@ from controller import AppState, CompositeMode
 from utils import to_image_url, filename_add_version
 from inpainting import patch_image, create_inpainting_pipeline
 from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
+from stabilityai import StabilityAI
 
 
 def get_canvas_paint_events():
@@ -808,6 +809,65 @@ def make_configuration_callbacks(app):
 
         return logs, class_name
 
+    # Stability AI related callbacks
+    @app.callback(
+        Output(C.CTR_API_KEY, 'className'),
+        Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
+        State(C.CTR_API_KEY, 'className'),
+    )
+    def toggle_stabilityai_config(value, class_name):
+        class_name = class_name.replace(' hidden', '')
+        if value != 'stabilityai':
+            class_name += ' hidden'
+        return class_name
+    
+    @app.callback(
+        Output(C.INPUT_API_KEY, 'className', allow_duplicate=True),
+        Input(C.INPUT_API_KEY, 'value'),
+        State(C.INPUT_API_KEY, 'className'),
+        State(C.STORE_APPSTATE_FILENAME, 'data'),
+        prevent_initial_call=True)
+    def reset_external_api_key(value, class_name, filename):
+        if filename is not None:
+            state = AppState.from_cache(filename)
+            state.api_key = value
+            state.to_file(state.filename,
+                          save_image_slices=False,
+                          save_depth_map=False, save_input_image=False)
+
+        return class_name.replace(success_class, '').replace(failure_class, '')
+
+    @app.callback(
+        Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+        Output(C.INPUT_API_KEY, 'className'),
+        Input(C.BTN_VALIDATE_API_KEY, 'n_clicks'),
+        State(C.INPUT_API_KEY, 'value'),
+        State(C.INPUT_API_KEY, 'className'),
+        State(C.DROPDOWN_INPAINT_MODEL, 'value'),
+        State(C.LOGS_DATA, 'data'),
+        prevent_initial_call=True)
+    def test_api_key(n_clicks, api_key, class_name, model, logs):
+        if n_clicks is None:
+            raise PreventUpdate()
+
+        class_name = class_name.replace(
+            success_class, '').replace(failure_class, '')
+
+        success = False
+        try:
+            inpaint_model = StabilityAI(api_key)
+            success, credits = inpaint_model.validate_key()
+            if success:
+                logs.append(f'Connection to {model} successful: you have {credits:0.2f} remaining credits')
+                success = True
+            else:
+                logs.append(f'Connection to {model} failed')
+        except Exception as e:
+            logs.append(f'Connection to {model} failed: {str(e)}')
+
+        class_name += success_class if success else failure_class
+
+        return logs, class_name
 
 def make_configuration_container():
     return make_label_container(
@@ -853,6 +913,7 @@ def make_configuration_div():
                         'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'},
                     {'label': 'Automatic1111', 'value': 'automatic1111'},
                     {'label': 'ComfyUI', 'value': 'comfyui'},
+                    {'label': 'StabilityAI', 'value': 'stabilityai'},
                 ],
                 value='diffusers/stable-diffusion-xl-1.0-inpainting-0.1',
                 className='general-dropdown',
@@ -874,7 +935,6 @@ def make_configuration_div():
                         html.I(className='fa-solid fa-network-wired pl-1')
                     ]),
                     id=C.BTN_EXTERNAL_TEST_CONNECTION,
-                    # Adjust the width and other margin as needed
                     className='general-element mb-2 ml-2'
                 ),
             ],
@@ -895,6 +955,31 @@ def make_configuration_div():
         ],
             id=C.CTR_AUTOMATIC_CONFIG,
             className='w-full'),
+        html.Div([
+            html.Label('StabilityAI API Key'),
+            html.Div([
+                dcc.Input(
+                    id=C.INPUT_API_KEY,
+                    value='',
+                    type='password',
+                    debounce=True,
+                    className='light-border flex-grow'
+                ),
+                html.Button(
+                    html.Div([
+                        html.Label('Test API Key'),
+                        html.I(className='fa-solid fa-network-wired pl-1')
+                    ]),
+                    id=C.BTN_VALIDATE_API_KEY,
+                    className='general-element mb-2 ml-2'
+                ),
+            ],
+                # Set the container to display flex for a row layout
+                className='flex flex-row items-center w-full'),
+        ],
+            id=C.CTR_API_KEY,
+            className='w-full'
+        ),
         html.Div([
             html.Label('Inpainting Parameters'),
             html.Div([

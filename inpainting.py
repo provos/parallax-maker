@@ -16,6 +16,7 @@ from PIL import Image, ImageFilter
 from utils import torch_get_device, find_square_bounding_box, feather_mask, timeit
 from automatic1111 import create_img2img_payload, make_img2img_request
 from comfyui import inpainting_comfyui
+from stabilityai import StabilityAI
 
 # Possible pretrained models:
 # pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
@@ -28,6 +29,12 @@ class InpaintingModel:
         "kandinsky-community/kandinsky-2-2-decoder-inpaint",
         "runwayml/stable-diffusion-v1-5",
         "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+    ]
+    
+    EXTERNAL_MODELS = [
+        "automatic1111",
+        "comfyui",
+        "stabilityai"
     ]
 
     def __init__(self,
@@ -43,33 +50,36 @@ class InpaintingModel:
             **kwargs: Additional keyword arguments to be passed to the class.
                 At the moment, automatic1111 requires a "server_address" argument and
                 ComfyUI requires a "server_address" and "workflow_path" argument.
+                StabilityAI requires an "api_key" argument.
 
         Attributes:
             model (str): The name of the model used for inpainting.
             kwargs (dict): Additional keyword arguments passed to the class.
         """
+        assert model in self.MODELS or model in self.EXTERNAL_MODELS, f"Model {model} is not supported."
         self.model = model
         self.variant = ''
-        self.dimension = 512
+        self._dimension = 512
+        self._supports_feathering = True
         self.kwargs = kwargs
         self.pipeline = None
         self.server_address = None
-        self.workflow_path = None
+        self.workflow_path = None # use for comfyui
 
     def __eq__(self, other):
         if not isinstance(other, InpaintingModel):
             return False
         return self.model == other.model and \
             self.variant == other.variant and \
-            self.dimension == other.dimension
+            self._dimension == other._dimension
 
     def load_diffusers_model(self):
-        self.dimension = 512
+        self._dimension = 512
         self.variant = ''
         if self.model == "kandinsky-community/kandinsky-2-2-decoder-inpaint":
-            self.dimension = 768
+            self._dimension = 768
         elif self.model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
-            self.dimension = 1024
+            self._dimension = 1024
             self.variant = "fp16"
 
         kwargs = {}
@@ -87,16 +97,24 @@ class InpaintingModel:
 
     def load_external_model(self):
         assert 'server_address' in self.kwargs
-        self.dimension = 1024
+        self._dimension = 1024
         self.pipeline = self.kwargs['server_address']
         self.server_address = self.kwargs['server_address']
         if self.model == "comfyui":
             assert 'workflow_path' in self.kwargs
             self.workflow_path = self.kwargs['workflow_path']
         return self.pipeline
+    
+    def load_stability_model(self):
+        assert 'api_key' in self.kwargs
+        self.pipeline = StabilityAI(self.kwargs['api_key'])
+        assert self.pipeline.validate_key()
+        self._supports_feathering = False
+        self._dimension = None # the model will handle resizing
+        return self.pipeline
 
     def get_dimension(self):
-        return self.dimension
+        return self._dimension
 
     def load_model(self):
         if self.pipeline is not None:
@@ -108,6 +126,9 @@ class InpaintingModel:
 
         if self.model in ["automatic1111", "comfyui"]:
             return self.load_external_model()
+        
+        if self.model == "stabilityai":
+            return self.load_stability_model()
 
         return None
 
@@ -150,16 +171,20 @@ class InpaintingModel:
             init_image = init_image.crop(bounding_box)
             mask_image = mask_image.crop(bounding_box)
 
-        if blur_radius > 0:
+        if blur_radius > 0 and self._supports_feathering:
             blurred_mask = feather_mask(mask_image, num_expand=blur_radius)
         else:
             blurred_mask = mask_image
 
         # resize images to match the model input size
         dimension = self.get_dimension()
-        resize_init_image = init_image.convert(
-            'RGB').resize((dimension, dimension))
-        resize_mask_image = blurred_mask.resize((dimension, dimension))
+        if dimension:
+            resize_init_image = init_image.convert(
+                'RGB').resize((dimension, dimension))
+            resize_mask_image = blurred_mask.resize((dimension, dimension))
+        else:
+            resize_init_image = init_image.convert('RGB')
+            resize_mask_image = blurred_mask
 
         if self.model in self.MODELS:
             image = self.inpaint_diffusers(
@@ -179,10 +204,12 @@ class InpaintingModel:
                 prompt, negative_prompt,
                 strength=strength, cfg_scale=guidance_scale, steps=num_inference_steps,
                 seed=seed)
+        elif self.model == "stabilityai":
+            image = self.pipeline.inpaint_image(resize_init_image, resize_mask_image, prompt, negative_prompt=negative_prompt)
         else:
             raise ValueError(f"Model {self.model} is not supported.")
 
-        image = image.resize(init_image.size, resample=Image.BICUBIC)
+        image = image.resize(init_image.size, resample=Image.LANCZOS)
         image = image.convert('RGBA')
 
         image.putalpha(blurred_mask)

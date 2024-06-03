@@ -68,6 +68,10 @@ UPLOAD_COMFYUI_WORKFLOW = 'comfyui-workflow-upload'
 CTR_COMFYUI_WORKFLOW = 'comfyui-workflow-container'
 CTR_AUTOMATIC_CONFIG = 'automatic-config-container'
 
+INPUT_API_KEY = 'api-key'
+BTN_VALIDATE_API_KEY = 'validate-api-key'
+CTR_API_KEY = 'api-key-container'
+
 DOWNLOAD_IMAGE = 'download-image'
 DOWNLOAD_GLTF = 'download-gltf'
 DOWNLOAD_ANIMATION = 'download-animation'
