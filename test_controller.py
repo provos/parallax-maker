@@ -207,6 +207,7 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.positive_prompts, [])
         self.assertEqual(state.negative_prompts, [])
         self.assertEqual(state.server_address, None)
+        self.assertEqual(state.api_key, None)
 
     def test_from_json_full(self):
         json_data = '''
@@ -223,7 +224,8 @@ class TestFromJson(unittest.TestCase):
             "inpainting_model_name": "inpainting",
             "positive_prompts": ["one fish", "two fish", "red fish"],
             "negative_prompts": ["blue fish", "new fish", "old fish"],
-            "server_address": "http://localhost:8000"
+            "server_address": "http://localhost:8000",
+            "api_key": "sk-somesecretkey"
         }
         '''
         state = AppState.from_json(json_data)
@@ -243,6 +245,7 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.negative_prompts, [
             "blue fish", "new fish", "old fish"])
         self.assertEqual(state.server_address, "http://localhost:8000")
+        self.assertEqual(state.api_key, "sk-somesecretkey")
 
     def test_from_json_partial(self):
         json_data = '''
@@ -272,6 +275,7 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.positive_prompts, [""]*3)
         self.assertEqual(state.negative_prompts, [""]*3)
         self.assertEqual(state.server_address, None)
+        self.assertEqual(state.api_key, None)
 
 
 if __name__ == '__main__':

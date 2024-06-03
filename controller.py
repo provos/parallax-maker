@@ -49,6 +49,7 @@ class AppState:
         self.negative_prompts = []
 
         self.server_address = None
+        self.api_key = None
 
         # no JSON serialization for items below
         self.image_slices = []
@@ -575,6 +576,8 @@ class AppState:
             data['inpainting_model_name'] = self.inpainting_model_name
         if self.server_address is not None:
             data['server_address'] = self.server_address
+        if self.api_key is not None:
+            data['api_key'] = self.api_key
         return json.dumps(data)
 
     @staticmethod
@@ -608,6 +611,7 @@ class AppState:
         state.negative_prompts = data['negative_prompts'] if 'negative_prompts' in data else empty
 
         state.server_address = data['server_address'] if 'server_address' in data else None
+        state.api_key = data['api_key'] if 'api_key' in data else None
 
         # check dats structures have consistent lengths
         assert len(state.image_slices_filenames) == len(state.image_depths)
