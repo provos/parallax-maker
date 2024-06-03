@@ -4,10 +4,31 @@ import requests
 import argparse
 
 class StabilityAI:
+    '''
+    Implements the Stability AI API for generating and inpainting images.
+    
+    This API has several limitations:
+    - Inpainting masks cannot be feathered or have soft edges. Consequently, the inpainting does not work with low strength.
+    '''
     MAX_PIXELS = 9437184
     
     def __init__(self, api_key):
         self.api_key = api_key
+
+    def validate_key(self):
+        response = requests.get(
+            'https://api.stability.ai/v1/user/balance',
+            headers={
+                "Authorization": f"Bearer {self.api_key}"
+        })
+
+        if response.status_code != 200:
+            return False
+
+        # Do something with the payload...
+        payload = response.json()
+        assert 'credits' in payload, f'Invalid API response: {payload}.'
+        return True, payload['credits']
 
     def generate_image(self, prompt, negative_prompt='', aspect_ratio="16:9", output_format="png"):
         """
@@ -46,16 +67,16 @@ class StabilityAI:
 
         return Image.open(BytesIO(response.content))
     
-    def inpaint_image(self, prompt, image, mask, strength=1.0, negative_prompt='', output_format="png"):
+    def inpaint_image(self, image, mask, prompt, negative_prompt='', strength=1.0, output_format="png"):
         """
         Inpaints an image using the Stability AI API.
 
         Args:
-            prompt (str): The prompt to guide the inpainting process.
             image (PIL.Image.Image): The input image to be inpainted.
             mask (PIL.Image.Image): The mask indicating the areas to be inpainted.
-            strength (float, optional): The strength of the inpainting effect. Defaults to 1.0.
+            prompt (str): The prompt to guide the inpainting process.
             negative_prompt (str, optional): The negative prompt to guide the inpainting process. Defaults to ''.
+            strength (float, optional): The strength of the inpainting effect. Defaults to 1.0.
             output_format (str, optional): The format of the output image. Defaults to "png".
 
         Returns:
@@ -130,11 +151,16 @@ def main():
     args = parser.parse_args()
 
     ai = StabilityAI(args.api_key)
+    success, _ = ai.validate_key()
+    if not success:
+        print("Invalid API key.")
+        return
     
     if args.image and args.mask:
         image = Image.open(args.image)
         mask = Image.open(args.mask)        
-        image = ai.inpaint_image(args.prompt, image, mask, strength=1.0)
+        
+        image = ai.inpaint_image(image, mask, args.prompt, strength=1.0)
     else:
         image = ai.generate_image(args.prompt, aspect_ratio=args.aspect_ratio, output_format=args.output_format)
     image.save("output.png")
