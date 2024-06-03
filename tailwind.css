@@ -40,7 +40,7 @@
   @apply dark:bg-yellow-200 dark:border-gray-700 dark:text-slate-700;
 }
 
-textarea {
+input, textarea {
   @apply text-gray-800 bg-white;
   @apply dark:text-slate-300 dark:bg-zinc-800;
 }
@@ -64,6 +64,7 @@ button.color-is-selected {
 
 .failure-color {
   @apply bg-red-300 text-white;
+  @apply dark:bg-red-500 dark:text-slate-200;
 }
 
 .erase-color {
@@ -72,6 +73,7 @@ button.color-is-selected {
 
 .color-is-selected-light {
   @apply bg-green-200;
+  @apply dark:bg-green-600 dark:text-slate-200;
 }
 
 .has-history-color {
