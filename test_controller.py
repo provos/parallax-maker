@@ -1,5 +1,6 @@
 import numpy as np
 import unittest
+from unittest.mock import patch, MagicMock
 
 from controller import AppState
 
@@ -277,6 +278,53 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.server_address, None)
         self.assertEqual(state.api_key, None)
 
+
+class TestUpscaling(unittest.TestCase):
+    def setUp(self):
+        self.state = AppState()
+        self.image = np.zeros((100, 100, 3), dtype=np.uint8)
+
+    def test_create_upscaler_default(self):
+        self.state.pipeline_spec = None
+        self.state._create_upscaler()
+        self.assertIsNotNone(self.state.upscaler)
+
+    @patch('controller.StabilityAI')
+    def test_create_upscaler_stabilityai(self, mock_stabilityai):
+        self.state.pipeline_spec = MagicMock()
+        self.state.inpainting_model_name = 'stabilityai'
+        self.state.api_key = 'test_api_key'
+        self.state._create_upscaler()
+        self.assertIsNotNone(self.state.upscaler)
+        mock_stabilityai.assert_called_with('test_api_key')
+
+    def test_create_upscaler_inpainting(self):
+        self.state.pipeline_spec = MagicMock()
+        self.state.inpainting_model_name = 'inpainting'
+        self.state._create_upscaler()
+        self.assertIsNotNone(self.state.upscaler)
+        self.state.pipeline_spec.load_model.assert_called_once()
+
+    @patch('controller.Upscaler')
+    def test_upscale_image(self, mock_upscaler):
+        mock_upscaler_instance = MagicMock()
+        mock_upscaler.return_value = mock_upscaler_instance
+        upscaled_image = self.state.upscale_image(self.image)
+        mock_upscaler_instance.upscale_image_tiled.assert_called_with(
+            self.image, overlap=64, prompt='', negative_prompt=''
+        )
+        self.assertIsNotNone(upscaled_image)
+
+    @patch('controller.Upscaler')
+    def test_upscale_image_with_prompts(self, mock_upscaler):
+        mock_upscaler_instance = MagicMock()
+        mock_upscaler.return_value = mock_upscaler_instance
+        prompt = 'test prompt'
+        negative_prompt = 'test negative prompt'
+        self.state.upscale_image(self.image, prompt, negative_prompt)
+        mock_upscaler_instance.upscale_image_tiled.assert_called_with(
+            self.image, overlap=64, prompt=prompt, negative_prompt=negative_prompt
+        )
 
 if __name__ == '__main__':
     unittest.main()

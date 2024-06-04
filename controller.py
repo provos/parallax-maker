@@ -14,6 +14,7 @@ from pathlib import Path
 from utils import filename_previous_version, filename_add_version, apply_color_tint, create_checkerboard
 from segmentation import mask_from_depth
 from upscaler import Upscaler
+from stabilityai import StabilityAI
 
 
 class CompositeMode(Enum):
@@ -412,14 +413,23 @@ class AppState:
             print(f"Saving image slice: {output_image_path}")
             slice_image.save(str(output_image_path))
 
+    def _create_upscaler(self):
+        if self.pipeline_spec is None:
+            self.upscaler = Upscaler()
+            return
+        if self.inpainting_model_name == 'stabilityai':
+            model_name = 'stabilityai'
+            model = StabilityAI(self.api_key)
+        else:
+            model_name = 'inpainting'
+            model = self.pipeline_spec
+            self.pipeline_spec.load_model()
+        self.upscaler = Upscaler(
+            model_name=model_name, external_model=model)
+
     def upscale_image(self, image, prompt='', negative_prompt=''):
         if self.upscaler is None:
-            if self.pipeline_spec is None:
-                self.upscaler = Upscaler()
-            else:
-                self.pipeline_spec.load_model()
-                self.upscaler = Upscaler(
-                    model_name='inpainting', external_model=self.pipeline_spec)
+            self._create_upscaler()
         upscaled_image = self.upscaler.upscale_image_tiled(
             image, overlap=64, prompt=prompt, negative_prompt=negative_prompt)
         return upscaled_image
