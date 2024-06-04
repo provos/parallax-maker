@@ -17,7 +17,6 @@ blended to ensure smoother transitions between tiles.
 from PIL import Image
 import torch
 from transformers import AutoImageProcessor, Swin2SRForImageSuperResolution
-from inpainting import InpaintingModel
 
 import numpy as np
 from scipy.ndimage import zoom
@@ -27,12 +26,12 @@ import argparse
 
 
 class Upscaler:
-    def __init__(self, model_name="swin2sr", inpainting_model=None):
-        assert model_name in ["swin2sr", "simple", "inpainting"]
+    def __init__(self, model_name="swin2sr", external_model=None):
+        assert model_name in ["swin2sr", "simple", "inpainting", "stabilityai"]
         self.model_name = model_name
         self.model = None
         self.image_processor = None
-        self.inpainting_model = inpainting_model
+        self.external_model = external_model
         self.tile_size = 512
         self.scale_factor = 2
 
@@ -43,9 +42,15 @@ class Upscaler:
             self.model, self.image_processor = None, None
             self.tile_size = 512
         elif self.model_name == "inpainting":
-            assert self.inpainting_model is not None
-            self.model, self.image_processor = self.inpainting_model, None
-            self.tile_size = self.inpainting_model.dimension//2
+            assert self.external_model is not None
+            assert self.external_model.get_dimension() is not None
+            self.model, self.image_processor = self.external_model, None
+            self.tile_size = self.external_model.get_dimension()//2
+        elif self.model_name == "stabilityai":
+            self.model, self.image_processor = self.external_model, None
+            self.tile_size = 1024
+            self.scale_factor = 4
+        
 
     def __eq__(self, other):
         if not isinstance(other, Upscaler):
@@ -61,7 +66,7 @@ class Upscaler:
         model.to(torch_get_device())
 
         return model, image_processor
-    
+
     def upscale_image_tiled(self, image, overlap=64, prompt=None, negative_prompt=None):
         """
         Upscales an image using a tiled approach.
@@ -75,23 +80,25 @@ class Upscaler:
         """
         if isinstance(image, Image.Image):
             image = np.array(image)
-            
+
+        # initializes parameters we need below
+        if self.model is None:
+            self.create_model()
+
         alpha = None
         bounding_box = None
         if image.shape[2] == 4:  # RGBA image
             alpha = image[:, :, 3]
             bounding_box = find_bounding_box(alpha, padding=0)
 
-            # double the size of the alpha channel using bicubic interpolation
+            # scale the size of the alpha channel using bicubic interpolation
             alpha = zoom(alpha, self.scale_factor, order=3)
             image = image[:, :, :3]  # Remove alpha channel
-            
+
             # crop the image to the bounding box
             orig_image = image
-            image = image[bounding_box[1]:bounding_box[3], bounding_box[0]:bounding_box[2]]
-
-        if self.model is None:
-            self.create_model()
+            image = image[bounding_box[1]:bounding_box[3],
+                          bounding_box[0]:bounding_box[2]]
 
         # Ensure the overlap can be divided by the scale factor
         if overlap % self.scale_factor != 0:
@@ -117,27 +124,37 @@ class Upscaler:
                 top = y * step_size
                 right = min(left + self.tile_size, width)
                 bottom = min(top + self.tile_size, height)
+                
+                # make sure we process a full tile
+                if x > 0 and right - left < self.tile_size:
+                    left = right - self.tile_size
+                    assert left >= 0
+                if y > 0 and bottom - top < self.tile_size:
+                    top = bottom - self.tile_size
+                    assert top >= 0
 
                 print(
                     f"Processing tile ({y}, {x}) with coordinates ({left}, {top}, {right}, {bottom})")
 
                 # Extract the current tile from the image
                 tile = image[top:bottom, left:right]
-                tile = Image.fromarray(tile) # XXX - revisit whether we can keep this as a numpy array
-                
+                # XXX - revisit whether we can keep this as a numpy array
+                tile = Image.fromarray(tile)
+
                 cur_width, cur_height = tile.size
                 if cur_width % 64 != 0 or cur_height % 64 != 0:
                     tile = tile.resize((cur_width + (64 - cur_width % 64),
-                                        cur_height + (64 - cur_height % 64)))                
-                upscaled_tile = self.upscale_tile(tile, prompt, negative_prompt)
+                                        cur_height + (64 - cur_height % 64)))
+                upscaled_tile = self.upscale_tile(
+                    tile, prompt, negative_prompt)
                 if tile.size != (cur_width, cur_height):
                     upscaled_tile = upscaled_tile.resize(
                         (cur_width * self.scale_factor, cur_height * self.scale_factor))
                 upscaled_tile = np.array(upscaled_tile)
 
                 # Calculate the coordinates to paste the upscaled tile
-                place_left = x * step_size * 2
-                place_top = y * step_size * 2
+                place_left = left * self.scale_factor
+                place_top = top * self.scale_factor
                 place_right = place_left + upscaled_tile.shape[1]
                 place_bottom = place_top + upscaled_tile.shape[0]
 
@@ -146,9 +163,12 @@ class Upscaler:
 
         # Combine the upscaled image with the alpha channel if present
         if alpha is not None:
-            image = zoom(orig_image, (self.scale_factor, self.scale_factor, 1), order=3)
-            bounding_box = [coord * self.scale_factor for coord in bounding_box]
-            image[bounding_box[1]:bounding_box[3], bounding_box[0]:bounding_box[2]] = upscaled_image
+            image = zoom(orig_image, (self.scale_factor,
+                         self.scale_factor, 1), order=3)
+            bounding_box = [
+                coord * self.scale_factor for coord in bounding_box]
+            image[bounding_box[1]:bounding_box[3],
+                  bounding_box[0]:bounding_box[2]] = upscaled_image
             upscaled_image = np.dstack((image, alpha))
             upscaled_image = premultiply_alpha_numpy(upscaled_image)
         else:
@@ -174,7 +194,8 @@ class Upscaler:
             alpha[:, :overlap] = np.minimum(alpha[:, :overlap], new_alpha)
 
         if tile_y > 0:
-            new_alpha = np.tile(np.linspace(0, 1, overlap).reshape(-1, 1), (1, width))
+            new_alpha = np.tile(np.linspace(
+                0, 1, overlap).reshape(-1, 1), (1, width))
             alpha[:overlap, :] = np.minimum(alpha[:overlap, :], new_alpha)
 
         # Reshape the alpha channel to match the tile shape
@@ -191,20 +212,29 @@ class Upscaler:
             return self._upscale_tile_simple(tile)
         elif self.model_name == "inpainting":
             return self._upscale_tile_inpainting(tile, prompt, negative_prompt)
+        elif self.model_name == "stabilityai":
+            return self._upscale_tile_stabilityai(tile, prompt, negative_prompt)
+        
+    def _upscale_tile_stabilityai(self, tile, prompt, negative_prompt):
+        upscaled_image = self.external_model.upscale_image(tile, prompt, negative_prompt=negative_prompt)
+        width, height = tile.size
+        upscaled_image = upscaled_image.resize((width * self.scale_factor, height * self.scale_factor), Image.LANCZOS)
+        return upscaled_image
         
     def _upscale_tile_inpainting(self, tile, prompt, negative_prompt):
-        rescaled_tile = tile.resize((tile.size[0] * 2, tile.size[1] * 2), Image.LANCZOS)
+        rescaled_tile = tile.resize(
+            (tile.size[0] * 2, tile.size[1] * 2), Image.LANCZOS)
         rescaled_tile = np.array(rescaled_tile)
         mask_image = np.ones(rescaled_tile.shape[:2], dtype=np.uint8)
         mask_image *= 255
         scale = 2 if len(prompt) or len(negative_prompt) else 0
-        tile = self.inpainting_model.inpaint(prompt, negative_prompt, rescaled_tile, mask_image,
+        tile = self.external_model.inpaint(prompt, negative_prompt, rescaled_tile, mask_image,
                                              strength=0.25, guidance_scale=scale,
                                              num_inference_steps=75,
                                              padding=0, blur_radius=0)
         tile = tile.convert("RGB")
         return tile
-        
+
     def _upscale_tile_simple(self, tile):
         """
         Upscales a tile using a simple bicubic interpolation.
@@ -244,17 +274,28 @@ class Upscaler:
 
 
 if __name__ == "__main__":
+    from inpainting import InpaintingModel
+    from stabilityai import StabilityAI
+
     parser = argparse.ArgumentParser(description="Image Upscaling")
     parser.add_argument("-i", "--input", type=str,
                         default='input.jpg',
                         help="Input image path")
+    parser.add_argument("-p", "--prompt", type=str,
+                        default='a sci-fi robot in a futuristic laboratory')
+    parser.add_argument("--api-key", type=str)
     args = parser.parse_args()
 
-    model = InpaintingModel()
-    model.load_model()
-    upscaler = Upscaler(model_name="inpainting", inpainting_model=model)
+    if args.api_key:
+        model_name = "stabilityai"
+        model = StabilityAI(args.api_key)
+    else:
+        model_name = "inpainting"
+        model = InpaintingModel()
+        model.load_model()
+    upscaler = Upscaler(model_name=model_name, external_model=model)
     image = Image.open(args.input)
     upscaled_image = upscaler.upscale_image_tiled(
         image, overlap=64,
-        prompt='badlands')
+        prompt=args.prompt,)
     upscaled_image.save("upscaled_image.png")

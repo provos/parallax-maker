@@ -10,12 +10,17 @@ class TestUpscaler(unittest.TestCase):
     def setUp(self):
         # Initialize Upscaler object without creating a model.
         self.upscaler = Upscaler()
+        self.upscaler.create_model()
 
         # Create a dummy input image
-        self.input_image = Image.new("RGB", (1024, 1024))
+        self.input_image = Image.new("RGBA", (800, 800))
+        # Fill the alpha with 1s - so that the bounding box is the full image
+        self.input_image.putalpha(255)
 
         # Create a dummy upscaled tile
-        self.upscaled_tile_dummy = Image.new("RGB", (1, 1))
+        self.upscaled_tile_dummy = Image.new("RGB", (1,1))
+        self.upscaled_tile_dummy_real = Image.new(
+            "RGB", (self.upscaler.tile_size*2, self.upscaler.tile_size*2))
 
     def test_upscale_image_tiled_overlap(self):
         # Mocking the creation of the model to skip loading model and processor
@@ -29,7 +34,7 @@ class TestUpscaler(unittest.TestCase):
                         self.input_image, overlap=64)
 
                     # Check that integrate_tile was called the correct number of times (expected 3x3 grid based on sizes).
-                    self.assertEqual(mock_integrate.call_count, 9)
+                    self.assertEqual(mock_integrate.call_count, 4)
 
     def test_upscale_image_tiled_no_overlap(self):
         # Mocking the creation of the model to skip loading model and processor
@@ -44,6 +49,18 @@ class TestUpscaler(unittest.TestCase):
 
                     # Check that integrate_tile was called the correct number of times (expected 2x2 grid based on sizes).
                     self.assertEqual(mock_integrate.call_count, 4)
+
+    def test_upscale_image_tiled_no_mock(self):
+        # Mocking the creation of the model to skip loading model and processor
+        with patch.object(self.upscaler, 'create_model'):
+            # Mock the upscale_tile function to return our dummy tile
+            with patch.object(self.upscaler, 'upscale_tile', return_value=self.upscaled_tile_dummy_real):
+                # Call the function to test
+                upscaled_image = self.upscaler.upscale_image_tiled(
+                    self.input_image, overlap=64)
+
+                # Check that integrate_tile was called the correct number of times (expected 3x3 grid based on sizes).
+                self.assertEqual(upscaled_image.size, (2*800, 2*800))
 
 
 class TestIntegrateTile(unittest.TestCase):
@@ -81,7 +98,7 @@ class TestIntegrateTile(unittest.TestCase):
         self.assertTrue(np.all(self.image[1:20, 20:100] > 0))
         self.assertTrue(np.all(self.image[20:100, 1:20] > 0))
         self.assertTrue(np.all(self.image[20:100, 20:100] == 255))
-        
+
     def test_integrate_tile_gradient(self):
         # Test if there is a gradient in the overlapping regions
         overlap = 20
