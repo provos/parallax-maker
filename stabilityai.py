@@ -67,6 +67,15 @@ class StabilityAI:
 
         return Image.open(BytesIO(response.content))
     
+    def _resize_image(self, image, max_pixels=MAX_PIXELS):
+        if image.width * image.height > max_pixels:
+            # square root as with multiply the ratio twice below
+            ratio = (max_pixels / (image.width * image.height)) ** 0.5
+            new_width = int(image.width * ratio)
+            new_height = int(image.height * ratio)
+            image = image.resize((new_width, new_height), Image.LANCZOS)
+        return image
+    
     def inpaint_image(self, image, mask, prompt, negative_prompt='', strength=1.0, output_format="png"):
         """
         Inpaints an image using the Stability AI API.
@@ -93,14 +102,8 @@ class StabilityAI:
         
         orig_width, orig_height = image.width, image.height
         
-        # ensure that the image is not larger than 9,437,184 pixels
-        if image.width * image.height > self.MAX_PIXELS:
-            # square root as with multiply the ratio twice below
-            ratio = (self.MAX_PIXELS / (image.width * image.height)) ** 0.5
-            new_width = int(image.width * ratio)
-            new_height = int(image.height * ratio)
-            image = image.resize((new_width, new_height), Image.LANCZOS)
-            mask = mask.resize((new_width, new_height), Image.LANCZOS)
+        image = self._resize_image(image)
+        mask = self._resize_image(mask)
         
         # scale the mask by strength - the API does not work well with low strength
         if strength < 1.0:
@@ -135,6 +138,39 @@ class StabilityAI:
         if orig_width != image.width or orig_height != image.height:
             image = image.resize((orig_width, orig_height), Image.LANCZOS)
         return image
+    
+    def upscale_image(self, image, prompt, negative_prompt='', output_format="png"):
+        # check that the image it at least 64x64
+        if image.width < 64 or image.height < 64:
+            raise ValueError("Image must be at least 64x64")
+        
+        if image.width * image.height > 1024*1024:
+            raise ValueError("Image must be at most 1024x1024")
+
+        # prepare image and mask data
+        image_data = BytesIO()
+        image.save(image_data, format="PNG")
+        image_data = image_data.getvalue()
+
+        response = requests.post(
+            f"https://api.stability.ai/v2beta/stable-image/upscale/conservative",
+            headers={
+                "authorization": f"Bearer {self.api_key}",
+                "accept": "image/*"
+            },
+            files={"image": image_data},
+            data={
+                'prompt': prompt,
+                'negative_prompt': negative_prompt,
+                'output_format': output_format,
+            }
+        )
+
+        if response.status_code != 200:
+            raise Exception(str(response.json()))
+
+        upscaled_image = Image.open(BytesIO(response.content))
+        return upscaled_image
 
 
 def main():
@@ -148,6 +184,7 @@ def main():
     parser.add_argument("--output-format", default="png")
     parser.add_argument('-i', '--image', type=str, default=None)
     parser.add_argument('-m', '--mask', type=str, default=None)
+    parser.add_argument('-u', '--upscale', action='store_true')
     args = parser.parse_args()
 
     ai = StabilityAI(args.api_key)
@@ -155,8 +192,11 @@ def main():
     if not success:
         print("Invalid API key.")
         return
-    
-    if args.image and args.mask:
+    if args.image and args.upscale:
+        image = Image.open(args.image)
+        image = ai._resize_image(image, 1024*1024)
+        image = ai.upscale_image(image, args.prompt)
+    elif args.image and args.mask:
         image = Image.open(args.image)
         mask = Image.open(args.mask)        
         
