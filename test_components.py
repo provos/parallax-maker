@@ -84,7 +84,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # Call the function under test
         results = self._update_inpainting_image_display(
             n_clicks, None, None, filename, model,
-            server_address, workflow,
+            workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur)
@@ -160,7 +160,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # Call the function under test
         results = self._update_inpainting_image_display(
             n_clicks, None, None, filename, model,
-            server_address, workflow,
+            workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur)

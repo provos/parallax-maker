@@ -255,7 +255,7 @@ class InpaintingModel:
         return image
 
 
-def create_inpainting_pipeline(model, server_address, workflow, state):
+def create_inpainting_pipeline(model, workflow, state):
     workflow_path = None
     if model == 'comfyui':
         if workflow is not None and len(workflow) > 0:
@@ -278,8 +278,9 @@ def create_inpainting_pipeline(model, server_address, workflow, state):
 
     pipeline = InpaintingModel(
         model,
-        server_address=server_address,
-        workflow_path=workflow_path)
+        server_address=state.server_address,
+        workflow_path=workflow_path,
+        api_key=state.api_key)
     if state.pipeline_spec is None or state.pipeline_spec != pipeline:
         state.pipeline_spec = pipeline
         pipeline.load_model()

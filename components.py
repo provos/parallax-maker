@@ -499,7 +499,6 @@ def make_inpainting_container_callbacks(app):
         Input(C.BTN_ENHANCE, 'n_clicks'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
         State(C.DROPDOWN_INPAINT_MODEL, 'value'),
-        State(C.INPUT_EXTERNAL_SERVER, 'value'),
         State(C.UPLOAD_COMFYUI_WORKFLOW, 'contents'),
         State(C.TEXT_POSITIVE_PROMPT, 'value'),
         State(C.TEXT_NEGATIVE_PROMPT, 'value'),
@@ -514,7 +513,7 @@ def make_inpainting_container_callbacks(app):
     )
     def update_inpainting_image_display(
             n_clicks_one, n_clicks_two, n_clicks_three, filename, model,
-            server_address, workflow,
+            workflow,
             positive_prompt, negative_prompt,
             strength, guidance_scale,
             padding, blur):
@@ -545,7 +544,7 @@ def make_inpainting_container_callbacks(app):
         image = state.image_slices[index]
 
         pipeline = create_inpainting_pipeline(
-            model, server_address, workflow, state)
+            model, workflow, state)
 
         if tid == C.BTN_GENERATE_INPAINTING or tid == C.BTN_FILL_INPAINTING:
             if tid == C.BTN_GENERATE_INPAINTING:
@@ -741,6 +740,14 @@ def make_configuration_callbacks(app):
                           save_depth_map=False, save_input_image=False)
 
         return no_update, upload_name, logs
+    
+    # Stability AI API for inpainting does not support mask blurring
+    @app.callback(
+        Output(C.SLIDER_MASK_BLUR, 'disabled'),
+        Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
+        prevent_initial_call=True)
+    def toggle_blur_slider(value):
+        return True if value == 'stabilityai' else False
 
     @app.callback(
         Output(C.CTR_AUTOMATIC_CONFIG, 'className'),
@@ -897,7 +904,7 @@ def make_configuration_div():
                     {'label': 'ZoeDepth', 'value': 'zoedepth'},
                     {'label': 'DINOv2', 'value': 'dinov2'}
                 ],
-                value='midas',
+                value='zoedepth',
                 className='general-dropdown',
             )
         ], className='w-full'),
