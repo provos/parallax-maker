@@ -62,6 +62,11 @@ button.color-is-selected {
   @apply dark:bg-green-400 dark:text-slate-200;
 }
 
+.rc-slider-disabled {
+  @apply bg-gray-300;
+  @apply dark:bg-zinc-600;
+}
+
 .failure-color {
   @apply bg-red-300 text-white;
   @apply dark:bg-red-500 dark:text-slate-200;
