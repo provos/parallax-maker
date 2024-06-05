@@ -436,6 +436,7 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
                 else:
                     positive_points.append(point)
         else:
+            assert t_id == 'el'
             positive_points.append((pixel_x, pixel_y))
 
         if state.segmentation_model == None:
@@ -443,7 +444,7 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
         # if we have a slice, take it and compose the background image over it
         if state.selected_slice is not None:
             image = state.slice_image_composed(
-                state.selected_slice, grayscale=False)
+                state.selected_slice, CompositeMode.NONE)
         state.segmentation_model.segment_image(image)
         # XXX - allow selection of the cheap vs the expensive alogrithm
         new_mask = state.segmentation_model.mask_at_point_blended(
@@ -587,7 +588,7 @@ def copy_to_clipboard(n_clicks, filename, logs):
 
     if state.selected_slice is not None:
         image = state.slice_image_composed(
-            state.selected_slice, grayscale=False)
+            state.selected_slice, CompositeMode.NONE)
     else:
         image = state.imgData
     image = np.array(image.convert('RGBA'))

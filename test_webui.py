@@ -150,6 +150,25 @@ class TestClickEvent(unittest.TestCase):
         self.assertEqual(
             result[0], self.mock_state.serve_main_image.return_value)
 
+    def test_click_event_with_slice(self):
+        self.mock_ctx.triggered_id = 'el'
+        self.mock_state.multi_point_mode = False
+        self.mock_state.imgData = 'image_data'
+        self.mock_state.slice_mask = self.mock_mask
+        self.mock_state.image_slices = [np.ones((100, 100, 4))]
+        self.mock_state.selected_slice = 0
+        element = {'shiftKey': True, 'ctrlKey': False}
+        rect_data = 'rect_data'
+
+        self.mock_find_pixel.return_value = (10, 10)
+
+        result = click_event(None, None, element,
+                             rect_data, 'mode', 'filename', [])
+
+        self.mock_state.apply_mask.assert_called_once()
+        self.assertEqual(
+            result[0], self.mock_state.serve_main_image.return_value)
+
 
 class TestCopyToClipboard(unittest.TestCase):
 
