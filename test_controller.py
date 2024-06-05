@@ -2,6 +2,7 @@ import numpy as np
 import unittest
 from unittest.mock import patch, MagicMock
 
+from utils import encode_string_with_nonce, decode_string_with_nonce
 from controller import AppState
 
 
@@ -214,6 +215,7 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.api_key, None)
 
     def test_from_json_full(self):
+        encoded = encode_string_with_nonce('sk-somesecretkey', 'appstate-test')
         json_data = '''
         {
             "filename": "appstate-test",
@@ -229,9 +231,11 @@ class TestFromJson(unittest.TestCase):
             "positive_prompts": ["one fish", "two fish", "red fish"],
             "negative_prompts": ["blue fish", "new fish", "old fish"],
             "server_address": "http://localhost:8000",
-            "api_key": "sk-somesecretkey"
+            "api_key": "ENCODED"
         }
         '''
+        json_data = json_data.replace('ENCODED', encoded)
+        
         state = AppState.from_json(json_data)
         self.assertIsInstance(state, AppState)
         self.assertEqual(state.filename, 'appstate-test')
