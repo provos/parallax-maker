@@ -90,7 +90,8 @@ app.layout = html.Div([
     # dcc.Store stores all application state
     dcc.Store(id=C.STORE_APPSTATE_FILENAME),
     dcc.Store(id=C.STORE_RESTORE_STATE),  # trigger to restore state
-    dcc.Store(id=C.STORE_RECT_DATA),  # Store for rect coordinates
+    dcc.Store(id=C.STORE_RECT_DATA),  # Store for rect coordinates from the clientside JS
+    dcc.Store(id=C.STORE_BOUNDING_BOX),  # Store for bounding box coordinates from inpainting
     dcc.Store(id=C.LOGS_DATA, data=[]),  # Store for logs
     # Trigger for generating depth map
     dcc.Store(id=C.STORE_TRIGGER_GEN_DEPTHMAP),

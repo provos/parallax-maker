@@ -75,6 +75,7 @@ function previewBrush(e) {
     lastBrushRadius = brushRadius;
 }
 
+// Shows the selected points for segmentation
 function previewPoint(e) {
     const [currentX, currentY] = translateCoordinates(e);
 
@@ -85,6 +86,39 @@ function previewPoint(e) {
     color = e.ctrlKey ? 'rgba(255, 0, 0, 1)' : 'rgba(0, 255, 0, 1)';
     gPreviewCtx.fillStyle = color;
     gPreviewCtx.fill();
+}
+
+// Shows the bounding box for the selected slice and mask
+// for a couple of seconds as a preview and then clears it
+function previewRect(ctx, rect) {
+    imgElement = document.getElementById('image');
+    var scalingFactor = getImageScalingFactor(imgElement);
+
+    const pixelRatio = getPixelRatio(ctx);
+    ctx.strokeStyle = 'rgba(255, 128, 0, 1)';
+    ctx.lineWidth = 2 * pixelRatio;
+
+    const adjustedRect = [
+        rect[0] * scalingFactor,
+        rect[1] * scalingFactor,
+        rect[2] * scalingFactor,
+        rect[3] * scalingFactor
+    ];
+
+    const x = adjustedRect[0];
+    const y = adjustedRect[1]
+    const width = adjustedRect[2] - x;
+    const height = adjustedRect[3] - y;
+
+    ctx.strokeRect(x, y, width, height);
+
+    setTimeout(() => {
+        ctx.clearRect(
+            x - ctx.lineWidth, y - ctx.lineWidth,
+            width + ctx.lineWidth * 2, height + ctx.lineWidth * 2);
+    }, 2000);
+
+    console.log('Previewing bounding box: {x:', x, ', y:', y, ', width:', width, ', height:', height, '}');
 }
 
 // Function to start drawing
@@ -166,7 +200,6 @@ function translateCoordinates(e) {
     return [adjustedX, adjustedY];
 }
 
-
 function handleWheel(e) {
     e.preventDefault();
 
@@ -207,11 +240,17 @@ function getPixelRatio(context) {
     return dpr / bsr;
 }
 
-// Try to get the image size
-function getImageSize(imgElement) {
+
+function getImageScalingFactor(imgElement) {
     var containerRect = imgElement.getBoundingClientRect();
     var scalingFactor = Math.min(containerRect.width / imgElement.naturalWidth,
         containerRect.height / imgElement.naturalHeight);
+    return scalingFactor;
+}
+
+// Try to get the image size
+function getImageSize(imgElement) {
+    var scalingFactor = getImageScalingFactor(imgElement);
     var renderedWidth = imgElement.naturalWidth * scalingFactor;
     var renderedHeight = imgElement.naturalHeight * scalingFactor;
 
@@ -468,6 +507,14 @@ window.dash_clientside = Object.assign({}, window.dash_clientside, {
 
             previewPoint(e);
 
+            return window.dash_clientside.no_update;
+        },
+        show_bounding_box: function (rect) {
+            console.log('Bounding box:', rect);
+            if (gPreviewCtx === null) {
+                gPreviewCtx = setupCanvasCtx(document.getElementById('preview-canvas'));
+            }
+            previewRect(gPreviewCtx, rect);
             return window.dash_clientside.no_update;
         }
     }

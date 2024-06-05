@@ -48,3 +48,11 @@ def make_clientside_callbacks(app):
         Input(C.STORE_CLEAR_PREVIEW, 'data'),
         prevent_initial_call=True
     )
+    
+    app.clientside_callback(
+        ClientsideFunction(namespace='clientside',
+                           function_name='show_bounding_box'),
+        Output(C.STORE_IGNORE, 'data', allow_duplicate=True),
+        Input(C.STORE_BOUNDING_BOX, 'data'),
+        prevent_initial_call=True
+    )

@@ -19,7 +19,7 @@ import constants as C
 from automatic1111 import make_models_request
 from comfyui import get_history, patch_inpainting_workflow
 from controller import AppState, CompositeMode
-from utils import to_image_url, filename_add_version
+from utils import to_image_url, filename_add_version, find_square_bounding_box
 from inpainting import patch_image, create_inpainting_pipeline
 from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
 from stabilityai import StabilityAI
@@ -1341,12 +1341,14 @@ def make_segmentation_callbacks(app):
 
 
 def make_canvas_callbacks(app):
-    @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
+    @app.callback(Output(C.STORE_BOUNDING_BOX, 'data', allow_duplicate=True),
+                  Output(C.LOGS_DATA, 'data', allow_duplicate=True),
                   Input(C.CANVAS_DATA, 'data'),
                   State(C.STORE_APPSTATE_FILENAME, 'data'),
+                  State(C.SLIDER_MASK_PADDING, 'value'),
                   State(C.LOGS_DATA, 'data'),
                   prevent_initial_call=True)
-    def save_slice_mask(data, filename, logs):
+    def save_slice_mask(data, filename, padding, logs):
         if data is None or filename is None:
             raise PreventUpdate()
 
@@ -1354,7 +1356,7 @@ def make_canvas_callbacks(app):
 
         if state.selected_slice is None:
             logs.append('No slice selected to save mask')
-            return logs
+            return no_update, logs
 
         if data == '':
             mask_filename = state.mask_filename(state.selected_slice)
@@ -1362,7 +1364,7 @@ def make_canvas_callbacks(app):
                 Path(mask_filename).unlink()
                 logs.append(
                     f'Deleted mask for slice {state.selected_slice}')
-            return logs
+            return no_update, logs
 
         # turn the data url into a RGBA PIL image
         image = Image.open(io.BytesIO(base64.b64decode(data.split(',')[1])))
@@ -1372,17 +1374,20 @@ def make_canvas_callbacks(app):
 
         # Create a grayscale image with the alpha channel
         new_image = a
-
+        
         # Scale new image to the same dimensions as imgData
         new_image = new_image.resize(
             state.imgData.size, resample=Image.BICUBIC)
-
+        
         mask_filename = state.save_image_mask(state.selected_slice, new_image)
-
+        
+        # communicate the bounding box to the javascript client where we can visualize it
+        bounding_box = find_square_bounding_box(new_image, padding=padding)
+        
         logs.append(
             f"Saved mask for slice {state.selected_slice} to {mask_filename}")
 
-        return logs
+        return bounding_box, logs
 
     @app.callback(Output(C.CANVAS_MASK_DATA, 'data'),
                   Output(C.LOGS_DATA, 'data', allow_duplicate=True),
