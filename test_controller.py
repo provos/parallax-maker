@@ -231,7 +231,11 @@ class TestFromJson(unittest.TestCase):
             "positive_prompts": ["one fish", "two fish", "red fish"],
             "negative_prompts": ["blue fish", "new fish", "old fish"],
             "server_address": "http://localhost:8000",
-            "api_key": "ENCODED"
+            "api_key": "ENCODED",
+            "camera_distance": 1.0,
+            "max_distance": 2.0,
+            "focal_length": 3.0,
+            "mesh_displacement": 4.0
         }
         '''
         json_data = json_data.replace('ENCODED', encoded)
@@ -254,6 +258,10 @@ class TestFromJson(unittest.TestCase):
             "blue fish", "new fish", "old fish"])
         self.assertEqual(state.server_address, "http://localhost:8000")
         self.assertEqual(state.api_key, "sk-somesecretkey")
+        self.assertEqual(state.camera_distance, 1.0)
+        self.assertEqual(state.max_distance, 2.0)
+        self.assertEqual(state.focal_length, 3.0)
+        self.assertEqual(state.mesh_displacement, 4.0)
 
     def test_from_json_partial(self):
         json_data = '''
