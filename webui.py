@@ -718,6 +718,26 @@ def add_mask_slice_request(n_clicks, filename, logs):
     return True, logs, ""
 
 
+@app.callback(Input(C.TEXT_POSITIVE_PROMPT, 'value'),
+              Input(C.TEXT_NEGATIVE_PROMPT, 'value'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              prevent_initial_call=True
+              )
+def update_prompt_text(positive, negative, filename):
+    if filename is None:
+        raise PreventUpdate()
+    
+    state = AppState.from_cache(filename)
+    if state.selected_slice is None:
+        raise PreventUpdate()
+
+    state.positive_prompts[state.selected_slice] = positive
+    state.negative_prompts[state.selected_slice] = negative
+
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
+    
+
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.TEXT_POSITIVE_PROMPT, 'value', allow_duplicate=True),
               Output(C.TEXT_NEGATIVE_PROMPT, 'value', allow_duplicate=True),
