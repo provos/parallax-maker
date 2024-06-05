@@ -1049,7 +1049,7 @@ def upscale_texture(n_clicks, filename, model_name, server_address, workflow, lo
     state = AppState.from_cache(filename)
 
     # this create the pipeline in state and will be used by upscale slices
-    create_inpainting_pipeline(model_name, server_address, workflow, state)
+    create_inpainting_pipeline(model_name, workflow, state)
 
     state.upscale_slices()
 
