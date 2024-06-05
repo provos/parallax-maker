@@ -754,14 +754,13 @@ def make_configuration_callbacks(app):
     # Stability AI API for inpainting does not support mask blurring
     @app.callback(
         Output(C.SLIDER_MASK_BLUR, 'disabled'),
-        Output(C.SLIDER_INPAINT_STRENGTH, 'disabled'),
         Output(C.SLIDER_INPAINT_GUIDANCE, 'disabled'),
         Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
         prevent_initial_call=True)
     def toggle_blur_slider(value):
         if value == 'stabilityai':
-            return True, True, True
-        return False, False, False
+            return True, True
+        return False, False
 
     @app.callback(
         Output(C.CTR_AUTOMATIC_CONFIG, 'className'),
