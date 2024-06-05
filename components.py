@@ -873,16 +873,19 @@ def make_configuration_callbacks(app):
             success_class, '').replace(failure_class, '')
 
         success = False
-        try:
-            inpaint_model = StabilityAI(api_key)
-            success, credits = inpaint_model.validate_key()
-            if success:
-                logs.append(f'Connection to {model} successful: you have {credits:0.2f} remaining credits')
-                success = True
-            else:
-                logs.append(f'Connection to {model} failed')
-        except Exception as e:
-            logs.append(f'Connection to {model} failed: {str(e)}')
+        if api_key.startswith('sk-') and len(api_key) > 12:
+            try:
+                inpaint_model = StabilityAI(api_key)
+                success, credits = inpaint_model.validate_key()
+                if success:
+                    logs.append(f'Connection to {model} successful: you have {credits:0.2f} remaining credits')
+                    success = True
+                else:
+                    logs.append(f'Connection to {model} failed')
+            except Exception as e:
+                logs.append(f'Connection to {model} failed: {str(e)}')
+        else:
+            logs.append(f'Invalid API key format')
 
         class_name += success_class if success else failure_class
 
