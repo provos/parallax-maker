@@ -1317,6 +1317,20 @@ def export_animation(n_clicks, filename, num_frames, camera_distance, max_distan
 def restore_inpainting(value):
     return True
 
+@app.callback(
+    Output(C.INPUT_API_KEY, 'value'),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
+    prevent_initial_call=True)
+def restore_api_key(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    if state.api_key == None:
+        return no_update
+    
+    return state.api_key
 
 @app.callback(
     Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents', allow_duplicate=True),

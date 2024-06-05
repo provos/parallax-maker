@@ -11,7 +11,10 @@ from enum import Enum
 import numpy as np
 import cv2
 from pathlib import Path
-from utils import filename_previous_version, filename_add_version, apply_color_tint, create_checkerboard
+from utils import (
+    filename_previous_version, filename_add_version, apply_color_tint, create_checkerboard,
+    encode_string_with_nonce, decode_string_with_nonce
+)
 from segmentation import mask_from_depth
 from upscaler import Upscaler
 from stabilityai import StabilityAI
@@ -393,7 +396,7 @@ class AppState:
         self.image_slices_filenames[slice_index] = filename
         self.image_slices[slice_index] = self._read_image_slice(slice_index)
         return True
-    
+
     def save_image_slice(self, slice_index):
         """
         Save the image slice with the specified index.
@@ -602,7 +605,8 @@ class AppState:
         if self.server_address is not None:
             data['server_address'] = self.server_address
         if self.api_key is not None:
-            data['api_key'] = self.api_key
+            data['api_key'] = encode_string_with_nonce(
+                self.api_key, self.filename)
         return json.dumps(data)
 
     @staticmethod
@@ -636,7 +640,8 @@ class AppState:
         state.negative_prompts = data['negative_prompts'] if 'negative_prompts' in data else empty
 
         state.server_address = data['server_address'] if 'server_address' in data else None
-        state.api_key = data['api_key'] if 'api_key' in data else None
+        state.api_key = decode_string_with_nonce(
+            data['api_key'], state.filename) if 'api_key' in data else None
 
         # check dats structures have consistent lengths
         assert len(state.image_slices_filenames) == len(state.image_depths)
