@@ -54,6 +54,8 @@ class AppState:
 
         self.server_address = None
         self.api_key = None
+        
+        self.dark_mode = False
 
         # no JSON serialization for items below
         self.image_slices = []
@@ -596,6 +598,7 @@ class AppState:
             'image_slices_filenames': self.image_slices_filenames,
             'positive_prompts': self.positive_prompts,
             'negative_prompts': self.negative_prompts,
+            'dark_mode': self.dark_mode,
         }
 
         if self.depth_model_name is not None:
@@ -642,6 +645,8 @@ class AppState:
         state.server_address = data['server_address'] if 'server_address' in data else None
         state.api_key = decode_string_with_nonce(
             data['api_key'], state.filename) if 'api_key' in data else None
+
+        state.dark_mode = data['dark_mode'] if 'dark_mode' in data else False
 
         # check dats structures have consistent lengths
         assert len(state.image_slices_filenames) == len(state.image_depths)

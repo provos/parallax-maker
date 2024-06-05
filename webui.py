@@ -191,10 +191,19 @@ components.make_tools_callbacks(app)
     Output('app-container', 'className'),
     Output(C.ICON_DARK_MODE, 'className'),
     Input(C.BTN_DARK_MODE, 'n_clicks'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True
 )
-def toggle_dark_mode(n_clicks):
-    if n_clicks % 2 == 1:
+def toggle_dark_mode(n_clicks, filename):
+    
+    dark_mode = n_clicks % 2 == 1
+    if filename is not None:
+        state = AppState.from_cache(filename)
+        state.dark_mode = dark_mode
+        state.to_file(filename, save_image_slices=False,
+                      save_depth_map=False, save_input_image=False)
+    
+    if dark_mode:
         return 'dark min-h-screen', 'fas fa-sun'
     else:
         return 'min-h-screen', 'fas fa-moon'
@@ -1316,6 +1325,18 @@ def export_animation(n_clicks, filename, num_frames, camera_distance, max_distan
     prevent_initial_call=True)
 def restore_inpainting(value):
     return True
+
+@app.callback(
+    Output(C.BTN_DARK_MODE, 'n_clicks'),
+    Input(C.STORE_RESTORE_STATE, 'data'),
+    State(C.STORE_APPSTATE_FILENAME, 'data'),
+    prevent_initial_call=True)
+def restore_dark_mode(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    return 1 if state.dark_mode else 0
 
 @app.callback(
     Output(C.INPUT_API_KEY, 'value'),
