@@ -67,6 +67,62 @@ class StabilityAI:
 
         return Image.open(BytesIO(response.content))
     
+    def image_to_image(self, image, prompt, negative_prompt='', strength=0.8, output_format="png"):
+        """
+        Generates an image-to-image request using the Stability AI API.
+
+        Args:
+            image (PIL.Image.Image): The input image to be transformed.
+            prompt (str): The prompt to guide the inpainting process.
+            negative_prompt (str, optional): The negative prompt to guide the inpainting process. Defaults to ''.
+            strength (float, optional): The strength of the transformation effect. Defaults to 0.8.
+            output_format (str, optional): The format of the output image. Defaults to "png".
+
+        Returns:
+            PIL.Image.Image: The inpainted image.
+
+        Raises:
+            ValueError: If the image is smaller than 64x64 pixels.
+            Exception: If the API request fails.
+
+        """
+        # check that the image it at least 64x64
+        if image.width < 64 or image.height < 64:
+            raise ValueError("Image must be at least 64x64")
+
+        orig_width, orig_height = image.width, image.height
+
+        image = self._resize_image(image)
+
+        # prepare image and mask data
+        image_data = BytesIO()
+        image.save(image_data, format="PNG")
+        image_data = image_data.getvalue()
+
+        response = requests.post(
+            f"https://api.stability.ai/v2beta/stable-image/generate/sd3",
+            headers={
+                "authorization": f"Bearer {self.api_key}",
+                "accept": "image/*"
+            },
+            files={"image": image_data},
+            data={
+                'prompt': prompt,
+                'negative_prompt': negative_prompt,
+                'mode': 'image-to-image',
+                'strength': strength,
+                'output_format': output_format,
+            }
+        )
+
+        if response.status_code != 200:
+            raise Exception(str(response.json()))
+
+        image = Image.open(BytesIO(response.content))
+        if orig_width != image.width or orig_height != image.height:
+            image = image.resize((orig_width, orig_height), Image.LANCZOS)
+        return image
+    
     def _resize_image(self, image, max_pixels=MAX_PIXELS):
         if image.width * image.height > max_pixels:
             # square root as with multiply the ratio twice below
@@ -184,6 +240,7 @@ def main():
     parser.add_argument("--output-format", default="png")
     parser.add_argument('-i', '--image', type=str, default=None)
     parser.add_argument('-m', '--mask', type=str, default=None)
+    parser.add_argument('-s', '--strength', type=float, default=0.8)
     parser.add_argument('-u', '--upscale', action='store_true')
     args = parser.parse_args()
 
@@ -201,6 +258,10 @@ def main():
         mask = Image.open(args.mask)        
         
         image = ai.inpaint_image(image, mask, args.prompt, strength=1.0)
+    elif args.image:
+        print('Running image to image')
+        image = Image.open(args.image)
+        image = ai.image_to_image(image, args.prompt, strength=args.strength)
     else:
         image = ai.generate_image(args.prompt, aspect_ratio=args.aspect_ratio, output_format=args.output_format)
     image.save("output.png")

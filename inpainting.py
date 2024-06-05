@@ -205,7 +205,7 @@ class InpaintingModel:
                 strength=strength, cfg_scale=guidance_scale, steps=num_inference_steps,
                 seed=seed)
         elif self.model == "stabilityai":
-            image = self.pipeline.inpaint_image(resize_init_image, resize_mask_image, prompt, negative_prompt=negative_prompt)
+            image = self.pipeline.image_to_image(resize_init_image, prompt, negative_prompt=negative_prompt, strength=strength)
         else:
             raise ValueError(f"Model {self.model} is not supported.")
 
