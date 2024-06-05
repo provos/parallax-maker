@@ -406,7 +406,7 @@ class AppState:
         slice_image = self.image_slices[slice_index]
         if not isinstance(slice_image, Image.Image):
             slice_image = Image.fromarray(slice_image, mode='RGBA')
-        output_image_path = self.image_slices_filenames[i]
+        output_image_path = self.image_slices_filenames[slice_index]
         print(f"Saving image slice: {output_image_path}")
         slice_image.save(str(output_image_path))
 

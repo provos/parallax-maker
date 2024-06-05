@@ -132,9 +132,12 @@ class TestChangeSliceDepth(unittest.TestCase):
         self.state.filename = 'test'
 
         # Add some initial slices
-        self.state.add_slice('image-1', 5, positive_prompt="one", negative_prompt="two")
-        self.state.add_slice('image-2', 10, positive_prompt="three", negative_prompt="four")
-        self.state.add_slice('image-3', 15, positive_prompt="blue", negative_prompt="green")
+        self.state.add_slice(
+            'image-1', 5, positive_prompt="one", negative_prompt="two")
+        self.state.add_slice(
+            'image-2', 10, positive_prompt="three", negative_prompt="four")
+        self.state.add_slice(
+            'image-3', 15, positive_prompt="blue", negative_prompt="green")
 
     def test_change_slice_depth_same_depth(self):
         # Get the initial state
@@ -325,6 +328,34 @@ class TestUpscaling(unittest.TestCase):
         mock_upscaler_instance.upscale_image_tiled.assert_called_with(
             self.image, overlap=64, prompt=prompt, negative_prompt=negative_prompt
         )
+
+
+class TestSaveImageSlices(unittest.TestCase):
+    def setUp(self) -> None:
+        super().setUp()
+
+        self.state = AppState()
+        self.state.filename = 'appstate-random'
+
+        # Add some initial slices
+        self.state.add_slice(
+            np.zeros((10, 10, 4), np.uint8), 5, positive_prompt="one", negative_prompt="two")
+        self.state.add_slice(
+            np.zeros((10, 10, 4), np.uint8), 10, positive_prompt="three", negative_prompt="four")
+        self.state.add_slice(
+            np.zeros((10, 10, 4), np.uint8), 15, positive_prompt="blue", negative_prompt="green")
+
+    def test_save_image_slices(self):
+        # Mock the image saving function
+        with patch('controller.Image.Image.save') as mock_imwrite:
+            self.state.save_image_slices(self.state.filename)
+
+            # Check that the image slices were saved
+            self.assertEqual(mock_imwrite.call_count, 3)
+            mock_imwrite.assert_any_call('appstate-random/image_slice_0.png')
+            mock_imwrite.assert_any_call('appstate-random/image_slice_1.png')
+            mock_imwrite.assert_any_call('appstate-random/image_slice_2.png')
+
 
 if __name__ == '__main__':
     unittest.main()
