@@ -1125,6 +1125,25 @@ def remember_depth_model(value, filename):
     return
 
 
+@app.callback(Input(C.SLIDER_CAMERA_DISTANCE, 'value'),
+              Input(C.SLIDER_FOCAL_LENGTH, 'value'),
+              Input(C.SLIDER_MAX_DISTANCE, 'value'),
+              Input(C.SLIDER_DISPLACEMENT, 'value'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              prevent_initial_call=True)
+def remember_camera_parameters(camera_distance, focal_length, max_distance, displacement, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    state.camera_distance = camera_distance
+    state.focal_length = focal_length
+    state.max_distance = max_distance
+    state.mesh_displacement = displacement
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
+    return
+
 @app.callback(Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
@@ -1325,6 +1344,22 @@ def export_animation(n_clicks, filename, num_frames, camera_distance, max_distan
     prevent_initial_call=True)
 def restore_inpainting(value):
     return True
+
+
+@app.callback(Output(C.SLIDER_CAMERA_DISTANCE, 'value'),
+              Output(C.SLIDER_FOCAL_LENGTH, 'value'),
+              Output(C.SLIDER_MAX_DISTANCE, 'value'),
+              Output(C.SLIDER_DISPLACEMENT, 'value'),
+              Input(C.STORE_RESTORE_STATE, 'data'),
+              State(C.STORE_APPSTATE_FILENAME, 'data'),
+              prevent_initial_call=True)
+def remember_camera_parameters(value, filename):
+    if filename is None:
+        raise PreventUpdate()
+
+    state = AppState.from_cache(filename)
+    return state.camera_distance, state.focal_length, state.max_distance, state.mesh_displacement
+
 
 @app.callback(
     Output(C.BTN_DARK_MODE, 'n_clicks'),
