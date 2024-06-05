@@ -60,6 +60,7 @@ button.color-not-selected {
 button.color-is-selected {
   @apply bg-green-500 text-white;
   @apply dark:bg-green-400 dark:text-slate-200;
+  @apply dark:disabled:bg-zinc-600 dark:disabled:text-slate-300;
 }
 
 .rc-slider-disabled {
