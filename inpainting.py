@@ -109,7 +109,6 @@ class InpaintingModel:
         assert 'api_key' in self.kwargs
         self.pipeline = StabilityAI(self.kwargs['api_key'])
         assert self.pipeline.validate_key()
-        self._supports_feathering = False
         self._dimension = None # the model will handle resizing
         return self.pipeline
 
