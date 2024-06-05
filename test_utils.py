@@ -2,7 +2,7 @@ import unittest
 from PIL import Image
 from utils import (
     find_bounding_box, find_square_from_bounding_box, filename_add_version, filename_previous_version,
-    highlight_selected_element
+    highlight_selected_element, encode_string_with_nonce, decode_string_with_nonce
 )
 
 
@@ -150,6 +150,25 @@ class TestHighLightSelectedElement(unittest.TestCase):
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
 
+
+class TestEncodeStringWithNonce(unittest.TestCase):
+    def test_encode_string_with_nonce(self):
+        # Define the plaintext and nonce
+        plaintext = "Hello, World!"
+        nonce = "unique-filename"
+
+        # Call the function
+        result = encode_string_with_nonce(plaintext, nonce)
+
+        self.assertNotEqual(result, plaintext)
+        
+        decoded = decode_string_with_nonce(result, nonce)
+
+        self.assertEqual(decoded, plaintext)
+        
+        decoded = decode_string_with_nonce(result, "wrong-nonce")
+        
+        self.assertNotEqual(decoded, plaintext)
 
 if __name__ == '__main__':
     unittest.main()

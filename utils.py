@@ -10,6 +10,7 @@ import torch
 import numpy as np
 from PIL import Image, ImageDraw
 from pathlib import Path
+import hashlib
 
 import constants as C
 
@@ -472,3 +473,72 @@ def create_checkerboard(height, width, size):
     checkerboard = np.stack([checkerboard] * 3, axis=-1)
 
     return checkerboard
+
+
+def xor_string(plaintext, secret):
+    """
+    XORs each byte of the plaintext with the corresponding byte of the secret.
+
+    Args:
+        plaintext (BytesIO object): The plaintext to be XORed.
+        secret (bytes-like object): The secret used for XORing.
+
+    Returns:
+        bytes: The result of XORing the plaintext with the secret.
+    """
+    plaintext.seek(0)
+    secret = io.BytesIO(secret)
+    result = io.BytesIO()
+    while True:
+        plaintext_byte = plaintext.read(1)
+        secret_byte = secret.read(1)
+        if not plaintext_byte:
+            break
+        if not secret_byte:
+            secret.seek(0)
+            secret_byte = secret.read(1)
+        result.write(bytes([plaintext_byte[0] ^ secret_byte[0]]))
+    return result.getvalue()
+
+
+def encode_string_with_nonce(plaintext, nonce):
+    """
+    Encodes a plaintext string using a nonce. This will be used for storing
+    API keys and other sensitive information without making them readily
+    available for credential scanning. This is not encryption. It's just masking
+    the information.
+
+    Args:
+        plaintext (str): The plaintext string to be encoded.
+        nonce (str): The nonce used for encoding.
+
+    Returns:
+        str: The encoded string.
+
+    Example:
+        >>> encode_string_with_nonce("Hello, World!", "unique-filename")
+        'SGVsbG8sIFdvcmxkIQ=='
+    """
+    # convert plaintext to binary io
+    plaintext = io.BytesIO(plaintext.encode('utf-8'))
+    # hash the secret with sha256
+    nonce = hashlib.sha256(nonce.encode('utf-8')).digest()
+
+    result = xor_string(plaintext, nonce)
+    return base64.b64encode(result).decode('utf-8')
+
+
+def decode_string_with_nonce(ciphertext, nonce):
+    # convert ciphertext to binary io
+    ciphertext = io.BytesIO(base64.b64decode(ciphertext))
+    # hash the secret with sha256
+    nonce = hashlib.sha256(nonce.encode('utf-8')).digest()
+
+    result = xor_string(ciphertext, nonce)
+    
+    try:
+        result = result.decode('utf-8')
+    except UnicodeDecodeError:
+        result = None
+    
+    return result
