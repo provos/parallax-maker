@@ -384,6 +384,14 @@ def make_inpainting_container():
                 ),
             ], className='w-full p-2'),
         ], className='flex w-full'),
+        dcc.Checklist(
+            id=C.CHECKLIST_REGION_OF_INTEREST,
+            options=[{"label": html.Span("Crop to region of interest",
+                                         className="p-2"),
+                      "value": "crop"}],
+            value=["crop"],
+            className='p-2',
+        ),
         html.Button(
             html.Div([
                 html.Label('Generate'),
@@ -744,10 +752,14 @@ def make_configuration_callbacks(app):
     # Stability AI API for inpainting does not support mask blurring
     @app.callback(
         Output(C.SLIDER_MASK_BLUR, 'disabled'),
+        Output(C.SLIDER_INPAINT_STRENGTH, 'disabled'),
+        Output(C.SLIDER_INPAINT_GUIDANCE, 'disabled'),
         Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
         prevent_initial_call=True)
     def toggle_blur_slider(value):
-        return True if value == 'stabilityai' else False
+        if value == 'stabilityai':
+            return True, True, True
+        return False, False, False
 
     @app.callback(
         Output(C.CTR_AUTOMATIC_CONFIG, 'className'),
@@ -1346,9 +1358,10 @@ def make_canvas_callbacks(app):
                   Input(C.CANVAS_DATA, 'data'),
                   State(C.STORE_APPSTATE_FILENAME, 'data'),
                   State(C.SLIDER_MASK_PADDING, 'value'),
+                  State(C.CHECKLIST_REGION_OF_INTEREST, 'value'),
                   State(C.LOGS_DATA, 'data'),
                   prevent_initial_call=True)
-    def save_slice_mask(data, filename, padding, logs):
+    def save_slice_mask(data, filename, padding, crop, logs):
         if data is None or filename is None:
             raise PreventUpdate()
 
@@ -1382,7 +1395,9 @@ def make_canvas_callbacks(app):
         mask_filename = state.save_image_mask(state.selected_slice, new_image)
         
         # communicate the bounding box to the javascript client where we can visualize it
-        bounding_box = find_square_bounding_box(new_image, padding=padding)
+        bounding_box = no_update
+        if 'crop' in crop:
+            bounding_box = find_square_bounding_box(new_image, padding=padding)
         
         logs.append(
             f"Saved mask for slice {state.selected_slice} to {mask_filename}")
