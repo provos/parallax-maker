@@ -17,7 +17,7 @@ import torch
 from transformers import AutoImageProcessor, Mask2FormerForUniversalSegmentation, SamModel, SamProcessor
 import numpy as np
 
-from utils import torch_get_device, image_overlay, draw_circle, COCO_CATEGORIES
+from utils import torch_get_device, image_overlay, draw_circle
 
 
 class SegmentationModel:
