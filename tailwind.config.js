@@ -1,7 +1,7 @@
 module.exports = {
   content: [
     './assets/**/*.js', './*.py',
-    '!./stabilityai.py'
+    '!./test_*.py', '!./stabilityai.py'
   ],
   darkMode: 'selector',
   theme: {
