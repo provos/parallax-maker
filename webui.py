@@ -78,7 +78,6 @@ def serve_data(filename):
         mimetype = 'model/gltf+json'
     else:
         mimetype = f'image/{filename.suffix[1:]}'
-    print(f"Sending {filename} with mimetype {mimetype}")
     return send_file(str(filename), mimetype=mimetype)
 
 
