@@ -201,7 +201,7 @@ class StabilityAI:
             raise ValueError("Image must be at least 64x64")
         
         if image.width * image.height > 1024*1024:
-            raise ValueError("Image must be at most 1024x1024")
+            raise ValueError(f"Image must be at most 1024x1024: Got {image.width}x{image.height} = {image.width * image.height} pixels.")
 
         # prepare image and mask data
         image_data = BytesIO()

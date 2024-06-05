@@ -143,8 +143,9 @@ class Upscaler:
 
                 cur_width, cur_height = tile.size
                 if cur_width % 64 != 0 or cur_height % 64 != 0:
-                    tile = tile.resize((cur_width + (64 - cur_width % 64),
-                                        cur_height + (64 - cur_height % 64)))
+                    new_width = cur_width + (64 - cur_width % 64) if cur_width % 64 != 0 else cur_width
+                    new_height = cur_height + (64 - cur_height % 64) if cur_height % 64 != 0 else cur_height
+                    tile = tile.resize((new_width, new_height))
                 upscaled_tile = self.upscale_tile(
                     tile, prompt, negative_prompt)
                 if tile.size != (cur_width, cur_height):
