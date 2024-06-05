@@ -169,6 +169,15 @@ class TestEncodeStringWithNonce(unittest.TestCase):
         decoded = decode_string_with_nonce(result, "wrong-nonce")
         
         self.assertNotEqual(decoded, plaintext)
+        
+    def test_decode_with_string_bad_data(self):
+        nonce = "unique-filename"
+        input = 'bad-data'
+        
+        decoded = decode_string_with_nonce(input, nonce)
+
+        self.assertEqual(decoded, None)
+
 
 if __name__ == '__main__':
     unittest.main()

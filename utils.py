@@ -530,7 +530,11 @@ def encode_string_with_nonce(plaintext, nonce):
 
 def decode_string_with_nonce(ciphertext, nonce):
     # convert ciphertext to binary io
-    ciphertext = io.BytesIO(base64.b64decode(ciphertext))
+    try:
+        ciphertext = io.BytesIO(base64.b64decode(ciphertext))
+    except base64.binascii.Error:
+        return None
+    
     # hash the secret with sha256
     nonce = hashlib.sha256(nonce.encode('utf-8')).digest()
 
