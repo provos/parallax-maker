@@ -491,7 +491,8 @@ def make_inpainting_container_callbacks(app):
 
         final_mask = remove_mask_from_alpha(state.image_slices[index], mask)
         state.image_slices[index][:, :, 3] = final_mask
-        state.to_file(state.filename, save_image_slices=True,
+        state.save_image_slice(index)
+        state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
         logs.append(f'Inpainting erased for slice {index}')
 
@@ -676,9 +677,10 @@ def make_inpainting_container_callbacks(app):
             state.image_slices_filenames[index])
         state.image_slices_filenames[index] = image_filename
 
-        # XXX - refactor to make this always a PIL image
         state.image_slices[index] = np.array(new_image)
-        state.to_file(state.filename)
+        state.save_image_slice(index)
+        state.to_file(state.filename, save_image_slices=False,
+                      save_depth_map=False, save_input_image=False)
 
         logs.append(
             f'Inpainting applied to slice {index} with new image {image_filename}')

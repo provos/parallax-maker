@@ -90,8 +90,10 @@ app.layout = html.Div([
     # dcc.Store stores all application state
     dcc.Store(id=C.STORE_APPSTATE_FILENAME),
     dcc.Store(id=C.STORE_RESTORE_STATE),  # trigger to restore state
-    dcc.Store(id=C.STORE_RECT_DATA),  # Store for rect coordinates from the clientside JS
-    dcc.Store(id=C.STORE_BOUNDING_BOX),  # Store for bounding box coordinates from inpainting
+    # Store for rect coordinates from the clientside JS
+    dcc.Store(id=C.STORE_RECT_DATA),
+    # Store for bounding box coordinates from inpainting
+    dcc.Store(id=C.STORE_BOUNDING_BOX),
     dcc.Store(id=C.LOGS_DATA, data=[]),  # Store for logs
     # Trigger for generating depth map
     dcc.Store(id=C.STORE_TRIGGER_GEN_DEPTHMAP),
@@ -630,7 +632,8 @@ def paste_clipboard_request(n_clicks, filename, logs):
     image_filename = filename_add_version(
         state.image_slices_filenames[state.selected_slice])
     state.image_slices_filenames[state.selected_slice] = image_filename
-    state.to_file(filename, save_image_slices=True,
+    state.save_image_slice(state.selected_slice)
+    state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
     logs.append(f"Pasted clipboard to slice {state.selected_slice}")
@@ -667,7 +670,8 @@ def remove_mask_slice_request(n_clicks, filename, logs):
     image_filename = filename_add_version(
         state.image_slices_filenames[state.selected_slice])
     state.image_slices_filenames[state.selected_slice] = image_filename
-    state.to_file(filename, save_image_slices=True,
+    state.save_image_slice(state.selected_slice)
+    state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
     logs.append(f"Removed mask from slice {state.selected_slice}")
@@ -707,7 +711,8 @@ def add_mask_slice_request(n_clicks, filename, logs):
     image_filename = filename_add_version(
         state.image_slices_filenames[state.selected_slice])
     state.image_slices_filenames[state.selected_slice] = image_filename
-    state.to_file(filename, save_image_slices=True,
+    state.save_image_slice(state.selected_slice)
+    state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
     logs.append(f"Added mask to slice {state.selected_slice}")
@@ -745,8 +750,9 @@ def create_single_slice_request(n_clicks, filename, logs):
         image = create_slice_from_mask(
             state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     state.selected_slice = state.add_slice(image, depth)
-    # may need to optimize what is being saved eventually
-    state.to_file(filename)
+    state.save_image_slice(state.selected_slice)
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
 
     logs.append("Created a slice from the mask")
 
@@ -1237,6 +1243,9 @@ def slice_upload(contents, filename, logs):
     # add a version number to the filename and increase if it already exists
     image_filename = filename_add_version(state.image_slices_filenames[index])
     state.image_slices_filenames[index] = image_filename
+    state.save_image_slice(index)
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=False, save_input_image=False)
 
     composed_image = state.image_slices[0].copy()
     for i, slice_image in enumerate(state.image_slices[1:]):
@@ -1245,8 +1254,6 @@ def slice_upload(contents, filename, logs):
 
     logs.append(
         f"Received image slice upload for slice {index} at {image_filename}")
-
-    state.to_file(filename)
 
     return True, logs
 

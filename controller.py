@@ -393,6 +393,22 @@ class AppState:
         self.image_slices_filenames[slice_index] = filename
         self.image_slices[slice_index] = self._read_image_slice(slice_index)
         return True
+    
+    def save_image_slice(self, slice_index):
+        """
+        Save the image slice with the specified index.
+
+        Args:
+            slice_index (int): The index of the slice to save.
+        """
+        assert slice_index >= 0 and slice_index < len(
+            self.image_slices_filenames)
+        slice_image = self.image_slices[slice_index]
+        if not isinstance(slice_image, Image.Image):
+            slice_image = Image.fromarray(slice_image, mode='RGBA')
+        output_image_path = self.image_slices_filenames[i]
+        print(f"Saving image slice: {output_image_path}")
+        slice_image.save(str(output_image_path))
 
     def save_image_slices(self, file_path):
         """
@@ -406,12 +422,8 @@ class AppState:
             self.image_slices_filenames = [
                 str(file_path / f"image_slice_{i}.png") for i in range(len(self.image_slices))]
         assert len(self.image_slices) == len(self.image_slices_filenames)
-        for i, slice_image in enumerate(self.image_slices):
-            if not isinstance(slice_image, Image.Image):
-                slice_image = Image.fromarray(slice_image, mode='RGBA')
-            output_image_path = self.image_slices_filenames[i]
-            print(f"Saving image slice: {output_image_path}")
-            slice_image.save(str(output_image_path))
+        for i in range(len(self.image_slices)):
+            self.save_image_slice(i)
 
     def _create_upscaler(self):
         if self.pipeline_spec is None:

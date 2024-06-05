@@ -246,7 +246,7 @@ class TextExportGltf(unittest.TestCase):
         self.mock_depth_file = MagicMock()
         self.state.depth_filename.return_value = self.mock_depth_file
         self.mock_depth_file.exists.return_value = True
-        
+
         self.state.upscaled_filename.return_value = Path("upscaled_file.png")
         self.state.image_slices_filenames = [
             Path(f"slice_{i}.png") for i in range(3)]
@@ -314,7 +314,8 @@ class TextExportGltf(unittest.TestCase):
         self.assertEqual(mock_generate_depth_map.call_count, 3)
         self.assertEqual(mock_postprocess_depth_map.call_count, 3)
         self.assertEqual(mock_image_fromarray.call_count, 3)
-        mock_image.save.assert_called_with(self.mock_depth_file, compress_level=1)
+        mock_image.save.assert_called_with(
+            self.mock_depth_file, compress_level=1)
 
         # Compare individual elements of card_corners_3d_list
         expected_call = mock_export_gltf.call_args_list[0]
@@ -409,7 +410,7 @@ class TestSliceUpload(unittest.TestCase):
         mock_filename_add_version.return_value = 'slice1_v1.png'
 
         content = to_image_url(np.ones((100, 100, 4), dtype=np.uint8))
-        
+
         result = slice_upload([None, content], 'appstate-random', [])
 
         self.assertEqual(result[0], True)
@@ -419,7 +420,8 @@ class TestSliceUpload(unittest.TestCase):
         mock_from_cache.assert_called_once_with('appstate-random')
         mock_filename_add_version.assert_called_once_with('slice1.png')
         mock_blend.assert_called_once()
-        mock_state.to_file.assert_called_once_with('appstate-random')
+        mock_state.to_file.assert_called_once_with(
+            'appstate-random', save_image_slices=False, save_depth_map=False, save_input_image=False)
         self.assertIsInstance(mock_state.imgData, Image.Image)
 
     @patch('webui.ctx')
@@ -446,7 +448,8 @@ class TestSliceUpload(unittest.TestCase):
         mock_from_cache.assert_called_once_with('appstate-random')
         mock_filename_add_version.assert_called_once_with('slice1.png')
         mock_blend.assert_called_once()
-        mock_state.to_file.assert_called_once_with('appstate-random')
+        mock_state.to_file.assert_called_once_with(
+            'appstate-random', save_image_slices=False, save_depth_map=False, save_input_image=False)
         self.assertIsInstance(mock_state.imgData, Image.Image)
 
 
