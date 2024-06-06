@@ -539,6 +539,7 @@ class AppState:
             file_path (str): The file path to save the state.
             save_image_slices (bool, optional): Whether to save the image slices. Defaults to True.
         """
+        print('Saving state to file:', file_path)
         with self._lock:
             file_path = Path(file_path)
             # check if file path is a directory. if not create it

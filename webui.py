@@ -199,9 +199,10 @@ def toggle_dark_mode(n_clicks, filename):
     dark_mode = n_clicks % 2 == 1
     if filename is not None:
         state = AppState.from_cache(filename)
-        state.dark_mode = dark_mode
-        state.to_file(filename, save_image_slices=False,
-                      save_depth_map=False, save_input_image=False)
+        if state.dark_mode != dark_mode:
+            state.dark_mode = dark_mode
+            state.to_file(filename, save_image_slices=False,
+                        save_depth_map=False, save_input_image=False)
     
     if dark_mode:
         return 'dark min-h-screen', 'fas fa-sun'
@@ -739,6 +740,10 @@ def update_prompt_text(positive, negative, filename):
     state = AppState.from_cache(filename)
     if state.selected_slice is None:
         raise PreventUpdate()
+    
+    if (state.positive_prompts[state.selected_slice] == positive and
+        state.negative_prompts[state.selected_slice] == negative):
+        raise PreventUpdate()
 
     state.positive_prompts[state.selected_slice] = positive
     state.negative_prompts[state.selected_slice] = negative
@@ -1119,6 +1124,11 @@ def remember_depth_model(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    if state.depth_model_name == value:
+        raise PreventUpdate()
+    
+    if state.depth_model_name == value:
+        raise PreventUpdate()
     state.depth_model_name = value
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
@@ -1136,6 +1146,14 @@ def remember_camera_parameters(camera_distance, focal_length, max_distance, disp
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    
+    # don't save if the values are the same
+    if (state.camera_distance == camera_distance and
+        state.focal_length == focal_length and
+        state.max_distance == max_distance and
+        state.mesh_displacement == displacement):
+        raise PreventUpdate()
+    
     state.camera_distance = camera_distance
     state.focal_length = focal_length
     state.max_distance = max_distance
@@ -1152,6 +1170,9 @@ def remember_inpaint_model(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    if state.inpainting_model_name == value:
+        raise PreventUpdate()
+    
     state.inpainting_model_name = value
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)

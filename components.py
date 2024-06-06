@@ -744,10 +744,12 @@ def make_configuration_callbacks(app):
         if filename is not None:
             state = AppState.from_cache(filename)
             workflow_path = state.workflow_path()
-            with open(workflow_path, 'wb') as f:
-                f.write(contents)
-            state.to_file(state.filename, save_image_slices=False,
-                          save_depth_map=False, save_input_image=False)
+            
+            if not workflow_path.exists() or workflow_path.read_bytes() != contents:
+                with open(workflow_path, 'wb') as f:
+                    f.write(contents)
+                state.to_file(state.filename, save_image_slices=False,
+                            save_depth_map=False, save_input_image=False)
 
         return no_update, upload_name, logs
     
@@ -787,6 +789,8 @@ def make_configuration_callbacks(app):
     def reset_external_server_address(value, class_name, filename):
         if filename is not None:
             state = AppState.from_cache(filename)
+            if state.server_address == value:
+                raise PreventUpdate()
             state.server_address = value
             state.to_file(state.filename,
                           save_image_slices=False,
@@ -849,6 +853,8 @@ def make_configuration_callbacks(app):
     def reset_external_api_key(value, class_name, filename):
         if filename is not None:
             state = AppState.from_cache(filename)
+            if state.api_key == value:
+                raise PreventUpdate()
             state.api_key = value
             state.to_file(state.filename,
                           save_image_slices=False,
