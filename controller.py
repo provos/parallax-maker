@@ -1,6 +1,7 @@
 # (c) 2024 Niels Provos
 
-import os
+import shutil
+import threading
 import json
 import random
 import string
@@ -28,7 +29,7 @@ class CompositeMode(Enum):
 
 class AppState:
     __slots__ = (
-        'filename', 'num_slices', 'imgData', 'imgThresholds', 'depthMapData', 'image_depths',
+        '_lock', 'filename', 'num_slices', 'imgData', 'imgThresholds', 'depthMapData', 'image_depths',
         'image_slices_filenames', 'depth_model_name', 'inpainting_model_name', 'positive_prompts',
         'negative_prompts', 'server_address', 'api_key', 'dark_mode', 'image_slices',
         'selected_slice', 'pipeline_spec', 'depth_estimation_model', 'segmentation_model',
@@ -48,6 +49,9 @@ class AppState:
     cache = {}
 
     def __init__(self):
+        # prevent concurrent writes
+        self._lock = threading.Lock()
+
         self.filename = None
         self.num_slices = 5
         self.imgData = None  # PIL image
@@ -535,29 +539,55 @@ class AppState:
             file_path (str): The file path to save the state.
             save_image_slices (bool, optional): Whether to save the image slices. Defaults to True.
         """
-        file_path = Path(file_path)
-        # check if file path is a directory. if not create it
-        if not file_path.is_dir():
-            file_path.mkdir()
+        with self._lock:
+            file_path = Path(file_path)
+            # check if file path is a directory. if not create it
+            if not file_path.is_dir():
+                file_path.mkdir()
 
-        # save the input image
-        if save_input_image:
-            img_file = file_path / AppState.IMAGE_FILE
-            self.imgData.save(str(img_file))
+            # save the input image
+            if save_input_image:
+                img_file = file_path / AppState.IMAGE_FILE
+                self.imgData.save(str(img_file))
 
-        # save the depth map
-        if self.depthMapData is not None and save_depth_map:
-            depth_map_file = file_path / AppState.DEPTH_MAP_FILE
-            image = Image.fromarray(self.depthMapData)
-            image.save(str(depth_map_file))
+            # save the depth map
+            if self.depthMapData is not None and save_depth_map:
+                depth_map_file = file_path / AppState.DEPTH_MAP_FILE
+                image = Image.fromarray(self.depthMapData)
+                image.save(str(depth_map_file))
 
-        # save the image slices
-        if save_image_slices:
-            self.save_image_slices(file_path)
+            # save the image slices
+            if save_image_slices:
+                self.save_image_slices(file_path)
 
-        state_file = file_path / AppState.STATE_FILE
-        with open(str(state_file), 'w', encoding='utf-8') as file:
-            file.write(self.to_json())
+            state_file = file_path / AppState.STATE_FILE
+            temp_file = state_file.with_suffix('.tmp')
+            backup_file = state_file.with_suffix('.bak')
+            
+            try:
+                # Write to temporary file
+                with open(temp_file, 'w', encoding='utf-8') as file:
+                    file.write(self.to_json())
+
+                # Create a backup of the current state file if it exists
+                if state_file.exists():
+                    shutil.move(state_file, backup_file)
+
+                # Move the temporary file to the state file
+                shutil.move(temp_file, state_file)
+
+                # Optionally, remove the backup file if everything went fine
+                if backup_file.exists():
+                    backup_file.unlink()
+
+            except Exception as e:
+                # Clean up temporary and backup files if any error occurs
+                if temp_file.exists():
+                    temp_file.unlink()
+                if backup_file.exists() and not state_file.exists():
+                    # Restore from backup if the original state file is missing
+                    shutil.move(backup_file, state_file)
+                raise e  # Re-raise the error after cleanup
 
     @staticmethod
     def from_file(file_path):

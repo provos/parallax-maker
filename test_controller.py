@@ -1,6 +1,7 @@
 import numpy as np
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import mock_open, patch, MagicMock
+from pathlib import Path
 
 from utils import encode_string_with_nonce, decode_string_with_nonce
 from controller import AppState
@@ -239,7 +240,7 @@ class TestFromJson(unittest.TestCase):
         }
         '''
         json_data = json_data.replace('ENCODED', encoded)
-        
+
         state = AppState.from_json(json_data)
         self.assertIsInstance(state, AppState)
         self.assertEqual(state.filename, 'appstate-test')
@@ -367,6 +368,93 @@ class TestSaveImageSlices(unittest.TestCase):
             mock_imwrite.assert_any_call('appstate-random/image_slice_0.png')
             mock_imwrite.assert_any_call('appstate-random/image_slice_1.png')
             mock_imwrite.assert_any_call('appstate-random/image_slice_2.png')
+
+
+class TestToFile(unittest.TestCase):
+
+    def setUp(self):
+        # Creating a mock AppState instance
+        self.app_state = AppState()
+        
+        self.file_path = Path('appstate-random')
+
+        # Mocking methods directly on the instance
+        self.img_data_mock = MagicMock()
+        self.app_state.imgData = self.img_data_mock
+
+        self.depth_map_data_mock = MagicMock()
+        self.app_state.depthMapData = self.depth_map_data_mock
+
+    @patch('controller.Image.fromarray')
+    @patch('controller.Path.mkdir')
+    @patch('controller.Path.exists')
+    @patch('controller.shutil.move')
+    @patch('controller.open', new_callable=mock_open)
+    @patch('controller.Path.unlink')
+    @patch.object(AppState, 'to_json', return_value='{"state": "dummy state"}')
+    def test_to_file(self, mock_to_json, mock_unlink, mock_open_func, mock_shutil_move, mock_exists, mock_mkdir, mock_fromarray):
+        mock_mkdir.return_value = None
+        # file_path, state_file, backup_file exists
+        mock_exists.side_effect = [True, True, True]
+        mock_fromarray.return_value = MagicMock()
+
+        self.app_state.to_file(self.file_path)
+
+        # Check if the directory was created
+        mock_mkdir.assert_called_once_with()
+
+        # Check if files were saved
+        self.img_data_mock.save.assert_called_once_with(
+            str(self.file_path / AppState.IMAGE_FILE))
+        mock_fromarray.return_value.save.assert_called_once_with(
+            str(self.file_path / AppState.DEPTH_MAP_FILE))
+
+        # Check if state file operations were performed correctly
+        state_file = self.file_path / AppState.STATE_FILE
+        temp_file = state_file.with_suffix('.tmp')
+        backup_file = state_file.with_suffix('.bak')
+        mock_open_func.assert_called_once_with(
+            temp_file, 'w', encoding='utf-8')
+
+        # Read the written content
+        handle = mock_open_func()
+        handle.write.assert_called_once_with('{"state": "dummy state"}')
+
+        mock_shutil_move.assert_any_call(state_file, backup_file)
+        mock_shutil_move.assert_any_call(temp_file, state_file)
+        mock_unlink.assert_called_once()
+
+    @patch('controller.Image.fromarray')
+    @patch('controller.Path.mkdir')
+    @patch('controller.Path.exists')
+    @patch('controller.shutil.move')
+    @patch('controller.open', new_callable=mock_open)
+    @patch('controller.Path.unlink')
+    @patch.object(AppState, 'to_json', return_value='{"state": "dummy state"}')
+    def test_to_file_restore_backup_on_error(self, mock_to_json, mock_unlink, mock_open_func, mock_shutil_move, mock_exists, mock_mkdir, mock_fromarray):
+        mock_mkdir.return_value = None
+        # state_file, no backup file
+        mock_exists.side_effect = [True, True, False]
+        # First call succeeds, second (inside state write) fails
+        mock_fromarray.return_value = MagicMock()
+        
+        # Configure mock_open to work with 'with' statement
+        mock_file_handle = mock_open_func.return_value
+        mock_file_handle.__enter__.return_value = mock_file_handle
+        mock_open_func.side_effect = [IOError]
+
+        with self.assertRaises(IOError):
+            self.app_state.to_file(self.file_path)
+
+        # Check if appropriate cleanup was done
+        temp_file = (self.file_path / AppState.STATE_FILE).with_suffix('.tmp')
+        backup_file = (self.file_path /
+                       AppState.STATE_FILE).with_suffix('.bak')
+
+        mock_unlink.assert_called_once()
+        mock_shutil_move.assert_called_once_with(
+            backup_file, self.file_path / AppState.STATE_FILE)
+
 
 
 if __name__ == '__main__':
