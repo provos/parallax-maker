@@ -94,6 +94,10 @@ CTR_INPAINTING_COLUNM = 'inpainting-column'
 
 ID_INPAINTING_IMAGE = 'inpainting-image'
 
+ID_SLICE_DEPTH_DISPLAY = 'depth-display'
+ID_SLICE_OVERLAY = 'slicer-overlay'
+INPUT_SLICE_DEPTH = 'depth-input'
+
 BTN_GENERATE_SLICE = 'generate-slice-button'
 BTN_BALANCE_SLICE = 'balance-slice-button'
 BTN_CREATE_SLICE = 'create-slice-button'

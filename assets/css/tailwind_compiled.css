@@ -1252,6 +1252,17 @@ button.progress-bar-fill:disabled:where(.dark, .dark *) {
   border-color: rgb(96 165 250 / var(--tw-border-opacity));
 }
 
+.image_border {
+  height: 100%;
+  width: 100%;
+  border-width: 2px;
+  border-style: solid;
+  --tw-border-opacity: 1;
+  border-color: rgb(100 116 139 / var(--tw-border-opacity));
+  -o-object-fit: contain;
+     object-fit: contain;
+}
+
 .general-container {
   width: 100%;
   align-items: center;
@@ -1453,4 +1464,21 @@ button.progress-bar-fill:disabled:where(.dark, .dark *) {
 .general-dropdown .Select-value-label:hover:where(.dark, .dark *) {
   --tw-bg-opacity: 1 !important;
   background-color: rgb(75 85 99 / var(--tw-bg-opacity)) !important;
+}
+
+/* Allows us to highlight images as an overlay */
+
+.overlay {
+  position: absolute;
+  inset: 0px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgb(187 247 208 / var(--tw-bg-opacity));
+  --tw-bg-opacity: 0.5;
+}
+
+.overlay:where(.dark, .dark *) {
+  background-color: rgb(22 163 74 / var(--tw-bg-opacity));
+  --tw-bg-opacity: 0.5;
 }

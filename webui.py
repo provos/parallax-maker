@@ -195,15 +195,15 @@ components.make_tools_callbacks(app)
     prevent_initial_call=True
 )
 def toggle_dark_mode(n_clicks, filename):
-    
+
     dark_mode = n_clicks % 2 == 1
     if filename is not None:
         state = AppState.from_cache(filename)
         if state.dark_mode != dark_mode:
             state.dark_mode = dark_mode
             state.to_file(filename, save_image_slices=False,
-                        save_depth_map=False, save_input_image=False)
-    
+                          save_depth_map=False, save_input_image=False)
+
     if dark_mode:
         return 'dark min-h-screen', 'fas fa-sun'
     else:
@@ -736,13 +736,13 @@ def add_mask_slice_request(n_clicks, filename, logs):
 def update_prompt_text(positive, negative, filename):
     if filename is None:
         raise PreventUpdate()
-    
+
     state = AppState.from_cache(filename)
     if state.selected_slice is None:
         raise PreventUpdate()
-    
+
     if (state.positive_prompts[state.selected_slice] == positive and
-        state.negative_prompts[state.selected_slice] == negative):
+            state.negative_prompts[state.selected_slice] == negative):
         raise PreventUpdate()
 
     state.positive_prompts[state.selected_slice] = positive
@@ -750,7 +750,7 @@ def update_prompt_text(positive, negative, filename):
 
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
-    
+
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
               Output(C.TEXT_POSITIVE_PROMPT, 'value', allow_duplicate=True),
@@ -878,17 +878,19 @@ def update_slices(ignored_data, filename):
             Path(state.image_slices_filenames[i]).stem])
 
         # slice creation with select a slice so we need to highlight it here
-        highlight_class = f' {HIGHLIGHT_COLOR}' if state.selected_slice == i else ''
+        highlight_class = f'overlay' if state.selected_slice == i else 'hidden'
         img_container.append(
             dcc.Upload(
                 html.Div([
                     html.Div(
                         # The number to display
                         children=f"{int(state.image_depths[i])}",
-                        id={'type': 'depth-display', 'index': i},
+                        id={'type': C.ID_SLICE_DEPTH_DISPLAY, 'index': i},
                         className='depth-number-display'
                     ),
-                    dcc.Input(id={'type': 'depth-input', 'index': i},
+                    html.Div(className=highlight_class,
+                             id={'type': C.ID_SLICE_OVERLAY, 'index': i}),
+                    dcc.Input(id={'type': C.INPUT_SLICE_DEPTH, 'index': i},
                               className='depth-number-input hidden',
                               type='number',
                               debounce=True,
@@ -897,7 +899,7 @@ def update_slices(ignored_data, filename):
                               value=f"{int(state.image_depths[i])}"),
                     html.Img(
                         src=img_data,
-                        className=f'w-full h-full object-contain border-solid border-2 border-slate-500{highlight_class}',
+                        className='image-border',
                         id={'type': 'slice', 'index': i},),
                     html.Div(children=slice_name,
                              className='text-center text-overlay p-1')
@@ -922,9 +924,9 @@ def update_slices(ignored_data, filename):
 
 
 @app.callback(
-    Output({'type': 'depth-input', 'index': MATCH}, 'className'),
-    Input({'type': 'depth-display', 'index': MATCH}, 'n_clicks'),
-    State({'type': 'depth-input',  'index': MATCH}, 'className'),
+    Output({'type': C.INPUT_SLICE_DEPTH, 'index': MATCH}, 'className'),
+    Input({'type': C.ID_SLICE_DEPTH_DISPLAY, 'index': MATCH}, 'n_clicks'),
+    State({'type': C.INPUT_SLICE_DEPTH,  'index': MATCH}, 'className'),
     prevent_initial_call=True
 )
 def display_depth_input(n_clicks, class_name):
@@ -938,8 +940,8 @@ def display_depth_input(n_clicks, class_name):
 @app.callback(
     Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
     Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
-    Input({'type': 'depth-input', 'index': ALL}, 'value'),
-    Input({'type': 'depth-input', 'index': ALL}, 'n_submit'),
+    Input({'type': C.INPUT_SLICE_DEPTH, 'index': ALL}, 'value'),
+    Input({'type': C.INPUT_SLICE_DEPTH, 'index': ALL}, 'n_submit'),
     State(C.STORE_APPSTATE_FILENAME, 'data'),
     prevent_initial_call=True
 )
@@ -1029,18 +1031,22 @@ def generate_slices(ignored_data, filename):
 
 
 @app.callback(Output(C.IMAGE, 'src'),
-              Output({'type': 'slice', 'index': ALL}, 'className'),
+              Output({'type': C.ID_SLICE_OVERLAY, 'index': ALL}, 'className'),
               Output(C.TEXT_POSITIVE_PROMPT, 'value', allow_duplicate=True),
               Output(C.TEXT_NEGATIVE_PROMPT, 'value', allow_duplicate=True),
               Output(C.STORE_INPAINTING, 'data', allow_duplicate=True),
               Input({'type': 'slice', 'index': ALL}, 'n_clicks'),
+              Input({'type': C.ID_SLICE_OVERLAY, 'index': ALL}, 'n_clicks'),
               State({'type': 'slice', 'index': ALL}, 'id'),
               State({'type': 'slice', 'index': ALL}, 'src'),
-              State({'type': 'slice', 'index': ALL}, 'className'),
+              State({'type': C.ID_SLICE_OVERLAY, 'index': ALL}, 'className'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               prevent_initial_call=True)
-def display_slice(n_clicks, id, src, classnames, filename):
-    if filename is None or n_clicks is None or any(n_clicks) is False:
+def display_slice(n_clicks, n_clicks_two, id, src, classnames, filename):
+    if (n_clicks is None or any(n_clicks) is False) and (n_clicks_two is None or any(n_clicks_two) is False):
+        raise PreventUpdate()
+    
+    if filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
@@ -1060,10 +1066,10 @@ def display_slice(n_clicks, id, src, classnames, filename):
         state.selected_slice = None
         result = state.serve_input_image()
 
-    new_classnames = highlight_selected_element(
-        classnames, state.selected_slice, HIGHLIGHT_COLOR)
+    for i in range(len(classnames)):
+        classnames[i] = 'overlay' if i == state.selected_slice else 'hidden'
 
-    return result, new_classnames, positive_prompt, negative_prompt, True
+    return result, classnames, positive_prompt, negative_prompt, True
 
 
 @app.callback(Output(C.LOGS_DATA, 'data', allow_duplicate=True),
@@ -1126,7 +1132,7 @@ def remember_depth_model(value, filename):
     state = AppState.from_cache(filename)
     if state.depth_model_name == value:
         raise PreventUpdate()
-    
+
     if state.depth_model_name == value:
         raise PreventUpdate()
     state.depth_model_name = value
@@ -1146,14 +1152,14 @@ def remember_camera_parameters(camera_distance, focal_length, max_distance, disp
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    
+
     # don't save if the values are the same
     if (state.camera_distance == camera_distance and
         state.focal_length == focal_length and
         state.max_distance == max_distance and
-        state.mesh_displacement == displacement):
+            state.mesh_displacement == displacement):
         raise PreventUpdate()
-    
+
     state.camera_distance = camera_distance
     state.focal_length = focal_length
     state.max_distance = max_distance
@@ -1161,6 +1167,7 @@ def remember_camera_parameters(camera_distance, focal_length, max_distance, disp
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
     return
+
 
 @app.callback(Input(C.DROPDOWN_INPAINT_MODEL, 'value'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
@@ -1172,7 +1179,7 @@ def remember_inpaint_model(value, filename):
     state = AppState.from_cache(filename)
     if state.inpainting_model_name == value:
         raise PreventUpdate()
-    
+
     state.inpainting_model_name = value
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
@@ -1394,6 +1401,7 @@ def restore_dark_mode(value, filename):
     state = AppState.from_cache(filename)
     return 1 if state.dark_mode else 0
 
+
 @app.callback(
     Output(C.INPUT_API_KEY, 'value'),
     Input(C.STORE_RESTORE_STATE, 'data'),
@@ -1406,8 +1414,9 @@ def restore_api_key(value, filename):
     state = AppState.from_cache(filename)
     if state.api_key == None:
         return no_update
-    
+
     return state.api_key
+
 
 @app.callback(
     Output(C.UPLOAD_COMFYUI_WORKFLOW, 'contents', allow_duplicate=True),

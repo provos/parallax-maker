@@ -123,6 +123,10 @@ button.color-is-selected {
   @apply dark:border-blue-400;
 }
 
+.image_border {
+  @apply w-full h-full object-contain border-solid border-2 border-slate-500; 
+}
+
 .general-container {
   @apply w-full general-border items-center justify-center;
 }
@@ -169,4 +173,10 @@ button.color-is-selected {
 
 .general-dropdown .Select-value-label {
   @apply text-gray-800 dark:text-slate-200 hover:bg-gray-200 dark:hover:bg-gray-600 !important;
+}
+
+/* Allows us to highlight images as an overlay */
+.overlay {
+  @apply absolute inset-0 bg-green-200 bg-opacity-50 flex items-center justify-center;
+  @apply dark:bg-green-600 dark:bg-opacity-50;
 }
