@@ -23,7 +23,7 @@ class StabilityAI:
         })
 
         if response.status_code != 200:
-            return False
+            return False, None
 
         # Do something with the payload...
         payload = response.json()
@@ -229,7 +229,7 @@ class StabilityAI:
         return upscaled_image
 
 
-def main():
+def main():  # pragma: no cover
     parser = argparse.ArgumentParser()
     parser.add_argument("--api-key", required=True)
     parser.add_argument('-p', "--prompt",
