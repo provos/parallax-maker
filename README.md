@@ -20,9 +20,9 @@ $ python ./webui.py --prefetch-models=default
 
 Generates masked images that can be used for 2.5D animation
 
-Using an input image, the tool runs a depth model like Midas to generate a depth map
+Using an input image, the tool runs a depth model like **Midas** or **ZoeDepth** to generate a depth map
 
-![Input Image](example/input.png) ![Depth Map](example/depth_map.png)
+![Input Image](example/input_plus_depth.png)
 
 and then creates cards that can be used for 2.5 parallax animation.
 
@@ -66,4 +66,7 @@ Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This a
 [![Watch the video](example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
 
 # Tutorials
+## Segmentation and Inpainting Tutorial
 [![Segementation and Inpainting Tutorial](example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)
+## Unreal Engine Import and Rendering Tutorial
+[![Unreal Import and Rendering Tutorial](example/unreal-thumb.jpg)](https://www.youtube.com/watch?v=fLSCCS53h_U)
