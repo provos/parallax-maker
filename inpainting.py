@@ -7,7 +7,7 @@ import base64
 from io import BytesIO
 import numba as nb
 import torch
-from diffusers import AutoPipelineForInpainting
+from diffusers import AutoPipelineForInpainting, AutoPipelineForImage2Image
 from diffusers.utils import make_image_grid
 import cv2
 import numpy as np
@@ -18,19 +18,16 @@ from automatic1111 import create_img2img_payload, make_img2img_request
 from comfyui import inpainting_comfyui
 from stabilityai import StabilityAI
 
-# Possible pretrained models:
-# pretrained_model = "kandinsky-community/kandinsky-2-2-decoder-inpaint"
-# pretrained_model = "runwayml/stable-diffusion-v1-5"
-# pretrained_model = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
-
-
 class InpaintingModel:
+    # local models running on the local GPU
     MODELS = [
         "kandinsky-community/kandinsky-2-2-decoder-inpaint",
         "runwayml/stable-diffusion-v1-5",
-        "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+        "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
+        "stabilityai/stable-diffusion-3-medium-diffusers"
     ]
-    
+
+    # reached via API end points
     EXTERNAL_MODELS = [
         "automatic1111",
         "comfyui",
@@ -64,7 +61,7 @@ class InpaintingModel:
         self.kwargs = kwargs
         self.pipeline = None
         self.server_address = None
-        self.workflow_path = None # use for comfyui
+        self.workflow_path = None  # use for comfyui
 
     def __eq__(self, other):
         if not isinstance(other, InpaintingModel):
@@ -73,20 +70,46 @@ class InpaintingModel:
             self.variant == other.variant and \
             self._dimension == other._dimension
 
+    def load_model(self):
+        if self.pipeline is not None:
+            return self.pipeline
+
+        # diffusers models
+        if self.model in self.MODELS:
+            return self.load_diffusers_model()
+
+        if self.model in ["automatic1111", "comfyui"]:
+            return self.load_external_model()
+
+        if self.model == "stabilityai":
+            return self.load_stability_model()
+
+        return None
+
+
     def load_diffusers_model(self):
-        self._dimension = 512
-        self.variant = ''
-        if self.model == "kandinsky-community/kandinsky-2-2-decoder-inpaint":
-            self._dimension = 768
-        elif self.model == "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
-            self._dimension = 1024
-            self.variant = "fp16"
+        models = {
+            "kandinsky-community/kandinsky-2-2-decoder-inpaint":
+                {"dimension": 768, "variant": "",
+                 "pipeline": AutoPipelineForInpainting.from_pretrained},
+            "diffusers/stable-diffusion-xl-1.0-inpainting-0.1":
+                {"dimension": 1024, "variant": "fp16",
+                 "pipeline": AutoPipelineForInpainting.from_pretrained},
+            "stabilityai/stable-diffusion-3-medium-diffusers":
+                {"dimension": 1024, "variant": "",
+                 "pipeline": AutoPipelineForImage2Image.from_pretrained},
+        }
+
+        assert self.model in models
+        model_info = models[self.model]
+        self._dimension = model_info["dimension"]
+        self.variant = model_info["variant"]
 
         kwargs = {}
         if self.variant:
             kwargs['variant'] = self.variant
 
-        self.pipeline = AutoPipelineForInpainting.from_pretrained(
+        self.pipeline = model_info["pipeline"](
             self.model, torch_dtype=torch.float16, **kwargs
         )
 
@@ -104,32 +127,16 @@ class InpaintingModel:
             assert 'workflow_path' in self.kwargs
             self.workflow_path = self.kwargs['workflow_path']
         return self.pipeline
-    
+
     def load_stability_model(self):
         assert 'api_key' in self.kwargs
         self.pipeline = StabilityAI(self.kwargs['api_key'])
         assert self.pipeline.validate_key()
-        self._dimension = None # the model will handle resizing
+        self._dimension = None  # the model will handle resizing
         return self.pipeline
 
     def get_dimension(self):
         return self._dimension
-
-    def load_model(self):
-        if self.pipeline is not None:
-            return self.pipeline
-
-        # diffusers models
-        if self.model in self.MODELS:
-            return self.load_diffusers_model()
-
-        if self.model in ["automatic1111", "comfyui"]:
-            return self.load_external_model()
-        
-        if self.model == "stabilityai":
-            return self.load_stability_model()
-
-        return None
 
     def inpaint(self, prompt, negative_prompt, init_image, mask_image,
                 strength=0.7, guidance_scale=8, num_inference_steps=50, padding=50, blur_radius=50,
@@ -157,11 +164,11 @@ class InpaintingModel:
             init_image = Image.fromarray(init_image)
         if not isinstance(mask_image, Image.Image):
             mask_image = Image.fromarray(mask_image)
-            
+
         # Convert images to RGBA mode
         if init_image.mode != 'RGBA':
             init_image = init_image.convert('RGBA')
-        
+
         original_init_image = init_image.copy()
 
         if crop:
@@ -185,6 +192,11 @@ class InpaintingModel:
             resize_init_image = init_image.convert('RGB')
             resize_mask_image = blurred_mask
 
+        # XXX - refactor this to make it more readable
+        if self.model == 'stabilityai/stable-diffusion-3-medium-diffusers':
+            image = self.inpaint_image2image(
+                resize_init_image, prompt, negative_prompt,
+                strength, guidance_scale, num_inference_steps, seed)
         if self.model in self.MODELS:
             image = self.inpaint_diffusers(
                 resize_init_image, resize_mask_image,
@@ -204,7 +216,8 @@ class InpaintingModel:
                 strength=strength, cfg_scale=guidance_scale, steps=num_inference_steps,
                 seed=seed)
         elif self.model == "stabilityai":
-            image = self.pipeline.image_to_image(resize_init_image, prompt, negative_prompt=negative_prompt, strength=strength)
+            image = self.pipeline.image_to_image(
+                resize_init_image, prompt, negative_prompt=negative_prompt, strength=strength)
         else:
             raise ValueError(f"Model {self.model} is not supported.")
 
@@ -252,6 +265,13 @@ class InpaintingModel:
                          num_inference_steps=num_inference_steps).images[0]
 
         return image
+    
+    def inpaint_image2image(self, resize_init_image, prompt, negative_prompt,
+                             strength, guidance_scale, num_inference_steps, seed):
+        result = self.pipeline(
+            prompt=prompt, negative_prompt=negative_prompt, image=resize_init_image,
+            strength=strength, guidance_scale=guidance_scale, num_inference_steps=num_inference_steps)
+        return result.images[0]
 
 
 def create_inpainting_pipeline(model, workflow, state):
@@ -391,7 +411,8 @@ def patch_pixels(image, mask_image, nearest_alpha, patch_indices):
             # alpha blend the patched color with the original color
             alpha = image[i, j, 3]
             orig_color = image[i, j, :3]
-            image[i, j, :3] = alpha / 255.0 * orig_color + (255.0 - alpha)/255.0 * average_color
+            image[i, j, :3] = alpha / 255.0 * orig_color + \
+                (255.0 - alpha)/255.0 * average_color
             image[i, j, 3] = max(mask_image[i, j], image[i, j, 3])
 
 
@@ -435,15 +456,16 @@ def patch_image(image, mask_image):
 
     # find the alpha channel of the patched image that is new and not part of the original image
     inverted_alpha = 255 - alpha
-    new_alpha = np.minimum(mask_image, inverted_alpha)        
+    new_alpha = np.minimum(mask_image, inverted_alpha)
     new_alpha = np.expand_dims(new_alpha, axis=2)
     new_alpha = new_alpha / 255.0
-    
+
     blurred_image = cv2.GaussianBlur(image, (155, 155), 0)
-    
+
     # composite
-    image[:, :, :3] = image[:, :, :3] * (1 - new_alpha) + blurred_image[:, :, :3] * new_alpha
-    
+    image[:, :, :3] = image[:, :, :3] * \
+        (1 - new_alpha) + blurred_image[:, :, :3] * new_alpha
+
     return image
 
 
@@ -477,14 +499,14 @@ def main():
     init_image = Image.fromarray(init_image)
 
     if not args.patch:
-        #pipeline = InpaintingModel(
-        #    'diffusers/stable-diffusion-xl-1.0-inpainting-0.1')
+        pipeline = InpaintingModel(
+            'stabilityai/stable-diffusion-3-medium-diffusers')
         # pipeline = InpaintingModel(
         #    'automatic1111', server_address='localhost:7860')
-        pipeline = InpaintingModel(
-            'comfyui',
-            workflow_path='workflow.json',
-            server_address='localhost:8188')
+        # pipeline = InpaintingModel(
+        #    'comfyui',
+        #    workflow_path='workflow.json',
+        #    server_address='localhost:8188')
 
         pipeline.load_model()
 
