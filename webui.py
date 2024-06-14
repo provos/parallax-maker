@@ -849,7 +849,7 @@ def update_slices(ignored_data, filename):
 
     img_container = []
     assert len(state.image_slices) == len(state.image_slices_filenames)
-    for i, img_slice in enumerate(state.image_slices):
+    for i in range(len(state.image_slices)):
         img_data = state.serve_slice_image(i)
 
         left_color = caret_color_enabled if state.can_undo(
