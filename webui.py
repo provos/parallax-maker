@@ -917,8 +917,8 @@ def update_slices(ignored_data, filename):
         img_data = state.serve_slice_image_composed(
             state.selected_slice, mode=mode)
         state.slice_pixel = None
+        state.slice_pixel_depth = None
         state.slice_mask = None
-        state.slice_depth = None
 
     return img_container, "", img_data
 
