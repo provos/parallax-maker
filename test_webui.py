@@ -460,7 +460,7 @@ class TestUpdateSlices(unittest.TestCase):
     def setUp(self):
         # Mocks and AppState setup
         self.filename = "test_file"
-        self.mock_state = MagicMock()
+        self.mock_state = AppState()
 
         # Mock the AppState.from_cache method
         self.patcher = patch('webui.AppState.from_cache',
@@ -492,18 +492,20 @@ class TestUpdateSlices(unittest.TestCase):
         with self.assertRaises(PreventUpdate):
             update_slices(ignored_data, self.filename)
 
-    def test_full_functionality(self):
+    @patch('webui.AppState.serve_slice_image_composed', return_value='composed_image_data')
+    @patch('webui.AppState.serve_slice_image', return_value='image_data')
+    @patch('webui.AppState.can_undo', return_value=False)  
+    def test_full_functionality(self,
+                                mock_serve_slice_image_composed,
+                                mock_can_undo,
+                                mock_serve_slice_image):
         # Simulate state with several slices
         self.mock_state.image_slices = [MagicMock(), MagicMock()]
         self.mock_state.image_slices_filenames = ['slice1.png', 'slice2.png']
         self.mock_state.depthMapData = True
-        self.mock_state.serve_slice_image = MagicMock(return_value='image_data')
-        self.mock_state.can_undo = MagicMock(return_value=True)
         self.mock_state.image_depths = [0, 1]
         self.mock_state.selected_slice = 0
         self.mock_state.use_checkerboard = True
-        self.mock_state.serve_slice_image_composed = MagicMock(
-            return_value='composed_image_data')
 
         ignored_data = MagicMock()
         result = update_slices(ignored_data, self.filename)
@@ -513,13 +515,13 @@ class TestUpdateSlices(unittest.TestCase):
         self.assertEqual(len(img_container), 2)
         self.assertEqual(img_data, 'composed_image_data')
 
-    def test_corner_cases(self):
+    @patch('webui.AppState.serve_slice_image', return_value='image_data')
+    @patch('webui.AppState.can_undo', return_value=False)
+    def test_corner_cases(self, mock_can_undo, mock_serve_slice_image):
         # Simulate corner cases where selected_slice is None
         self.mock_state.image_slices = [MagicMock()]
         self.mock_state.image_slices_filenames = ['slice1.png']
         self.mock_state.depthMapData = True
-        self.mock_state.serve_slice_image = MagicMock(return_value='image_data')
-        self.mock_state.can_undo = MagicMock(return_value=False)
         self.mock_state.image_depths = [0]
         self.mock_state.selected_slice = None
 
