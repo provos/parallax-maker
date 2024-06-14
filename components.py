@@ -939,6 +939,8 @@ def make_configuration_div():
                     {'label': 'SD 1.5', 'value': 'unwayml/stable-diffusion-v1-5'},
                     {'label': 'SD XL 1.0',
                         'value': 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1'},
+                    {'label': 'StableDiffusion3',
+                     'value': 'stabilityai/stable-diffusion-3-medium-diffusers'},
                     {'label': 'Automatic1111', 'value': 'automatic1111'},
                     {'label': 'ComfyUI', 'value': 'comfyui'},
                     {'label': 'StabilityAI', 'value': 'stabilityai'},
