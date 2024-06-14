@@ -197,7 +197,7 @@ class InpaintingModel:
             image = self.inpaint_image2image(
                 resize_init_image, prompt, negative_prompt,
                 strength, guidance_scale, num_inference_steps, seed)
-        if self.model in self.MODELS:
+        elif self.model in self.MODELS:
             image = self.inpaint_diffusers(
                 resize_init_image, resize_mask_image,
                 prompt, negative_prompt,
