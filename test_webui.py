@@ -1,12 +1,14 @@
 import unittest
-
 from unittest.mock import patch, MagicMock
+from dash import dcc, html, no_update
 from dash.exceptions import PreventUpdate
 from PIL import Image
 import numpy as np
 from pathlib import Path
 
-from webui import update_threshold_values, click_event, copy_to_clipboard, export_state_as_gltf, slice_upload
+from webui import (
+    update_threshold_values, click_event,
+    copy_to_clipboard, export_state_as_gltf, slice_upload, update_slices)
 from controller import AppState
 from segmentation import setup_camera_and_cards
 from utils import to_image_url
@@ -451,6 +453,83 @@ class TestSliceUpload(unittest.TestCase):
         mock_state.to_file.assert_called_once_with(
             'appstate-random', save_image_slices=False, save_depth_map=False, save_input_image=False)
         self.assertIsInstance(mock_state.imgData, Image.Image)
+
+
+class TestUpdateSlices(unittest.TestCase):
+
+    def setUp(self):
+        # Mocks and AppState setup
+        self.filename = "test_file"
+        self.mock_state = MagicMock()
+
+        # Mock the AppState.from_cache method
+        self.patcher = patch('webui.AppState.from_cache',
+                             return_value=self.mock_state)
+        self.mock_from_cache = self.patcher.start()
+
+    def tearDown(self):
+        self.patcher.stop()
+
+    def test_no_filename(self):
+        ignored_data = MagicMock()
+        # Testing when filename is None
+        with self.assertRaises(PreventUpdate):
+            update_slices(ignored_data, None)
+
+    def test_no_image_slices(self):
+        # Test with no image slices
+        self.mock_state.image_slices = []
+        ignored_data = MagicMock()
+        result = update_slices(ignored_data, self.filename)
+        self.assertEqual(result, ([], "", no_update))
+
+    def test_no_depth_map_data(self):
+        # Test without depthMapData
+        self.mock_state.image_slices = [MagicMock()]
+        self.mock_state.image_slices_filenames = [MagicMock()]
+        self.mock_state.depthMapData = None
+        ignored_data = MagicMock()
+        with self.assertRaises(PreventUpdate):
+            update_slices(ignored_data, self.filename)
+
+    def test_full_functionality(self):
+        # Simulate state with several slices
+        self.mock_state.image_slices = [MagicMock(), MagicMock()]
+        self.mock_state.image_slices_filenames = ['slice1.png', 'slice2.png']
+        self.mock_state.depthMapData = True
+        self.mock_state.serve_slice_image = MagicMock(return_value='image_data')
+        self.mock_state.can_undo = MagicMock(return_value=True)
+        self.mock_state.image_depths = [0, 1]
+        self.mock_state.selected_slice = 0
+        self.mock_state.use_checkerboard = True
+        self.mock_state.serve_slice_image_composed = MagicMock(
+            return_value='composed_image_data')
+
+        ignored_data = MagicMock()
+        result = update_slices(ignored_data, self.filename)
+
+        # Check that the result is correctly generated images and the composed image
+        img_container, gen_slice_output, img_data = result
+        self.assertEqual(len(img_container), 2)
+        self.assertEqual(img_data, 'composed_image_data')
+
+    def test_corner_cases(self):
+        # Simulate corner cases where selected_slice is None
+        self.mock_state.image_slices = [MagicMock()]
+        self.mock_state.image_slices_filenames = ['slice1.png']
+        self.mock_state.depthMapData = True
+        self.mock_state.serve_slice_image = MagicMock(return_value='image_data')
+        self.mock_state.can_undo = MagicMock(return_value=False)
+        self.mock_state.image_depths = [0]
+        self.mock_state.selected_slice = None
+
+        ignored_data = MagicMock()
+        result = update_slices(ignored_data, self.filename)
+
+        # Check that the result correctly handles the corner case and does not update the image data
+        img_container, gen_slice_output, img_data = result
+        self.assertEqual(len(img_container), 1)
+        self.assertEqual(img_data, no_update)
 
 
 if __name__ == '__main__':
