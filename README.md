@@ -16,9 +16,27 @@ $ python ./webui.py --prefetch-models=default
 > [!NOTE]
 > If you want to make changes to the styles, you need to set up `node` and run `npm run build` to rebuild the tailwind css file.
 
+> [!IMPORTANT]  
+> To use Stable Diffusion 3 Medium, you will need to install the current versio of diffusers from github.
+
 # Parallax-Maker
 
-Generates masked images that can be used for 2.5D animation
+Provides a workflow for turning images into 2.5D animation like the one seen above.
+
+## Features
+ - Segmentation of images
+   - Using depth models like Midas or ZeoDepth
+   - Using instance segmentatio via Segment Anything with multiple positive and negative point selection
+   - Adding and removing of cards, direct manipulation of depth values
+ - Inpainting
+   - Inpainting of masks that can be padded and blurred
+   - Replacing the masked regions with new images via image generation models like Stable Diffusion 1.0 XL, Stable Diffusion 3 Medium, Automatic1111 or ComyfUI endpoints as well as the StabilityAI API.
+ - 3D Export
+   - Generation of glTF scenes that can be imported into Blender or Unreal Engine
+   - Support for depth displacement of cards to generate more realistic 3D geometry
+   - In browser 3D preview of the generated glTF scene.
+
+## Basic Examples
 
 Using an input image, the tool runs a depth model like **Midas** or **ZoeDepth** to generate a depth map
 
