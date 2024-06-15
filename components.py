@@ -21,7 +21,7 @@ from comfyui import get_history, patch_inpainting_workflow
 from controller import AppState, CompositeMode
 from utils import to_image_url, filename_add_version, find_square_bounding_box
 from inpainting import patch_image, create_inpainting_pipeline
-from segmentation import setup_camera_and_cards, render_view, remove_mask_from_alpha
+from segmentation import render_view, remove_mask_from_alpha
 from stabilityai import StabilityAI
 
 
@@ -1502,12 +1502,9 @@ def make_navigation_callbacks(app):
         Input(C.NAV_ZOOM_IN, 'n_clicks'),
         Input(C.NAV_ZOOM_OUT, 'n_clicks'),
         State(C.STORE_APPSTATE_FILENAME, 'data'),
-        State(C.SLIDER_CAMERA_DISTANCE, 'value'),
-        State(C.SLIDER_FOCAL_LENGTH, 'value'),
-        State(C.SLIDER_MAX_DISTANCE, 'value'),
         State(C.LOGS_DATA, 'data'),
         prevent_initial_call=True)
-    def navigate_image(reset, up, down, left, right, zoom_in, zoom_out, filename, camera_distance, focal_length, max_distance, logs):
+    def navigate_image(reset, up, down, left, right, zoom_in, zoom_out, filename, logs):
         if filename is None:
             raise PreventUpdate()
 
@@ -1526,7 +1523,7 @@ def make_navigation_callbacks(app):
 
         if nav_clicked == C.NAV_RESET:
             camera_position = np.array(
-                [0, 0, -camera_distance], dtype=np.float32)
+                [0, 0, -state.camera.camera_distance], dtype=np.float32)
         else:
             # Move the camera position based on the navigation button clicked
             # The distance should be configurable
@@ -1542,13 +1539,9 @@ def make_navigation_callbacks(app):
             camera_position += switch[nav_clicked]
 
         state.camera.camera_position = camera_position
-        state.camera.camera_distance = camera_distance
-        state.camera.focal_length = focal_length
-        state.camera.max_distance = max_distance
 
-        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-            state.image_slices, state.image_depths,
-            state.camera.camera_distance, state.camera.max_distance, state.camera.focal_length)
+        camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
+            state.image_slices, state.image_depths)
 
         image = render_view(state.image_slices, camera_matrix,
                             card_corners_3d_list, camera_position)

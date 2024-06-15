@@ -15,7 +15,6 @@ from segmentation import (
     analyze_depth_histogram,
     generate_image_slices,
     create_slice_from_mask,
-    setup_camera_and_cards,
     export_gltf,
     blend_with_alpha,
     remove_mask_from_alpha,
@@ -1214,9 +1213,8 @@ def export_state_as_gltf(
         state, filename,
         camera,
         displacement_scale, modelname='midas', support_dof=False):
-    camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-        state.image_slices,
-        state.image_depths, camera.camera_distance, camera.max_distance, camera.focal_length)
+    camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
+        state.image_slices, state.image_depths)
 
     depth_filenames = []
     if displacement_scale > 0:
@@ -1331,20 +1329,18 @@ def slice_upload(contents, filename, logs):
               Input(C.BTN_EXPORT_ANIMATION, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
               State(C.SLIDER_NUM_FRAMES, 'value'),
-              State(C.SLIDER_CAMERA_DISTANCE, 'value'),
-              State(C.SLIDER_MAX_DISTANCE, 'value'),
-              State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.LOGS_DATA, 'data'),
               running=[(Output(C.BTN_EXPORT_ANIMATION, 'disabled'), True, False)],
               prevent_initial_call=True)
-def export_animation(n_clicks, filename, num_frames, camera_distance, max_distance, focal_length, logs):
+def export_animation(n_clicks, filename, num_frames, logs):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
-    camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-        state.image_slices, state.image_depths, camera_distance, max_distance, focal_length)
+    camera_distance = state.camera.camera_distance
+    camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
+        state.image_slices, state.image_depths)
 
     # Render the initial view
     camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)

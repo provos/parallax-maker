@@ -10,7 +10,6 @@ from webui import (
     update_threshold_values, click_event,
     copy_to_clipboard, export_state_as_gltf, slice_upload, update_slices)
 from controller import AppState
-from segmentation import setup_camera_and_cards
 from utils import to_image_url
 from camera import Camera
 import constants as C
@@ -250,18 +249,21 @@ class TextExportGltf(unittest.TestCase):
         self.state.depth_filename.return_value = self.mock_depth_file
         self.mock_depth_file.exists.return_value = True
 
+        self.camera = Camera(10, 100, 50)
+
         self.state.upscaled_filename.return_value = Path("upscaled_file.png")
         self.state.image_slices_filenames = [
             Path(f"slice_{i}.png") for i in range(3)]
         self.state.MODEL_FILE = "model.gltf"
+        self.state.camera = self.camera
 
     @patch("webui.generate_depth_map")
     @patch("webui.postprocess_depth_map")
     @patch("webui.export_gltf")
     def test_export_state_as_gltf(self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map):
         # Test case 1: Displacement scale is 0
-        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-            self.state.image_slices, self.state.image_depths, 10, 100, 50)
+        camera_matrix, card_corners_3d_list = self.camera.setup_camera_and_cards(
+            self.state.image_slices, self.state.image_depths)
         mock_export_gltf.return_value = Path("output.gltf")
 
         result = export_state_as_gltf(
@@ -294,8 +296,8 @@ class TextExportGltf(unittest.TestCase):
     def test_export_state_as_gltf_with_displacement(
             self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map, mock_image_fromarray):
         # Test case 2: Displacement scale is greater than 0
-        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-            self.state.image_slices, self.state.image_depths, 10, 100, 50)
+        camera_matrix, card_corners_3d_list = self.camera.setup_camera_and_cards(
+            self.state.image_slices, self.state.image_depths)
 
         mock_export_gltf.return_value = Path("output.gltf")
 
@@ -339,8 +341,8 @@ class TextExportGltf(unittest.TestCase):
     @patch("webui.export_gltf")
     def test_export_state_as_gltf_with_upscaled(self, mock_export_gltf):
         # Test case 3: Upscaled slices exist
-        camera_matrix, card_corners_3d_list = setup_camera_and_cards(
-            self.state.image_slices, self.state.image_depths, 10, 100, 50)
+        camera_matrix, card_corners_3d_list = self.camera.setup_camera_and_cards(
+            self.state.image_slices, self.state.image_depths)
 
         # Pretend the upscaled file exists
         mock_upscaled_file = MagicMock()
