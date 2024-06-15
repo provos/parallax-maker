@@ -259,9 +259,9 @@ class TestFromJson(unittest.TestCase):
             "blue fish", "new fish", "old fish"])
         self.assertEqual(state.server_address, "http://localhost:8000")
         self.assertEqual(state.api_key, "sk-somesecretkey")
-        self.assertEqual(state.camera_distance, 1.0)
-        self.assertEqual(state.max_distance, 2.0)
-        self.assertEqual(state.focal_length, 3.0)
+        self.assertEqual(state.camera.camera_distance, 1.0)
+        self.assertEqual(state.camera.max_distance, 2.0)
+        self.assertEqual(state.camera.focal_length, 3.0)
         self.assertEqual(state.mesh_displacement, 4.0)
 
     def test_from_json_partial(self):

@@ -12,6 +12,7 @@ from webui import (
 from controller import AppState
 from segmentation import setup_camera_and_cards
 from utils import to_image_url
+from camera import Camera
 import constants as C
 
 
@@ -264,7 +265,8 @@ class TextExportGltf(unittest.TestCase):
         mock_export_gltf.return_value = Path("output.gltf")
 
         result = export_state_as_gltf(
-            self.state, "output_dir", 10, 100, 50, 0, "midas")
+            self.state, "output_dir",
+            Camera(10, 100, 50), 0, "midas")
 
         self.assertEqual(result, Path("output.gltf"))
         mock_generate_depth_map.assert_not_called()
@@ -310,7 +312,7 @@ class TextExportGltf(unittest.TestCase):
         mock_image_fromarray.return_value = mock_image
 
         result = export_state_as_gltf(
-            self.state, "output_dir", 10, 100, 50, 1, "midas")
+            self.state, "output_dir", Camera(10, 100, 50), 1, "midas")
 
         self.assertEqual(result, Path("output.gltf"))
         self.assertEqual(mock_generate_depth_map.call_count, 3)
@@ -346,7 +348,7 @@ class TextExportGltf(unittest.TestCase):
         self.state.upscaled_filename.return_value = mock_upscaled_file
 
         result = export_state_as_gltf(
-            self.state, "output_dir", 10, 100, 50, 1, "midas")
+            self.state, "output_dir", Camera(10, 100, 50), 1, "midas")
 
         # Compare individual elements of card_corners_3d_list
         expected_call = mock_export_gltf.call_args_list[0]

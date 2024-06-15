@@ -1522,7 +1522,7 @@ def make_navigation_callbacks(app):
             logs.append('No image slices to navigate')
             return no_update, logs, True
 
-        camera_position = state.camera_position
+        camera_position = state.camera.camera_position
 
         if nav_clicked == C.NAV_RESET:
             camera_position = np.array(
@@ -1541,14 +1541,14 @@ def make_navigation_callbacks(app):
 
             camera_position += switch[nav_clicked]
 
-        state.camera_position = camera_position
-        state.camera_distance = camera_distance
-        state.focal_length = focal_length
-        state.max_distance = max_distance
+        state.camera.camera_position = camera_position
+        state.camera.camera_distance = camera_distance
+        state.camera.focal_length = focal_length
+        state.camera.max_distance = max_distance
 
         camera_matrix, card_corners_3d_list = setup_camera_and_cards(
             state.image_slices, state.image_depths,
-            state.camera_distance, state.max_distance, state.focal_length)
+            state.camera.camera_distance, state.camera.max_distance, state.camera.focal_length)
 
         image = render_view(state.image_slices, camera_matrix,
                             card_corners_3d_list, camera_position)

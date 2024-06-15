@@ -19,6 +19,7 @@ from utils import (
 from segmentation import mask_from_depth
 from upscaler import Upscaler
 from stabilityai import StabilityAI
+from camera import Camera
 
 
 class CompositeMode(Enum):
@@ -35,8 +36,7 @@ class AppState:
         'selected_slice', 'pipeline_spec', 'depth_estimation_model', 'segmentation_model',
         'selected_inpainting', 'result_tinted', 'grayscale_tinted', 'checkerboard',
         'slice_pixel', 'slice_pixel_depth', 'slice_mask', 'upscaler', 'clipboard_image',
-        'use_checkerboard', 'multi_point_mode', 'points_selected', '_camera_position',
-        '_camera_distance', '_max_distance', '_focal_length', '_mesh_displacement'
+        'use_checkerboard', 'multi_point_mode', 'points_selected', '_camera', '_mesh_displacement'
     )
     SRV_DIR = 'tmp-images'
     STATE_FILE = 'appstate.json'
@@ -91,14 +91,15 @@ class AppState:
         self.multi_point_mode = False
         self.points_selected = []
 
-        # XXX - make this configurable
-        self._camera_position = np.array([0, 0, -100], dtype=np.float32)
-        self._camera_distance = 100.0
-        self._max_distance = 500.0
-        self._focal_length = 100.0
+        self._camera = Camera(100.0, 500.0, 100.0)
+        self._camera.camera_position = np.array([0.0, 0.0, -100.0], dtype=np.float32)    
         
         self._mesh_displacement = 0.0
         
+    @property
+    def camera(self):
+        return self._camera    
+    
     @property
     def mesh_displacement(self):
         return self._mesh_displacement
@@ -108,47 +109,6 @@ class AppState:
         if not isinstance(value, (float, int)) or value < 0:
             raise ValueError("mesh_displacement must be a non-negative number")
         self._mesh_displacement = value
-
-    @property
-    def camera_position(self):
-        return self._camera_position
-
-    @camera_position.setter
-    def camera_position(self, value):
-        if not isinstance(value, np.ndarray) or value.dtype != np.float32 or value.shape != (3,):
-            raise ValueError(
-                "camera_position must be a numpy array of dtype 'float32' with shape (3,)")
-        self._camera_position = value
-
-    @property
-    def camera_distance(self):
-        return self._camera_distance
-
-    @camera_distance.setter
-    def camera_distance(self, value):
-        if not isinstance(value, (float, int)) or value < 0:
-            raise ValueError("camera_distance must be a non-negative number")
-        self._camera_distance = value
-
-    @property
-    def max_distance(self):
-        return self._max_distance
-
-    @max_distance.setter
-    def max_distance(self, value):
-        if not isinstance(value, (float, int)) or value < 0:
-            raise ValueError("max_distance must be a non-negative number")
-        self._max_distance = value
-
-    @property
-    def focal_length(self):
-        return self._focal_length
-
-    @focal_length.setter
-    def focal_length(self, value):
-        if not isinstance(value, (float, int)) or value <= 0:
-            raise ValueError("focal_length must be a positive number")
-        self._focal_length = value
 
     def create_tints(self):
         """Precomputes the tings for visualizing slices."""
@@ -692,11 +652,12 @@ class AppState:
             'positive_prompts': self.positive_prompts,
             'negative_prompts': self.negative_prompts,
             'dark_mode': self.dark_mode,
-            'camera_distance': self._camera_distance,
-            'max_distance': self._max_distance,
-            'focal_length': self._focal_length,
             'mesh_displacement': self._mesh_displacement,
         }
+        
+        # merge the camera data
+        camera_dict = self._camera.to_json()
+        data.update(camera_dict)
 
         if self.depth_model_name is not None:
             data['depth_model_name'] = self.depth_model_name
@@ -745,14 +706,10 @@ class AppState:
 
         state.dark_mode = data['dark_mode'] if 'dark_mode' in data else False
         
-        if 'camera_distance' in data:
-            state.camera_distance = data['camera_distance']
-        if 'max_distance' in data:
-            state.max_distance = data['max_distance']
-        if 'focal_length' in data:
-            state.focal_length = data['focal_length']
         if 'mesh_displacement' in data:
             state.mesh_displacement = data['mesh_displacement']
+
+        state._camera = Camera.from_json(data)
 
         # check dats structures have consistent lengths
         assert len(state.image_slices_filenames) == len(state.image_depths)

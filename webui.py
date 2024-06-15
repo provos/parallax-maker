@@ -43,6 +43,7 @@ from flask import send_file
 from werkzeug import serving
 
 from controller import AppState, CompositeMode
+from camera import Camera
 
 # Globals
 EXPAND_MASK = 5
@@ -1102,22 +1103,19 @@ def upscale_texture(n_clicks, filename, model_name, server_address, workflow, lo
               Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
               Input(C.BTN_GLTF_EXPORT, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
-              State(C.SLIDER_CAMERA_DISTANCE, 'value'),
-              State(C.SLIDER_MAX_DISTANCE, 'value'),
-              State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.SLIDER_DISPLACEMENT, 'value'),
               State(C.CHECKLIST_DOF, 'value'),
               running=[(Output(C.BTN_GLTF_EXPORT, 'disabled'), True, False)],
               prevent_initial_call=True
               )
-def gltf_export(n_clicks, filename, camera_distance, max_distance, focal_length, displacement_scale, dof):
+def gltf_export(n_clicks, filename, displacement_scale, dof):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
 
     gltf_path = export_state_as_gltf(
-        state, filename, camera_distance, max_distance, focal_length, displacement_scale, support_dof=('dof' in dof))
+        state, filename, state.camera, displacement_scale, support_dof=('dof' in dof))
 
     return dcc.send_file(gltf_path, filename='scene.gltf'), ""
 
@@ -1154,15 +1152,13 @@ def remember_camera_parameters(camera_distance, focal_length, max_distance, disp
     state = AppState.from_cache(filename)
 
     # don't save if the values are the same
-    if (state.camera_distance == camera_distance and
-        state.focal_length == focal_length and
-        state.max_distance == max_distance and
-            state.mesh_displacement == displacement):
+    camera = Camera(camera_distance, focal_length, max_distance)
+    if (state.camera == camera and state.mesh_displacement == displacement):
         raise PreventUpdate()
 
-    state.camera_distance = camera_distance
-    state.focal_length = focal_length
-    state.max_distance = max_distance
+    state.camera.camera_distance = camera_distance
+    state.camera.focal_length = focal_length
+    state.camera.max_distance = max_distance
     state.mesh_displacement = displacement
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
@@ -1192,9 +1188,6 @@ def remember_inpaint_model(value, filename):
               Output(C.LOADING_GLTF, 'children', allow_duplicate=True),
               Input(C.BTN_GLTF_CREATE, 'n_clicks'),
               State(C.STORE_APPSTATE_FILENAME, 'data'),
-              State(C.SLIDER_CAMERA_DISTANCE, 'value'),
-              State(C.SLIDER_MAX_DISTANCE, 'value'),
-              State(C.SLIDER_FOCAL_LENGTH, 'value'),
               State(C.SLIDER_DISPLACEMENT, 'value'),
               State(C.DROPDOWN_DEPTH_MODEL, 'value'),
               State(C.CHECKLIST_DOF, 'value'),
@@ -1203,15 +1196,15 @@ def remember_inpaint_model(value, filename):
               )
 def gltf_create(
         n_clicks, filename,
-        camera_distance, max_distance, focal_length,
         displacement_scale, model_name, dof):
     if n_clicks is None or filename is None:
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
+    
     export_state_as_gltf(
         state, filename,
-        camera_distance, max_distance, focal_length,
+        state.camera,
         displacement_scale, modelname=model_name, support_dof=('dof' in dof))
 
     return get_gltf_iframe(state.serve_model_file()), ""
@@ -1219,11 +1212,11 @@ def gltf_create(
 
 def export_state_as_gltf(
         state, filename,
-        camera_distance, max_distance, focal_length,
+        camera,
         displacement_scale, modelname='midas', support_dof=False):
     camera_matrix, card_corners_3d_list = setup_camera_and_cards(
         state.image_slices,
-        state.image_depths, camera_distance, max_distance, focal_length)
+        state.image_depths, camera.camera_distance, camera.max_distance, camera.focal_length)
 
     depth_filenames = []
     if displacement_scale > 0:
@@ -1253,7 +1246,7 @@ def export_state_as_gltf(
 
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     output_path = Path(filename) / state.MODEL_FILE
-    gltf_path = export_gltf(output_path, aspect_ratio, focal_length, camera_distance,
+    gltf_path = export_gltf(output_path, aspect_ratio, camera.focal_length, camera.camera_distance,
                             card_corners_3d_list, slices_filenames, depth_filenames,
                             displacement_scale=displacement_scale,
                             support_dof=support_dof)
@@ -1386,7 +1379,8 @@ def remember_camera_parameters(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    return state.camera_distance, state.focal_length, state.max_distance, state.mesh_displacement
+    cam  = state.camera
+    return cam.camera_distance, cam.focal_length, cam.max_distance, state.mesh_displacement
 
 
 @app.callback(
