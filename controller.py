@@ -6,6 +6,7 @@ import json
 import random
 import string
 import time
+from typing import List
 from PIL import Image
 from io import BytesIO
 from enum import Enum
@@ -20,6 +21,7 @@ from segmentation import mask_from_depth
 from upscaler import Upscaler
 from stabilityai import StabilityAI
 from camera import Camera
+from slice import ImageSlice
 
 
 class CompositeMode(Enum):
@@ -30,9 +32,9 @@ class CompositeMode(Enum):
 
 class AppState:
     __slots__ = (
-        '_lock', 'filename', 'num_slices', 'imgData', 'imgThresholds', 'depthMapData', 'image_depths',
-        'image_slices_filenames', 'depth_model_name', 'inpainting_model_name', 'positive_prompts',
-        'negative_prompts', 'server_address', 'api_key', 'dark_mode', 'image_slices',
+        '_lock', 'filename', 'num_slices', 'imgData', 'imgThresholds', 'depthMapData',
+        'depth_model_name', 'inpainting_model_name',
+        'server_address', 'api_key', 'dark_mode', 'image_slices',
         'selected_slice', 'pipeline_spec', 'depth_estimation_model', 'segmentation_model',
         'selected_inpainting', 'result_tinted', 'grayscale_tinted', 'checkerboard',
         'slice_pixel', 'slice_pixel_depth', 'slice_mask', 'upscaler', 'clipboard_image',
@@ -57,22 +59,17 @@ class AppState:
         self.imgData = None  # PIL image
         self.imgThresholds = None
         self.depthMapData = None  # numpy array
-        self.image_depths = []
-        self.image_slices_filenames = []
 
         self.depth_model_name = None
         self.inpainting_model_name = None
 
-        self.positive_prompts = []
-        self.negative_prompts = []
-
         self.server_address = None
         self.api_key = None
-        
+
         self.dark_mode = False
 
         # no JSON serialization for items below
-        self.image_slices = []
+        self.image_slices: List[ImageSlice] = []
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec() for inpainting
         self.depth_estimation_model = None  # DepthEstimationModel() for depth estimation
@@ -92,18 +89,19 @@ class AppState:
         self.points_selected = []
 
         self._camera = Camera(100.0, 500.0, 100.0)
-        self._camera.camera_position = np.array([0.0, 0.0, -100.0], dtype=np.float32)    
-        
+        self._camera.camera_position = np.array(
+            [0.0, 0.0, -100.0], dtype=np.float32)
+
         self._mesh_displacement = 0.0
-        
+
     @property
     def camera(self):
-        return self._camera    
-    
+        return self._camera
+
     @property
     def mesh_displacement(self):
         return self._mesh_displacement
-    
+
     @mesh_displacement.setter
     def mesh_displacement(self, value):
         if not isinstance(value, (float, int)) or value < 0:
@@ -148,46 +146,33 @@ class AppState:
         """Changes the depth of the slice at the specified index."""
         assert slice_index >= 0 and slice_index < len(self.image_slices)
 
-        if depth == self.image_depths[slice_index]:
+        if depth == self.image_slices[slice_index].depth:
             return slice_index
 
-        filename = self.image_slices_filenames[slice_index]
-        image = self.image_slices[slice_index]
-        positive_prompt = self.positive_prompts[slice_index]
-        negative_prompt = self.negative_prompts[slice_index]
-
         # remove it from the lists
-        self.image_depths.pop(slice_index)
-        self.image_slices_filenames.pop(slice_index)
-        self.image_slices.pop(slice_index)
-        self.positive_prompts.pop(slice_index)
-        self.negative_prompts.pop(slice_index)
+        image_slice = self.image_slices.pop(slice_index)
+        image_slice.depth = depth
 
-        return self.add_slice(image, depth, filename=filename,
-                              positive_prompt=positive_prompt, negative_prompt=negative_prompt)
+        return self.add_slice(image_slice)
 
-    def add_slice(self, slice_image, depth, filename=None, positive_prompt='', negative_prompt=''):
+    def add_slice(self, image_slice: ImageSlice):
         """Adds the image as a new slice at the provided depth."""
-        if filename is None:
-            filename = str(Path(self.filename) /
-                           f"image_slice_{len(self.image_slices)}.png")
+        if image_slice.filename is None:
+            image_slice.filename = str(Path(self.filename) /
+                                       f"image_slice_{len(self.image_slices)}.png")
         # find the index where the depth should be inserted
-        index = len(self.image_depths)
-        for i, d in enumerate(self.image_depths):
-            if depth < d:
+        index = len(self.image_slices)
+        for i, cur_slice in enumerate(self.image_slices):
+            if image_slice.depth < cur_slice.depth:
                 index = i
                 break
-        self.image_depths.insert(index, depth)
-        self.image_slices_filenames.insert(index, filename)
-        self.image_slices.insert(index, slice_image)
-        self.positive_prompts.insert(index, positive_prompt)
-        self.negative_prompts.insert(index, negative_prompt)
+        self.image_slices.insert(index, image_slice)
 
         if index > 0:
             # make sure the depth values are all unique
             for i in range(index, len(self.image_slices)):
-                if self.image_depths[i] == self.image_depths[i-1]:
-                    self.image_depths[i] += 1
+                if self.image_slices[i].depth == self.image_slices[i-1].depth:
+                    self.image_slices[i].depth += 1
 
         return index
 
@@ -196,24 +181,15 @@ class AppState:
         if slice_index < 0 or slice_index >= len(self.image_slices):
             return False
         self.image_slices.pop(slice_index)
-        self.image_depths.pop(slice_index)
-        self.image_slices_filenames.pop(slice_index)
-        self.positive_prompts.pop(slice_index)
-        self.negative_prompts.pop(slice_index)
         self.selected_slice = None
         self.slice_pixel = None
         self.slice_pixel_depth = None
         self.slice_mask = None
 
-        # XXX - decide whether to delete the corresponding files
         return True
 
     def reset_image_slices(self):
         self.image_slices = []
-        self.image_depths = []
-        self.image_slices_filenames = []
-        self.positive_prompts = []
-        self.negative_prompts = []
         self.selected_slice = None
         self.selected_inpainting = None
         self.slice_pixel = None
@@ -222,9 +198,10 @@ class AppState:
 
     def balance_slices_depths(self):
         """Equally distribute the depths of the image slices."""
-        self.image_depths[0] = 0
-        self.image_depths[1:] = [int(i * 255 / (self.num_slices - 1))
-                                 for i in range(1, self.num_slices)]
+        depths = [int(i * 255 / (len(self.image_slices) - 1))
+                  for i in range(len(self.image_slices))]
+        for i in len(self.image_slices):
+            self.image_slices[i].depth = depths[i]
 
     def depth_slice_from_pixel(self, pixel_x, pixel_y):
         depth = -1  # for log below
@@ -259,8 +236,7 @@ class AppState:
 
     def serve_slice_image(self, slice_index):
         """Serves the image slice with the specified index."""
-        assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
+        assert slice_index >= 0 and slice_index < len(self.image_slices)
         image_path = self.checkerboard_filename(slice_index)
         if not image_path.exists():
             image = self.slice_image_composed(
@@ -272,9 +248,8 @@ class AppState:
 
     def slice_image_composed(self, slice_index, mode: CompositeMode = CompositeMode.NONE):
         """Composes the slice image over the main image."""
-        assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
-        slice_image = self.image_slices[slice_index]
+        assert slice_index >= 0 and slice_index < len(self.image_slices)
+        slice_image = self.image_slices[slice_index].image
         if not isinstance(slice_image, Image.Image):
             slice_image = Image.fromarray(slice_image)
 
@@ -327,9 +302,8 @@ class AppState:
         return Path(self.filename) / self.WORKFLOW
 
     def _make_filename(self, slice_index, suffix):
-        assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
-        file_path = Path(self.image_slices_filenames[slice_index])
+        assert slice_index >= 0 and slice_index < len(self.image_slices)
+        file_path = Path(self.image_slices[slice_index].filename)
         return file_path.parent / f"{file_path.stem}_{suffix}.png"
 
     def checkerboard_filename(self, slice_index):
@@ -355,18 +329,10 @@ class AppState:
 
         return str(mask_path)
 
-    def _read_image_slice(self, slice_index):
-        img = cv2.imread(
-            str(self.image_slices_filenames[slice_index]), cv2.IMREAD_UNCHANGED)
-        img = cv2.cvtColor(img, cv2.COLOR_BGRA2RGBA)
-        return img
-
     def _read_image_slices(self):
-        self.image_slices = [None] * len(self.image_slices_filenames)
-        for i in range(len(self.image_slices_filenames)):
-            self.image_slices[i] = self._read_image_slice(i)
+        for i, image_slice in enumerate(self.image_slices):
+            image_slice.read_image()
         print(f"Loaded {len(self.image_slices)} image slices")
-        assert len(self.image_slices) == len(self.image_slices_filenames)
 
     def can_undo(self, slice_index, forward=False):
         """
@@ -380,14 +346,13 @@ class AppState:
         Returns:
             bool: True if the specified slice version exists, False otherwise.
         """
-        assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
+        assert slice_index >= 0 and slice_index < len(self.image_slices)
         if forward:
             filename = filename_add_version(
-                self.image_slices_filenames[slice_index])
+                self.image_slices[slice_index].filename)
         else:
             filename = filename_previous_version(
-                self.image_slices_filenames[slice_index])
+                self.image_slices[slice_index].filename)
 
         if filename is None:
             return False
@@ -406,41 +371,24 @@ class AppState:
         Returns:
             bool: True if the undo operation is successful, False otherwise.
         """
-        assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
+        assert slice_index >= 0 and slice_index < len(self.image_slices)
 
         if not self.can_undo(slice_index, forward):
             return False
 
         if forward:
             filename = filename_add_version(
-                self.image_slices_filenames[slice_index])
+                self.image_slices[slice_index].filename)
         else:
             filename = filename_previous_version(
-                self.image_slices_filenames[slice_index])
+                self.image_slices[slice_index].filename)
 
         if filename is None:
             return False
 
-        self.image_slices_filenames[slice_index] = filename
-        self.image_slices[slice_index] = self._read_image_slice(slice_index)
+        self.image_slices[slice_index].filename = filename
+        self.image_slices[slice_index].read_image()
         return True
-
-    def save_image_slice(self, slice_index):
-        """
-        Save the image slice with the specified index.
-
-        Args:
-            slice_index (int): The index of the slice to save.
-        """
-        assert slice_index >= 0 and slice_index < len(
-            self.image_slices_filenames)
-        slice_image = self.image_slices[slice_index]
-        if not isinstance(slice_image, Image.Image):
-            slice_image = Image.fromarray(slice_image, mode='RGBA')
-        output_image_path = self.image_slices_filenames[slice_index]
-        print(f"Saving image slice: {output_image_path}")
-        slice_image.save(str(output_image_path))
 
     def save_image_slices(self, file_path):
         """
@@ -450,12 +398,10 @@ class AppState:
             file_path (str): The file path to save the image slices.
         """
         file_path = Path(file_path)
-        if len(self.image_slices_filenames) == 0:
-            self.image_slices_filenames = [
-                str(file_path / f"image_slice_{i}.png") for i in range(len(self.image_slices))]
-        assert len(self.image_slices) == len(self.image_slices_filenames)
-        for i in range(len(self.image_slices)):
-            self.save_image_slice(i)
+        for i, slice_image in enumerate(self.image_slices):
+            if slice_image.filename is None:
+                slice_image.filename = str(file_path / f"image_slice_{i}.png")
+            slice_image.save_image()
 
     def _create_upscaler(self):
         if self.pipeline_spec is None:
@@ -482,8 +428,8 @@ class AppState:
         for i, slice_image in enumerate(self.image_slices):
             filename = self.upscaled_filename(i)
             if not Path(filename).exists():
-                prompt = self.positive_prompts[i]
-                negative_prompt = self.negative_prompts[i]
+                prompt = slice_image.positive_prompt
+                negative_prompt = slice_image.negative_prompt
                 print(
                     f"Upscaling image slice: {filename} with '{prompt}'/'{negative_prompt}'")
                 upscaled_image = self.upscale_image(
@@ -523,7 +469,7 @@ class AppState:
             state_file = file_path / AppState.STATE_FILE
             temp_file = state_file.with_suffix('.tmp')
             backup_file = state_file.with_suffix('.bak')
-            
+
             try:
                 # Write to temporary file
                 with open(temp_file, 'w', encoding='utf-8') as file:
@@ -643,18 +589,24 @@ class AppState:
         Returns:
             str: The JSON string representation of the state.
         """
+        
+        image_depths = [image_slice.depth for image_slice in self.image_slices]
+        image_slices_filenames = [image_slice.filename for image_slice in self.image_slices]
+        positive_prompts = [image_slice.positive_prompt for image_slice in self.image_slices]
+        negative_prompts = [image_slice.negative_prompt for image_slice in self.image_slices]
+        
         data = {
             'filename': self.filename,
             'num_slices': self.num_slices,
             'imgThresholds': self.imgThresholds,
-            'image_depths': self.image_depths,
-            'image_slices_filenames': self.image_slices_filenames,
-            'positive_prompts': self.positive_prompts,
-            'negative_prompts': self.negative_prompts,
+            'image_depths': image_depths,
+            'image_slices_filenames': image_slices_filenames,
+            'positive_prompts': positive_prompts,
+            'negative_prompts': negative_prompts,
             'dark_mode': self.dark_mode,
             'mesh_displacement': self._mesh_displacement,
         }
-        
+
         # merge the camera data
         camera_dict = self._camera.to_json()
         data.update(camera_dict)
@@ -690,31 +642,35 @@ class AppState:
         state.filename = data['filename']
         state.num_slices = data['num_slices'] if 'num_slices' in data else 5
         state.imgThresholds = data['imgThresholds']
-        state.image_depths = data['image_depths'] if 'image_depths' in data else state.imgThresholds[1:]
-        state.image_slices_filenames = data['image_slices_filenames']
+
+        image_depths = data['image_depths'] if 'image_depths' in data else state.imgThresholds[1:]
+        image_slices_filenames = data['image_slices_filenames']
 
         state.depth_model_name = data['depth_model_name'] if 'depth_model_name' in data else None
         state.inpainting_model_name = data['inpainting_model_name'] if 'inpainting_model_name' in data else None
 
-        empty = [''] * len(state.image_slices_filenames)
-        state.positive_prompts = data['positive_prompts'] if 'positive_prompts' in data else empty
-        state.negative_prompts = data['negative_prompts'] if 'negative_prompts' in data else empty
+        empty = [''] * len(image_slices_filenames)
+        positive_prompts = data['positive_prompts'] if 'positive_prompts' in data else empty
+        negative_prompts = data['negative_prompts'] if 'negative_prompts' in data else empty
+        
+        # check dats structures have consistent lengths
+        assert len(image_slices_filenames) == len(image_depths)
+        assert len(image_slices_filenames) == len(positive_prompts)
+        assert len(image_slices_filenames) == len(negative_prompts)
+
+        state.image_slices = [ImageSlice(depth=depth, filename=filename, positive_prompt=positive_prompt, negative_prompt=negative_prompt)
+                              for depth, filename, positive_prompt, negative_prompt in zip(image_depths, image_slices_filenames, positive_prompts, negative_prompts)]
 
         state.server_address = data['server_address'] if 'server_address' in data else None
         state.api_key = decode_string_with_nonce(
             data['api_key'], state.filename) if 'api_key' in data else None
 
         state.dark_mode = data['dark_mode'] if 'dark_mode' in data else False
-        
+
         if 'mesh_displacement' in data:
             state.mesh_displacement = data['mesh_displacement']
 
         state._camera = Camera.from_json(data)
-
-        # check dats structures have consistent lengths
-        assert len(state.image_slices_filenames) == len(state.image_depths)
-        assert len(state.image_slices_filenames) == len(state.positive_prompts)
-        assert len(state.image_slices_filenames) == len(state.negative_prompts)
 
         # check that all filenames start with the filename as prefix
         state.check_pathnames()
@@ -729,7 +685,7 @@ class AppState:
         assert str(root).startswith(str(cwd / 'appstate-')
                                     ), f"Invalid filename: {self.filename}"
 
-        for filename in self.image_slices_filenames:
-            filename = Path(filename).resolve()
+        for image_slice in self.image_slices:
+            filename = Path(image_slice.filename).resolve()
             assert str(filename).startswith(
                 str(root)), f"Invalid filename: {filename}"

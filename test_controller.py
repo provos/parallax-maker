@@ -5,6 +5,7 @@ from pathlib import Path
 
 from utils import encode_string_with_nonce, decode_string_with_nonce
 from controller import AppState
+from slice import ImageSlice
 
 
 class TestAddSlice(unittest.TestCase):
@@ -19,60 +20,69 @@ class TestAddSlice(unittest.TestCase):
         slice_image1 = 'image-1'
         depth1 = 5
 
+        image_slice = ImageSlice(slice_image1, depth1)
+
         # Call the function
-        insert1 = self.state.add_slice(slice_image1, depth1)
+        insert1 = self.state.add_slice(image_slice)
 
         self.assertEqual(insert1, 0)
         self.assertEqual(len(self.state.image_slices), 1)
-        self.assertEqual(self.state.image_depths[0], depth1)
+        self.assertEqual(self.state.image_slices[0].depth, depth1)
 
         slice_image2 = 'image-2'
         depth2 = 10
+        image_slice = ImageSlice(slice_image2, depth2)
 
         # Call the function
-        insert2 = self.state.add_slice(slice_image2, depth2)
+        insert2 = self.state.add_slice(image_slice)
 
         # Check whether this slice was added before the first slice
         self.assertEqual(insert2, 1)
         self.assertEqual(len(self.state.image_slices), 2)
-        self.assertEqual(self.state.image_depths[0], depth1)
-        self.assertEqual(self.state.image_depths[1], depth2)
+        self.assertEqual(self.state.image_slices[0].depth, depth1)
+        self.assertEqual(self.state.image_slices[1].depth, depth2)
 
     def test_add_slice_reverse(self):
         # Create a mock slice image and depth value
         slice_image1 = 'image-1'
         depth1 = 5
 
+        image_slice1 = ImageSlice(slice_image1, depth1)
+
         # Call the function
-        insert1 = self.state.add_slice(slice_image1, depth1)
+        insert1 = self.state.add_slice(image_slice1)
 
         self.assertEqual(insert1, 0)
         self.assertEqual(len(self.state.image_slices), 1)
-        self.assertEqual(self.state.image_depths[0], depth1)
+        self.assertEqual(self.state.image_slices[0].depth, depth1)
 
         slice_image2 = 'image-2'
         depth2 = 1
 
+        image_slice2 = ImageSlice(slice_image2, depth2)
+
         # Call the function
-        insert2 = self.state.add_slice(slice_image2, depth2)
+        insert2 = self.state.add_slice(image_slice2)
 
         # Check whether this slice was added before the first slice
         self.assertEqual(insert2, 0)
         self.assertEqual(len(self.state.image_slices), 2)
-        self.assertEqual(self.state.image_depths[0], depth2)
-        self.assertEqual(self.state.image_depths[1], depth1)
+        self.assertEqual(self.state.image_slices[0].depth, depth2)
+        self.assertEqual(self.state.image_slices[1].depth, depth1)
 
         slice_image3 = 'image-2'
         depth3 = 1
 
+        image_slice3 = ImageSlice(slice_image3, depth3)
+
         # Call the function
-        insert3 = self.state.add_slice(slice_image3, depth3)
+        insert3 = self.state.add_slice(image_slice3)
 
         # Check that the slice was added and depth increased to avoid duplicates
         self.assertEqual(insert3, 1)
         self.assertEqual(len(self.state.image_slices), 3)
-        self.assertEqual(self.state.image_depths[0], depth2)
-        self.assertEqual(self.state.image_depths[1], depth3+1)
+        self.assertEqual(self.state.image_slices[0].depth, depth2)
+        self.assertEqual(self.state.image_slices[1].depth, depth3+1)
 
         # check that all the filenames are accurate
         expected = [
@@ -80,7 +90,11 @@ class TestAddSlice(unittest.TestCase):
             'test/image_slice_2.png',
             'test/image_slice_0.png'
         ]
-        self.assertEqual(self.state.image_slices_filenames, expected)
+
+        image_slices_filenames = [
+            slice.filename for slice in self.state.image_slices]
+
+        self.assertEqual(image_slices_filenames, expected)
 
 
 class TestCheckPathnames(unittest.TestCase):
@@ -92,11 +106,14 @@ class TestCheckPathnames(unittest.TestCase):
 
     def test_check_pathnames_valid(self):
         # Set up valid pathnames
-        self.state.image_slices_filenames = [
+        image_slices_filenames = [
             'appstate-test/image_slice_1.png',
             'appstate-test/image_slice_2.png',
             'appstate-test/image_slice_0.png'
         ]
+
+        self.state.image_slices = [ImageSlice(
+            filename=filename) for filename in image_slices_filenames]
 
         # Call the function
         self.state.check_pathnames()
@@ -104,10 +121,13 @@ class TestCheckPathnames(unittest.TestCase):
     def test_check_pathnames_invalid_root(self):
         # Set up invalid root pathname
         self.state.filename = 'invalid_root/../something'
-        self.state.image_slices_filenames = [
+        image_slices_filenames = [
             'appstate-test/image_slice_2.png',
             'appstate-test/image_slice_0.png'
         ]
+
+        self.state.image_slices = [ImageSlice(
+            filename=filename) for filename in image_slices_filenames]
 
         # Call the function and expect an AssertionError
         with self.assertRaises(AssertionError):
@@ -115,11 +135,14 @@ class TestCheckPathnames(unittest.TestCase):
 
     def test_check_pathnames_invalid_filenames(self):
         # Set up invalid filenames
-        self.state.image_slices_filenames = [
+        image_slices_filenames = [
             'appstate-test/image_slice_1.png',
             'appstate-test/image_slice_2.png',
             'appstate-test/../../../invalid_filename.png'
         ]
+
+        self.state.image_slices = [ImageSlice(
+            filename=filename) for filename in image_slices_filenames]
 
         # Call the function and expect an AssertionError
         with self.assertRaises(AssertionError):
@@ -134,17 +157,17 @@ class TestChangeSliceDepth(unittest.TestCase):
         self.state.filename = 'test'
 
         # Add some initial slices
-        self.state.add_slice(
-            'image-1', 5, positive_prompt="one", negative_prompt="two")
-        self.state.add_slice(
-            'image-2', 10, positive_prompt="three", negative_prompt="four")
-        self.state.add_slice(
-            'image-3', 15, positive_prompt="blue", negative_prompt="green")
+        self.state.add_slice(ImageSlice(
+            'image-1', 5, positive_prompt="one", negative_prompt="two"))
+        self.state.add_slice(ImageSlice(
+            'image-2', 10, positive_prompt="three", negative_prompt="four"))
+        self.state.add_slice(ImageSlice(
+            'image-3', 15, positive_prompt="blue", negative_prompt="green"))
 
     def test_change_slice_depth_same_depth(self):
         # Get the initial state
-        initial_slices = self.state.image_slices.copy()
-        initial_depths = self.state.image_depths.copy()
+        initial_depths = [
+            image_slice.depth for image_slice in self.state.image_slices]
 
         # Change the depth of the second slice to the same depth
         slice_index = 1
@@ -155,13 +178,13 @@ class TestChangeSliceDepth(unittest.TestCase):
         self.assertEqual(new_index, slice_index)
 
         # Check that the slices and depths remain unchanged
-        self.assertEqual(self.state.image_slices, initial_slices)
-        self.assertEqual(self.state.image_depths, initial_depths)
+        new_depths = [
+            image_slice.depth for image_slice in self.state.image_slices]
+        self.assertEqual(new_depths, initial_depths)
 
     def test_change_slice_depth_valid(self):
         # Get the initial state
         initial_slices = self.state.image_slices.copy()
-        initial_depths = self.state.image_depths.copy()
 
         # Change the depth of the second slice to a new depth
         slice_index = 1
@@ -172,20 +195,18 @@ class TestChangeSliceDepth(unittest.TestCase):
         self.assertEqual(new_index, 0)
 
         # Check that the depth of the second slice is updated
-        self.assertEqual(self.state.image_depths[new_index], depth)
-        self.assertEqual(self.state.positive_prompts[new_index], "three")
-        self.assertEqual(self.state.negative_prompts[new_index], "four")
+        image_slice = self.state.image_slices[new_index]
+        self.assertEqual(image_slice.depth, depth)
+        self.assertEqual(image_slice.positive_prompt, "three")
+        self.assertEqual(image_slice.negative_prompt, "four")
 
         # Check that the other slices and depths remain unchanged
         self.assertEqual(self.state.image_slices[1], initial_slices[0])
         self.assertEqual(self.state.image_slices[2], initial_slices[2])
-        self.assertEqual(self.state.image_depths[1], initial_depths[0])
-        self.assertEqual(self.state.image_depths[2], initial_depths[2])
 
     def test_change_slice_depth_invalid_index(self):
         # Get the initial state
         initial_slices = self.state.image_slices.copy()
-        initial_depths = self.state.image_depths.copy()
 
         # Try to change the depth of an invalid slice index
         slice_index = 3
@@ -195,7 +216,6 @@ class TestChangeSliceDepth(unittest.TestCase):
 
         # Check that the slices and depths remain unchanged
         self.assertEqual(self.state.image_slices, initial_slices)
-        self.assertEqual(self.state.image_depths, initial_depths)
 
 
 class TestFromJson(unittest.TestCase):
@@ -203,15 +223,12 @@ class TestFromJson(unittest.TestCase):
         json_data = None
         state = AppState.from_json(json_data)
         self.assertIsInstance(state, AppState)
+        self.assertEqual(state.image_slices, [])
         self.assertEqual(state.filename, None)
         self.assertEqual(state.num_slices, 5)
         self.assertEqual(state.imgThresholds, None)
-        self.assertEqual(state.image_depths, [])
-        self.assertEqual(state.image_slices_filenames, [])
         self.assertEqual(state.depth_model_name, None)
         self.assertEqual(state.inpainting_model_name, None)
-        self.assertEqual(state.positive_prompts, [])
-        self.assertEqual(state.negative_prompts, [])
         self.assertEqual(state.server_address, None)
         self.assertEqual(state.api_key, None)
 
@@ -246,17 +263,26 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.filename, 'appstate-test')
         self.assertEqual(state.num_slices, 10)
         self.assertEqual(state.imgThresholds, [0, 255])
-        self.assertEqual(state.image_depths, [0, 1, 2])
-        self.assertEqual(state.image_slices_filenames, [
+        
+        image_depths = [image_slice.depth for image_slice in state.image_slices]
+        self.assertEqual(image_depths, [0, 1, 2])
+        
+        image_slices_filenames = [image_slice.filename for image_slice in state.image_slices]
+        self.assertEqual(image_slices_filenames, [
                          "appstate-test/image1.png",
                          "appstate-test/image2.png",
                          "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, "model")
         self.assertEqual(state.inpainting_model_name, "inpainting")
-        self.assertEqual(state.positive_prompts, [
+        
+        positive_prompts = [image_slice.positive_prompt for image_slice in state.image_slices]
+        self.assertEqual(positive_prompts, [
             "one fish", "two fish", "red fish"])
-        self.assertEqual(state.negative_prompts, [
+        
+        negative_prompts = [image_slice.negative_prompt for image_slice in state.image_slices]
+        self.assertEqual(negative_prompts, [
             "blue fish", "new fish", "old fish"])
+        
         self.assertEqual(state.server_address, "http://localhost:8000")
         self.assertEqual(state.api_key, "sk-somesecretkey")
         self.assertEqual(state.camera.camera_distance, 1.0)
@@ -282,15 +308,23 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.filename, 'appstate-test')
         self.assertEqual(state.num_slices, 10)
         self.assertEqual(state.imgThresholds, [0, 255])
-        self.assertEqual(state.image_depths, [0, 1, 2])
-        self.assertEqual(state.image_slices_filenames, [
+        
+        image_depths = [image_slice.depth for image_slice in state.image_slices]
+        self.assertEqual(image_depths, [0, 1, 2])
+        
+        image_slices_filenames = [image_slice.filename for image_slice in state.image_slices]
+        self.assertEqual(image_slices_filenames, [
             "appstate-test/image1.png",
             "appstate-test/image2.png",
             "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, None)
         self.assertEqual(state.inpainting_model_name, None)
-        self.assertEqual(state.positive_prompts, [""]*3)
-        self.assertEqual(state.negative_prompts, [""]*3)
+        
+        positive_prompts = [image_slice.positive_prompt for image_slice in state.image_slices]
+        self.assertEqual(positive_prompts, [""]*3)
+        
+        negative_prompts = [image_slice.negative_prompt for image_slice in state.image_slices]
+        self.assertEqual(negative_prompts, [""]*3)
         self.assertEqual(state.server_address, None)
         self.assertEqual(state.api_key, None)
 
@@ -351,12 +385,12 @@ class TestSaveImageSlices(unittest.TestCase):
         self.state.filename = 'appstate-random'
 
         # Add some initial slices
-        self.state.add_slice(
-            np.zeros((10, 10, 4), np.uint8), 5, positive_prompt="one", negative_prompt="two")
-        self.state.add_slice(
-            np.zeros((10, 10, 4), np.uint8), 10, positive_prompt="three", negative_prompt="four")
-        self.state.add_slice(
-            np.zeros((10, 10, 4), np.uint8), 15, positive_prompt="blue", negative_prompt="green")
+        self.state.add_slice(ImageSlice(
+            np.zeros((10, 10, 4), np.uint8), 5, positive_prompt="one", negative_prompt="two"))
+        self.state.add_slice(ImageSlice(
+            np.zeros((10, 10, 4), np.uint8), 10, positive_prompt="three", negative_prompt="four"))
+        self.state.add_slice(ImageSlice(
+            np.zeros((10, 10, 4), np.uint8), 15, positive_prompt="blue", negative_prompt="green"))
 
     def test_save_image_slices(self):
         # Mock the image saving function
@@ -375,7 +409,7 @@ class TestToFile(unittest.TestCase):
     def setUp(self):
         # Creating a mock AppState instance
         self.app_state = AppState()
-        
+
         self.file_path = Path('appstate-random')
 
         # Mocking methods directly on the instance
@@ -437,7 +471,7 @@ class TestToFile(unittest.TestCase):
         mock_exists.side_effect = [True, True, False]
         # First call succeeds, second (inside state write) fails
         mock_fromarray.return_value = MagicMock()
-        
+
         # Configure mock_open to work with 'with' statement
         mock_file_handle = mock_open_func.return_value
         mock_file_handle.__enter__.return_value = mock_file_handle
@@ -454,7 +488,6 @@ class TestToFile(unittest.TestCase):
         mock_unlink.assert_called_once()
         mock_shutil_move.assert_called_once_with(
             backup_file, self.file_path / AppState.STATE_FILE)
-
 
 
 if __name__ == '__main__':
