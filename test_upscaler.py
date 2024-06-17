@@ -9,8 +9,7 @@ from upscaler import Upscaler
 class TestUpscaler(unittest.TestCase):
     def setUp(self):
         # Initialize Upscaler object without creating a model.
-        self.upscaler = Upscaler()
-        self.upscaler.create_model()
+        self.upscaler = Upscaler(model_name='simple')
 
         # Create a dummy input image
         self.input_image = Image.new("RGBA", (800, 800))
@@ -26,7 +25,7 @@ class TestUpscaler(unittest.TestCase):
         # Mocking the creation of the model to skip loading model and processor
         with patch.object(self.upscaler, 'create_model'):
             # Mock the upscale_tile function to return our dummy tile
-            with patch.object(self.upscaler, 'upscale_tile', return_value=self.upscaled_tile_dummy):
+            with patch.object(self.upscaler, 'upscale_tile', return_value=self.upscaled_tile_dummy) as mock_upscale_tile:
                 # Mock the integrate_tile to ensure integral processing of tiles
                 with patch.object(self.upscaler, 'integrate_tile') as mock_integrate:
                     # Call the function to test
@@ -35,6 +34,7 @@ class TestUpscaler(unittest.TestCase):
 
                     # Check that integrate_tile was called the correct number of times (expected 3x3 grid based on sizes).
                     self.assertEqual(mock_integrate.call_count, 4)
+                    mock_upscale_tile.assert_called()
 
     def test_upscale_image_tiled_no_overlap(self):
         # Mocking the creation of the model to skip loading model and processor

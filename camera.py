@@ -26,38 +26,40 @@ class Camera:
         self.max_distance = max_distance
         self.focal_length = focal_length
 
-    def setup_camera_and_cards(self, image_slices, depths, sensor_width=35.0):
+    def setup_camera_and_cards(self, image_slices, sensor_width=35.0):
         """
         Set up the camera matrix and the card corners in 3D space.
 
         Args:
-            image_slices (list): A list of image slices.
+            image_slices (list): A list of ImageSlice.
             depths (list): A list of threshold depths for each image slice.
             sensor_width (float, optional): The width of the camera sensor. Defaults to 35.0.
 
         Returns:
             tuple: A tuple containing the camera matrix and a list of card corners in 3D space.
         """
-        num_slices = len(image_slices)
-        image_height, image_width, _ = image_slices[0].shape
+        image_height, image_width, _ = image_slices[0].image.shape
 
         # Calculate the focal length in pixels
         focal_length_px = (image_width * self.focal_length) / sensor_width
 
         # Set up the camera intrinsic parameters
-        camera_matrix = np.array([[focal_length_px, 0, image_width / 2],
-                                [0, focal_length_px, image_height / 2],
-                                [0, 0, 1]], dtype=np.float32)
+        camera_matrix = np.array(
+            [[focal_length_px, 0, image_width / 2],
+             [0, focal_length_px, image_height / 2],
+             [0, 0, 1]], dtype=np.float32)
 
         # Set up the card corners in 3D space
         card_corners_3d_list = []
         # The thresholds start with 0 and end with 255. We want the closest card to be at 0.
-        for i in range(num_slices):
-            z = self.max_distance * ((255 - depths[i]) / 255.0)
+        for i, image_slice in enumerate(image_slices):
+            z = self.max_distance * ((255 - image_slice.depth) / 255.0)
 
             # Calculate the 3D points of the card corners
-            card_width = (image_width * (z + self.camera_distance)) / focal_length_px
-            card_height = (image_height * (z + self.camera_distance)) / focal_length_px
+            card_width = (image_width * (z + self.camera_distance)
+                          ) / focal_length_px
+            card_height = (
+                image_height * (z + self.camera_distance)) / focal_length_px
 
             card_corners_3d = np.array([
                 [-card_width / 2, -card_height / 2, z],
@@ -68,7 +70,6 @@ class Camera:
             card_corners_3d_list.append(card_corners_3d)
 
         return camera_matrix, card_corners_3d_list
-
 
     def to_json(self):
         return {

@@ -15,6 +15,7 @@ from components import (
     make_inpainting_container,
     make_configuration_container
 )
+from slice import ImageSlice
 
 
 class TestUpdateInpaintingImageDisplay(unittest.TestCase):
@@ -62,7 +63,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         state = MagicMock()
         state.selected_slice = 0  # Ensure this matches the state expected by the function
         state.mask_filename.return_value = 'mask_0.png'
-        state.image_slices = [np.zeros((100,100, 4))]
+        state.image_slices = [ImageSlice(np.zeros((100,100, 4)))]
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
 
@@ -138,7 +139,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         state = MagicMock()
         state.selected_slice = 0  # Ensure this matches the state expected by the function
         state.mask_filename.return_value = 'mask_0.png'
-        state.image_slices = [np.zeros((100, 100, 4))]
+        state.image_slices = [ImageSlice(np.zeros((100, 100, 4)))]
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
 

@@ -636,12 +636,12 @@ def paste_clipboard_request(n_clicks, filename, logs):
 
     image = state.clipboard_image
     # updates the image slice in place - dangerous
-    blend_with_alpha(state.image_slices[state.selected_slice], image)
+    blend_with_alpha(state.image_slices[state.selected_slice].image, image)
 
     image_filename = filename_add_version(
-        state.image_slices_filenames[state.selected_slice])
-    state.image_slices_filenames[state.selected_slice] = image_filename
-    state.save_image_slice(state.selected_slice)
+        state.image_slices[state.selected_slice].filename)
+    state.image_slices[state.selected_slice].filename = image_filename
+    state.image_slices[state.selected_slice].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -673,13 +673,13 @@ def remove_mask_slice_request(n_clicks, filename, logs):
         return no_update, logs, no_update
 
     final_mask = remove_mask_from_alpha(
-        state.image_slices[state.selected_slice], state.slice_mask)
-    state.image_slices[state.selected_slice][:, :, 3] = final_mask
+        state.image_slices[state.selected_slice].image, state.slice_mask)
+    state.image_slices[state.selected_slice].image[:, :, 3] = final_mask
 
     image_filename = filename_add_version(
-        state.image_slices_filenames[state.selected_slice])
-    state.image_slices_filenames[state.selected_slice] = image_filename
-    state.save_image_slice(state.selected_slice)
+        state.image_slices[state.selected_slice].filename)
+    state.image_slices[state.selected_slice].filename = image_filename
+    state.image_slices[state.selected_slice].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -715,12 +715,12 @@ def add_mask_slice_request(n_clicks, filename, logs):
     image = create_slice_from_mask(
         state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     # updates the image slice in place - dangerous
-    blend_with_alpha(state.image_slices[state.selected_slice], image)
+    blend_with_alpha(state.image_slices[state.selected_slice].image, image)
 
     image_filename = filename_add_version(
-        state.image_slices_filenames[state.selected_slice])
-    state.image_slices_filenames[state.selected_slice] = image_filename
-    state.save_image_slice(state.selected_slice)
+        state.image_slices[state.selected_slice].filename)
+    state.image_slices[state.selected_slice].filename = image_filename
+    state.image_slices[state.selected_slice].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -741,12 +741,12 @@ def update_prompt_text(positive, negative, filename):
     if state.selected_slice is None:
         raise PreventUpdate()
 
-    if (state.positive_prompts[state.selected_slice] == positive and
-            state.negative_prompts[state.selected_slice] == negative):
+    if (state.image_slices[state.selected_slice].positive_prompt == positive and
+            state.image_slices[state.selected_slice].negative_prompt == negative):
         raise PreventUpdate()
 
-    state.positive_prompts[state.selected_slice] = positive
-    state.negative_prompts[state.selected_slice] = negative
+    state.image_slices[state.selected_slice].positive_prompt = positive
+    state.image_slices[state.selected_slice].negative_prompt = negative
 
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
@@ -848,8 +848,7 @@ def update_slices(ignored_data, filename):
     caret_color_disabled = "no-history-color"
 
     img_container = []
-    assert len(state.image_slices) == len(state.image_slices_filenames)
-    for i in range(len(state.image_slices)):
+    for i, image_slice in enumerate(state.image_slices):
         img_data = state.serve_slice_image(i)
 
         left_color = caret_color_enabled if state.can_undo(
@@ -875,7 +874,7 @@ def update_slices(ignored_data, filename):
                 title="Redo last change",
                 className=f"fa-solid fa-caret-right {right_color} pr-1",
                 id=right_id, disabled=right_disabled),
-            Path(state.image_slices_filenames[i]).stem])
+            Path(image_slice.filename).stem])
 
         # slice creation with select a slice so we need to highlight it here
         highlight_class = f'overlay' if state.selected_slice == i else 'hidden'
@@ -884,7 +883,7 @@ def update_slices(ignored_data, filename):
                 html.Div([
                     html.Div(
                         # The number to display
-                        children=f"{int(state.image_depths[i])}",
+                        children=f"{int(image_slice.depth)}",
                         id={'type': C.ID_SLICE_DEPTH_DISPLAY, 'index': i},
                         className='depth-number-display'
                     ),
@@ -896,7 +895,7 @@ def update_slices(ignored_data, filename):
                               debounce=True,
                               inputMode='numeric',
                               maxLength=3,
-                              value=f"{int(state.image_depths[i])}"),
+                              value=f"{int(image_slice.depth)}"),
                     html.Img(
                         src=img_data,
                         className='image-border',
@@ -1015,14 +1014,11 @@ def generate_slices(ignored_data, filename):
         raise PreventUpdate()
 
     # XXX - refactor the state update into the AppState class
-    state.image_slices, state.image_depths = generate_image_slices(
+    state.image_slices = generate_image_slices(
         np.array(state.imgData),
         state.depthMapData,
         state.imgThresholds,
         num_expand=EXPAND_MASK)
-    state.image_slices_filenames = []
-    state.positive_prompts = ["" for _ in state.image_slices]
-    state.negative_prompts = ["" for _ in state.image_slices]
 
     print(f'Generated {len(state.image_slices)} image slices; saving to file')
     state.to_file(filename)
@@ -1060,8 +1056,8 @@ def display_slice(n_clicks, n_clicks_two, id, src, classnames, filename):
         state.selected_slice = index
         mode = CompositeMode.CHECKERBOARD if state.use_checkerboard else CompositeMode.GRAYSCALE
         result = state.serve_slice_image_composed(index, mode=mode)
-        positive_prompt = state.positive_prompts[index]
-        negative_prompt = state.negative_prompts[index]
+        positive_prompt = state.image_slices[index].positive_prompt
+        negative_prompt = state.image_slices[index].negative_prompt
     else:
         state.selected_slice = None
         result = state.serve_input_image()
@@ -1214,11 +1210,11 @@ def export_state_as_gltf(
         camera,
         displacement_scale, modelname='midas', support_dof=False):
     camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
-        state.image_slices, state.image_depths)
+        state.image_slices)
 
     depth_filenames = []
     if displacement_scale > 0:
-        for i, image in enumerate(state.image_slices):
+        for i, slice_image in enumerate(state.image_slices):
             print(f"Generating depth map for slice {i}")
             depth_filename = state.depth_filename(i)
             if not depth_filename.exists():
@@ -1226,21 +1222,21 @@ def export_state_as_gltf(
                 if model != state.depth_estimation_model:
                     state.depth_estimation_model = model
                 depth_map = generate_depth_map(
-                    image[:, :, :3], model=state.depth_estimation_model)
+                    slice_image.image[:, :, :3], model=state.depth_estimation_model)
                 depth_map = postprocess_depth_map(
-                    depth_map, image[:, :, 3], final_blur=50)
+                    depth_map, slice_image.image[:, :, 3], final_blur=50)
                 Image.fromarray(depth_map).save(
                     depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
 
     # check whether we have upscaled slices we should use
     slices_filenames = []
-    for i, slice_filename in enumerate(state.image_slices_filenames):
+    for i, slice_image in enumerate(state.image_slices):
         upscaled_filename = state.upscaled_filename(i)
         if upscaled_filename.exists():
             slices_filenames.append(upscaled_filename)
         else:
-            slices_filenames.append(slice_filename)
+            slices_filenames.append(slice_image.filename)
 
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     output_path = Path(filename) / state.MODEL_FILE
@@ -1268,9 +1264,9 @@ def download_image(n_clicks, filename):
 
     # print(n_clicks, index, ctx.triggered)
 
-    image_path = state.image_slices_filenames[index]
+    image_path = state.image_slices[index].filename
 
-    return dcc.send_file(image_path, Path(state.image_slices_filenames[index]).name)
+    return dcc.send_file(image_path, Path(state.image_slices[index].filename).name)
 
 
 @app.callback(Output(C.STORE_UPDATE_SLICE, 'data', allow_duplicate=True),
@@ -1292,8 +1288,8 @@ def slice_upload(contents, filename, logs):
         raise PreventUpdate()
 
     # current aspect ratio for the given slice
-    aspect_ratio = state.image_slices[index].shape[1] / \
-        state.image_slices[index].shape[0]
+    aspect_ratio = state.image_slices[index].image.shape[1] / \
+        state.image_slices[index].image.shape[0]
 
     content = contents[index]
     image = Image.open(io.BytesIO(base64.b64decode(content.split(',')[1])))
@@ -1304,18 +1300,18 @@ def slice_upload(contents, filename, logs):
             'Fixing aspect ratio from {image.size[0] / image.size[1]} to {aspect_ratio}')
         image = image.resize((int(aspect_ratio*image.size[1]), image.size[1]))
 
-    state.image_slices[index] = np.array(image)
+    state.image_slices[index].image = np.array(image)
 
     # add a version number to the filename and increase if it already exists
-    image_filename = filename_add_version(state.image_slices_filenames[index])
-    state.image_slices_filenames[index] = image_filename
-    state.save_image_slice(index)
+    image_filename = filename_add_version(state.image_slices[index].filename)
+    state.image_slices[index].filename = image_filename
+    state.image_slices[index].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
-    composed_image = state.image_slices[0].copy()
+    composed_image = state.image_slices[0].image.copy()
     for i, slice_image in enumerate(state.image_slices[1:]):
-        blend_with_alpha(composed_image, slice_image)
+        blend_with_alpha(composed_image, slice_image.image)
     state.imgData = Image.fromarray(composed_image)
 
     logs.append(
@@ -1340,7 +1336,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
     camera_distance = state.camera.camera_distance
     camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
-        state.image_slices, state.image_depths)
+        state.image_slices)
 
     # Render the initial view
     camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)

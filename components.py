@@ -485,13 +485,15 @@ def make_inpainting_container_callbacks(app):
         mask = Image.open(mask_filename).convert('L')
         mask = np.array(mask)
 
-        image_filename = filename_add_version(
-            state.image_slices_filenames[index])
-        state.image_slices_filenames[index] = image_filename
+        final_mask = remove_mask_from_alpha(
+            state.image_slices[index].image, mask)
+        state.image_slices[index].image[:, :, 3] = final_mask
 
-        final_mask = remove_mask_from_alpha(state.image_slices[index], mask)
-        state.image_slices[index][:, :, 3] = final_mask
-        state.save_image_slice(index)
+        image_filename = filename_add_version(
+            state.image_slices[index].filename)
+        state.image_slices[index].filename = image_filename
+
+        state.imave_slices[index].save_image()
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
         logs.append(f'Inpainting erased for slice {index}')
@@ -543,14 +545,14 @@ def make_inpainting_container_callbacks(app):
         if negative_prompt is None:
             negative_prompt = ''
 
-        state.positive_prompts[state.selected_slice] = positive_prompt
-        state.negative_prompts[state.selected_slice] = negative_prompt
+        state.image_slices[state.selected_slice].positive_prompt = positive_prompt
+        state.image_slices[state.selected_slice].negative_prompt = negative_prompt
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
         tid = ctx.triggered_id
 
-        image = state.image_slices[index]
+        image = state.image_slices[index].image
 
         pipeline = create_inpainting_pipeline(
             model, workflow, state)
@@ -674,11 +676,11 @@ def make_inpainting_container_callbacks(app):
             base64.b64decode(new_image_data.split(',')[1])))
 
         image_filename = filename_add_version(
-            state.image_slices_filenames[index])
-        state.image_slices_filenames[index] = image_filename
+            state.image_slices[index].filename)
+        state.image_slices[index].filename = image_filename
 
-        state.image_slices[index] = np.array(new_image)
-        state.save_image_slice(index)
+        state.image_slices[index].image = np.array(new_image)
+        state.image_slices[index].save_image()
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
@@ -1541,7 +1543,7 @@ def make_navigation_callbacks(app):
         state.camera.camera_position = camera_position
 
         camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
-            state.image_slices, state.image_depths)
+            state.image_slices)
 
         image = render_view(state.image_slices, camera_matrix,
                             card_corners_3d_list, camera_position)

@@ -19,6 +19,7 @@ from depth import DepthEstimationModel
 # for exporting a 3d scene
 from gltf import export_gltf
 from camera import Camera
+from slice import ImageSlice
 
 
 def generate_depth_map(image, model: DepthEstimationModel, progress_callback=None):
@@ -96,7 +97,7 @@ def generate_image_slices(image, depth_map, thresholds, num_expand=50):
         num_expand (int, optional): The number of pixels to expand the mask by. Defaults to 50.
 
     Returns:
-        tuple: A tuple containing a list of image slices and the depths for each slice.
+        List[ImageSlice]: A list of image slices.
 
     """
     slices = []
@@ -110,10 +111,12 @@ def generate_image_slices(image, depth_map, thresholds, num_expand=50):
                                prev_mask=prev_mask)
         masked_image = create_slice_from_mask(image, mask, num_expand)
 
-        slices.append(masked_image)
+        image_slice = ImageSlice(image=masked_image, depth=threshold_max)
+
+        slices.append(image_slice)
         prev_mask = mask
 
-    return slices, thresholds[1:]
+    return slices
 
 def create_slice_from_mask(image, mask, num_expand=50):
     """
@@ -153,13 +156,12 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
     Returns:
         numpy.ndarray: The rendered image.
     """
-    num_slices = len(image_slices)
     # Start with a blank image with an alpha channel
     rendered_image = np.zeros(
-        (image_slices[0].shape[0], image_slices[0].shape[1], 4), dtype=np.uint8)
+        (image_slices[0].image.shape[0], image_slices[0].image.shape[1], 4), dtype=np.uint8)
     rendered_image[:, :, 3] = 1
 
-    for i in range(num_slices):
+    for i, slice_image in enumerate(image_slices):
         # Transform the card corners based on the camera position
         rvec = np.zeros((3, 1), dtype=np.float32)  # rotation vector
         tvec = -camera_position.reshape(3, 1)
@@ -168,10 +170,10 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
         card_corners_2d = np.int32(card_corners_2d.reshape(-1, 2))
 
         # Warp the image slice based on the card corners
-        slice_image = image_slices[i]
-        warped_slice = cv2.warpPerspective(slice_image, cv2.getPerspectiveTransform(
-            np.float32([[0, 0], [slice_image.shape[1], 0], [
-                slice_image.shape[1], slice_image.shape[0]], [0, slice_image.shape[0]]]),
+        cur_image = slice_image.image
+        warped_slice = cv2.warpPerspective(cur_image, cv2.getPerspectiveTransform(
+            np.float32([[0, 0], [cur_image.shape[1], 0], [
+                cur_image.shape[1], cur_image.shape[0]], [0, cur_image.shape[0]]]),
             np.float32(card_corners_2d)
         ), (rendered_image.shape[1], rendered_image.shape[0]))
 
@@ -318,28 +320,31 @@ def process_image(image_path, output_path, num_slices=5,
 
     if create_image_slices:
         # Generate image slices
-        image_slices, _ = generate_image_slices(image, depth_map, thresholds)
+        image_slices = generate_image_slices(image, depth_map, thresholds)
 
         # Save the image slices
         for i, slice_image in enumerate(image_slices):
             output_image_path = output_path / f"image_slice_{i}.png"
+            slice_image.filename = output_image_path
             print(f"Saving image slice: {output_image_path}")
-            cv2.imwrite(str(output_image_path), cv2.cvtColor(
-                slice_image, cv2.COLOR_RGBA2BGRA))
+            slice_image.save_image()
     else:
         # Load the image slices
         image_slices = []
         for i in range(num_slices):
             input_image_path = output_path / f"image_slice_{i}.png"
+            image_slice = ImageSlice(filename=input_image_path)
             print(f"Loading image slice: {input_image_path}")
-            slice_image = cv2.imread(
-                str(input_image_path), cv2.IMREAD_UNCHANGED)
-            slice_image = cv2.cvtColor(slice_image, cv2.COLOR_BGRA2RGBA)
+            image_slice.read_image()
             image_slices.append(slice_image)
 
     # Set up the camera and cards
+    for i, image_slice in enumerate(image_slices):
+        image_slice.depth = thresholds[i + 1]
+    
     camera = Camera(100.0, 500.0, 100.0)
-    camera_matrix, card_corners_3d_list = camera.setup_camera_and_cards(image_slices, thresholds[1:])
+    camera_matrix, card_corners_3d_list = camera.setup_camera_and_cards(
+        image_slices)
 
     # Render the initial view
     camera_position = np.array([0, 0, -100], dtype=np.float32)

@@ -12,6 +12,7 @@ from webui import (
 from controller import AppState
 from utils import to_image_url
 from camera import Camera
+from slice import ImageSlice
 import constants as C
 
 
@@ -236,13 +237,11 @@ class TestCopyToClipboard(unittest.TestCase):
             mock_state.clipboard_image[:, :, 3], mock_state.slice_mask)
 
 
-class TextExportGltf(unittest.TestCase):
+class TestExportGltf(unittest.TestCase):
     def setUp(self):
         self.state = MagicMock()
         self.state.image_slices = [
-            np.zeros((100, 100, 4), dtype=np.uint8) for _ in range(3)]
-        self.state.image_depths = [
-            np.zeros((100, 100), dtype=np.float32) for _ in range(3)]
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), i) for i in range(3)]
 
         # mocking depthmap file requires both exists and return_value
         self.mock_depth_file = MagicMock()
@@ -252,8 +251,6 @@ class TextExportGltf(unittest.TestCase):
         self.camera = Camera(10, 100, 50)
 
         self.state.upscaled_filename.return_value = Path("upscaled_file.png")
-        self.state.image_slices_filenames = [
-            Path(f"slice_{i}.png") for i in range(3)]
         self.state.MODEL_FILE = "model.gltf"
         self.state.camera = self.camera
 
@@ -263,7 +260,7 @@ class TextExportGltf(unittest.TestCase):
     def test_export_state_as_gltf(self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map):
         # Test case 1: Displacement scale is 0
         camera_matrix, card_corners_3d_list = self.camera.setup_camera_and_cards(
-            self.state.image_slices, self.state.image_depths)
+            self.state.image_slices)
         mock_export_gltf.return_value = Path("output.gltf")
 
         result = export_state_as_gltf(
@@ -285,7 +282,8 @@ class TextExportGltf(unittest.TestCase):
         for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
             np.testing.assert_array_almost_equal(
                 expected_corner, actual_corner)
-        self.assertEqual(expected_args[5], self.state.image_slices_filenames)
+        image_slices_filenames = [slice.filename for slice in self.state.image_slices]
+        self.assertEqual(expected_args[5], image_slices_filenames)
         self.assertEqual(expected_args[6], [])
         self.assertEqual(expected_kwargs["displacement_scale"], 0)
 
@@ -297,7 +295,7 @@ class TextExportGltf(unittest.TestCase):
             self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map, mock_image_fromarray):
         # Test case 2: Displacement scale is greater than 0
         camera_matrix, card_corners_3d_list = self.camera.setup_camera_and_cards(
-            self.state.image_slices, self.state.image_depths)
+            self.state.image_slices)
 
         mock_export_gltf.return_value = Path("output.gltf")
 
@@ -334,7 +332,9 @@ class TextExportGltf(unittest.TestCase):
         for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
             np.testing.assert_array_almost_equal(
                 expected_corner, actual_corner)
-        self.assertEqual(expected_args[5], self.state.image_slices_filenames)
+            
+        image_slices_filenames = [slice.filename for slice in self.state.image_slices]
+        self.assertEqual(expected_args[5], image_slices_filenames)
         self.assertEqual(expected_args[6], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
@@ -342,7 +342,7 @@ class TextExportGltf(unittest.TestCase):
     def test_export_state_as_gltf_with_upscaled(self, mock_export_gltf):
         # Test case 3: Upscaled slices exist
         camera_matrix, card_corners_3d_list = self.camera.setup_camera_and_cards(
-            self.state.image_slices, self.state.image_depths)
+            self.state.image_slices)
 
         # Pretend the upscaled file exists
         mock_upscaled_file = MagicMock()
@@ -405,20 +405,22 @@ class TestSliceUpload(unittest.TestCase):
     @patch('webui.AppState.from_cache')
     @patch('webui.filename_add_version')
     @patch('webui.blend_with_alpha')
-    def test_valid_upload(self, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
+    @patch('slice.ImageSlice.save_image')
+    def test_valid_upload(self, mock_imwrite, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = [
-            np.zeros((100, 100, 4), dtype=np.uint8),
-            np.ones((100, 100, 4), dtype=np.uint8)]
-        mock_state.image_slices_filenames = ['slice0.png', 'slice1.png']
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), filename='slice0.png'),
+            ImageSlice(np.ones((100, 100, 4), dtype=np.uint8), filename='slice1.png')]
         mock_from_cache.return_value = mock_state
         mock_ctx.triggered_id = {'index': 1}
         mock_filename_add_version.return_value = 'slice1_v1.png'
 
         content = to_image_url(np.ones((100, 100, 4), dtype=np.uint8))
+        print(content[:50])
 
         result = slice_upload([None, content], 'appstate-random', [])
 
+        mock_imwrite.assert_called()
         self.assertEqual(result[0], True)
         self.assertEqual(len(result[1]), 1)
         self.assertIn(
@@ -434,12 +436,12 @@ class TestSliceUpload(unittest.TestCase):
     @patch('webui.AppState.from_cache')
     @patch('webui.filename_add_version')
     @patch('webui.blend_with_alpha')
-    def test_valid_upload_different_ratio(self, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
+    @patch('slice.ImageSlice.save_image')
+    def test_valid_upload_different_ratio(self, mock_imwrite, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = [
-            np.zeros((100, 100, 4), dtype=np.uint8),
-            np.ones((100, 100, 4), dtype=np.uint8)]
-        mock_state.image_slices_filenames = ['slice0.png', 'slice1.png']
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), filename='slice0.png'),
+            ImageSlice(np.ones((100, 100, 4), dtype=np.uint8), filename='slice1.png')]
         mock_from_cache.return_value = mock_state
         mock_ctx.triggered_id = {'index': 1}
         mock_filename_add_version.return_value = 'slice1_v1.png'
@@ -448,6 +450,7 @@ class TestSliceUpload(unittest.TestCase):
 
         result = slice_upload([None, content], 'appstate-random', [])
 
+        mock_imwrite.assert_called()
         self.assertEqual(result[0], True)
         self.assertEqual(len(result[1]), 2)
         self.assertIn('Fixing aspect ratio from', result[1][0])
@@ -490,7 +493,6 @@ class TestUpdateSlices(unittest.TestCase):
     def test_no_depth_map_data(self):
         # Test without depthMapData
         self.mock_state.image_slices = [MagicMock()]
-        self.mock_state.image_slices_filenames = [MagicMock()]
         self.mock_state.depthMapData = None
         ignored_data = MagicMock()
         with self.assertRaises(PreventUpdate):
@@ -504,10 +506,10 @@ class TestUpdateSlices(unittest.TestCase):
                                 mock_can_undo,
                                 mock_serve_slice_image):
         # Simulate state with several slices
-        self.mock_state.image_slices = [MagicMock(), MagicMock()]
-        self.mock_state.image_slices_filenames = ['slice1.png', 'slice2.png']
+        self.mock_state.image_slices = [
+            ImageSlice(depth=0, filename='slice1.png'),
+            ImageSlice(depth=1, filename='slice2.png')]
         self.mock_state.depthMapData = True
-        self.mock_state.image_depths = [0, 1]
         self.mock_state.selected_slice = 0
         self.mock_state.use_checkerboard = True
 
@@ -523,10 +525,8 @@ class TestUpdateSlices(unittest.TestCase):
     @patch('webui.AppState.can_undo', return_value=False)
     def test_corner_cases(self, mock_can_undo, mock_serve_slice_image):
         # Simulate corner cases where selected_slice is None
-        self.mock_state.image_slices = [MagicMock()]
-        self.mock_state.image_slices_filenames = ['slice1.png']
+        self.mock_state.image_slices = [ImageSlice(depth=0, filename='slice1.png')]
         self.mock_state.depthMapData = True
-        self.mock_state.image_depths = [0]
         self.mock_state.selected_slice = None
 
         ignored_data = MagicMock()

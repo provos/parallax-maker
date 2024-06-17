@@ -23,10 +23,11 @@ def compute_depth_map_for_slices(state: AppState, postprocess: bool = True):
 
     model_name = state.depth_model_name if state.depth_model_name else 'midas'
     model = DepthEstimationModel(model=model_name)
-    for i, filename in enumerate(state.image_slices_filenames):
+    for i, image_slice in enumerate(state.image_slices):
+        filename = image_slice.filename
         print(f"Processing {filename}")
 
-        image = state.image_slices[i]
+        image = image_slice.image
 
         depth_map = generate_depth_map(image[:, :, :3], model)
 

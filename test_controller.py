@@ -394,7 +394,7 @@ class TestSaveImageSlices(unittest.TestCase):
 
     def test_save_image_slices(self):
         # Mock the image saving function
-        with patch('controller.Image.Image.save') as mock_imwrite:
+        with patch('slice.Image.Image.save') as mock_imwrite:
             self.state.save_image_slices(self.state.filename)
 
             # Check that the image slices were saved
