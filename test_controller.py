@@ -2,6 +2,8 @@ import numpy as np
 import unittest
 from unittest.mock import mock_open, patch, MagicMock
 from pathlib import Path
+from PIL import Image
+import numpy as np
 
 from utils import encode_string_with_nonce, decode_string_with_nonce
 from controller import AppState
@@ -263,26 +265,30 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.filename, 'appstate-test')
         self.assertEqual(state.num_slices, 10)
         self.assertEqual(state.imgThresholds, [0, 255])
-        
-        image_depths = [image_slice.depth for image_slice in state.image_slices]
+
+        image_depths = [
+            image_slice.depth for image_slice in state.image_slices]
         self.assertEqual(image_depths, [0, 1, 2])
-        
-        image_slices_filenames = [image_slice.filename for image_slice in state.image_slices]
+
+        image_slices_filenames = [
+            image_slice.filename for image_slice in state.image_slices]
         self.assertEqual(image_slices_filenames, [
                          "appstate-test/image1.png",
                          "appstate-test/image2.png",
                          "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, "model")
         self.assertEqual(state.inpainting_model_name, "inpainting")
-        
-        positive_prompts = [image_slice.positive_prompt for image_slice in state.image_slices]
+
+        positive_prompts = [
+            image_slice.positive_prompt for image_slice in state.image_slices]
         self.assertEqual(positive_prompts, [
             "one fish", "two fish", "red fish"])
-        
-        negative_prompts = [image_slice.negative_prompt for image_slice in state.image_slices]
+
+        negative_prompts = [
+            image_slice.negative_prompt for image_slice in state.image_slices]
         self.assertEqual(negative_prompts, [
             "blue fish", "new fish", "old fish"])
-        
+
         self.assertEqual(state.server_address, "http://localhost:8000")
         self.assertEqual(state.api_key, "sk-somesecretkey")
         self.assertEqual(state.camera.camera_distance, 1.0)
@@ -308,22 +314,26 @@ class TestFromJson(unittest.TestCase):
         self.assertEqual(state.filename, 'appstate-test')
         self.assertEqual(state.num_slices, 10)
         self.assertEqual(state.imgThresholds, [0, 255])
-        
-        image_depths = [image_slice.depth for image_slice in state.image_slices]
+
+        image_depths = [
+            image_slice.depth for image_slice in state.image_slices]
         self.assertEqual(image_depths, [0, 1, 2])
-        
-        image_slices_filenames = [image_slice.filename for image_slice in state.image_slices]
+
+        image_slices_filenames = [
+            image_slice.filename for image_slice in state.image_slices]
         self.assertEqual(image_slices_filenames, [
             "appstate-test/image1.png",
             "appstate-test/image2.png",
             "appstate-test/image3.png"])
         self.assertEqual(state.depth_model_name, None)
         self.assertEqual(state.inpainting_model_name, None)
-        
-        positive_prompts = [image_slice.positive_prompt for image_slice in state.image_slices]
+
+        positive_prompts = [
+            image_slice.positive_prompt for image_slice in state.image_slices]
         self.assertEqual(positive_prompts, [""]*3)
-        
-        negative_prompts = [image_slice.negative_prompt for image_slice in state.image_slices]
+
+        negative_prompts = [
+            image_slice.negative_prompt for image_slice in state.image_slices]
         self.assertEqual(negative_prompts, [""]*3)
         self.assertEqual(state.server_address, None)
         self.assertEqual(state.api_key, None)
@@ -488,6 +498,58 @@ class TestToFile(unittest.TestCase):
         mock_unlink.assert_called_once()
         mock_shutil_move.assert_called_once_with(
             backup_file, self.file_path / AppState.STATE_FILE)
+
+
+class TestApplyMask(unittest.TestCase):
+    def setUp(self):
+        self.state = AppState()
+        self.state.imgData = Image.new('RGB', (100, 100))
+        self.state.result_tinted = Image.new('RGB', (100, 100), (255, 0, 0))
+        self.state.grayscale_tinted = Image.new(
+            'RGB', (100, 100), (128, 128, 128))
+
+    def test_apply_mask_with_pil_image(self):
+        mask = Image.new('L', (100, 100), 128)
+
+        result = self.state.apply_mask(self.state.imgData, mask)
+
+        self.assertIsInstance(result, Image.Image)
+        self.assertEqual(result.size, self.state.imgData.size)
+
+    def test_apply_mask_with_numpy_array(self):
+        mask = np.zeros((100, 100), dtype=np.uint8)
+
+        result = self.state.apply_mask(self.state.imgData, mask)
+
+        self.assertIsInstance(result, Image.Image)
+        self.assertEqual(result.size, self.state.imgData.size)
+
+    def test_apply_mask_with_none_image(self):
+        image = None
+        mask = Image.new('L', (100, 100))
+
+        with self.assertRaises(AttributeError):
+            self.state.apply_mask(image, mask)
+
+    def test_apply_mask_creates_tints_when_needed(self):
+        mask = Image.new('L', (100, 100), 128)
+        self.state.result_tinted = None
+        self.state.grayscale_tinted = None
+
+        result = self.state.apply_mask(self.state.imgData, mask)
+
+        self.assertIsInstance(result, Image.Image)
+        self.assertEqual(result.size, self.state.imgData.size)
+
+    def test_apply_mask_uses_precomputed_tints(self):
+        mask = Image.new('L', (100, 100), 128)
+
+        result = self.state.apply_mask(self.state.imgData, mask)
+
+        self.assertNotEqual(self.state.result_tinted, None)
+        self.assertNotEqual(self.state.grayscale_tinted, None)
+        self.assertIsInstance(result, Image.Image)
+        self.assertEqual(result.size, self.state.imgData.size)
 
 
 if __name__ == '__main__':
