@@ -1,7 +1,8 @@
 import unittest
 from PIL import Image
 from utils import (
-    find_bounding_box, find_square_from_bounding_box, filename_add_version, filename_previous_version,
+    find_bounding_box, find_square_from_bounding_box, find_square_bounding_box,
+    filename_add_version, filename_previous_version,
     highlight_selected_element, encode_string_with_nonce, decode_string_with_nonce
 )
 
@@ -59,6 +60,28 @@ class TestFindBoundingBox(unittest.TestCase):
         expected_result = (20, 20, 80, 80)
 
         # Assert that the result is as expected
+        self.assertEqual(result, expected_result)
+        
+    def test_find_square_bounding_box(self):
+        # Create an empty mask image
+        mask_image = Image.new('L', (100, 100))
+        mask_image.paste(255, (20, 30, 80, 70))
+        
+        result = find_square_bounding_box(mask_image, padding=10)
+
+        expected_result = (11, 11, 89, 89)
+        
+        self.assertEqual(result, expected_result)
+
+    def test_find_square_bounding_box_outside(self):
+        # Create an empty mask image
+        mask_image = Image.new('L', (100, 100))
+        mask_image.paste(255, (20, 30, 80, 70))
+
+        result = find_square_bounding_box(mask_image, padding=30)
+
+        expected_result = (0, 0, 100, 100)
+
         self.assertEqual(result, expected_result)
 
 
