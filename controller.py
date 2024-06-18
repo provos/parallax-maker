@@ -334,62 +334,6 @@ class AppState:
             image_slice.read_image()
         print(f"Loaded {len(self.image_slices)} image slices")
 
-    def can_undo(self, slice_index, forward=False):
-        """
-        Check if it is possible to undo the specified slice index.
-
-        Args:
-            slice_index (int): The index of the slice to check.
-            forward (bool, optional): If True, check for the next version of the slice. 
-                                      If False, check for the previous version. Defaults to False.
-
-        Returns:
-            bool: True if the specified slice version exists, False otherwise.
-        """
-        assert slice_index >= 0 and slice_index < len(self.image_slices)
-        if forward:
-            filename = filename_add_version(
-                self.image_slices[slice_index].filename)
-        else:
-            filename = filename_previous_version(
-                self.image_slices[slice_index].filename)
-
-        if filename is None:
-            return False
-
-        return Path(filename).exists()
-
-    def undo(self, slice_index, forward=False):
-        """
-        Undo the specified slice index.
-
-        Args:
-            slice_index (int): The index of the slice to undo.
-            forward (bool, optional): If True, undo the next version of the slice. 
-                          If False, undo the previous version. Defaults to False.
-
-        Returns:
-            bool: True if the undo operation is successful, False otherwise.
-        """
-        assert slice_index >= 0 and slice_index < len(self.image_slices)
-
-        if not self.can_undo(slice_index, forward):
-            return False
-
-        if forward:
-            filename = filename_add_version(
-                self.image_slices[slice_index].filename)
-        else:
-            filename = filename_previous_version(
-                self.image_slices[slice_index].filename)
-
-        if filename is None:
-            return False
-
-        self.image_slices[slice_index].filename = filename
-        self.image_slices[slice_index].read_image()
-        return True
-
     def save_image_slices(self, file_path):
         """
         Save the image slices to the specified file path.

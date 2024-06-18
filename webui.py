@@ -22,9 +22,9 @@ from segmentation import (
 )
 import components
 from utils import (
-    filename_add_version, find_pixel_from_event, postprocess_depth_map,
+    find_pixel_from_event, postprocess_depth_map,
     get_gltf_iframe, get_no_gltf_available,
-    highlight_selected_element, to_data_url
+    to_data_url
 )
 from depth import DepthEstimationModel
 from instance import SegmentationModel
@@ -637,11 +637,8 @@ def paste_clipboard_request(n_clicks, filename, logs):
     image = state.clipboard_image
     # updates the image slice in place - dangerous
     blend_with_alpha(state.image_slices[state.selected_slice].image, image)
+    state.image_slices[state.selected_slice].new_version()
 
-    image_filename = filename_add_version(
-        state.image_slices[state.selected_slice].filename)
-    state.image_slices[state.selected_slice].filename = image_filename
-    state.image_slices[state.selected_slice].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -675,11 +672,8 @@ def remove_mask_slice_request(n_clicks, filename, logs):
     final_mask = remove_mask_from_alpha(
         state.image_slices[state.selected_slice].image, state.slice_mask)
     state.image_slices[state.selected_slice].image[:, :, 3] = final_mask
+    state.image_slices[state.selected_slice].new_version()
 
-    image_filename = filename_add_version(
-        state.image_slices[state.selected_slice].filename)
-    state.image_slices[state.selected_slice].filename = image_filename
-    state.image_slices[state.selected_slice].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -716,11 +710,8 @@ def add_mask_slice_request(n_clicks, filename, logs):
         state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     # updates the image slice in place - dangerous
     blend_with_alpha(state.image_slices[state.selected_slice].image, image)
+    state.image_slices[state.selected_slice].new_version()
 
-    image_filename = filename_add_version(
-        state.image_slices[state.selected_slice].filename)
-    state.image_slices[state.selected_slice].filename = image_filename
-    state.image_slices[state.selected_slice].save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -851,11 +842,11 @@ def update_slices(ignored_data, filename):
     for i, image_slice in enumerate(state.image_slices):
         img_data = state.serve_slice_image(i)
 
-        left_color = caret_color_enabled if state.can_undo(
-            i, forward=False) else caret_color_disabled
+        left_color = caret_color_enabled if image_slice.can_undo(
+            forward=False) else caret_color_disabled
         left_disabled = True if left_color == caret_color_disabled else False
-        right_color = caret_color_enabled if state.can_undo(
-            i, forward=True) else caret_color_disabled
+        right_color = caret_color_enabled if image_slice.can_undo(
+            forward=True) else caret_color_disabled
         right_disabled = True if right_color == caret_color_disabled else False
 
         left_id = {'type': 'slice-undo-backwards', 'index': i}
@@ -989,7 +980,7 @@ def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
     else:
         raise PreventUpdate()
 
-    if not state.undo(index, forward=forward):
+    if not state.image_slices[index].undo(forward=forward):
         print(f"Cannot undo slice {index} with forward {forward}")
         raise PreventUpdate()
 
@@ -1041,7 +1032,7 @@ def generate_slices(ignored_data, filename):
 def display_slice(n_clicks, n_clicks_two, id, src, classnames, filename):
     if (n_clicks is None or any(n_clicks) is False) and (n_clicks_two is None or any(n_clicks_two) is False):
         raise PreventUpdate()
-    
+
     if filename is None:
         raise PreventUpdate()
 
@@ -1196,7 +1187,7 @@ def gltf_create(
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    
+
     export_state_as_gltf(
         state, filename,
         state.camera,
@@ -1300,12 +1291,7 @@ def slice_upload(contents, filename, logs):
             'Fixing aspect ratio from {image.size[0] / image.size[1]} to {aspect_ratio}')
         image = image.resize((int(aspect_ratio*image.size[1]), image.size[1]))
 
-    state.image_slices[index].image = np.array(image)
-
-    # add a version number to the filename and increase if it already exists
-    image_filename = filename_add_version(state.image_slices[index].filename)
-    state.image_slices[index].filename = image_filename
-    state.image_slices[index].save_image()
+    image_filename = state.image_slices[index].new_version(np.array(image))
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
@@ -1371,7 +1357,7 @@ def remember_camera_parameters(value, filename):
         raise PreventUpdate()
 
     state = AppState.from_cache(filename)
-    cam  = state.camera
+    cam = state.camera
     return cam.camera_distance, cam.focal_length, cam.max_distance, state.mesh_displacement
 
 

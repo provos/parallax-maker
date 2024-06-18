@@ -403,7 +403,7 @@ class TestSliceUpload(unittest.TestCase):
 
     @patch('webui.ctx')
     @patch('webui.AppState.from_cache')
-    @patch('webui.filename_add_version')
+    @patch('slice.filename_add_version')
     @patch('webui.blend_with_alpha')
     @patch('slice.ImageSlice.save_image')
     def test_valid_upload(self, mock_imwrite, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
@@ -434,7 +434,7 @@ class TestSliceUpload(unittest.TestCase):
 
     @patch('webui.ctx')
     @patch('webui.AppState.from_cache')
-    @patch('webui.filename_add_version')
+    @patch('slice.filename_add_version')
     @patch('webui.blend_with_alpha')
     @patch('slice.ImageSlice.save_image')
     def test_valid_upload_different_ratio(self, mock_imwrite, mock_blend, mock_filename_add_version, mock_from_cache, mock_ctx):
@@ -500,7 +500,7 @@ class TestUpdateSlices(unittest.TestCase):
 
     @patch('webui.AppState.serve_slice_image_composed', return_value='composed_image_data')
     @patch('webui.AppState.serve_slice_image', return_value='image_data')
-    @patch('webui.AppState.can_undo', return_value=False)  
+    @patch('slice.ImageSlice.can_undo', return_value=False)  
     def test_full_functionality(self,
                                 mock_serve_slice_image_composed,
                                 mock_can_undo,
@@ -522,7 +522,7 @@ class TestUpdateSlices(unittest.TestCase):
         self.assertEqual(img_data, 'composed_image_data')
 
     @patch('webui.AppState.serve_slice_image', return_value='image_data')
-    @patch('webui.AppState.can_undo', return_value=False)
+    @patch('slice.ImageSlice.can_undo', return_value=False)
     def test_corner_cases(self, mock_can_undo, mock_serve_slice_image):
         # Simulate corner cases where selected_slice is None
         self.mock_state.image_slices = [ImageSlice(depth=0, filename='slice1.png')]

@@ -19,7 +19,7 @@ import constants as C
 from automatic1111 import make_models_request
 from comfyui import get_history, patch_inpainting_workflow
 from controller import AppState, CompositeMode
-from utils import to_image_url, filename_add_version, find_square_bounding_box
+from utils import to_image_url, find_square_bounding_box
 from inpainting import patch_image, create_inpainting_pipeline
 from segmentation import render_view, remove_mask_from_alpha
 from stabilityai import StabilityAI
@@ -488,12 +488,8 @@ def make_inpainting_container_callbacks(app):
         final_mask = remove_mask_from_alpha(
             state.image_slices[index].image, mask)
         state.image_slices[index].image[:, :, 3] = final_mask
+        state.image_slices[index].new_version()
 
-        image_filename = filename_add_version(
-            state.image_slices[index].filename)
-        state.image_slices[index].filename = image_filename
-
-        state.imave_slices[index].save_image()
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
         logs.append(f'Inpainting erased for slice {index}')
@@ -675,12 +671,8 @@ def make_inpainting_container_callbacks(app):
         new_image = Image.open(io.BytesIO(
             base64.b64decode(new_image_data.split(',')[1])))
 
-        image_filename = filename_add_version(
-            state.image_slices[index].filename)
-        state.image_slices[index].filename = image_filename
-
-        state.image_slices[index].image = np.array(new_image)
-        state.image_slices[index].save_image()
+        image_filename = state.image_slices[index].new_version(
+            np.array(new_image))
         state.to_file(state.filename, save_image_slices=False,
                       save_depth_map=False, save_input_image=False)
 
@@ -746,15 +738,15 @@ def make_configuration_callbacks(app):
         if filename is not None:
             state = AppState.from_cache(filename)
             workflow_path = state.workflow_path()
-            
+
             if not workflow_path.exists() or workflow_path.read_bytes() != contents:
                 with open(workflow_path, 'wb') as f:
                     f.write(contents)
                 state.to_file(state.filename, save_image_slices=False,
-                            save_depth_map=False, save_input_image=False)
+                              save_depth_map=False, save_input_image=False)
 
         return no_update, upload_name, logs
-    
+
     # Stability AI API for inpainting does not support mask blurring
     @app.callback(
         Output(C.SLIDER_INPAINT_GUIDANCE, 'disabled'),
@@ -845,7 +837,7 @@ def make_configuration_callbacks(app):
         if value != 'stabilityai':
             class_name += ' hidden'
         return class_name
-    
+
     @app.callback(
         Output(C.INPUT_API_KEY, 'className', allow_duplicate=True),
         Input(C.INPUT_API_KEY, 'value'),
@@ -886,7 +878,8 @@ def make_configuration_callbacks(app):
                 inpaint_model = StabilityAI(api_key)
                 success, credits = inpaint_model.validate_key()
                 if success:
-                    logs.append(f'Connection to {model} successful: you have {credits:0.2f} remaining credits')
+                    logs.append(
+                        f'Connection to {model} successful: you have {credits:0.2f} remaining credits')
                     success = True
                 else:
                     logs.append(f'Connection to {model} failed')
@@ -898,6 +891,7 @@ def make_configuration_callbacks(app):
         class_name += success_class if success else failure_class
 
         return logs, class_name
+
 
 def make_configuration_container():
     return make_label_container(
@@ -1400,18 +1394,18 @@ def make_canvas_callbacks(app):
 
         # Create a grayscale image with the alpha channel
         new_image = a
-        
+
         # Scale new image to the same dimensions as imgData
         new_image = new_image.resize(
             state.imgData.size, resample=Image.BICUBIC)
-        
+
         mask_filename = state.save_image_mask(state.selected_slice, new_image)
-        
+
         # communicate the bounding box to the javascript client where we can visualize it
         bounding_box = no_update
         if 'crop' in crop:
             bounding_box = find_square_bounding_box(new_image, padding=padding)
-        
+
         logs.append(
             f"Saved mask for slice {state.selected_slice} to {mask_filename}")
 
