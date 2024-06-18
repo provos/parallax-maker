@@ -14,7 +14,7 @@ $ python ./webui.py --prefetch-models=default
 ```
 
 > [!NOTE]
-> If you want to make changes to the styles, you need to set up `node` and run `npm run build` to rebuild the tailwind css file.
+> If you want to make changes to the styles, you need to set up `node` and run `npm run build` to rebuild the tailwind css file. This requires installing `tailwindcss` via `npm install -D tailwindcss`.
 
 > [!IMPORTANT]  
 > To use Stable Diffusion 3 Medium, you will need to install the current versio of diffusers from github.
