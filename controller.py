@@ -243,8 +243,7 @@ class AppState:
                 slice_index, mode=CompositeMode.CHECKERBOARD)
             image.save(image_path)
         image_path = Path(self.SRV_DIR) / image_path
-        unique_id = int(time.time())
-        return f'/{str(image_path)}?v={unique_id}'
+        return f'/{str(image_path)}'
 
     def slice_image_composed(self, slice_index, mode: CompositeMode = CompositeMode.NONE):
         """Composes the slice image over the main image."""
