@@ -330,7 +330,7 @@ def load_image_from_file(image_path, mode='RGB'):
 
 
 @nb.jit(nopython=True, cache=True)
-def find_nearest_alpha(alpha, near_a):
+def find_nearest_alpha(alpha, near_a): # pragma: no cover
     """
     Finds the nearest alpha values in pixel indices for each pixel in the given alpha image.
 
@@ -376,7 +376,7 @@ def find_nearest_alpha(alpha, near_a):
 
 
 @nb.jit(nopython=True, parallel=True)
-def patch_pixels(image, mask_image, nearest_alpha, patch_indices):
+def patch_pixels(image, mask_image, nearest_alpha, patch_indices): # pragma: no cover
     """
     Fills in the missing pixels in the image using a patch-based inpainting algorithm.
 
@@ -469,7 +469,7 @@ def patch_image(image, mask_image):
     return image
 
 
-def main():
+def main(): # pragma: no cover
     parser = argparse.ArgumentParser(
         description='Inpain images based on a mask and prompt.')
     parser.add_argument('-i', '--image', type=str,
