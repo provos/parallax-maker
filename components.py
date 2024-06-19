@@ -217,13 +217,28 @@ def make_depth_map_container(depth_map_id: str = C.CTR_DEPTH_MAP):
             type='default',
             children=html.Div(id=C.DEPTHMAP_OUTPUT)
         ),
-        html.Button(
+        html.Div([
             html.Div([
-                html.Label('Regenerate Depth Map'),
-                html.I(className='fa-solid fa-image pl-1')]),
-            id=C.BTN_GENERATE_DEPTHMAP,
-            className='general-element mt-2 mb-2'
-        ),
+                html.Label('Depth Module Algorithm'),
+                dcc.Dropdown(
+                    id=C.DROPDOWN_DEPTH_MODEL,
+                    options=[
+                        {'label': 'MiDaS', 'value': 'midas'},
+                        {'label': 'ZoeDepth', 'value': 'zoedepth'},
+                        {'label': 'DINOv2', 'value': 'dinov2'}
+                    ],
+                    value='zoedepth',
+                    className='general-dropdown mt-2 mb-2',
+                )
+            ], className='w-full'),
+            html.Button(
+                html.Div([
+                    html.Label('Regenerate Depth Map'),
+                    html.I(className='fa-solid fa-image pl-1')]),
+                id=C.BTN_GENERATE_DEPTHMAP,
+                className='general-element mt-2 mb-2'
+            ),
+        ], className='w-full grid grid-cols-2 gap-2 p-2 items-end'),
         html.Div([
             dcc.Interval(id=C.PROGRESS_INTERVAL, interval=500, n_intervals=0),
             html.Div(id=C.CTR_PROGRESS_BAR,
@@ -911,19 +926,6 @@ def make_configuration_div():
                 value=3,
                 marks={i: str(i) for i in range(2, 11)}
             ),
-        ], className='w-full'),
-        html.Div([
-            html.Label('Depth Module Algorithm'),
-            dcc.Dropdown(
-                id=C.DROPDOWN_DEPTH_MODEL,
-                options=[
-                    {'label': 'MiDaS', 'value': 'midas'},
-                    {'label': 'ZoeDepth', 'value': 'zoedepth'},
-                    {'label': 'DINOv2', 'value': 'dinov2'}
-                ],
-                value='zoedepth',
-                className='general-dropdown',
-            )
         ], className='w-full'),
         html.Div([
             html.Label('Inpainting Model'),
