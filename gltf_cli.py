@@ -66,6 +66,8 @@ def main():
     parser.add_argument('-o', '--output_path', type=str,
                         default='output',
                         help='Path to save the glTF file')
+    parser.add_argument('-n', '--no-inline', action='store_true',
+                        help='Do not inline images in the glTF file')
     parser.add_argument('-d', '--depth', action='store_true',
                         help='Compute depth maps for slices')
     parser.add_argument('-s', '--scale', type=float,
@@ -85,7 +87,9 @@ def main():
     gltf_path = export_state_as_gltf(
         state, args.output_path,
         state.camera,
-        displacement_scale=args.scale)
+        displacement_scale=args.scale,
+        inline_images=not args.no_inline,
+        support_dof=True)
     print(f"Exported glTF to {gltf_path}")
 
 

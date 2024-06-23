@@ -1199,7 +1199,9 @@ def gltf_create(
 def export_state_as_gltf(
         state, filename,
         camera,
-        displacement_scale, modelname='midas', support_dof=False):
+        displacement_scale, modelname='midas',
+        inline_images=True,
+        support_dof=False):
     camera_matrix = state.camera_matrix()
     card_corners_3d_list = state.get_cards()
 
@@ -1231,10 +1233,12 @@ def export_state_as_gltf(
 
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     output_path = Path(filename) / state.MODEL_FILE
-    gltf_path = export_gltf(output_path, aspect_ratio, camera.focal_length, camera.camera_distance,
-                            card_corners_3d_list, slices_filenames, depth_filenames,
-                            displacement_scale=displacement_scale,
-                            support_dof=support_dof)
+    gltf_path = export_gltf(
+        output_path, aspect_ratio, camera.focal_length, camera.camera_distance,
+        card_corners_3d_list, slices_filenames, depth_filenames,
+        displacement_scale=displacement_scale,
+        inline_images=inline_images,
+        support_dof=support_dof)
 
     return gltf_path
 
@@ -1321,7 +1325,7 @@ def export_animation(n_clicks, filename, num_frames, logs):
     state = AppState.from_cache(filename)
 
     camera_distance = state.camera.camera_distance
-    
+
     camera_matrix = state.camera_matrix()
     card_corners_3d_list = state.get_cards()
 

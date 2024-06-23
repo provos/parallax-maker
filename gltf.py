@@ -229,12 +229,11 @@ def create_card(gltf_obj, i, corners_3d, subdivisions=300, depth_map=None, displ
     tex_coords = np.array(
         [[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
     
-    vertices = subdivide_geometry(vertices, subdivisions, 3)
-    
-    if depth_map is not None and displacement_scale > 0.0:
-        vertices = displace_vertices(vertices, depth_map, displacement_scale=displacement_scale)
-    
-    tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)    
+    if displacement_scale > 0.0 and depth_map is not None:
+        vertices = subdivide_geometry(vertices, subdivisions, 3)
+        vertices = displace_vertices(vertices, depth_map, displacement_scale=displacement_scale)    
+        tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)    
+
     indices = triangle_indices_from_grid(vertices)
 
     # Create the buffer and buffer view for vertices
@@ -347,9 +346,9 @@ def export_gltf(
 
     # Create the card objects (planes)
     for i, corners_3d in enumerate(card_corners_3d_list):
-        # Translaton hack
+        # Translaton hack so that we can put the depth on the node
         z_transform = corners_3d[0][2]
-        corners_3d[:, 2] = 0
+        corners_3d[:, 2] -= z_transform
         
         depth_map = None
         if len(depth_paths) > i:
@@ -378,7 +377,7 @@ def export_gltf(
                 index=i
             ),
             alphaMode=alpha_mode,
-            alphaCutoff=0.5,
+            alphaCutoff=0.5 if alpha_mode == "MASK" else None,
             doubleSided=True
         )
 
@@ -404,6 +403,8 @@ def export_gltf(
     # Save the glTF file
     if inline_images:
         gltf_obj.convert_images(gltf.ImageFormat.DATAURI)
+    else:
+        gltf_obj.convert_images(gltf.ImageFormat.FILE)
         
     gltf_obj.save(str(output_path))
 
