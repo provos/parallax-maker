@@ -769,12 +769,13 @@ def create_single_slice_request(n_clicks, filename, logs):
         logs.append("No image available")
         return no_update, no_update, no_update, logs, no_update
 
+    depth = 127
     if state.slice_mask is None:
         # create an empty image that the user can inpaint if they want to
         image = Image.new('RGBA', state.imgData.size, (0, 0, 0, 0))
-        depth = 127
     else:
-        depth = state.slice_pixel_depth
+        if state.slice_pixel is not None:
+            depth = state.slice_pixel_depth
         image = create_slice_from_mask(
             state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
     
