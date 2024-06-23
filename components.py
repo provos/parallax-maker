@@ -1101,10 +1101,10 @@ def make_3d_export_div():
         dcc.Slider(
             id=C.SLIDER_DISPLACEMENT,
             min=0,
-            max=70,
+            max=150,
             step=5,
             value=0,
-            marks={i * 5: str(i * 5) for i in range(16)},
+            marks={i * 10: str(i * 10) for i in range(16)},
         ),
         dcc.Download(id=C.DOWNLOAD_GLTF)
     ],
