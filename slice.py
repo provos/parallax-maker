@@ -8,7 +8,7 @@ from camera import Camera
 
 
 class ImageSlice:
-    __slots__ = ('image', '_depth', '_filename', '_is_ground_plane',
+    __slots__ = ('_image', '_depth', '_filename', '_is_ground_plane',
                  'positive_prompt', 'negative_prompt')
 
     def __init__(self, image=None, depth=-1, filename=None, positive_prompt='', negative_prompt=''):
@@ -19,6 +19,19 @@ class ImageSlice:
 
         self.positive_prompt = positive_prompt
         self.negative_prompt = negative_prompt
+        
+    @property
+    def image(self):
+        return self._image
+    
+    @image.setter
+    def image(self, value):
+        if not isinstance(value, np.ndarray) and not isinstance(value, Image.Image) and value is not None:
+            raise ValueError("image must be a np.ndarray, Image.Image object or None")
+        if isinstance(value, Image.Image):
+            print('WARNING: ImageSlice.image is being set with a PIL Image object. This is not recommended.')
+            value = np.array(value)
+        self._image = value
 
     @property
     def is_ground_plane(self):
@@ -83,8 +96,6 @@ class ImageSlice:
                 [near_width / 2, near_height / 2, near_z + 2 * far_z], # NO IDEA
                 [-near_width / 2, near_height / 2, near_z + 2 * far_z]
             ], dtype=np.float32)
-            
-            print(card_corners_3d)
         else:
             z = self._depth_to_z(self.depth, cam)
 
@@ -124,8 +135,8 @@ class ImageSlice:
         Returns:
             str: The filename of the new version of the image.
         """
-        assert isinstance(image, np.ndarray)
         if image is not None:
+            assert isinstance(image, np.ndarray)
             self.image = image
         self.filename = filename_add_version(self.filename)
         if save:
