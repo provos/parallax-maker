@@ -30,6 +30,7 @@ from depth import DepthEstimationModel
 from instance import SegmentationModel
 from inpainting import InpaintingModel, create_inpainting_pipeline
 from clientside import make_clientside_callbacks
+from slice import ImageSlice
 
 
 import dash
@@ -523,6 +524,9 @@ def generate_depth_map_callback(ignored_data, filename, model):
     state.depthMapData = generate_depth_map(
         np_image, model=state.depth_estimation_model, progress_callback=progress_callback)
     state.imgThresholds = None
+    
+    state.to_file(filename, save_image_slices=False,
+                  save_depth_map=True, save_input_image=False)
 
     return True, ""
 
@@ -773,8 +777,10 @@ def create_single_slice_request(n_clicks, filename, logs):
         depth = state.slice_pixel_depth
         image = create_slice_from_mask(
             state.imgData, state.slice_mask, num_expand=EXPAND_MASK)
-    state.selected_slice = state.add_slice(image, depth)
-    state.save_image_slice(state.selected_slice)
+    
+    image = ImageSlice(image, depth)
+    state.selected_slice = state.add_slice(image)
+    image.save_image()
     state.to_file(filename, save_image_slices=False,
                   save_depth_map=False, save_input_image=False)
 
