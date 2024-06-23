@@ -388,7 +388,7 @@ class AppState:
                 print(
                     f"Upscaling image slice: {filename} with '{prompt}'/'{negative_prompt}'")
                 upscaled_image = self.upscale_image(
-                    slice_image, prompt=prompt, negative_prompt=negative_prompt)
+                    slice_image.image, prompt=prompt, negative_prompt=negative_prompt)
                 upscaled_image.save(filename)
                 print(f"Saved upscaled image slice: {filename}")
 
