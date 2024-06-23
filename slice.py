@@ -4,6 +4,7 @@ from PIL import Image
 import numpy as np
 
 from utils import filename_add_version, filename_previous_version
+from camera import Camera
 
 
 class ImageSlice:
@@ -45,6 +46,24 @@ class ImageSlice:
         return (self.image == other.image and
                 self.depth == other.depth and
                 self.filename == other.filename)
+
+    def create_card(self, image_height: int, image_width: int, cam: Camera):
+        z = cam.max_distance * ((255 - self.depth) / 255.0)
+
+        fl_px = cam.focal_length_px(image_width)
+
+        # Calculate the 3D points of the card corners
+        card_width = (image_width * (z + cam.camera_distance)) / fl_px
+        card_height = (image_height * (z + cam.camera_distance)) / fl_px
+
+        card_corners_3d = np.array([
+            [-card_width / 2, -card_height / 2, z],
+            [card_width / 2, -card_height / 2, z],
+            [card_width / 2, card_height / 2, z],
+            [-card_width / 2, card_height / 2, z]
+        ], dtype=np.float32)
+
+        return card_corners_3d
 
     def save_image(self):
         slice_image = self.image

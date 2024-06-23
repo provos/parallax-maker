@@ -107,6 +107,18 @@ class AppState:
         if not isinstance(value, (float, int)) or value < 0:
             raise ValueError("mesh_displacement must be a non-negative number")
         self._mesh_displacement = value
+        
+    def camera_matrix(self):
+        image_width, image_height = self.imgData.size
+        return self._camera.camera_matrix(image_width, image_height)
+        
+    def get_cards(self):
+        image_width, image_height = self.imgData.size
+        cards = []
+        for i, image_slice in enumerate(self.image_slices):
+            card = image_slice.create_card(image_height, image_width, self.camera)
+            cards.append(card)
+        return cards
 
     def create_tints(self):
         """Precomputes the tings for visualizing slices."""

@@ -342,9 +342,13 @@ def process_image(image_path, output_path, num_slices=5,
     for i, image_slice in enumerate(image_slices):
         image_slice.depth = thresholds[i + 1]
     
+    image_height, image_width, _ = image_slices[0].image.shape    
     camera = Camera(100.0, 500.0, 100.0)
-    camera_matrix, card_corners_3d_list = camera.setup_camera_and_cards(
-        image_slices)
+    camera_matrix = camera.camera_matrix(image_width, image_height)
+    card_corners_3d_list = []
+    for i, image_slice in enumerate(image_slices):
+        card = image_slice.create_card(image_height, image_width, camera)
+        card_corners_3d_list.append(card)
 
     # Render the initial view
     camera_position = np.array([0, 0, -100], dtype=np.float32)

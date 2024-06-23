@@ -1200,8 +1200,8 @@ def export_state_as_gltf(
         state, filename,
         camera,
         displacement_scale, modelname='midas', support_dof=False):
-    camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
-        state.image_slices)
+    camera_matrix = state.camera_matrix()
+    card_corners_3d_list = state.get_cards()
 
     depth_filenames = []
     if displacement_scale > 0:
@@ -1321,8 +1321,9 @@ def export_animation(n_clicks, filename, num_frames, logs):
     state = AppState.from_cache(filename)
 
     camera_distance = state.camera.camera_distance
-    camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
-        state.image_slices)
+    
+    camera_matrix = state.camera_matrix()
+    card_corners_3d_list = state.get_cards()
 
     # Render the initial view
     camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)

@@ -5,9 +5,11 @@ import numpy as np
 
 class Camera:
     __slots__ = ('_camera_position', '_camera_distance',
-                 '_max_distance', '_focal_length')
+                 '_max_distance', '_focal_length', '_sensor_width')
 
-    def __init__(self, distance=100, max_distance=500, focal_length=100):
+    def __init__(self,
+                 distance=100, max_distance=500, focal_length=100,
+                 sensor_width=35.0):
         """
         Initializes a Camera object.
 
@@ -17,6 +19,7 @@ class Camera:
             distance (float): The distance of the camera from the scene.
             max_distance (float): The maximum distance/depth of the scene.
             focal_length (float): The focal length of the camera.
+            sensor_width (float, optional): The width of the camera sensor. Defaults to 35.0.
 
         Returns:
             None
@@ -25,51 +28,37 @@ class Camera:
         self.camera_distance = distance
         self.max_distance = max_distance
         self.focal_length = focal_length
+        self.sensor_width = sensor_width
 
-    def setup_camera_and_cards(self, image_slices, sensor_width=35.0):
+    def focal_length_px(self, image_width):
         """
-        Set up the camera matrix and the card corners in 3D space.
+        Calculate the focal length in pixels.
 
         Args:
-            image_slices (list): A list of ImageSlice.
-            depths (list): A list of threshold depths for each image slice.
-            sensor_width (float, optional): The width of the camera sensor. Defaults to 35.0.
+            image_width (int): The width of the image.
 
         Returns:
-            tuple: A tuple containing the camera matrix and a list of card corners in 3D space.
+            float: The focal length in pixels.
         """
-        image_height, image_width, _ = image_slices[0].image.shape
+        return (image_width * self.focal_length) / self.sensor_width
 
-        # Calculate the focal length in pixels
-        focal_length_px = (image_width * self.focal_length) / sensor_width
+    def camera_matrix(self, image_width, image_height):
+        """
+        Calculate the camera matrix.
 
-        # Set up the camera intrinsic parameters
-        camera_matrix = np.array(
-            [[focal_length_px, 0, image_width / 2],
-             [0, focal_length_px, image_height / 2],
+        Args:
+            image_width (int): The width of the image.
+            image_height (int): The height of the image.
+
+        Returns:
+            np.ndarray: The camera matrix.
+        """
+
+        fl_px = self.focal_length_px(image_width)
+        return np.array(
+            [[fl_px, 0, image_width / 2],
+             [0, fl_px, image_height / 2],
              [0, 0, 1]], dtype=np.float32)
-
-        # Set up the card corners in 3D space
-        card_corners_3d_list = []
-        # The thresholds start with 0 and end with 255. We want the closest card to be at 0.
-        for i, image_slice in enumerate(image_slices):
-            z = self.max_distance * ((255 - image_slice.depth) / 255.0)
-
-            # Calculate the 3D points of the card corners
-            card_width = (image_width * (z + self.camera_distance)
-                          ) / focal_length_px
-            card_height = (
-                image_height * (z + self.camera_distance)) / focal_length_px
-
-            card_corners_3d = np.array([
-                [-card_width / 2, -card_height / 2, z],
-                [card_width / 2, -card_height / 2, z],
-                [card_width / 2, card_height / 2, z],
-                [-card_width / 2, card_height / 2, z]
-            ], dtype=np.float32)
-            card_corners_3d_list.append(card_corners_3d)
-
-        return camera_matrix, card_corners_3d_list
 
     def to_json(self):
         return {
@@ -148,3 +137,13 @@ class Camera:
         if not isinstance(value, (float, int)) or value <= 0:
             raise ValueError("focal_length must be a positive number")
         self._focal_length = value
+
+    @property
+    def sensor_width(self):
+        return self._sensor_width
+
+    @sensor_width.setter
+    def sensor_width(self, value):
+        if not isinstance(value, (float, int)) or value <= 0:
+            raise ValueError("sensor_width must be a positive number")
+        self._sensor_width = value

@@ -1537,9 +1537,9 @@ def make_navigation_callbacks(app):
             camera_position += switch[nav_clicked]
 
         state.camera.camera_position = camera_position
-
-        camera_matrix, card_corners_3d_list = state.camera.setup_camera_and_cards(
-            state.image_slices)
+        
+        camera_matrix = state.camera_matrix()
+        card_corners_3d_list = state.get_cards()
 
         image = render_view(state.image_slices, camera_matrix,
                             card_corners_3d_list, camera_position)
