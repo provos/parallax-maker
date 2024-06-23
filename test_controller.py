@@ -19,7 +19,7 @@ class TestAddSlice(unittest.TestCase):
 
     def test_add_slice_normal(self):
         # Create a mock slice image and depth value
-        slice_image1 = 'image-1'
+        slice_image1 = np.ones((10, 10, 4), np.uint8)
         depth1 = 5
 
         image_slice = ImageSlice(slice_image1, depth1)
@@ -31,7 +31,7 @@ class TestAddSlice(unittest.TestCase):
         self.assertEqual(len(self.state.image_slices), 1)
         self.assertEqual(self.state.image_slices[0].depth, depth1)
 
-        slice_image2 = 'image-2'
+        slice_image2 = np.ones((10, 10, 4), np.uint8)
         depth2 = 10
         image_slice = ImageSlice(slice_image2, depth2)
 
@@ -46,7 +46,7 @@ class TestAddSlice(unittest.TestCase):
 
     def test_add_slice_reverse(self):
         # Create a mock slice image and depth value
-        slice_image1 = 'image-1'
+        slice_image1 = np.ones((10, 10, 4), np.uint8)
         depth1 = 5
 
         image_slice1 = ImageSlice(slice_image1, depth1)
@@ -58,7 +58,7 @@ class TestAddSlice(unittest.TestCase):
         self.assertEqual(len(self.state.image_slices), 1)
         self.assertEqual(self.state.image_slices[0].depth, depth1)
 
-        slice_image2 = 'image-2'
+        slice_image2 = np.ones((10, 10, 4), np.uint8)
         depth2 = 1
 
         image_slice2 = ImageSlice(slice_image2, depth2)
@@ -72,7 +72,7 @@ class TestAddSlice(unittest.TestCase):
         self.assertEqual(self.state.image_slices[0].depth, depth2)
         self.assertEqual(self.state.image_slices[1].depth, depth1)
 
-        slice_image3 = 'image-2'
+        slice_image3 = np.ones((10, 10, 4), np.uint8)
         depth3 = 1
 
         image_slice3 = ImageSlice(slice_image3, depth3)
@@ -160,11 +160,14 @@ class TestChangeSliceDepth(unittest.TestCase):
 
         # Add some initial slices
         self.state.add_slice(ImageSlice(
-            'image-1', 5, positive_prompt="one", negative_prompt="two"))
+            np.ones((10, 10, 4), np.uint8), 5,
+            positive_prompt="one", negative_prompt="two"))
         self.state.add_slice(ImageSlice(
-            'image-2', 10, positive_prompt="three", negative_prompt="four"))
+            np.ones((10, 10, 4), np.uint8), 10,
+            positive_prompt="three", negative_prompt="four"))
         self.state.add_slice(ImageSlice(
-            'image-3', 15, positive_prompt="blue", negative_prompt="green"))
+            np.ones((10, 10, 4), np.uint8), 15,
+            positive_prompt="blue", negative_prompt="green"))
 
     def test_change_slice_depth_same_depth(self):
         # Get the initial state

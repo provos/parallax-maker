@@ -67,7 +67,7 @@ class ImageSlice:
     def __eq__(self, other):
         if not isinstance(other, ImageSlice):
             return False
-        return (self.image == other.image and
+        return (np.array_equal(self.image, other.image) and
                 self.depth == other.depth and
                 self.filename == other.filename)
         
