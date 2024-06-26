@@ -367,12 +367,9 @@ def process_image(image_path, output_path, num_slices=5,
 
     image_paths = [output_path /
                    f"image_slice_{i}.png" for i in range(num_slices)]
-    # fix it
-    aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
 
     output_path = Path(output_path) / "model.gltf"
-    export_gltf(output_path, aspect_ratio, camera.focal_length, camera.camera_distance,
-                card_corners_3d_list, image_paths)
+    export_gltf(output_path, camera, image_slices, image_paths)
 
 
 def main():

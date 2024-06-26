@@ -301,10 +301,8 @@ def create_card(gltf_obj, i, corners_3d, subdivisions=300, depth_map=None, displ
 
 def export_gltf(
     output_path,
-    aspect_ratio,
-    focal_length,
-    camera_distance,
-    card_corners_3d_list,
+    cam,
+    image_slices,
     image_paths,
     depth_paths = [],
     displacement_scale=0.0,
@@ -318,12 +316,21 @@ def export_gltf(
         aspect_ratio (float): The aspect ratio of the camera.
         focal_length (float): The focal length of the camera.
         camera_distance (float): The distance of the camera from the origin.
-        card_corners_3d_list (list): List of 3D corner coordinates for each card.
+        cam (Camera): The camera object for the scene.
+        image_slices (list): List of 3D corner coordinates for each card.
         image_paths (list): List of file paths for each image slice.
         depth_paths (list, optional): List of file paths for each depth map. Defaults to [].
         displacement_scale (float, optional): The scale of the displacement. Defaults to 0.0.
         inline_images (bool, optional): Whether to inline the images in the glTF file. Defaults to True.
     """
+
+    # compute pre-requisites
+    image_height, image_width = image_slices[0].image.shape[:2]
+    camera_matrix = cam.camera_matrix(image_width, image_height)
+    aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
+    focal_length = cam.focal_length
+    camera_distance = cam.camera_distance
+
     # Create a new glTF object
     gltf_obj = gltf.GLTF2(
         scene=0
@@ -345,7 +352,8 @@ def export_gltf(
     alpha_mode = "MASK" if support_dof else "BLEND"
 
     # Create the card objects (planes)
-    for i, corners_3d in enumerate(card_corners_3d_list):
+    for i, image_slice in enumerate(image_slices):
+        corners_3d = image_slice.create_card(image_height, image_width, cam)
         # Translaton hack so that we can put the depth on the node
         z_transform = corners_3d[0][2]
         corners_3d[:, 2] -= z_transform

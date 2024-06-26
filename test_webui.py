@@ -264,9 +264,6 @@ class TestExportGltf(unittest.TestCase):
         # Test case 1: Displacement scale is 0
         state = AppState()
         state.image_slices = self.state.image_slices
-        camera_matrix = self.camera.camera_matrix(100, 100)
-        card_corners_3d_list = [slice.create_card(
-            100, 100, self.camera) for slice in state.image_slices]
 
         mock_export_gltf.return_value = Path("output.gltf")
 
@@ -282,16 +279,9 @@ class TestExportGltf(unittest.TestCase):
         expected_call = mock_export_gltf.call_args_list[0]
         expected_args, expected_kwargs = expected_call
         self.assertEqual(expected_args[0], Path("output_dir/model.gltf"))
-        self.assertAlmostEqual(expected_args[1], float(
-            camera_matrix[0, 2]) / camera_matrix[1, 2])
-        self.assertEqual(expected_args[2], 50)
-        self.assertEqual(expected_args[3], 10)
-        for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
-            np.testing.assert_array_almost_equal(
-                expected_corner, actual_corner)
         image_slices_filenames = [slice.filename for slice in self.state.image_slices]
-        self.assertEqual(expected_args[5], image_slices_filenames)
-        self.assertEqual(expected_args[6], [])
+        self.assertEqual(expected_args[3], image_slices_filenames)
+        self.assertEqual(expected_args[4], [])
         self.assertEqual(expected_kwargs["displacement_scale"], 0)
 
     @patch("PIL.Image.fromarray")
@@ -303,8 +293,6 @@ class TestExportGltf(unittest.TestCase):
         # Test case 2: Displacement scale is greater than 0
         state = AppState()
         state.image_slices = self.state.image_slices
-        camera_matrix = self.camera.camera_matrix(100, 100)
-        card_corners_3d_list = [slice.create_card(100, 100, self.camera) for slice in state.image_slices]
         
         mock_export_gltf.return_value = Path("output.gltf")
 
@@ -334,17 +322,10 @@ class TestExportGltf(unittest.TestCase):
         expected_call = mock_export_gltf.call_args_list[0]
         expected_args, expected_kwargs = expected_call
         self.assertEqual(expected_args[0], Path("output_dir/model.gltf"))
-        self.assertAlmostEqual(expected_args[1], float(
-            camera_matrix[0, 2]) / camera_matrix[1, 2])
-        self.assertEqual(expected_args[2], 50)
-        self.assertEqual(expected_args[3], 10)
-        for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
-            np.testing.assert_array_almost_equal(
-                expected_corner, actual_corner)
             
         image_slices_filenames = [slice.filename for slice in self.state.image_slices]
-        self.assertEqual(expected_args[5], image_slices_filenames)
-        self.assertEqual(expected_args[6], [self.mock_depth_file] * 3)
+        self.assertEqual(expected_args[3], image_slices_filenames)
+        self.assertEqual(expected_args[4], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
     @patch("webui.export_gltf")
@@ -352,9 +333,6 @@ class TestExportGltf(unittest.TestCase):
         # Test case 3: Upscaled slices exist
         state = AppState()
         state.image_slices = self.state.image_slices
-        camera_matrix = self.camera.camera_matrix(100, 100)
-        card_corners_3d_list = [slice.create_card(
-            100, 100, self.camera) for slice in state.image_slices]
 
         # Pretend the upscaled file exists
         mock_upscaled_file = MagicMock()
@@ -368,15 +346,8 @@ class TestExportGltf(unittest.TestCase):
         expected_call = mock_export_gltf.call_args_list[0]
         expected_args, expected_kwargs = expected_call
         self.assertEqual(expected_args[0], Path("output_dir/model.gltf"))
-        self.assertAlmostEqual(expected_args[1], float(
-            camera_matrix[0, 2]) / camera_matrix[1, 2])
-        self.assertEqual(expected_args[2], 50)
-        self.assertEqual(expected_args[3], 10)
-        for expected_corner, actual_corner in zip(expected_args[4], card_corners_3d_list):
-            np.testing.assert_array_almost_equal(
-                expected_corner, actual_corner)
-        self.assertEqual(expected_args[5], [mock_upscaled_file] * 3)
-        self.assertEqual(expected_args[6], [self.mock_depth_file] * 3)
+        self.assertEqual(expected_args[3], [mock_upscaled_file] * 3)
+        self.assertEqual(expected_args[4], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
     # TODO: Add more test cases for generate_depth_map, postprocess_depth_map, and export_gltf

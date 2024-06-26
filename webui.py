@@ -1204,14 +1204,11 @@ def gltf_create(
 
 
 def export_state_as_gltf(
-        state, filename,
+        state: AppState, filename,
         camera,
         displacement_scale, modelname='midas',
         inline_images=True,
         support_dof=False):
-    camera_matrix = state.camera_matrix()
-    card_corners_3d_list = state.get_cards()
-
     depth_filenames = []
     if displacement_scale > 0:
         for i, slice_image in enumerate(state.image_slices):
@@ -1238,11 +1235,10 @@ def export_state_as_gltf(
         else:
             slices_filenames.append(slice_image.filename)
 
-    aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
     output_path = Path(filename) / state.MODEL_FILE
     gltf_path = export_gltf(
-        output_path, aspect_ratio, camera.focal_length, camera.camera_distance,
-        card_corners_3d_list, slices_filenames, depth_filenames,
+        output_path, camera,
+        state.image_slices, slices_filenames, depth_filenames,
         displacement_scale=displacement_scale,
         inline_images=inline_images,
         support_dof=support_dof)
