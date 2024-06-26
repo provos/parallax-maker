@@ -71,7 +71,8 @@ class ImageSlice:
                 self.depth == other.depth and
                 self.filename == other.filename)
         
-    def _dimension_at_depth(self, z: float, image_height: int, image_width: int, cam: Camera):
+    @staticmethod
+    def _dimension_at_depth(z: float, image_height: int, image_width: int, cam: Camera):
         fl_px = cam.focal_length_px(image_width)
         card_width = (image_width * (z + cam.camera_distance)) / fl_px
         card_height = (image_height * (z + cam.camera_distance)) / fl_px
