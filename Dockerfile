@@ -1,4 +1,3 @@
-
 FROM python:3.10-slim
 
 RUN apt-get update && apt-get install -y git ffmpeg
@@ -15,4 +14,6 @@ VOLUME ["/root/.cache/"]
 # The working directory can be mounted to /app/workdir
 VOLUME ["/app/workdir"]
 
-CMD ["python", "webui.py"]
+WORKDIR /app/workdir
+
+CMD ["python", "/app/webui.py"]
