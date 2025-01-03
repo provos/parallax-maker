@@ -75,6 +75,16 @@ A Dash based Web UI provides a browser assisted workflow to generated slices fro
 
 ![Web UI 3D Example](example/webui_3d.jpg)
 
+## Docker Usage
+Build the container, then run it while mounting the .cache directory for models and another directory for application state:
+```
+$ docker build -t parallax-maker .
+$ docker run -it -p 8050:8050 \
+    -v /path/on/host/.cache:/root/.cache/ \
+    -v /path/on/host/workdir:/app/workdir \
+    parallax-maker
+```
+
 # Advanced Use Cases
 Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialzied inpainting models and workflows. Here is [an example](example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
 
