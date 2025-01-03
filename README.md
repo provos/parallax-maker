@@ -76,13 +76,15 @@ A Dash based Web UI provides a browser assisted workflow to generated slices fro
 ![Web UI 3D Example](example/webui_3d.jpg)
 
 ## Docker Usage
-Build the container, then run it while mounting the .cache directory for models and another directory for application state:
-```
-$ docker build -t parallax-maker .
-$ docker run -it -p 8050:8050 \
-    -v /path/on/host/.cache:/root/.cache/ \
-    -v /path/on/host/workdir:/app/workdir \
-    parallax-maker
+The Docker image is available for both ARM64 (Apple Silicon) and AMD64 (Intel/AMD) architectures.
+
+```bash
+# Pull and run the container
+docker pull nielsprovos/parallax-maker:v1.0.1
+docker run -it -p 8050:8050 \
+    -v $(pwd)/.cache:/root/.cache/ \
+    -v $(pwd)/workdir:/app/workdir \
+    nielsprovos/parallax-maker:v1.0.1
 ```
 
 # Advanced Use Cases
