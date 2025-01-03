@@ -1573,4 +1573,4 @@ if __name__ == '__main__':
                 f'Invalid prefetch models argument: {args.prefetch_models}; use "all" or "default"')
             exit(1)
 
-    app.run_server(port=args.port, debug=True)
+    app.run_server(host='0.0.0.0', port=args.port, debug=True)
