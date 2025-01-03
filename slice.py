@@ -19,17 +19,19 @@ class ImageSlice:
 
         self.positive_prompt = positive_prompt
         self.negative_prompt = negative_prompt
-        
+
     @property
     def image(self):
         return self._image
-    
+
     @image.setter
     def image(self, value):
         if not isinstance(value, np.ndarray) and not isinstance(value, Image.Image) and value is not None:
-            raise ValueError("image must be a np.ndarray, Image.Image object or None")
+            raise ValueError(
+                "image must be a np.ndarray, Image.Image object or None")
         if isinstance(value, Image.Image):
-            print('WARNING: ImageSlice.image is being set with a PIL Image object. This is not recommended.')
+            print(
+                'WARNING: ImageSlice.image is being set with a PIL Image object. This is not recommended.')
             value = np.array(value)
         self._image = value
 
@@ -70,33 +72,35 @@ class ImageSlice:
         return (np.array_equal(self.image, other.image) and
                 self.depth == other.depth and
                 self.filename == other.filename)
-        
+
     @staticmethod
     def _dimension_at_depth(z: float, image_height: int, image_width: int, cam: Camera):
         fl_px = cam.focal_length_px(image_width)
         card_width = (image_width * (z + cam.camera_distance)) / fl_px
         card_height = (image_height * (z + cam.camera_distance)) / fl_px
         return card_width, card_height
-    
+
     def _depth_to_z(self, depth: float, cam: Camera):
         return cam.max_distance * ((255 - depth) / 255.0)
-    
+
     def create_card(self, image_height: int, image_width: int, cam: Camera):
         if self.is_ground_plane:
             near_z = 0
             far_z = cam.max_distance
-            
+
             near_width, near_height = self._dimension_at_depth(
                 near_z, image_height, image_width, cam)
             far_width, far_height = self._dimension_at_depth(
                 far_z, image_height, image_width, cam)
-            
-            card_corners_3d = np.array([
-                [-far_width / 2, -far_height / 2, far_z],
-                [far_width / 2, -far_height / 2, far_z],
-                [near_width / 2, near_height / 2, near_z + 2 * far_z], # NO IDEA
-                [-near_width / 2, near_height / 2, near_z + 2 * far_z]
-            ], dtype=np.float32)
+
+            tl = np.array([-far_width / 2, -far_height /
+                          2, far_z], dtype=np.float32)
+            tr = np.array([far_width / 2, -far_height /
+                          2, far_z], dtype=np.float32)
+            br = np.array([near_width / 2, near_height /
+                          2, far_z], dtype=np.float32)
+            bl = np.array([-near_width / 2, near_height /
+                          2, far_z], dtype=np.float32)
         else:
             z = self._depth_to_z(self.depth, cam)
 
@@ -104,12 +108,16 @@ class ImageSlice:
             card_width, card_height = self._dimension_at_depth(
                 z, image_height, image_width, cam)
             
-            card_corners_3d = np.array([
-                [-card_width / 2, -card_height / 2, z],
-                [card_width / 2, -card_height / 2, z],
-                [card_width / 2, card_height / 2, z],
-                [-card_width / 2, card_height / 2, z]
-            ], dtype=np.float32)
+            tl = np.array([-card_width / 2, -card_height /
+                            2, z], dtype=np.float32)
+            tr = np.array([card_width / 2, -card_height /
+                            2, z], dtype=np.float32)
+            br = np.array([card_width / 2, card_height /
+                            2, z], dtype=np.float32)
+            bl = np.array([-card_width / 2, card_height /
+                            2, z], dtype=np.float32)
+
+        card_corners_3d = np.array([tr, tl, bl, br], dtype=np.float32)
 
         return card_corners_3d
 
