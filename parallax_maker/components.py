@@ -333,10 +333,9 @@ def make_depth_map_container(depth_map_id: str = C.CTR_DEPTH_MAP):
                                 id=C.DROPDOWN_DEPTH_MODEL,
                                 options=[
                                     {"label": "MiDaS", "value": "midas"},
-                                    {"label": "ZoeDepth", "value": "zoedepth"},
                                     {"label": "DINOv2", "value": "dinov2"},
                                 ],
-                                value="zoedepth",
+                                value="dinov2",
                                 className="general-dropdown mt-2 mb-2",
                             ),
                         ],
