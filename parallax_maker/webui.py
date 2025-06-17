@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 # (c) 2024 Niels Provos
 
-import argparse
 import base64
 import io
 import os
