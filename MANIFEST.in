@@ -1,0 +1,12 @@
+include README.md
+include LICENSE
+include requirements.txt
+include package.json
+include postcss.config.js
+include tailwind.config.js
+include tailwind.css
+recursive-include parallax_maker/assets *
+global-exclude __pycache__
+global-exclude *.py[co]
+global-exclude .DS_Store
+global-exclude *.egg-info

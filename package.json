@@ -3,9 +3,6 @@
   "version": "1.0.0",
   "description": "This is not a node package. I just want to compile tailwindcss.",
   "main": "index.js",
-  "directories": {
-    "example": "example"
-  },
   "scripts": {
     "build": "tailwindcss -i ./tailwind.css -o ./assets/css/tailwind_compiled.css",
     "watch": "tailwindcss -i ./tailwind.css -o ./assets/css/tailwind_compiled.css --watch",
