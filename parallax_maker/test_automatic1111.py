@@ -16,7 +16,8 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
 
     def test_create_img2img_payload_without_mask(self):
         with patch(
-            "parallax_maker.automatic1111.to_image_url", return_value="data:image/png;base64,"
+            "parallax_maker.automatic1111.to_image_url",
+            return_value="data:image/png;base64,",
         ) as mock_to_image_url:
             payload = create_img2img_payload(
                 self.input_image,
@@ -40,7 +41,8 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
 
     def test_create_img2img_payload_with_mask(self):
         with patch(
-            "parallax_maker.automatic1111.to_image_url", return_value="data:image/png;base64,"
+            "parallax_maker.automatic1111.to_image_url",
+            return_value="data:image/png;base64,",
         ) as mock_to_image_url:
             payload = create_img2img_payload(
                 self.input_image,

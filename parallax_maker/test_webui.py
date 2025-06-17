@@ -491,7 +491,9 @@ class TestUpdateSlices(unittest.TestCase):
         self.mock_state = AppState()
 
         # Mock the AppState.from_cache method
-        self.patcher = patch("parallax_maker.webui.AppState.from_cache", return_value=self.mock_state)
+        self.patcher = patch(
+            "parallax_maker.webui.AppState.from_cache", return_value=self.mock_state
+        )
         self.mock_from_cache = self.patcher.start()
 
     def tearDown(self):
@@ -519,7 +521,8 @@ class TestUpdateSlices(unittest.TestCase):
             update_slices(ignored_data, self.filename)
 
     @patch(
-        "parallax_maker.webui.AppState.serve_slice_image_composed", return_value="composed_image_data"
+        "parallax_maker.webui.AppState.serve_slice_image_composed",
+        return_value="composed_image_data",
     )
     @patch("parallax_maker.webui.AppState.serve_slice_image", return_value="image_data")
     @patch("parallax_maker.slice.ImageSlice.can_undo", return_value=False)
