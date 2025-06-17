@@ -4,6 +4,12 @@ on:
   release:
     types: [published]
   workflow_dispatch:  # Allows manual triggering
+    inputs:
+      upload_to_pypi:
+        description: 'Upload to PyPI (be careful!)'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   build:
@@ -31,7 +37,7 @@ jobs:
       run: twine check dist/*
     
     - name: Upload to PyPI
-      if: github.event_name == 'release' && github.event.action == 'published'
+      if: (github.event_name == 'release' && github.event.action == 'published') || (github.event_name == 'workflow_dispatch' && inputs.upload_to_pypi == true)
       env:
         TWINE_USERNAME: __token__
         TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
