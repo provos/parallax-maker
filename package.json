@@ -4,8 +4,8 @@
   "description": "This is not a node package. I just want to compile tailwindcss.",
   "main": "index.js",
   "scripts": {
-    "build": "tailwindcss -i ./tailwind.css -o ./assets/css/tailwind_compiled.css",
-    "watch": "tailwindcss -i ./tailwind.css -o ./assets/css/tailwind_compiled.css --watch",
+    "build": "tailwindcss -i ./tailwind.css -o ./parallax_maker/assets/css/tailwind_compiled.css",
+    "watch": "tailwindcss -i ./tailwind.css -o ./parallax_maker/assets/css/tailwind_compiled.css --watch",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Niels Provos",

@@ -25,7 +25,12 @@ python -m keyring set https://test.pypi.org/legacy/ your-username
 rm -rf dist/ build/ *.egg-info
 ```
 
-2. Build the wheel and source distribution:
+2. Build Tailwind CSS assets (if changed):
+```bash
+npm run build
+```
+
+3. Build the wheel and source distribution:
 ```bash
 python -m build
 ```

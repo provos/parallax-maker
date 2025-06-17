@@ -1,7 +1,7 @@
 module.exports = {
   content: [
-    './assets/**/*.js', './*.py',
-    '!./test_*.py', '!./stabilityai.py', '!./htmlcov/**',
+    './parallax_maker/assets/**/*.js', './parallax_maker/*.py',
+    '!./parallax_maker/test_*.py', '!./parallax_maker/stabilityai.py', '!./parallax_maker/htmlcov/**',
   ],
   darkMode: 'selector',
   theme: {
