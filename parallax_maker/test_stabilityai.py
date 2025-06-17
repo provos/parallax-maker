@@ -3,12 +3,12 @@ from unittest.mock import patch, Mock
 from PIL import Image
 from io import BytesIO
 import requests
-from stabilityai import StabilityAI
+from .stabilityai import StabilityAI
 
 
 class TestStabilityAI(unittest.TestCase):
 
-    @patch("stabilityai.requests.get")
+    @patch("parallax_maker.stabilityai.requests.get")
     def test_validate_key_success(self, mock_get):
         mock_response = Mock()
         mock_response.status_code = 200
@@ -21,7 +21,7 @@ class TestStabilityAI(unittest.TestCase):
         self.assertTrue(success)
         self.assertEqual(credits, 100)
 
-    @patch("stabilityai.requests.get")
+    @patch("parallax_maker.stabilityai.requests.get")
     def test_validate_key_failure(self, mock_get):
         mock_response = Mock()
         mock_response.status_code = 401
@@ -32,7 +32,7 @@ class TestStabilityAI(unittest.TestCase):
 
         self.assertFalse(success)
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_generate_image_success(self, mock_post):
         # Prepare mocked response
         image = Image.new("RGB", (100, 100))
@@ -51,7 +51,7 @@ class TestStabilityAI(unittest.TestCase):
         self.assertIsInstance(result_image, Image.Image)
         self.assertEqual(result_image.size, (100, 100))
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_generate_image_failure(self, mock_post):
         mock_response = Mock()
         mock_response.status_code = 400
@@ -62,7 +62,7 @@ class TestStabilityAI(unittest.TestCase):
         with self.assertRaises(Exception):
             ai.generate_image(prompt="A dog running in the park")
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_image_to_image_success(self, mock_post):
         image = Image.new("RGB", (100, 100))
         input_image = Image.new("RGB", (100, 100))
@@ -81,7 +81,7 @@ class TestStabilityAI(unittest.TestCase):
         self.assertIsInstance(result_image, Image.Image)
         self.assertEqual(result_image.size, (100, 100))
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_image_to_image_invalid_size(self, mock_post):
         small_image = Image.new("RGB", (50, 50))
         ai = StabilityAI(api_key="fake_api_key")
@@ -89,7 +89,7 @@ class TestStabilityAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             ai.image_to_image(small_image, prompt="A cat on a sofa")
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_inpaint_image_success(self, mock_post):
         image = Image.new("RGB", (100, 100))
         mask = Image.new("1", (100, 100))
@@ -111,7 +111,7 @@ class TestStabilityAI(unittest.TestCase):
         self.assertIsInstance(result_image, Image.Image)
         self.assertEqual(result_image.size, (100, 100))
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_inpaint_image_invalid_size(self, mock_post):
         small_image = Image.new("RGB", (50, 50))
         mask = Image.new("1", (50, 50))
@@ -120,7 +120,7 @@ class TestStabilityAI(unittest.TestCase):
         with self.assertRaises(ValueError):
             ai.inpaint_image(small_image, mask, prompt="A beach sunset")
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_upscale_image_success(self, mock_post):
         image = Image.new("RGB", (100, 100))
         output_image = Image.new("RGB", (200, 200))
@@ -139,7 +139,7 @@ class TestStabilityAI(unittest.TestCase):
         self.assertIsInstance(result_image, Image.Image)
         self.assertEqual(result_image.size, (200, 200))
 
-    @patch("stabilityai.requests.post")
+    @patch("parallax_maker.stabilityai.requests.post")
     def test_upscale_image_invalid_size(self, mock_post):
         large_image = Image.new("RGB", (2000, 2000))
         ai = StabilityAI(api_key="fake_api_key")

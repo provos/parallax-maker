@@ -1,7 +1,7 @@
 import numpy as np
 import unittest
 
-from inpainting import find_nearest_alpha
+from .inpainting import find_nearest_alpha
 
 
 class TestFindNearestAlpha(unittest.TestCase):

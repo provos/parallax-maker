@@ -1,6 +1,6 @@
 import numpy as np
 import unittest
-from gltf import subdivide_geometry, triangle_indices_from_grid
+from .gltf import subdivide_geometry, triangle_indices_from_grid
 
 
 class TestSubdivideGeometry(unittest.TestCase):

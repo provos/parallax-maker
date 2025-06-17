@@ -1,5 +1,5 @@
 import unittest
-import constants as C
+from . import constants as C
 
 
 class TestConstants(unittest.TestCase):

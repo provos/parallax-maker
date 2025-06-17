@@ -1,5 +1,5 @@
 import unittest
-from segmentation import (
+from .segmentation import (
     analyze_depth_histogram,
     blend_with_alpha,
     generate_simple_thresholds,

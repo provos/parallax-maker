@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 from PIL import Image
 import numpy as np
 
-from upscaler import Upscaler
+from .upscaler import Upscaler
 
 
 class TestUpscaler(unittest.TestCase):

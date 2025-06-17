@@ -6,7 +6,7 @@ from PIL import Image
 import numpy as np
 from pathlib import Path
 
-from webui import (
+from .webui import (
     update_threshold_values,
     click_event,
     copy_to_clipboard,
@@ -14,11 +14,11 @@ from webui import (
     slice_upload,
     update_slices,
 )
-from controller import AppState
-from utils import to_image_url
-from camera import Camera
-from slice import ImageSlice
-import constants as C
+from .controller import AppState
+from .utils import to_image_url
+from .camera import Camera
+from .slice import ImageSlice
+from . import constants as C
 
 
 class TestUpdateThresholds(unittest.TestCase):
@@ -65,11 +65,11 @@ class TestClickEvent(unittest.TestCase):
 
     def setUp(self):
         # Patch objects and methods that aren't the focus of this test
-        self.ctx_patch = patch("webui.ctx")
-        self.AppState_patch = patch("webui.AppState")
-        self.find_pixel_patch = patch("webui.find_pixel_from_event")
-        self.SegmentationModel_patch = patch("webui.SegmentationModel")
-        self.no_update_patch = patch("webui.no_update")
+        self.ctx_patch = patch("parallax_maker.webui.ctx")
+        self.AppState_patch = patch("parallax_maker.webui.AppState")
+        self.find_pixel_patch = patch("parallax_maker.webui.find_pixel_from_event")
+        self.SegmentationModel_patch = patch("parallax_maker.webui.SegmentationModel")
+        self.no_update_patch = patch("parallax_maker.webui.no_update")
 
         self.mock_ctx = self.ctx_patch.start()
         self.mock_AppState = self.AppState_patch.start()
@@ -175,19 +175,19 @@ class TestClickEvent(unittest.TestCase):
 
 class TestCopyToClipboard(unittest.TestCase):
 
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_copy_to_clipboard_no_clicks(self, mock_from_cache):
         # Test when n_clicks is None, should raise PreventUpdate
         with self.assertRaises(PreventUpdate):
             copy_to_clipboard(None, "some_filename", [])
 
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_copy_to_clipboard_no_filename(self, mock_from_cache):
         # Test when filename is None, should raise PreventUpdate
         with self.assertRaises(PreventUpdate):
             copy_to_clipboard(1, None, [])
 
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_copy_to_clipboard_no_mask_selected(self, mock_from_cache):
         # Mock AppState with no slice_mask
         mock_state = MagicMock()
@@ -199,7 +199,7 @@ class TestCopyToClipboard(unittest.TestCase):
         result = copy_to_clipboard(1, "some_filename", logs)
         self.assertEqual(result, ["No mask selected"])
 
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_copy_to_clipboard_with_mask_and_slice(self, mock_from_cache):
         # Mock AppState with a slice_mask and a selected slice
         mock_state = MagicMock()
@@ -219,7 +219,7 @@ class TestCopyToClipboard(unittest.TestCase):
             mock_state.clipboard_image[:, :, 3], mock_state.slice_mask
         )
 
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_copy_to_clipboard_with_mask_no_slice(self, mock_from_cache):
         mock_image = Image.new("RGBA", (100, 100))
 
@@ -264,9 +264,9 @@ class TestExportGltf(unittest.TestCase):
         self.state.MODEL_FILE = "model.gltf"
         self.state.camera = self.camera
 
-    @patch("webui.generate_depth_map")
-    @patch("webui.postprocess_depth_map")
-    @patch("webui.export_gltf")
+    @patch("parallax_maker.webui.generate_depth_map")
+    @patch("parallax_maker.webui.postprocess_depth_map")
+    @patch("parallax_maker.webui.export_gltf")
     def test_export_state_as_gltf(
         self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map
     ):
@@ -294,9 +294,9 @@ class TestExportGltf(unittest.TestCase):
         self.assertEqual(expected_kwargs["displacement_scale"], 0)
 
     @patch("PIL.Image.fromarray")
-    @patch("webui.generate_depth_map")
-    @patch("webui.postprocess_depth_map")
-    @patch("webui.export_gltf")
+    @patch("parallax_maker.webui.generate_depth_map")
+    @patch("parallax_maker.webui.postprocess_depth_map")
+    @patch("parallax_maker.webui.export_gltf")
     def test_export_state_as_gltf_with_displacement(
         self,
         mock_export_gltf,
@@ -340,7 +340,7 @@ class TestExportGltf(unittest.TestCase):
         self.assertEqual(expected_args[4], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
-    @patch("webui.export_gltf")
+    @patch("parallax_maker.webui.export_gltf")
     def test_export_state_as_gltf_with_upscaled(self, mock_export_gltf):
         # Test case 3: Upscaled slices exist
         state = AppState()
@@ -367,15 +367,15 @@ class TestExportGltf(unittest.TestCase):
 
 
 class TestSliceUpload(unittest.TestCase):
-    @patch("webui.ctx")
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.ctx")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_filename_none(self, mock_from_cache, mock_ctx):
         with self.assertRaises(PreventUpdate):
             slice_upload(None, None, None)
         mock_from_cache.assert_not_called()
 
-    @patch("webui.ctx")
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.ctx")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_empty_image_slices(self, mock_from_cache, mock_ctx):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = []
@@ -385,8 +385,8 @@ class TestSliceUpload(unittest.TestCase):
             slice_upload(None, "appstate-random", None)
         mock_from_cache.assert_called_once_with("appstate-random")
 
-    @patch("webui.ctx")
-    @patch("webui.AppState.from_cache")
+    @patch("parallax_maker.webui.ctx")
+    @patch("parallax_maker.webui.AppState.from_cache")
     def test_contents_none(self, mock_from_cache, mock_ctx):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = [np.zeros((100, 100, 4))]
@@ -397,11 +397,11 @@ class TestSliceUpload(unittest.TestCase):
             slice_upload([None], "appstate-random", None)
         mock_from_cache.assert_called_once_with("appstate-random")
 
-    @patch("webui.ctx")
-    @patch("webui.AppState.from_cache")
-    @patch("slice.filename_add_version")
-    @patch("webui.blend_with_alpha")
-    @patch("slice.ImageSlice.save_image")
+    @patch("parallax_maker.webui.ctx")
+    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch("parallax_maker.slice.filename_add_version")
+    @patch("parallax_maker.webui.blend_with_alpha")
+    @patch("parallax_maker.slice.ImageSlice.save_image")
     def test_valid_upload(
         self,
         mock_imwrite,
@@ -441,11 +441,11 @@ class TestSliceUpload(unittest.TestCase):
         )
         self.assertIsInstance(mock_state.imgData, Image.Image)
 
-    @patch("webui.ctx")
-    @patch("webui.AppState.from_cache")
-    @patch("slice.filename_add_version")
-    @patch("webui.blend_with_alpha")
-    @patch("slice.ImageSlice.save_image")
+    @patch("parallax_maker.webui.ctx")
+    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch("parallax_maker.slice.filename_add_version")
+    @patch("parallax_maker.webui.blend_with_alpha")
+    @patch("parallax_maker.slice.ImageSlice.save_image")
     def test_valid_upload_different_ratio(
         self,
         mock_imwrite,
@@ -491,7 +491,7 @@ class TestUpdateSlices(unittest.TestCase):
         self.mock_state = AppState()
 
         # Mock the AppState.from_cache method
-        self.patcher = patch("webui.AppState.from_cache", return_value=self.mock_state)
+        self.patcher = patch("parallax_maker.webui.AppState.from_cache", return_value=self.mock_state)
         self.mock_from_cache = self.patcher.start()
 
     def tearDown(self):
@@ -519,10 +519,10 @@ class TestUpdateSlices(unittest.TestCase):
             update_slices(ignored_data, self.filename)
 
     @patch(
-        "webui.AppState.serve_slice_image_composed", return_value="composed_image_data"
+        "parallax_maker.webui.AppState.serve_slice_image_composed", return_value="composed_image_data"
     )
-    @patch("webui.AppState.serve_slice_image", return_value="image_data")
-    @patch("slice.ImageSlice.can_undo", return_value=False)
+    @patch("parallax_maker.webui.AppState.serve_slice_image", return_value="image_data")
+    @patch("parallax_maker.slice.ImageSlice.can_undo", return_value=False)
     def test_full_functionality(
         self, mock_serve_slice_image_composed, mock_can_undo, mock_serve_slice_image
     ):
@@ -543,8 +543,8 @@ class TestUpdateSlices(unittest.TestCase):
         self.assertEqual(len(img_container), 2)
         self.assertEqual(img_data, "composed_image_data")
 
-    @patch("webui.AppState.serve_slice_image", return_value="image_data")
-    @patch("slice.ImageSlice.can_undo", return_value=False)
+    @patch("parallax_maker.webui.AppState.serve_slice_image", return_value="image_data")
+    @patch("parallax_maker.slice.ImageSlice.can_undo", return_value=False)
     def test_corner_cases(self, mock_can_undo, mock_serve_slice_image):
         # Simulate corner cases where selected_slice is None
         self.mock_state.image_slices = [ImageSlice(depth=0, filename="slice1.png")]

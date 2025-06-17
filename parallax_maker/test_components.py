@@ -8,14 +8,14 @@ from PIL import Image
 import dash
 from dash import html
 
-import constants as C
+from . import constants as C
 import numpy as np
-from components import (
+from .components import (
     make_inpainting_container_callbacks,
     make_inpainting_container,
     make_configuration_container,
 )
-from slice import ImageSlice
+from .slice import ImageSlice
 
 
 class TestUpdateInpaintingImageDisplay(unittest.TestCase):
@@ -34,12 +34,12 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
             self.app
         )
 
-    @patch("components.ctx", new_callable=MagicMock)
-    @patch("components.Image.open")
-    @patch("components.Image.fromarray")
-    @patch("components.Path")
-    @patch("controller.AppState.from_cache")
-    @patch("inpainting.InpaintingModel")
+    @patch("parallax_maker.components.ctx", new_callable=MagicMock)
+    @patch("parallax_maker.components.Image.open")
+    @patch("parallax_maker.components.Image.fromarray")
+    @patch("parallax_maker.components.Path")
+    @patch("parallax_maker.controller.AppState.from_cache")
+    @patch("parallax_maker.inpainting.InpaintingModel")
     def test_callback_triggered_comfyui(
         self,
         mock_model,
@@ -125,12 +125,12 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # If this is expected to be an empty list
         self.assertEqual(len(results[1]), 0)
 
-    @patch("components.ctx", new_callable=MagicMock)
-    @patch("components.Image.open")
-    @patch("components.Image.fromarray")
-    @patch("components.Path")
-    @patch("controller.AppState.from_cache")
-    @patch("inpainting.InpaintingModel")
+    @patch("parallax_maker.components.ctx", new_callable=MagicMock)
+    @patch("parallax_maker.components.Image.open")
+    @patch("parallax_maker.components.Image.fromarray")
+    @patch("parallax_maker.components.Path")
+    @patch("parallax_maker.controller.AppState.from_cache")
+    @patch("parallax_maker.inpainting.InpaintingModel")
     def test_callback_triggered_normal(
         self,
         mock_model,

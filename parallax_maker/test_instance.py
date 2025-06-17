@@ -3,7 +3,7 @@ from unittest.mock import patch, MagicMock
 import numpy as np
 from PIL import Image
 
-from instance import SegmentationModel
+from .instance import SegmentationModel
 
 
 class TestSegmentationModel(unittest.TestCase):

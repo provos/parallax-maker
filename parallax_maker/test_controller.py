@@ -5,9 +5,9 @@ from pathlib import Path
 from PIL import Image
 import numpy as np
 
-from utils import encode_string_with_nonce, decode_string_with_nonce
-from controller import AppState
-from slice import ImageSlice
+from .utils import encode_string_with_nonce, decode_string_with_nonce
+from .controller import AppState
+from .slice import ImageSlice
 
 
 class TestAddSlice(unittest.TestCase):
@@ -377,7 +377,7 @@ class TestUpscaling(unittest.TestCase):
         self.state._create_upscaler()
         self.assertIsNotNone(self.state.upscaler)
 
-    @patch("controller.StabilityAI")
+    @patch("parallax_maker.controller.StabilityAI")
     def test_create_upscaler_stabilityai(self, mock_stabilityai):
         self.state.pipeline_spec = MagicMock()
         self.state.inpainting_model_name = "stabilityai"
@@ -393,7 +393,7 @@ class TestUpscaling(unittest.TestCase):
         self.assertIsNotNone(self.state.upscaler)
         self.state.pipeline_spec.load_model.assert_called_once()
 
-    @patch("controller.Upscaler")
+    @patch("parallax_maker.controller.Upscaler")
     def test_upscale_image(self, mock_upscaler):
         mock_upscaler_instance = MagicMock()
         mock_upscaler.return_value = mock_upscaler_instance
@@ -403,7 +403,7 @@ class TestUpscaling(unittest.TestCase):
         )
         self.assertIsNotNone(upscaled_image)
 
-    @patch("controller.Upscaler")
+    @patch("parallax_maker.controller.Upscaler")
     def test_upscale_image_with_prompts(self, mock_upscaler):
         mock_upscaler_instance = MagicMock()
         mock_upscaler.return_value = mock_upscaler_instance
@@ -450,7 +450,7 @@ class TestSaveImageSlices(unittest.TestCase):
 
     def test_save_image_slices(self):
         # Mock the image saving function
-        with patch("slice.Image.Image.save") as mock_imwrite:
+        with patch("parallax_maker.slice.Image.Image.save") as mock_imwrite:
             self.state.save_image_slices(self.state.filename)
 
             # Check that the image slices were saved
@@ -475,12 +475,12 @@ class TestToFile(unittest.TestCase):
         self.depth_map_data_mock = MagicMock()
         self.app_state.depthMapData = self.depth_map_data_mock
 
-    @patch("controller.Image.fromarray")
-    @patch("controller.Path.mkdir")
-    @patch("controller.Path.exists")
-    @patch("controller.shutil.move")
-    @patch("controller.open", new_callable=mock_open)
-    @patch("controller.Path.unlink")
+    @patch("parallax_maker.controller.Image.fromarray")
+    @patch("parallax_maker.controller.Path.mkdir")
+    @patch("parallax_maker.controller.Path.exists")
+    @patch("parallax_maker.controller.shutil.move")
+    @patch("parallax_maker.controller.open", new_callable=mock_open)
+    @patch("parallax_maker.controller.Path.unlink")
     @patch.object(AppState, "to_json", return_value='{"state": "dummy state"}')
     def test_to_file(
         self,
@@ -524,12 +524,12 @@ class TestToFile(unittest.TestCase):
         mock_shutil_move.assert_any_call(temp_file, state_file)
         mock_unlink.assert_called_once()
 
-    @patch("controller.Image.fromarray")
-    @patch("controller.Path.mkdir")
-    @patch("controller.Path.exists")
-    @patch("controller.shutil.move")
-    @patch("controller.open", new_callable=mock_open)
-    @patch("controller.Path.unlink")
+    @patch("parallax_maker.controller.Image.fromarray")
+    @patch("parallax_maker.controller.Path.mkdir")
+    @patch("parallax_maker.controller.Path.exists")
+    @patch("parallax_maker.controller.shutil.move")
+    @patch("parallax_maker.controller.open", new_callable=mock_open)
+    @patch("parallax_maker.controller.Path.unlink")
     @patch.object(AppState, "to_json", return_value='{"state": "dummy state"}')
     def test_to_file_restore_backup_on_error(
         self,

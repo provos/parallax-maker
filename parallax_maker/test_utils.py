@@ -1,6 +1,6 @@
 import unittest
 from PIL import Image
-from utils import (
+from .utils import (
     find_bounding_box,
     find_square_from_bounding_box,
     find_square_bounding_box,

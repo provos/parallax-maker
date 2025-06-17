@@ -1,7 +1,7 @@
 import unittest
 from unittest.mock import patch
 from PIL import Image
-from automatic1111 import create_img2img_payload, make_models_request
+from .automatic1111 import create_img2img_payload, make_models_request
 
 
 class TestCreateImg2ImgPayload(unittest.TestCase):
@@ -16,7 +16,7 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
 
     def test_create_img2img_payload_without_mask(self):
         with patch(
-            "automatic1111.to_image_url", return_value="data:image/png;base64,"
+            "parallax_maker.automatic1111.to_image_url", return_value="data:image/png;base64,"
         ) as mock_to_image_url:
             payload = create_img2img_payload(
                 self.input_image,
@@ -40,7 +40,7 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
 
     def test_create_img2img_payload_with_mask(self):
         with patch(
-            "automatic1111.to_image_url", return_value="data:image/png;base64,"
+            "parallax_maker.automatic1111.to_image_url", return_value="data:image/png;base64,"
         ) as mock_to_image_url:
             payload = create_img2img_payload(
                 self.input_image,
@@ -64,7 +64,7 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
 
 
 class TestMakeModelsRequest(unittest.TestCase):
-    @patch("automatic1111.requests.get")
+    @patch("parallax_maker.automatic1111.requests.get")
     def test_make_models_request(self, mock_get):
         mock_response = [
             {
