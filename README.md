@@ -2,15 +2,39 @@
 
 # Installation and First Usage
 
-Create a new environment with python 3.10 via *conda* or *venv* and then use pip to install the dependencies.
-```
-$ pip install -r requirements.txt
-$ python ./webui.py
+## Prerequisites
+- Python 3.10, 3.11, or 3.12
+- pip (for package management)
+
+## Installation Methods
+
+Create a new environment with Python 3.10+ and install the project in development mode:
+
+```bash
+# Create and activate a virtual environment
+python3.12 -m venv .venv
+source .venv/bin/activate  # On macOS/Linux
+# .venv\Scripts\activate   # On Windows
+
+# Install the project and dependencies
+pip install -e .
 ```
 
-You can then reach the web ui via [http://127.0.0.1:8050/](http://127.0.0.1:8050/). Be prepared that the first time, any new functionality is used, the corresponding models need to be downloaded first. This can take a few minutes based on your connection speed. If you want to prefetch the default models, you can start the application with
+## Running the Application
+After installation, you can start the application using the entry point:
+
+```bash
+# Using the installed entry point
+parallax-maker
+
+# Or run the module directly
+python -m parallax_maker.webui
 ```
-$ python ./webui.py --prefetch-models=default
+
+You can then reach the web ui via [http://127.0.0.1:8050/](http://127.0.0.1:8050/). Be prepared that the first time, any new functionality is used, the corresponding models need to be downloaded first. This can take a few minutes based on your connection speed. If you want to prefetch the default models, you can start the application with:
+
+```bash
+parallax-maker --prefetch-models=default
 ```
 
 > [!NOTE]
@@ -38,7 +62,7 @@ Provides a workflow for turning images into 2.5D animation like the one seen abo
 
 ## Basic Examples
 
-Using an input image, the tool runs a depth model like **Midas** or **ZoeDepth** to generate a depth map
+Using an input image, the tool runs a depth model like **Midas** or **DINOv2** to generate a depth map
 
 ![Input Image](example/input_plus_depth.png)
 

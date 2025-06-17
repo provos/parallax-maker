@@ -29,7 +29,7 @@ def generate_depth_map(image, model: DepthEstimationModel, progress_callback=Non
     Args:
         image (numpy.ndarray): The input image.
         model (DepthEstimationModel): The depth estimation model to use.
-            Supported models are "midas" and "zoedepth".
+            Supported models are "midas" and "dinov2".
         progress_callback (callable, optional): A callback function to report progress.
 
     Returns:
