@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "parallax-maker"
-version = "1.0.2"
+version = "1.0.3"
 description = "A workflow for turning images into 2.5D animations with depth-based segmentation and inpainting"
 authors = [
     {name = "Niels Provos", email = "niels@provos.org"}
@@ -56,10 +56,10 @@ dev = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/niels-provos/parallax-maker"
-Documentation = "https://github.com/niels-provos/parallax-maker#readme"
-Repository = "https://github.com/niels-provos/parallax-maker"
-Issues = "https://github.com/niels-provos/parallax-maker/issues"
+Homepage = "https://github.com/provos/parallax-maker"
+Documentation = "https://github.com/provos/parallax-maker#readme"
+Repository = "https://github.com/provos/parallax-maker"
+Issues = "https://github.com/provos/parallax-maker/issues"
 
 [project.scripts]
 parallax-maker = "parallax_maker.webui:main"

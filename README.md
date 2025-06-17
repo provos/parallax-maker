@@ -1,4 +1,4 @@
-![Hacking On Parallax Maker](example/hacking.gif)
+![Hacking On Parallax Maker](https://raw.githubusercontent.com/provos/parallax-maker/main/example/hacking.gif)
 
 # Installation and First Usage
 
@@ -64,11 +64,11 @@ Provides a workflow for turning images into 2.5D animation like the one seen abo
 
 Using an input image, the tool runs a depth model like **Midas** or **DINOv2** to generate a depth map
 
-![Input Image](example/input_plus_depth.png)
+![Input Image](https://raw.githubusercontent.com/provos/parallax-maker/main/example/input_plus_depth.png)
 
 and then creates cards that can be used for 2.5 parallax animation.
 
-![Animation](example/output.gif)
+![Animation](https://raw.githubusercontent.com/provos/parallax-maker/main/example/output.gif)
 
 This animation was created using the following command:
 
@@ -88,16 +88,16 @@ The tool also supports generating a glTF2.0 scene file that an be easily importe
 > To utilize depth of field camera effects for Unreal Engine, the material needs to be changed to **Translucent Masked**.
 
 
-![Blender Scene View](example/blender_view.png)
+![Blender Scene View](https://raw.githubusercontent.com/provos/parallax-maker/main/example/blender_view.png)
 
 
 # Web UI
 
-![Web UI](example/webui.jpg)
+![Web UI](https://raw.githubusercontent.com/provos/parallax-maker/main/example/webui.jpg)
 
 A Dash based Web UI provides a browser assisted workflow to generated slices from images, inpaint the slices and then export them as a glTF scene to Blender or Unreal Engine. The resulting glTF scene can also be visualized within the app or manipulated via a command line tool and the state file saved by the app.
 
-![Web UI 3D Example](example/webui_3d.jpg)
+![Web UI 3D Example](https://raw.githubusercontent.com/provos/parallax-maker/main/example/webui_3d.jpg)
 
 ## Docker Usage
 The Docker image is available for both ARM64 (Apple Silicon) and AMD64 (Intel/AMD) architectures.
@@ -112,15 +112,15 @@ docker run -it -p 8050:8050 \
 ```
 
 # Advanced Use Cases
-Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialzied inpainting models and workflows. Here is [an example](example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
+Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialzied inpainting models and workflows. Here is [an example](https://raw.githubusercontent.com/provos/parallax-maker/main/example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
 
-![Example configuration for ComfyUI](example/external_config.png)
+![Example configuration for ComfyUI](https://raw.githubusercontent.com/provos/parallax-maker/main/example/external_config.png)
 
 # Watch the Video
-[![Watch the video](example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
+[![Watch the video](https://raw.githubusercontent.com/provos/parallax-maker/main/example/thumb.png)](https://www.youtube.com/watch?v=4JBQCz-wWYQ)
 
 # Tutorials
 ## Segmentation and Inpainting Tutorial
-[![Segementation and Inpainting Tutorial](example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)
+[![Segementation and Inpainting Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)
 ## Unreal Engine Import and Rendering Tutorial
-[![Unreal Import and Rendering Tutorial](example/unreal-thumb.jpg)](https://www.youtube.com/watch?v=fLSCCS53h_U)
+[![Unreal Import and Rendering Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/unreal-thumb.jpg)](https://www.youtube.com/watch?v=fLSCCS53h_U)
