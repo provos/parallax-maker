@@ -79,16 +79,20 @@ class InpaintingModel:
 
         # diffusers models
         if self.model in self.MODELS:
-            return self.load_diffusers_model()
+            self.pipeline = self.load_diffusers_model()
+            return self.pipeline
 
         if self.model in ["automatic1111", "comfyui"]:
-            return self.load_external_model()
+            self.pipeline = self.load_external_model()
+            return self.pipeline
 
         if self.model == "stabilityai":
-            return self.load_stability_model()
+            self.pipeline = self.load_stability_model()
+            return self.pipeline
 
         if self.model.startswith("falai-"):
-            return self.load_falai_model()
+            self.pipeline = self.load_falai_model()
+            return self.pipeline
 
         return None
 
