@@ -24,6 +24,7 @@ from .utils import (
 from .segmentation import mask_from_depth
 from .upscaler import Upscaler
 from .stabilityai import StabilityAI
+from .falai import FalAI
 from .camera import Camera
 from .slice import ImageSlice
 
@@ -400,6 +401,11 @@ class AppState:
         if self.inpainting_model_name == "stabilityai":
             model_name = "stabilityai"
             model = StabilityAI(self.api_key)
+        elif self.inpainting_model_name and self.inpainting_model_name.startswith("falai-"):
+            # For fal.ai models, use the inpainting pipeline for upscaling
+            model_name = "inpainting"
+            model = self.pipeline_spec
+            self.pipeline_spec.load_model()
         else:
             model_name = "inpainting"
             model = self.pipeline_spec

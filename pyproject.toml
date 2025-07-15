@@ -46,6 +46,7 @@ dependencies = [
     "protobuf (>=6.31.1,<7.0.0)",
     "sentencepiece (>=0.2.0,<0.3.0)",
     "accelerate (>=1.8.1,<2.0.0)",
+    "fal-client (>=0.7.0,<0.8.0)",
 ]
 
 [project.optional-dependencies]

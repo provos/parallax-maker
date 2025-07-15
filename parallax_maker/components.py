@@ -1105,7 +1105,8 @@ def make_configuration_callbacks(app):
     )
     def toggle_stabilityai_config(value, class_name):
         class_name = class_name.replace(" hidden", "")
-        if value != "stabilityai":
+        # Show API key config for both StabilityAI and fal.ai models
+        if value != "stabilityai" and not value.startswith("falai-"):
             class_name += " hidden"
         return class_name
 
@@ -1148,21 +1149,41 @@ def make_configuration_callbacks(app):
         class_name = class_name.replace(success_class, "").replace(failure_class, "")
 
         success = False
-        if api_key.startswith("sk-") and len(api_key) > 12:
-            try:
-                inpaint_model = StabilityAI(api_key)
-                success, credits = inpaint_model.validate_key()
-                if success:
-                    logs.append(
-                        f"Connection to {model} successful: you have {credits:0.2f} remaining credits"
-                    )
-                    success = True
-                else:
-                    logs.append(f"Connection to {model} failed")
-            except Exception as e:
-                logs.append(f"Connection to {model} failed: {str(e)}")
+        # Check for StabilityAI
+        if model == "stabilityai":
+            if api_key.startswith("sk-") and len(api_key) > 12:
+                try:
+                    inpaint_model = StabilityAI(api_key)
+                    success, credits = inpaint_model.validate_key()
+                    if success:
+                        logs.append(
+                            f"Connection to {model} successful: you have {credits:0.2f} remaining credits"
+                        )
+                        success = True
+                    else:
+                        logs.append(f"Connection to {model} failed")
+                except Exception as e:
+                    logs.append(f"Connection to {model} failed: {str(e)}")
+            else:
+                logs.append(f"Invalid StabilityAI API key format")
+        # Check for fal.ai
+        elif model.startswith("falai-"):
+            if len(api_key) > 10:  # fal.ai keys don't have a specific prefix
+                try:
+                    from .falai import FalAI
+                    inpaint_model = FalAI(api_key)
+                    success, error = inpaint_model.validate_key()
+                    if success:
+                        logs.append(f"Connection to {model} successful")
+                        success = True
+                    else:
+                        logs.append(f"Connection to {model} failed: {error}")
+                except Exception as e:
+                    logs.append(f"Connection to {model} failed: {str(e)}")
+            else:
+                logs.append(f"Invalid fal.ai API key format")
         else:
-            logs.append(f"Invalid API key format")
+            logs.append(f"Unknown model type: {model}")
 
         class_name += success_class if success else failure_class
 
@@ -1219,6 +1240,10 @@ def make_configuration_div():
                             {"label": "Automatic1111", "value": "automatic1111"},
                             {"label": "ComfyUI", "value": "comfyui"},
                             {"label": "StabilityAI", "value": "stabilityai"},
+                            {"label": "Fal.ai Foocus", "value": "falai-foocus"},
+                            {"label": "Fal.ai Flux General", "value": "falai-flux-general"},
+                            {"label": "Fal.ai SD", "value": "falai-sd"},
+                            {"label": "Fal.ai SDXL", "value": "falai-sdxl"},
                         ],
                         value="diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
                         className="general-dropdown",
@@ -1276,7 +1301,7 @@ def make_configuration_div():
             ),
             html.Div(
                 [
-                    html.Label("StabilityAI API Key"),
+                    html.Label("API Key (StabilityAI / Fal.ai)"),
                     html.Div(
                         [
                             dcc.Input(

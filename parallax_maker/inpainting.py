@@ -17,6 +17,7 @@ from .utils import torch_get_device, find_square_bounding_box, feather_mask, tim
 from .automatic1111 import create_img2img_payload, make_img2img_request
 from .comfyui import inpainting_comfyui
 from .stabilityai import StabilityAI
+from .falai import FalAI
 
 
 class InpaintingModel:
@@ -30,7 +31,7 @@ class InpaintingModel:
     ]
 
     # reached via API end points
-    EXTERNAL_MODELS = ["automatic1111", "comfyui", "stabilityai"]
+    EXTERNAL_MODELS = ["automatic1111", "comfyui", "stabilityai", "falai-foocus", "falai-flux-general", "falai-sd", "falai-sdxl"]
 
     def __init__(
         self, model="diffusers/stable-diffusion-xl-1.0-inpainting-0.1", **kwargs
@@ -85,6 +86,9 @@ class InpaintingModel:
 
         if self.model == "stabilityai":
             return self.load_stability_model()
+
+        if self.model.startswith("falai-"):
+            return self.load_falai_model()
 
         return None
 
@@ -149,6 +153,14 @@ class InpaintingModel:
         assert "api_key" in self.kwargs
         self.pipeline = StabilityAI(self.kwargs["api_key"])
         assert self.pipeline.validate_key()
+        self._dimension = None  # the model will handle resizing
+        return self.pipeline
+
+    def load_falai_model(self):
+        assert "api_key" in self.kwargs
+        self.pipeline = FalAI(self.kwargs["api_key"])
+        success, error = self.pipeline.validate_key()
+        assert success, f"FalAI API key validation failed: {error}"
         self._dimension = None  # the model will handle resizing
         return self.pipeline
 
@@ -281,6 +293,17 @@ class InpaintingModel:
                 negative_prompt=negative_prompt,
                 strength=strength,
             )
+        elif self.model.startswith("falai-"):
+            image = self.inpaint_falai(
+                resize_init_image,
+                resize_mask_image,
+                prompt,
+                negative_prompt,
+                strength,
+                guidance_scale,
+                num_inference_steps,
+                seed,
+            )
         else:
             raise ValueError(f"Model {self.model} is not supported.")
 
@@ -296,6 +319,57 @@ class InpaintingModel:
             image = original_init_image
 
         return image
+
+    def inpaint_falai(
+        self,
+        resize_init_image,
+        resize_mask_image,
+        prompt,
+        negative_prompt,
+        strength,
+        guidance_scale,
+        num_inference_steps,
+        seed,
+    ):
+        """Perform inpainting using fal.ai models."""
+        model_type = self.model.replace("falai-", "")
+        
+        if model_type == "foocus":
+            return self.pipeline.inpaint_foocus(
+                resize_init_image,
+                resize_mask_image,
+                prompt,
+                negative_prompt,
+                strength=strength,
+                guidance_scale=guidance_scale,
+                num_inference_steps=num_inference_steps,
+                seed=seed,
+            )
+        elif model_type == "flux-general":
+            return self.pipeline.inpaint_flux_general(
+                resize_init_image,
+                resize_mask_image,
+                prompt,
+                negative_prompt,
+                strength=strength,
+                guidance_scale=guidance_scale,
+                num_inference_steps=num_inference_steps,
+                seed=seed,
+            )
+        elif model_type in ["sd", "sdxl"]:
+            return self.pipeline.inpaint_sd(
+                resize_init_image,
+                resize_mask_image,
+                prompt,
+                negative_prompt,
+                strength=strength,
+                guidance_scale=guidance_scale,
+                num_inference_steps=num_inference_steps,
+                model_type=model_type,
+                seed=seed,
+            )
+        else:
+            raise ValueError(f"Unknown fal.ai model: {model_type}")
 
     def inpaint_automatic1111(
         self,
