@@ -7,7 +7,7 @@ import base64
 from io import BytesIO
 import numba as nb
 import torch
-from diffusers import AutoPipelineForInpainting, AutoPipelineForImage2Image
+from diffusers import AutoPipelineForInpainting, AutoPipelineForImage2Image, FluxFillPipeline
 from diffusers.utils import make_image_grid
 import cv2
 import numpy as np
@@ -26,6 +26,7 @@ class InpaintingModel:
         "runwayml/stable-diffusion-v1-5",
         "diffusers/stable-diffusion-xl-1.0-inpainting-0.1",
         "stabilityai/stable-diffusion-3-medium-diffusers",
+        "black-forest-labs/FLUX.1-Fill-dev",
     ]
 
     # reached via API end points
@@ -93,16 +94,25 @@ class InpaintingModel:
                 "dimension": 768,
                 "variant": "",
                 "pipeline": AutoPipelineForInpainting.from_pretrained,
+                "torch_dtype": torch.float16,
             },
             "diffusers/stable-diffusion-xl-1.0-inpainting-0.1": {
                 "dimension": 1024,
                 "variant": "fp16",
                 "pipeline": AutoPipelineForInpainting.from_pretrained,
+                "torch_dtype": torch.float16,
             },
             "stabilityai/stable-diffusion-3-medium-diffusers": {
                 "dimension": 1024,
                 "variant": "",
                 "pipeline": AutoPipelineForImage2Image.from_pretrained,
+                "torch_dtype": torch.float16,
+            },
+            "black-forest-labs/FLUX.1-Fill-dev": {
+                "dimension": 1024,
+                "variant": "",
+                "pipeline": FluxFillPipeline.from_pretrained,
+                "torch_dtype": torch.bfloat16,
             },
         }
 
@@ -110,13 +120,14 @@ class InpaintingModel:
         model_info = models[self.model]
         self._dimension = model_info["dimension"]
         self.variant = model_info["variant"]
+        torch_dtype = model_info.get("torch_dtype", torch.float16)
 
         kwargs = {}
         if self.variant:
             kwargs["variant"] = self.variant
 
         self.pipeline = model_info["pipeline"](
-            self.model, torch_dtype=torch.float16, **kwargs
+            self.model, torch_dtype=torch_dtype, **kwargs
         )
 
         device = torch_get_device()
@@ -214,6 +225,16 @@ class InpaintingModel:
                 prompt,
                 negative_prompt,
                 strength,
+                guidance_scale,
+                num_inference_steps,
+                seed,
+            )
+        elif self.model == "black-forest-labs/FLUX.1-Fill-dev":
+            image = self.inpaint_flux(
+                resize_init_image,
+                resize_mask_image,
+                prompt,
+                negative_prompt,
                 guidance_scale,
                 num_inference_steps,
                 seed,
@@ -349,6 +370,42 @@ class InpaintingModel:
             num_inference_steps=num_inference_steps,
         )
         return result.images[0]
+
+    def inpaint_flux(
+        self,
+        resize_init_image,
+        resize_mask_image,
+        prompt,
+        negative_prompt,
+        guidance_scale,
+        num_inference_steps,
+        seed,
+    ):
+        """
+        Perform inpainting using FLUX.1-Fill model.
+        
+        Note: FLUX Fill doesn't use the strength parameter and supports higher guidance scales.
+        """
+        if seed == -1:
+            seed = np.random.randint(0, 2**32)
+        generator = torch.Generator(torch_get_device()).manual_seed(seed)
+        
+        # FLUX Fill supports higher guidance scales (up to 30)
+        guidance_scale = min(guidance_scale * 3, 30)  # Scale up the guidance for better results
+        
+        image = self.pipeline(
+            prompt=prompt,
+            image=resize_init_image,
+            mask_image=resize_mask_image,
+            height=resize_init_image.height,
+            width=resize_init_image.width,
+            guidance_scale=guidance_scale,
+            num_inference_steps=num_inference_steps,
+            max_sequence_length=512,
+            generator=generator,
+        ).images[0]
+        
+        return image
 
 
 def create_inpainting_pipeline(model, workflow, state):

@@ -157,3 +157,6 @@ tmp-images/
 # Node modules
 node_modules/
 package-lock.json
+
+# Parallax Maker
+appstate-*/

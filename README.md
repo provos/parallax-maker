@@ -40,9 +40,6 @@ parallax-maker --prefetch-models=default
 > [!NOTE]
 > If you want to make changes to the styles, you need to set up `node` and run `npm run build` to rebuild the tailwind css file. This requires installing `tailwindcss` via `npm install -D tailwindcss`.
 
-> [!IMPORTANT]  
-> To use Stable Diffusion 3 Medium, you will need to install the current versio of diffusers from github.
-
 # Parallax-Maker
 
 Provides a workflow for turning images into 2.5D animation like the one seen above.
@@ -50,7 +47,7 @@ Provides a workflow for turning images into 2.5D animation like the one seen abo
 ## Features
  - Segmentation of images
    - Using depth models like Midas or ZeoDepth
-   - Using instance segmentatio via Segment Anything with multiple positive and negative point selection
+   - Using instance segmentation via Segment Anything with multiple positive and negative point selection
    - Adding and removing of cards, direct manipulation of depth values
  - Inpainting
    - Inpainting of masks that can be padded and blurred
@@ -99,20 +96,8 @@ A Dash based Web UI provides a browser assisted workflow to generated slices fro
 
 ![Web UI 3D Example](https://raw.githubusercontent.com/provos/parallax-maker/main/example/webui_3d.jpg)
 
-## Docker Usage
-The Docker image is available for both ARM64 (Apple Silicon) and AMD64 (Intel/AMD) architectures.
-
-```bash
-# Pull and run the container
-docker pull nielsprovos/parallax-maker:v1.0.1
-docker run -it -p 8050:8050 \
-    -v $(pwd)/.cache:/root/.cache/ \
-    -v $(pwd)/workdir:/app/workdir \
-    nielsprovos/parallax-maker:v1.0.1
-```
-
 # Advanced Use Cases
-Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialzied inpainting models and workflows. Here is [an example](https://raw.githubusercontent.com/provos/parallax-maker/main/example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
+Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This allows the tool to utilize GPUs remotely and potentially achieve much higher performance compared to the local GPU. It also means that it's possible to use more specialized inpainting models and workflows. Here is [an example](https://raw.githubusercontent.com/provos/parallax-maker/main/example/workflow.json) ComfyUI inpainting workflow that makes use the offset lora published by Stability AI.
 
 ![Example configuration for ComfyUI](https://raw.githubusercontent.com/provos/parallax-maker/main/example/external_config.png)
 
@@ -121,6 +106,6 @@ Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This a
 
 # Tutorials
 ## Segmentation and Inpainting Tutorial
-[![Segementation and Inpainting Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)
+[![Segmentation and Inpainting Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)
 ## Unreal Engine Import and Rendering Tutorial
 [![Unreal Import and Rendering Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/unreal-thumb.jpg)](https://www.youtube.com/watch?v=fLSCCS53h_U)
