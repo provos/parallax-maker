@@ -67,6 +67,7 @@ class AppState:
         "points_selected",
         "_camera",
         "_mesh_displacement",
+        "_mtime",
     )
     SRV_DIR = "tmp-images"
     STATE_FILE = "appstate.json"
@@ -82,6 +83,7 @@ class AppState:
         # prevent concurrent writes
         self._lock = threading.Lock()
 
+        self._mtime = 0
         self.filename = None
         self.num_slices = 5
         self.imgData = None  # PIL image
@@ -476,7 +478,7 @@ class AppState:
 
             try:
                 # Write to temporary file
-                with open(temp_file, "w", encoding="utf-8") as file:
+                with open(str(temp_file), "w", encoding="utf-8") as file:
                     file.write(self.to_json())
 
                 # Create a backup of the current state file if it exists
@@ -489,6 +491,11 @@ class AppState:
                 # Optionally, remove the backup file if everything went fine
                 if backup_file.exists():
                     backup_file.unlink()
+
+                try:
+                    self._mtime = state_file.stat().st_mtime if state_file.exists() else 0
+                except (OSError, TypeError, AttributeError):
+                    self._mtime = 0
 
             except Exception as e:
                 # Clean up temporary and backup files if any error occurs
@@ -511,10 +518,12 @@ class AppState:
             AppState: The loaded state.
         """
         state_file = Path(file_path) / AppState.STATE_FILE
+        mtime = state_file.stat().st_mtime if state_file.exists() else 0
         with open(state_file, "r", encoding="utf-8") as file:
             state = AppState.from_json(file.read())
 
         state.fill_from_files(file_path)
+        state._mtime = mtime
 
         return state
 
@@ -550,8 +559,14 @@ class AppState:
         Returns:
             AppState: The loaded state.
         """
+        state_file = Path(file_path) / AppState.STATE_FILE
+        mtime = state_file.stat().st_mtime if state_file.exists() else 0
+
         if file_path in AppState.cache:
-            return AppState.cache[file_path]
+            cached_state = AppState.cache[file_path]
+            if getattr(cached_state, "_mtime", 0) == mtime:
+                return cached_state
+
         state = AppState.from_file(file_path)
         AppState.cache[file_path] = state
         return state

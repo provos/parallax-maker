@@ -160,6 +160,9 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
     Returns:
         numpy.ndarray: The rendered image.
     """
+    if not image_slices or len(image_slices) == 0:
+        raise ValueError("No image slices available for animation rendering. Please generate slices first.")
+
     # Start with a blank image with an alpha channel
     rendered_image = np.zeros(
         (image_slices[0].image.shape[0], image_slices[0].image.shape[1], 4),
@@ -274,6 +277,8 @@ def render_image_sequence(
     Returns:
         None
     """
+    if not image_slices or len(image_slices) == 0:
+        raise ValueError("No image slices available for animation sequence rendering. Please generate slices first.")
 
     if progress_callback:
         progress_callback(0, num_frames)

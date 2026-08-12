@@ -1,3 +1,17 @@
+import sys
+if any(k.startswith("app.parallax_maker") for k in sys.modules):
+    WEBUI_PATH = "app.parallax_maker.webui"
+    CONTROLLER_PATH = "app.parallax_maker.controller"
+    SLICE_PATH = "app.parallax_maker.slice"
+    COMPONENTS_PATH = "app.parallax_maker.components"
+    AUTOMATIC1111_PATH = "app.parallax_maker.automatic1111"
+else:
+    WEBUI_PATH = "parallax_maker.webui"
+    CONTROLLER_PATH = "parallax_maker.controller"
+    SLICE_PATH = "parallax_maker.slice"
+    COMPONENTS_PATH = "parallax_maker.components"
+    AUTOMATIC1111_PATH = "parallax_maker.automatic1111"
+
 import unittest
 from unittest.mock import patch
 from PIL import Image
@@ -14,20 +28,17 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
         self.steps = 20
         self.cfg_scale = 8.0
 
-    def test_create_img2img_payload_without_mask(self):
-        with patch(
-            "parallax_maker.automatic1111.to_image_url",
-            return_value="data:image/png;base64,",
-        ) as mock_to_image_url:
-            payload = create_img2img_payload(
-                self.input_image,
-                self.positive_prompt,
-                self.negative_prompt,
-                mask_image=None,
-                strength=self.strength,
-                steps=self.steps,
-                cfg_scale=self.cfg_scale,
-            )
+    @patch(AUTOMATIC1111_PATH + ".to_image_url", return_value="data:image/png;base64,")
+    def test_create_img2img_payload_without_mask(self, mock_to_image_url):
+        payload = create_img2img_payload(
+            self.input_image,
+            self.positive_prompt,
+            self.negative_prompt,
+            mask_image=None,
+            strength=self.strength,
+            steps=self.steps,
+            cfg_scale=self.cfg_scale,
+        )
 
         self.assertEqual(payload["init_images"], ["data:image/png;base64,"])
         self.assertEqual(payload["prompt"], self.positive_prompt)
@@ -39,20 +50,17 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
         self.assertEqual(payload["cfg_scale"], self.cfg_scale)
         self.assertNotIn("mask", payload)
 
-    def test_create_img2img_payload_with_mask(self):
-        with patch(
-            "parallax_maker.automatic1111.to_image_url",
-            return_value="data:image/png;base64,",
-        ) as mock_to_image_url:
-            payload = create_img2img_payload(
-                self.input_image,
-                self.positive_prompt,
-                self.negative_prompt,
-                mask_image=self.mask_image,
-                strength=self.strength,
-                steps=self.steps,
-                cfg_scale=self.cfg_scale,
-            )
+    @patch(AUTOMATIC1111_PATH + ".to_image_url", return_value="data:image/png;base64,")
+    def test_create_img2img_payload_with_mask(self, mock_to_image_url):
+        payload = create_img2img_payload(
+            self.input_image,
+            self.positive_prompt,
+            self.negative_prompt,
+            mask_image=self.mask_image,
+            strength=self.strength,
+            steps=self.steps,
+            cfg_scale=self.cfg_scale,
+        )
 
         self.assertEqual(payload["init_images"], ["data:image/png;base64,"])
         self.assertEqual(payload["prompt"], self.positive_prompt)
@@ -66,7 +74,7 @@ class TestCreateImg2ImgPayload(unittest.TestCase):
 
 
 class TestMakeModelsRequest(unittest.TestCase):
-    @patch("parallax_maker.automatic1111.requests.get")
+    @patch(AUTOMATIC1111_PATH + ".requests.get")
     def test_make_models_request(self, mock_get):
         mock_response = [
             {

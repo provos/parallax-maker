@@ -1,3 +1,19 @@
+import sys
+if any(k.startswith("app.parallax_maker") for k in sys.modules):
+    WEBUI_PATH = "app.parallax_maker.webui"
+    CONTROLLER_PATH = "app.parallax_maker.controller"
+    SLICE_PATH = "app.parallax_maker.slice"
+    COMPONENTS_PATH = "app.parallax_maker.components"
+    AUTOMATIC1111_PATH = "app.parallax_maker.automatic1111"
+    INPAINTING_PATH = "app.parallax_maker.inpainting"
+else:
+    WEBUI_PATH = "parallax_maker.webui"
+    CONTROLLER_PATH = "parallax_maker.controller"
+    SLICE_PATH = "parallax_maker.slice"
+    COMPONENTS_PATH = "parallax_maker.components"
+    AUTOMATIC1111_PATH = "parallax_maker.automatic1111"
+    INPAINTING_PATH = "parallax_maker.inpainting"
+
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -10,6 +26,10 @@ from dash import html
 
 from . import constants as C
 import numpy as np
+from .controller import AppState
+from .slice import ImageSlice
+from .controller import AppState
+from .slice import ImageSlice
 from .components import (
     make_inpainting_container_callbacks,
     make_inpainting_container,
@@ -20,6 +40,13 @@ from .slice import ImageSlice
 
 class TestUpdateInpaintingImageDisplay(unittest.TestCase):
     def setUp(self):
+        # Setup mock ctx dynamically
+        self.mock_ctx = MagicMock()
+        import sys
+        for mod_name in ["parallax_maker.components", "app.parallax_maker.components"]:
+            if mod_name in sys.modules:
+                sys.modules[mod_name].ctx = self.mock_ctx
+
         # Setup a minimal Dash app
         self.app = dash.Dash(__name__)
         self.app.layout = html.Div(
@@ -34,12 +61,11 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
             self.app
         )
 
-    @patch("parallax_maker.components.ctx", new_callable=MagicMock)
-    @patch("parallax_maker.components.Image.open")
-    @patch("parallax_maker.components.Image.fromarray")
-    @patch("parallax_maker.components.Path")
-    @patch("parallax_maker.controller.AppState.from_cache")
-    @patch("parallax_maker.inpainting.InpaintingModel")
+    @patch(COMPONENTS_PATH + ".Image.open")
+    @patch(COMPONENTS_PATH + ".Image.fromarray")
+    @patch(COMPONENTS_PATH + ".Path")
+    @patch.object(AppState, "from_cache")
+    @patch(INPAINTING_PATH + ".InpaintingModel")
     def test_callback_triggered_comfyui(
         self,
         mock_model,
@@ -47,9 +73,8 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         mock_path,
         mock_image_open,
         mock_image_fromarray,
-        mock_callback_context,
     ):  # Mock callback context
-        mock_callback_context.triggered_id = C.BTN_GENERATE_INPAINTING
+        self.mock_ctx.triggered_id = C.BTN_GENERATE_INPAINTING
 
         # Setup test data
         n_clicks = 1
@@ -125,12 +150,11 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # If this is expected to be an empty list
         self.assertEqual(len(results[1]), 0)
 
-    @patch("parallax_maker.components.ctx", new_callable=MagicMock)
-    @patch("parallax_maker.components.Image.open")
-    @patch("parallax_maker.components.Image.fromarray")
-    @patch("parallax_maker.components.Path")
-    @patch("parallax_maker.controller.AppState.from_cache")
-    @patch("parallax_maker.inpainting.InpaintingModel")
+    @patch(COMPONENTS_PATH + ".Image.open")
+    @patch(COMPONENTS_PATH + ".Image.fromarray")
+    @patch(COMPONENTS_PATH + ".Path")
+    @patch.object(AppState, "from_cache")
+    @patch(INPAINTING_PATH + ".InpaintingModel")
     def test_callback_triggered_normal(
         self,
         mock_model,
@@ -138,10 +162,9 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         mock_path,
         mock_image_open,
         mock_image_fromarray,
-        mock_callback_context,
     ):
         # Mock callback context
-        mock_callback_context.triggered_id = C.BTN_GENERATE_INPAINTING
+        self.mock_ctx.triggered_id = C.BTN_GENERATE_INPAINTING
 
         # Setup test data
         n_clicks = 1

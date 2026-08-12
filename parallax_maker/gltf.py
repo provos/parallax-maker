@@ -335,6 +335,9 @@ def export_gltf(
     """
 
     # compute pre-requisites
+    if not image_slices or len(image_slices) == 0:
+        raise ValueError("No image slices available for glTF export. Please generate slices first.")
+
     image_height, image_width = image_slices[0].image.shape[:2]
     camera_matrix = cam.camera_matrix(image_width, image_height)
     aspect_ratio = float(camera_matrix[0, 2]) / camera_matrix[1, 2]
