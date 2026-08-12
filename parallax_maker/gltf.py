@@ -374,14 +374,14 @@ def export_gltf(
 
         depth_map = None
         if len(depth_paths) > i:
-            depth_map = Image.open(depth_paths[i])
-            width, height = depth_map.size
-            depth_map = depth_map.resize(
-                (subdivisions + 1, subdivisions + 1), Image.BICUBIC
-            )
-            depth_map = depth_map.resize((width, height), Image.BICUBIC)
-            depth_map = np.array(depth_map)
-            depth_map = depth_map.astype(np.float32) / 255.0
+            with Image.open(depth_paths[i]) as d_map:
+                width, height = d_map.size
+                resized_d_map = d_map.resize(
+                    (subdivisions + 1, subdivisions + 1), Image.BICUBIC
+                )
+                resized_d_map = resized_d_map.resize((width, height), Image.BICUBIC)
+                depth_map = np.array(resized_d_map)
+                depth_map = depth_map.astype(np.float32) / 255.0
 
         mesh = create_card(
             gltf_obj,

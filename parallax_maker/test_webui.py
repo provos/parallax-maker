@@ -599,16 +599,20 @@ class TestExportRegression(unittest.TestCase):
     def setUp(self):
         # Generate a unique path starting with appstate- to satisfy check_pathnames()
         self.test_dir = Path("appstate-regression-test")
+        AppState.cache.clear()
+        import gc
+        gc.collect()
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
         self.test_dir.mkdir()
-        AppState.cache.clear()
 
     def tearDown(self):
         # Clean up temp dir
+        AppState.cache.clear()
+        import gc
+        gc.collect()
         if self.test_dir.exists():
             shutil.rmtree(self.test_dir)
-        AppState.cache.clear()
 
     def test_slices_survive_serialization_deserialization(self):
         """1. Prove that non-empty image_slices survive serialization -> disk -> reload."""

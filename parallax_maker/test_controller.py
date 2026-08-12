@@ -111,7 +111,7 @@ class TestAddSlice(unittest.TestCase):
 
         image_slices_filenames = [slice.filename for slice in self.state.image_slices]
 
-        self.assertEqual(image_slices_filenames, expected)
+        self.assertEqual([Path(p) for p in image_slices_filenames], [Path(p) for p in expected])
 
 
 class TestCheckPathnames(unittest.TestCase):
@@ -471,9 +471,13 @@ class TestSaveImageSlices(unittest.TestCase):
 
             # Check that the image slices were saved
             self.assertEqual(mock_imwrite.call_count, 3)
-            mock_imwrite.assert_any_call("appstate-random/image_slice_0.png")
-            mock_imwrite.assert_any_call("appstate-random/image_slice_1.png")
-            mock_imwrite.assert_any_call("appstate-random/image_slice_2.png")
+            called_paths = {Path(call[0][0]) for call in mock_imwrite.call_args_list}
+            expected_paths = {
+                Path("appstate-random/image_slice_0.png"),
+                Path("appstate-random/image_slice_1.png"),
+                Path("appstate-random/image_slice_2.png"),
+            }
+            self.assertEqual(called_paths, expected_paths)
 
 
 class TestToFile(unittest.TestCase):
