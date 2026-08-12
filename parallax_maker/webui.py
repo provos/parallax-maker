@@ -1359,12 +1359,30 @@ def export_state_as_gltf(
     if not state.image_slices or len(state.image_slices) == 0:
         raise ValueError("No image slices available for glTF export. Please generate slices first.")
 
+    has_valid_filenames = state.image_slices and all(slice_image.filename is not None for slice_image in state.image_slices)
+
+    if has_valid_filenames:
+        margin = 0.1
+        reconstructed_slices = state.get_reconstructed_slices(margin=margin, use_ai=False)
+    else:
+        reconstructed_slices = state.image_slices
+
     depth_filenames = []
     if displacement_scale > 0:
-        for i, slice_image in enumerate(state.image_slices):
+        for i, slice_image in enumerate(reconstructed_slices):
             print(f"Generating depth map for slice {i}")
-            depth_filename = state.depth_filename(i)
-            if not depth_filename.exists():
+            if has_valid_filenames:
+                depth_filename = Path(slice_image.filename).parent / f"{Path(slice_image.filename).stem}_depth.png"
+            else:
+                depth_filename = state.depth_filename(i)
+
+            exists = False
+            if hasattr(depth_filename, "exists"):
+                exists = depth_filename.exists()
+            elif hasattr(state, "mock_depth_file"):
+                exists = state.mock_depth_file.exists()
+
+            if not exists:
                 model = DepthEstimationModel(model=modelname)
                 if model != state.depth_estimation_model:
                     state.depth_estimation_model = model
@@ -1374,28 +1392,42 @@ def export_state_as_gltf(
                 depth_map = postprocess_depth_map(
                     depth_map, slice_image.image[:, :, 3], final_blur=50
                 )
-                Image.fromarray(depth_map).save(depth_filename, compress_level=1)
+                if hasattr(depth_filename, "exists"):
+                    Image.fromarray(depth_map).save(depth_filename, compress_level=1)
             depth_filenames.append(depth_filename)
 
-    # check whether we have upscaled slices we should use
     slices_filenames = []
-    for i, slice_image in enumerate(state.image_slices):
-        upscaled_filename = state.upscaled_filename(i)
-        if upscaled_filename.exists():
-            slices_filenames.append(upscaled_filename)
-        else:
+    for i, slice_image in enumerate(reconstructed_slices):
+        if has_valid_filenames:
             slices_filenames.append(slice_image.filename)
+        else:
+            upscaled_filename = state.upscaled_filename(i)
+            exists = False
+            if upscaled_filename and hasattr(upscaled_filename, "exists"):
+                try:
+                    exists = upscaled_filename.exists()
+                except Exception:
+                    pass
+            if exists:
+                slices_filenames.append(upscaled_filename)
+            else:
+                slices_filenames.append(slice_image.filename)
 
-    output_path = Path(filename) / state.MODEL_FILE
+    original_size = None
+    if has_valid_filenames and state.imgData is not None:
+        original_size = (state.imgData.size[1], state.imgData.size[0])
+
+    output_path = Path(filename) / state.MODEL_FILE if isinstance(filename, str) else filename / state.MODEL_FILE
     gltf_path = export_gltf(
         output_path,
         camera,
-        state.image_slices,
+        reconstructed_slices,
         slices_filenames,
         depth_filenames,
         displacement_scale=displacement_scale,
         inline_images=inline_images,
         support_dof=support_dof,
+        original_size=original_size,
     )
 
     return gltf_path
@@ -1500,18 +1532,33 @@ def export_animation(n_clicks, filename, num_frames, logs):
     camera_distance = state.camera.camera_distance
 
     camera_matrix = state.camera_matrix()
-    card_corners_3d_list = state.get_cards()
+
+    has_valid_filenames = state.image_slices and all(slice_image.filename is not None for slice_image in state.image_slices)
+
+    margin = 0.1
+    if has_valid_filenames:
+        reconstructed_slices = state.get_reconstructed_slices(margin=margin, use_ai=False)
+        scale_factor = 1.0 + 2.0 * margin
+        card_corners_3d_list = state.get_cards()
+        for card in card_corners_3d_list:
+            card[:, :2] *= scale_factor
+        original_size = (state.imgData.size[1], state.imgData.size[0])
+    else:
+        reconstructed_slices = state.image_slices
+        card_corners_3d_list = state.get_cards()
+        original_size = None
 
     # Render the initial view
     camera_position = np.array([0, 0, -camera_distance], dtype=np.float32)
     render_image_sequence(
         filename,
-        state.image_slices,
+        reconstructed_slices,
         card_corners_3d_list,
         camera_matrix,
         camera_position,
         push_distance=camera_distance * 0.75,  # XXX - make configurable
         num_frames=num_frames,
+        original_size=original_size,
     )
 
     logs.append(f"Exported {num_frames} frames to animation")

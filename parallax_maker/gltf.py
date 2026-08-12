@@ -317,6 +317,7 @@ def export_gltf(
     displacement_scale=0.0,
     inline_images=True,
     support_dof=False,
+    original_size=None,
 ):
     """
     Export the camera, cards, and image slices to a glTF file.
@@ -365,9 +366,17 @@ def export_gltf(
 
     alpha_mode = "MASK" if support_dof else "BLEND"
 
+    scale_factor = 1.0
+    if original_size is not None:
+        h_orig, w_orig = original_size
+        if image_width > w_orig:
+            scale_factor = image_width / w_orig
+
     # Create the card objects (planes)
     for i, image_slice in enumerate(image_slices):
         corners_3d = image_slice.create_card(image_height, image_width, cam)
+        if scale_factor != 1.0:
+            corners_3d[:, :2] *= scale_factor
         # Translaton hack so that we can put the depth on the node
         z_transform = corners_3d[0][2]
         corners_3d[:, 2] -= z_transform

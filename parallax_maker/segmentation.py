@@ -147,7 +147,87 @@ def create_slice_from_mask(image, mask, num_expand=50):
     return masked_image
 
 
-def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position):
+def should_use_ai_fallback(hole_mask, threshold_ratio=0.05):
+    """
+    Decides whether to use AI inpainting fallback based on the size of the holes.
+    """
+    if hole_mask is None or hole_mask.size == 0:
+        return False
+    total_pixels = hole_mask.shape[0] * hole_mask.shape[1]
+    hole_pixels = cv2.countNonZero(hole_mask)
+    hole_ratio = hole_pixels / total_pixels
+    return hole_ratio > threshold_ratio
+
+
+def reconstruct_slice_disocclusions(image, is_background=False, margin=0.1):
+    """
+    Reconstructs and pads a slice image to handle disocclusions and prevent black boundaries.
+
+    Args:
+        image (numpy.ndarray): RGBA image of the slice.
+        is_background (bool): Whether this is the background layer (index 0).
+        margin (float): The boundary margin to pad the image.
+
+    Returns:
+        numpy.ndarray: The reconstructed and padded RGBA image.
+    """
+    if isinstance(image, Image.Image):
+        image = np.array(image)
+
+    h, w = image.shape[:2]
+    pad_h = int(h * margin)
+    pad_w = int(w * margin)
+
+    # We pad RGB and Alpha channels
+    padded = cv2.copyMakeBorder(image, pad_h, pad_h, pad_w, pad_w, cv2.BORDER_REPLICATE)
+
+    # Extract RGB and Alpha
+    rgb = padded[:, :, :3].copy()
+    alpha = padded[:, :, 3].copy()
+
+    if is_background:
+        # For background layer, the entire transparent region (alpha < 255) is a hole
+        hole_mask = cv2.inRange(alpha, 0, 254)
+
+        # If there are holes, inpaint them using cv2.inpaint
+        if cv2.countNonZero(hole_mask) > 0:
+            inpainted_rgb = cv2.inpaint(rgb, hole_mask, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
+            padded[:, :, :3] = inpainted_rgb
+
+        # Background layer is now completely opaque
+        padded[:, :, 3] = 255
+    else:
+        # For middle/foreground layers, we do edge-padding (dilation)
+        # First, find where there is actual content (alpha > 0)
+        content_mask = cv2.inRange(alpha, 1, 255)
+
+        # Dilate the content mask slightly outwards
+        kernel_size = max(5, int(min(h, w) * 0.05))
+        if kernel_size % 2 == 0:
+            kernel_size += 1
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (kernel_size, kernel_size))
+
+        dilated_mask = cv2.dilate(content_mask, kernel, iterations=1)
+
+        # The region to fill is where the dilated mask is active, but the original content is empty
+        fill_mask = cv2.bitwise_and(dilated_mask, cv2.bitwise_not(content_mask))
+
+        if cv2.countNonZero(fill_mask) > 0:
+            inpainted_rgb = cv2.inpaint(rgb, fill_mask, inpaintRadius=5, flags=cv2.INPAINT_TELEA)
+            padded[:, :, :3] = inpainted_rgb
+
+        # Dilate the alpha channel as well so that the extended edge fades out smoothly
+        dilated_alpha = cv2.dilate(alpha, kernel, iterations=1)
+        dilated_alpha_blur = cv2.GaussianBlur(dilated_alpha, (kernel_size, kernel_size), 0)
+
+        # Keep original alpha where it was high, and use the dilated blurred alpha in the extended region
+        new_alpha = np.where(alpha > 10, alpha, dilated_alpha_blur)
+        padded[:, :, 3] = new_alpha
+
+    return padded
+
+
+def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position, original_size=None):
     """
     Render the current view of the camera.
 
@@ -156,6 +236,7 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
         camera_matrix (numpy.ndarray): The camera matrix.
         card_corners_3d_list (list): A list of 3D card corners.
         camera_position (numpy.ndarray): The current camera position.
+        original_size (tuple, optional): Original size of the unpadded image.
 
     Returns:
         numpy.ndarray: The rendered image.
@@ -163,9 +244,31 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
     if not image_slices or len(image_slices) == 0:
         raise ValueError("No image slices available for animation rendering. Please generate slices first.")
 
+    clamped_camera_position = camera_position.copy()
+    if len(card_corners_3d_list) > 0 and original_size is not None:
+        cur_h, cur_w = image_slices[0].image.shape[:2]
+        h_orig, w_orig = original_size
+        if cur_w > w_orig:
+            margin = (cur_w - w_orig) / (2.0 * w_orig)
+            bg_card = card_corners_3d_list[0]
+            card_width = abs(bg_card[1][0] - bg_card[0][0])
+            card_height = abs(bg_card[2][1] - bg_card[0][1])
+
+            max_tx = (margin * card_width) / (1.0 + 2.0 * margin)
+            max_ty = (margin * card_height) / (1.0 + 2.0 * margin)
+
+            clamped_camera_position[0] = np.clip(clamped_camera_position[0], -max_tx, max_tx)
+            clamped_camera_position[1] = np.clip(clamped_camera_position[1], -max_ty, max_ty)
+            clamped_camera_position[2] = max(clamped_camera_position[2], -abs(camera_position[2]) * (1.0 + margin))
+
+    if original_size is None:
+        h_orig, w_orig = image_slices[0].image.shape[:2]
+    else:
+        h_orig, w_orig = original_size
+
     # Start with a blank image with an alpha channel
     rendered_image = np.zeros(
-        (image_slices[0].image.shape[0], image_slices[0].image.shape[1], 4),
+        (h_orig, w_orig, 4),
         dtype=np.uint8,
     )
     rendered_image[:, :, 3] = 1
@@ -173,7 +276,7 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
     for i, slice_image in enumerate(image_slices):
         # Transform the card corners based on the camera position
         rvec = np.zeros((3, 1), dtype=np.float32)  # rotation vector
-        tvec = -camera_position.reshape(3, 1)
+        tvec = -clamped_camera_position.reshape(3, 1)
         card_corners_2d, _ = cv2.projectPoints(
             card_corners_3d_list[i], rvec, tvec, camera_matrix, None
         )
@@ -194,7 +297,7 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
                 ),
                 np.float32(card_corners_2d),
             ),
-            (rendered_image.shape[1], rendered_image.shape[0]),
+            (w_orig, h_orig),
         )
 
         # Alpha Compositing of the warped slice with the rendered image
@@ -263,6 +366,7 @@ def render_image_sequence(
     push_distance=100,
     num_frames=100,
     progress_callback=None,
+    original_size=None,
 ):
     """
     Renders a sequence of images with varying camera positions.
@@ -273,6 +377,7 @@ def render_image_sequence(
         card_corners_3d_list (list): A list of 3D card corners.
         camera_matrix (numpy.ndarray): The camera matrix.
         camera_position (list): The initial camera position.
+        original_size (tuple, optional): Original size of the unpadded image.
 
     Returns:
         None
@@ -290,7 +395,7 @@ def render_image_sequence(
 
         # Render the view
         rendered_image = render_view(
-            image_slices, camera_matrix, card_corners_3d_list, camera_position
+            image_slices, camera_matrix, card_corners_3d_list, camera_position, original_size=original_size
         )
 
         image_name = f"rendered_image_{i:03d}.png"
