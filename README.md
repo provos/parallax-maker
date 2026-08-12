@@ -109,3 +109,26 @@ Parallax Maker also supports the Automatic1111 and ComfyUI API endpoints. This a
 [![Segmentation and Inpainting Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/inpainting-thumb.jpg)](https://youtu.be/hb_x8z4WIeI)
 ## Unreal Engine Import and Rendering Tutorial
 [![Unreal Import and Rendering Tutorial](https://raw.githubusercontent.com/provos/parallax-maker/main/example/unreal-thumb.jpg)](https://www.youtube.com/watch?v=fLSCCS53h_U)
+
+# FFmpeg Installation on Windows
+
+For direct MP4 animation and video export capabilities, **FFmpeg** must be installed and added to your system's Environment Variables PATH.
+
+### Direct automated installation (Recommended via winget):
+Open PowerShell as an Administrator and execute:
+```powershell
+winget install Gyan.FFmpeg
+```
+
+### Manual installation:
+1. Download the latest release build from [FFmpeg Gyan.dev](https://www.gyan.dev/ffmpeg/builds/).
+2. Extract the downloaded `.zip` file into a permanent directory (e.g., `C:\ffmpeg`).
+3. Add the bin folder directory to the system environment variables:
+   - Search for **"Edit the system environment variables"** in the Windows Start Menu.
+   - Click **Environment Variables...** at the bottom of the System Properties window.
+   - Under **System Variables**, locate and double-click the **Path** variable.
+   - Click **New**, type `C:\ffmpeg\bin` (or the folder path where you extracted the bin folder), and click **OK** to save.
+4. Verify the installation by opening a new Command Prompt or PowerShell and running:
+   ```cmd
+   ffmpeg -version
+   ```

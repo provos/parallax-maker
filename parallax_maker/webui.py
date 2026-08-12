@@ -1475,6 +1475,7 @@ def slice_upload(contents, filename, logs):
 @app.callback(
     Output(C.LOGS_DATA, "data", allow_duplicate=True),
     Output(C.ANIMATION_OUTPUT, "children"),
+    Output(C.DOWNLOAD_ANIMATION, "data"),
     Input(C.BTN_EXPORT_ANIMATION, "n_clicks"),
     State(C.STORE_APPSTATE_FILENAME, "data"),
     State(C.SLIDER_NUM_FRAMES, "value"),
@@ -1507,7 +1508,32 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
     logs.append(f"Exported {num_frames} frames to animation")
 
-    return logs, ""
+    # Direct MP4 compile
+    from .video_compiler import compile_frames_to_mp4
+    from pathlib import Path
+
+    mp4_filename = "animation.mp4"
+    mp4_path = Path(filename) / mp4_filename
+
+    try:
+        compile_frames_to_mp4(
+            frame_dir=Path(filename),
+            output_path=mp4_path,
+            fps=24,
+            width=1920,
+            height=1080,
+            pattern="rendered_image_%03d.png"
+        )
+        logs.append(f"Successfully compiled direct MP4 video at {mp4_path}")
+        msg = "Animation exported successfully as MP4!"
+        download_data = dcc.send_file(str(mp4_path))
+    except Exception as e:
+        error_msg = f"Video compilation failed: {str(e)}"
+        logs.append(error_msg)
+        msg = f"Error during export: {str(e)}"
+        download_data = no_update
+
+    return logs, msg, download_data
 
 
 @app.callback(
