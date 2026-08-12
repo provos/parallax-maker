@@ -192,6 +192,8 @@ class AppState:
         if depth == self.image_slices[slice_index].depth:
             return slice_index
 
+        self.invalidate_reconstructed_cache()
+
         # remove it from the lists
         image_slice = self.image_slices.pop(slice_index)
         image_slice.depth = depth
@@ -200,6 +202,7 @@ class AppState:
 
     def add_slice(self, image_slice: ImageSlice):
         """Adds the image as a new slice at the provided depth."""
+        self.invalidate_reconstructed_cache()
         if image_slice.filename is None:
             image_slice.filename = str(
                 Path(self.filename) / f"image_slice_{len(self.image_slices)}.png"
@@ -224,6 +227,7 @@ class AppState:
         """Deletes the slice at the specified index."""
         if slice_index < 0 or slice_index >= len(self.image_slices):
             return False
+        self.invalidate_reconstructed_cache()
         self.image_slices.pop(slice_index)
         self.selected_slice = None
         self.slice_pixel = None
@@ -233,6 +237,7 @@ class AppState:
         return True
 
     def reset_image_slices(self):
+        self.invalidate_reconstructed_cache()
         self.image_slices = []
         self.selected_slice = None
         self.selected_inpainting = None
@@ -395,6 +400,83 @@ class AppState:
             if slice_image.filename is None:
                 slice_image.filename = str(file_path / f"image_slice_{i}.png")
             slice_image.save_image()
+
+    def invalidate_reconstructed_cache(self):
+        """Deletes any cached reconstructed/padded slice files from disk."""
+        for slice_image in self.image_slices:
+            if slice_image.filename:
+                orig_path = Path(slice_image.filename)
+                recon_filename = orig_path.parent / f"{orig_path.stem}_reconstructed.png"
+                if recon_filename.exists():
+                    try:
+                        recon_filename.unlink()
+                    except OSError:
+                        pass
+
+    def get_reconstructed_slices(self, margin=0.1, use_ai=False):
+        """
+        Retrieves the reconstructed and padded image slices.
+        If they do not exist on disk, they are generated once, saved, and cached.
+        """
+        reconstructed_slices = []
+        for i, slice_image in enumerate(self.image_slices):
+            if not slice_image.filename:
+                continue
+            orig_path = Path(slice_image.filename)
+            recon_filename = orig_path.parent / f"{orig_path.stem}_reconstructed.png"
+
+            recon_slice = ImageSlice(depth=slice_image.depth, filename=str(recon_filename))
+            if recon_filename.exists():
+                recon_slice.read_image()
+            else:
+                print(f"Generating reconstructed slice {i} on the fly...")
+                orig_img = slice_image.image
+                from .segmentation import reconstruct_slice_disocclusions
+                recon_img = reconstruct_slice_disocclusions(orig_img, is_background=(i == 0), margin=margin)
+
+                if use_ai and i == 0:
+                    from .segmentation import should_use_ai_fallback
+                    alpha = orig_img[:, :, 3]
+                    hole_mask = cv2.inRange(alpha, 0, 254)
+                    if should_use_ai_fallback(hole_mask):
+                        print("AI Inpainting fallback triggered for background layer...")
+                        try:
+                            from .inpainting import InpaintingModel
+                            ai_model = InpaintingModel("diffusers/stable-diffusion-xl-1.0-inpainting-0.1")
+                            ai_model.load_model()
+
+                            init_image = Image.fromarray(orig_img[:, :, :3])
+                            mask_image = Image.fromarray(hole_mask)
+
+                            prompt = slice_image.positive_prompt or "detailed background, seamless extension"
+                            neg_prompt = slice_image.negative_prompt or "deformed, blurry, bad anatomy"
+
+                            inpainted_pil = ai_model.inpaint(
+                                prompt=prompt,
+                                negative_prompt=neg_prompt,
+                                init_image=init_image,
+                                mask_image=mask_image,
+                                crop=False
+                            )
+
+                            inpainted_np = np.array(inpainted_pil.convert("RGBA"))
+                            recon_img = reconstruct_slice_disocclusions(inpainted_np, is_background=True, margin=margin)
+
+                            import gc
+                            import torch
+                            del ai_model
+                            gc.collect()
+                            if torch.cuda.is_available():
+                                torch.cuda.empty_cache()
+                        except Exception as e:
+                            print(f"AI Inpainting failed, falling back to conventional: {e}")
+
+                recon_slice.image = recon_img
+                recon_slice.save_image()
+
+            reconstructed_slices.append(recon_slice)
+
+        return reconstructed_slices
 
     def _create_upscaler(self):
         if self.pipeline_spec is None:
