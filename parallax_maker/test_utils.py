@@ -1,4 +1,5 @@
 import unittest
+from pathlib import Path
 from PIL import Image
 from .utils import (
     find_bounding_box,
@@ -93,13 +94,13 @@ class TestFindBoundingBox(unittest.TestCase):
 class TestFilenameAddVersion(unittest.TestCase):
     def test_filename_add_version(self):
         # Define the input filename
-        filename = "/path/to/image.png"
+        filename = str(Path("/path/to/image.png"))
 
         # Call the function
         result = filename_add_version(filename)
 
         # Define the expected result
-        expected_result = "/path/to/image_v2.png"
+        expected_result = str(Path("/path/to/image_v2.png"))
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
@@ -108,20 +109,20 @@ class TestFilenameAddVersion(unittest.TestCase):
         result = filename_add_version(result)
 
         # Define the expected result
-        expected_result = "/path/to/image_v3.png"
+        expected_result = str(Path("/path/to/image_v3.png"))
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
 
     def test_filename_previous_version(self):
         # Define the input filename
-        filename = "/path/to/image_v3.png"
+        filename = str(Path("/path/to/image_v3.png"))
 
         # Call the function
         result = filename_previous_version(filename)
 
         # Define the expected result
-        expected_result = "/path/to/image_v2.png"
+        expected_result = str(Path("/path/to/image_v2.png"))
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)
@@ -130,7 +131,7 @@ class TestFilenameAddVersion(unittest.TestCase):
         result = filename_previous_version(result)
 
         # Define the expected result
-        expected_result = "/path/to/image.png"
+        expected_result = str(Path("/path/to/image.png"))
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)

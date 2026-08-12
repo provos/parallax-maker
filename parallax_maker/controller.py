@@ -540,13 +540,16 @@ class AppState:
         """
         # read the input image
         img_file = Path(file_path) / AppState.IMAGE_FILE
-        self.imgData = Image.open(img_file)
+        with Image.open(img_file) as img:
+            img.load()
+            self.imgData = img.copy()
         self._read_image_slices()
 
         # read the depth map and turn it into a numpy array
         depth_map_file = Path(file_path) / AppState.DEPTH_MAP_FILE
         if depth_map_file.exists():
-            self.depthMapData = np.array(Image.open(depth_map_file))
+            with Image.open(depth_map_file) as d_img:
+                self.depthMapData = np.array(d_img)
 
     @staticmethod
     def from_cache(file_path):
