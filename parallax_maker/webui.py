@@ -1356,6 +1356,9 @@ def export_state_as_gltf(
     inline_images=True,
     support_dof=False,
 ):
+    if not state.image_slices or len(state.image_slices) == 0:
+        raise ValueError("No image slices available for glTF export. Please generate slices first.")
+
     depth_filenames = []
     if displacement_scale > 0:
         for i, slice_image in enumerate(state.image_slices):
@@ -1489,6 +1492,11 @@ def export_animation(n_clicks, filename, num_frames, logs):
 
     state = AppState.from_cache(filename)
 
+    if not state.image_slices or len(state.image_slices) == 0:
+        error_msg = "No image slices generated yet. Please generate slices before exporting."
+        logs.append(error_msg)
+        return logs, error_msg, no_update
+
     camera_distance = state.camera.camera_distance
 
     camera_matrix = state.camera_matrix()
@@ -1554,7 +1562,7 @@ def restore_inpainting(value):
     State(C.STORE_APPSTATE_FILENAME, "data"),
     prevent_initial_call=True,
 )
-def remember_camera_parameters(value, filename):
+def restore_camera_parameters(value, filename):
     if filename is None:
         raise PreventUpdate()
 

@@ -1,3 +1,17 @@
+import sys
+if any(k.startswith("app.parallax_maker") for k in sys.modules):
+    WEBUI_PATH = "app.parallax_maker.webui"
+    CONTROLLER_PATH = "app.parallax_maker.controller"
+    SLICE_PATH = "app.parallax_maker.slice"
+    COMPONENTS_PATH = "app.parallax_maker.components"
+    AUTOMATIC1111_PATH = "app.parallax_maker.automatic1111"
+else:
+    WEBUI_PATH = "parallax_maker.webui"
+    CONTROLLER_PATH = "parallax_maker.controller"
+    SLICE_PATH = "parallax_maker.slice"
+    COMPONENTS_PATH = "parallax_maker.components"
+    AUTOMATIC1111_PATH = "parallax_maker.automatic1111"
+
 import unittest
 from unittest.mock import patch, MagicMock
 from dash import dcc, html, no_update
@@ -6,6 +20,11 @@ from PIL import Image
 import numpy as np
 from pathlib import Path
 
+import os
+import shutil
+from .segmentation import generate_image_slices, render_view, render_image_sequence
+from .gltf import export_gltf
+from .webui import restore_camera_parameters, export_animation
 from .webui import (
     update_threshold_values,
     click_event,
@@ -64,14 +83,18 @@ class TestUpdateThresholds(unittest.TestCase):
 class TestClickEvent(unittest.TestCase):
 
     def setUp(self):
-        # Patch objects and methods that aren't the focus of this test
-        self.ctx_patch = patch("parallax_maker.webui.ctx")
-        self.AppState_patch = patch("parallax_maker.webui.AppState")
-        self.find_pixel_patch = patch("parallax_maker.webui.find_pixel_from_event")
-        self.SegmentationModel_patch = patch("parallax_maker.webui.SegmentationModel")
-        self.no_update_patch = patch("parallax_maker.webui.no_update")
+        self.mock_ctx = MagicMock()
+        import sys
+        for mod_name in ["parallax_maker.webui", "app.parallax_maker.webui"]:
+            if mod_name in sys.modules:
+                sys.modules[mod_name].ctx = self.mock_ctx
 
-        self.mock_ctx = self.ctx_patch.start()
+        # Patch objects and methods that aren't the focus of this test
+        self.AppState_patch = patch(WEBUI_PATH + ".AppState")
+        self.find_pixel_patch = patch(WEBUI_PATH + ".find_pixel_from_event")
+        self.SegmentationModel_patch = patch(WEBUI_PATH + ".SegmentationModel")
+        self.no_update_patch = patch(WEBUI_PATH + ".no_update")
+
         self.mock_AppState = self.AppState_patch.start()
         self.mock_find_pixel = self.find_pixel_patch.start()
         self.mock_SegmentationModel = self.SegmentationModel_patch.start()
@@ -175,19 +198,19 @@ class TestClickEvent(unittest.TestCase):
 
 class TestCopyToClipboard(unittest.TestCase):
 
-    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch.object(AppState, "from_cache")
     def test_copy_to_clipboard_no_clicks(self, mock_from_cache):
         # Test when n_clicks is None, should raise PreventUpdate
         with self.assertRaises(PreventUpdate):
             copy_to_clipboard(None, "some_filename", [])
 
-    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch.object(AppState, "from_cache")
     def test_copy_to_clipboard_no_filename(self, mock_from_cache):
         # Test when filename is None, should raise PreventUpdate
         with self.assertRaises(PreventUpdate):
             copy_to_clipboard(1, None, [])
 
-    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch.object(AppState, "from_cache")
     def test_copy_to_clipboard_no_mask_selected(self, mock_from_cache):
         # Mock AppState with no slice_mask
         mock_state = MagicMock()
@@ -199,7 +222,7 @@ class TestCopyToClipboard(unittest.TestCase):
         result = copy_to_clipboard(1, "some_filename", logs)
         self.assertEqual(result, ["No mask selected"])
 
-    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch.object(AppState, "from_cache")
     def test_copy_to_clipboard_with_mask_and_slice(self, mock_from_cache):
         # Mock AppState with a slice_mask and a selected slice
         mock_state = MagicMock()
@@ -219,7 +242,7 @@ class TestCopyToClipboard(unittest.TestCase):
             mock_state.clipboard_image[:, :, 3], mock_state.slice_mask
         )
 
-    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch.object(AppState, "from_cache")
     def test_copy_to_clipboard_with_mask_no_slice(self, mock_from_cache):
         mock_image = Image.new("RGBA", (100, 100))
 
@@ -264,9 +287,9 @@ class TestExportGltf(unittest.TestCase):
         self.state.MODEL_FILE = "model.gltf"
         self.state.camera = self.camera
 
-    @patch("parallax_maker.webui.generate_depth_map")
-    @patch("parallax_maker.webui.postprocess_depth_map")
-    @patch("parallax_maker.webui.export_gltf")
+    @patch(WEBUI_PATH + ".generate_depth_map")
+    @patch(WEBUI_PATH + ".postprocess_depth_map")
+    @patch(WEBUI_PATH + ".export_gltf")
     def test_export_state_as_gltf(
         self, mock_export_gltf, mock_postprocess_depth_map, mock_generate_depth_map
     ):
@@ -294,9 +317,9 @@ class TestExportGltf(unittest.TestCase):
         self.assertEqual(expected_kwargs["displacement_scale"], 0)
 
     @patch("PIL.Image.fromarray")
-    @patch("parallax_maker.webui.generate_depth_map")
-    @patch("parallax_maker.webui.postprocess_depth_map")
-    @patch("parallax_maker.webui.export_gltf")
+    @patch(WEBUI_PATH + ".generate_depth_map")
+    @patch(WEBUI_PATH + ".postprocess_depth_map")
+    @patch(WEBUI_PATH + ".export_gltf")
     def test_export_state_as_gltf_with_displacement(
         self,
         mock_export_gltf,
@@ -340,7 +363,7 @@ class TestExportGltf(unittest.TestCase):
         self.assertEqual(expected_args[4], [self.mock_depth_file] * 3)
         self.assertEqual(expected_kwargs["displacement_scale"], 1)
 
-    @patch("parallax_maker.webui.export_gltf")
+    @patch(WEBUI_PATH + ".export_gltf")
     def test_export_state_as_gltf_with_upscaled(self, mock_export_gltf):
         # Test case 3: Upscaled slices exist
         state = AppState()
@@ -367,15 +390,31 @@ class TestExportGltf(unittest.TestCase):
 
 
 class TestSliceUpload(unittest.TestCase):
-    @patch("parallax_maker.webui.ctx")
-    @patch("parallax_maker.webui.AppState.from_cache")
+
+    def setUp(self):
+        self.mock_ctx = MagicMock()
+        import sys
+        for mod_name in ["parallax_maker.webui", "app.parallax_maker.webui"]:
+            if mod_name in sys.modules:
+                sys.modules[mod_name].ctx = self.mock_ctx
+
+
+    def setUp(self):
+        self.mock_ctx = MagicMock()
+        import sys
+        for mod_name in ["parallax_maker.webui", "app.parallax_maker.webui"]:
+            if mod_name in sys.modules:
+                sys.modules[mod_name].ctx = self.mock_ctx
+
+    @patch(WEBUI_PATH + ".ctx")
+    @patch.object(AppState, "from_cache")
     def test_filename_none(self, mock_from_cache, mock_ctx):
         with self.assertRaises(PreventUpdate):
             slice_upload(None, None, None)
         mock_from_cache.assert_not_called()
 
-    @patch("parallax_maker.webui.ctx")
-    @patch("parallax_maker.webui.AppState.from_cache")
+    @patch(WEBUI_PATH + ".ctx")
+    @patch.object(AppState, "from_cache")
     def test_empty_image_slices(self, mock_from_cache, mock_ctx):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = []
@@ -385,30 +424,27 @@ class TestSliceUpload(unittest.TestCase):
             slice_upload(None, "appstate-random", None)
         mock_from_cache.assert_called_once_with("appstate-random")
 
-    @patch("parallax_maker.webui.ctx")
-    @patch("parallax_maker.webui.AppState.from_cache")
-    def test_contents_none(self, mock_from_cache, mock_ctx):
+    @patch.object(AppState, "from_cache")
+    def test_contents_none(self, mock_from_cache):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = [np.zeros((100, 100, 4))]
         mock_from_cache.return_value = mock_state
-        mock_ctx.triggered_id = {"index": 0}
+        self.mock_ctx.triggered_id = {"index": 0}
 
         with self.assertRaises(PreventUpdate):
             slice_upload([None], "appstate-random", None)
         mock_from_cache.assert_called_once_with("appstate-random")
 
-    @patch("parallax_maker.webui.ctx")
-    @patch("parallax_maker.webui.AppState.from_cache")
-    @patch("parallax_maker.slice.filename_add_version")
-    @patch("parallax_maker.webui.blend_with_alpha")
-    @patch("parallax_maker.slice.ImageSlice.save_image")
+    @patch.object(AppState, "from_cache")
+    @patch(SLICE_PATH + ".filename_add_version")
+    @patch(WEBUI_PATH + ".blend_with_alpha")
+    @patch.object(ImageSlice, "save_image")
     def test_valid_upload(
         self,
         mock_imwrite,
         mock_blend,
         mock_filename_add_version,
         mock_from_cache,
-        mock_ctx,
     ):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = [
@@ -416,7 +452,7 @@ class TestSliceUpload(unittest.TestCase):
             ImageSlice(np.ones((100, 100, 4), dtype=np.uint8), filename="slice1.png"),
         ]
         mock_from_cache.return_value = mock_state
-        mock_ctx.triggered_id = {"index": 1}
+        self.mock_ctx.triggered_id = {"index": 1}
         mock_filename_add_version.return_value = "slice1_v1.png"
 
         content = to_image_url(np.ones((100, 100, 4), dtype=np.uint8))
@@ -441,18 +477,16 @@ class TestSliceUpload(unittest.TestCase):
         )
         self.assertIsInstance(mock_state.imgData, Image.Image)
 
-    @patch("parallax_maker.webui.ctx")
-    @patch("parallax_maker.webui.AppState.from_cache")
-    @patch("parallax_maker.slice.filename_add_version")
-    @patch("parallax_maker.webui.blend_with_alpha")
-    @patch("parallax_maker.slice.ImageSlice.save_image")
+    @patch.object(AppState, "from_cache")
+    @patch(SLICE_PATH + ".filename_add_version")
+    @patch(WEBUI_PATH + ".blend_with_alpha")
+    @patch.object(ImageSlice, "save_image")
     def test_valid_upload_different_ratio(
         self,
         mock_imwrite,
         mock_blend,
         mock_filename_add_version,
         mock_from_cache,
-        mock_ctx,
     ):
         mock_state = MagicMock(spec=AppState)
         mock_state.image_slices = [
@@ -460,7 +494,7 @@ class TestSliceUpload(unittest.TestCase):
             ImageSlice(np.ones((100, 100, 4), dtype=np.uint8), filename="slice1.png"),
         ]
         mock_from_cache.return_value = mock_state
-        mock_ctx.triggered_id = {"index": 1}
+        self.mock_ctx.triggered_id = {"index": 1}
         mock_filename_add_version.return_value = "slice1_v1.png"
 
         content = to_image_url(np.ones((110, 99, 4), dtype=np.uint8))
@@ -491,8 +525,8 @@ class TestUpdateSlices(unittest.TestCase):
         self.mock_state = AppState()
 
         # Mock the AppState.from_cache method
-        self.patcher = patch(
-            "parallax_maker.webui.AppState.from_cache", return_value=self.mock_state
+        self.patcher = patch.object(
+            AppState, "from_cache", return_value=self.mock_state
         )
         self.mock_from_cache = self.patcher.start()
 
@@ -520,12 +554,9 @@ class TestUpdateSlices(unittest.TestCase):
         with self.assertRaises(PreventUpdate):
             update_slices(ignored_data, self.filename)
 
-    @patch(
-        "parallax_maker.webui.AppState.serve_slice_image_composed",
-        return_value="composed_image_data",
-    )
-    @patch("parallax_maker.webui.AppState.serve_slice_image", return_value="image_data")
-    @patch("parallax_maker.slice.ImageSlice.can_undo", return_value=False)
+    @patch.object(AppState, "serve_slice_image_composed", return_value="composed_image_data")
+    @patch.object(AppState, "serve_slice_image", return_value="image_data")
+    @patch(SLICE_PATH + ".ImageSlice.can_undo", return_value=False)
     def test_full_functionality(
         self, mock_serve_slice_image_composed, mock_can_undo, mock_serve_slice_image
     ):
@@ -546,8 +577,8 @@ class TestUpdateSlices(unittest.TestCase):
         self.assertEqual(len(img_container), 2)
         self.assertEqual(img_data, "composed_image_data")
 
-    @patch("parallax_maker.webui.AppState.serve_slice_image", return_value="image_data")
-    @patch("parallax_maker.slice.ImageSlice.can_undo", return_value=False)
+    @patch.object(AppState, "serve_slice_image", return_value="image_data")
+    @patch(SLICE_PATH + ".ImageSlice.can_undo", return_value=False)
     def test_corner_cases(self, mock_can_undo, mock_serve_slice_image):
         # Simulate corner cases where selected_slice is None
         self.mock_state.image_slices = [ImageSlice(depth=0, filename="slice1.png")]
@@ -561,6 +592,195 @@ class TestUpdateSlices(unittest.TestCase):
         img_container, gen_slice_output, img_data = result
         self.assertEqual(len(img_container), 1)
         self.assertEqual(img_data, no_update)
+
+
+
+class TestExportRegression(unittest.TestCase):
+    def setUp(self):
+        # Generate a unique path starting with appstate- to satisfy check_pathnames()
+        self.test_dir = Path("appstate-regression-test")
+        if self.test_dir.exists():
+            shutil.rmtree(self.test_dir)
+        self.test_dir.mkdir()
+        AppState.cache.clear()
+
+    def tearDown(self):
+        # Clean up temp dir
+        if self.test_dir.exists():
+            shutil.rmtree(self.test_dir)
+        AppState.cache.clear()
+
+    def test_slices_survive_serialization_deserialization(self):
+        """1. Prove that non-empty image_slices survive serialization -> disk -> reload."""
+        state = AppState()
+        state.filename = str(self.test_dir)
+
+        # Setup mock image data and depth map
+        state.imgData = Image.new("RGB", (100, 100))
+        state.depthMapData = np.zeros((100, 100), dtype=np.uint8)
+        state.imgThresholds = [0, 50, 100, 150, 200, 255]
+
+        # Generate slices
+        state.image_slices = generate_image_slices(
+            np.array(state.imgData),
+            state.depthMapData,
+            state.imgThresholds,
+            num_expand=5
+        )
+        self.assertEqual(len(state.image_slices), 5)
+
+        # Save to disk
+        state.to_file(state.filename)
+
+        # Force cache clear to load fresh from disk
+        AppState.cache.clear()
+
+        # Reload
+        reconstructed = AppState.from_file(state.filename)
+        self.assertEqual(len(reconstructed.image_slices), 5)
+        for i, slice_image in enumerate(reconstructed.image_slices):
+            self.assertIsNotNone(slice_image.image)
+            self.assertEqual(slice_image.depth, state.imgThresholds[i + 1])
+
+    def test_from_cache_reloads_on_newer_mtime(self):
+        """2. Prove that AppState.from_cache() reloads from disk when cached state's _mtime is older."""
+        state = AppState()
+        state.filename = str(self.test_dir)
+        state.imgData = Image.new("RGB", (100, 100))
+        state.depthMapData = np.zeros((100, 100), dtype=np.uint8)
+        state.imgThresholds = [0, 50, 255]
+
+        state.image_slices = [
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), depth=50),
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), depth=255),
+        ]
+
+        # Save state 1 to disk
+        state.to_file(state.filename)
+
+        # Cache state 1 in Process A
+        AppState.cache[state.filename] = state
+        cached_mtime = state._mtime
+
+        # Simulate Process B updating the file on disk (make mtime slightly newer)
+        # We manually modify the disk file mtime to make sure it's distinct
+        state_file = self.test_dir / AppState.STATE_FILE
+        new_mtime = cached_mtime + 5.0
+        os.utime(state_file, (new_mtime, new_mtime))
+
+        # Now from_cache in Process A should see a newer mtime and reload
+        reloaded = AppState.from_cache(state.filename)
+        self.assertEqual(reloaded._mtime, new_mtime)
+        self.assertIsNot(reloaded, state)  # Asserts it is a fresh instance loaded from file
+
+    def test_gltf_export_reconstructed_and_empty_guard(self):
+        """3. Prove glTF export works on reconstructed state and empty slice raises descriptive ValueError."""
+        # A. Test empty guard raises intended ValueError
+        state_empty = AppState()
+        state_empty.filename = str(self.test_dir)
+        state_empty.image_slices = []
+
+        with self.assertRaises(ValueError) as ctx_err:
+            export_state_as_gltf(state_empty, state_empty.filename, Camera(100.0, 500.0, 100.0), 0.0)
+        self.assertIn("No image slices available for glTF export", str(ctx_err.exception))
+
+        with self.assertRaises(ValueError) as ctx_err2:
+            export_gltf("dummy.gltf", Camera(100.0, 500.0, 100.0), [], [])
+        self.assertIn("No image slices available for glTF export", str(ctx_err2.exception))
+
+        # B. Test glTF export works on correctly reconstructed state
+        state = AppState()
+        state.filename = str(self.test_dir)
+        state.imgData = Image.new("RGB", (100, 100))
+        state.depthMapData = np.zeros((100, 100), dtype=np.uint8)
+        state.imgThresholds = [0, 127, 255]
+        state.image_slices = [
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), depth=127),
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), depth=255),
+        ]
+        state.to_file(state.filename)
+
+        AppState.cache.clear()
+        reconstructed = AppState.from_file(state.filename)
+
+        output_gltf = self.test_dir / "test_model.gltf"
+        slices_filenames = [sl.filename for sl in reconstructed.image_slices]
+
+        export_gltf(
+            output_path=output_gltf,
+            cam=reconstructed.camera,
+            image_slices=reconstructed.image_slices,
+            image_paths=slices_filenames,
+            depth_paths=[],
+            displacement_scale=0.0,
+            inline_images=True,
+        )
+        self.assertTrue(output_gltf.exists())
+
+    def test_animation_rendering_reconstructed_and_empty_guard(self):
+        """4. Prove animation rendering works on reconstructed state and empty slice raises descriptive ValueError."""
+        # A. Test empty guard raises intended ValueError
+        with self.assertRaises(ValueError) as ctx_err:
+            render_view([], np.eye(3), [], np.zeros(3))
+        self.assertIn("No image slices available for animation rendering", str(ctx_err.exception))
+
+        with self.assertRaises(ValueError) as ctx_err2:
+            render_image_sequence("dummy_dir", [], [], np.eye(3), np.zeros(3))
+        self.assertIn("No image slices available for animation sequence rendering", str(ctx_err2.exception))
+
+        # B. Test animation rendering works on reconstructed state
+        state = AppState()
+        state.filename = str(self.test_dir)
+        state.imgData = Image.new("RGB", (100, 100))
+        state.depthMapData = np.zeros((100, 100), dtype=np.uint8)
+        state.imgThresholds = [0, 127, 255]
+        state.image_slices = [
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), depth=127),
+            ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8), depth=255),
+        ]
+        state.to_file(state.filename)
+
+        AppState.cache.clear()
+        reconstructed = AppState.from_file(state.filename)
+
+        camera_matrix = reconstructed.camera_matrix()
+        card_corners = reconstructed.get_cards()
+        camera_pos = np.array([0.0, 0.0, -100.0], dtype=np.float32)
+
+        # Test rendering a view
+        rendered = render_view(reconstructed.image_slices, camera_matrix, card_corners, camera_pos)
+        self.assertEqual(rendered.shape, (100, 100, 4))
+
+        # Test rendering a sequence
+        render_image_sequence(self.test_dir, reconstructed.image_slices, card_corners, camera_matrix, camera_pos, num_frames=2)
+        self.assertTrue((self.test_dir / "rendered_image_000.png").exists())
+        self.assertTrue((self.test_dir / "rendered_image_001.png").exists())
+
+    def test_export_animation_callback_user_facing_error(self):
+        """5. Prove export_animation callback returns a clean user-facing error instead of IndexErrors."""
+        from dash import no_update
+        state = AppState()
+        state.filename = str(self.test_dir)
+        state.image_slices = []
+        AppState.cache[state.filename] = state
+
+        logs, msg, download_data = export_animation(1, state.filename, 10, [])
+        self.assertIn("No image slices generated yet", msg)
+        self.assertIn("No image slices generated yet", logs[0])
+        self.assertEqual(download_data, no_update)
+
+    def test_restore_camera_parameters(self):
+        """6. Prove the renamed remember_camera_parameters -> restore_camera_parameters works correctly."""
+        state = AppState()
+        state.filename = str(self.test_dir)
+        state.camera.camera_distance = 150.0
+        state.camera.focal_length = 120.0
+        state.camera.max_distance = 600.0
+        state.mesh_displacement = 10.0
+        AppState.cache[state.filename] = state
+
+        result = restore_camera_parameters(1, state.filename)
+        self.assertEqual(result, (150.0, 120.0, 600.0, 10.0))
 
 
 if __name__ == "__main__":
