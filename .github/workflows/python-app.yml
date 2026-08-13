@@ -16,6 +16,7 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     steps:
     - uses: actions/checkout@v4
@@ -36,3 +37,21 @@ jobs:
     - name: Test with pytest
       run: |
         pytest
+    - name: Set up Node.js 24
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+        cache: npm
+    - name: Install browser-test dependencies
+      run: |
+        npm ci
+        npx playwright install --with-deps chromium
+    - name: Test browser workflows
+      run: npm run test:e2e
+    - name: Upload browser-test diagnostics
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: playwright-diagnostics
+        path: e2e/test-results/
+        if-no-files-found: ignore
