@@ -11,8 +11,6 @@ import numpy as np
 from . import constants as C
 from .segmentation import (
     generate_depth_map,
-    analyze_depth_histogram,
-    generate_image_slices,
     create_slice_from_mask,
     export_gltf,
     blend_with_alpha,
@@ -45,6 +43,16 @@ from werkzeug import serving
 
 from .controller import AppState, CompositeMode
 from .camera import Camera
+from .workflow_services import (
+    ConfigureThresholds,
+    GenerateDepth,
+    GenerateSlices,
+    UpdateThresholdValues,
+    UploadImage,
+    WorkflowNotReady,
+    WorkflowService,
+    WorkflowUnchanged,
+)
 
 # Globals
 EXPAND_MASK = 5
@@ -59,6 +67,12 @@ def progress_callback(current, total):
     global current_progress, total_progress
     current_progress = (current / total) * 100
     total_progress = 100
+
+
+workflow_service = WorkflowService(
+    progress_reporter=progress_callback,
+    slice_expand=EXPAND_MASK,
+)
 
 
 # call the ability to add external scripts
@@ -276,44 +290,24 @@ def update_threshold_values(threshold_values, num_slices, filename):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-
-    if state.imgThresholds[1:-1] == threshold_values:
+    try:
+        result = workflow_service.update_threshold_values(
+            UpdateThresholdValues(
+                state_id=filename,
+                values=threshold_values,
+                num_slices=num_slices,
+            )
+        )
+    except WorkflowUnchanged:
         print("Threshold values are the same; not erasing data.")
         raise PreventUpdate()
 
-    # make sure that threshold values are monotonically increasing
-    if threshold_values[0] <= 0:
-        threshold_values[0] = 1
-
-    for i in range(1, num_slices - 1):
-        if threshold_values[i] <= threshold_values[i - 1]:
-            threshold_values[i] = threshold_values[i - 1] + 1
-
-    # go through the list in reverse order to make sure that the thresholds are monotonically decreasing
-    if threshold_values[-1] >= 255:
-        threshold_values[-1] = 254
-
-    # num slices is the number of thresholds + 1, so the largest index is num_slices - 2
-    # and the second largest index is num_slices - 3
-    for i in range(num_slices - 3, -1, -1):
-        if threshold_values[i] >= threshold_values[i + 1]:
-            threshold_values[i] = threshold_values[i + 1] - 1
-
-    state.imgThresholds[1:-1] = threshold_values
-
     img_data = no_update
-    if state.slice_pixel:
-        state.slice_mask, _ = state.depth_slice_from_pixel(
-            state.slice_pixel[0], state.slice_pixel[1]
-        )
-        if state.slice_mask is not None:
-            result = state.apply_mask(state.imgData, state.slice_mask)
-            img_data = state.serve_main_image(result)
-        else:
-            img_data = state.serve_main_image(state.imgData)
+    if result.preview_image is not None:
+        state = AppState.from_cache(result.state_id)
+        img_data = state.serve_main_image(result.preview_image)
 
-    return threshold_values, img_data
+    return result.values, img_data
 
 
 @app.callback(
@@ -362,29 +356,18 @@ def update_thresholds(contents, num_slices, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-    if (
-        state.num_slices == num_slices
-        and state.imgThresholds is not None
-        and len(state.imgThresholds) == num_slices + 1
-    ):
+    try:
+        result = workflow_service.configure_thresholds(
+            ConfigureThresholds(state_id=filename, num_slices=num_slices)
+        )
+    except WorkflowUnchanged:
         print("Number of slices is the same; not erasing data.")
         raise PreventUpdate()
 
-    state.num_slices = num_slices
-
-    if state.depthMapData is None:
+    if result.missing_depth:
         logs_data.append("No depth map data available")
-        state.imgThresholds = [0]
-        state.imgThresholds.extend(
-            [i * (255 // (num_slices - 1)) for i in range(1, num_slices)]
-        )
-    elif state.imgThresholds is None or len(state.imgThresholds) != num_slices:
-        state.imgThresholds = analyze_depth_histogram(
-            state.depthMapData, num_slices=num_slices
-        )
 
-    logs_data.append(f"Thresholds: {state.imgThresholds}")
+    logs_data.append(f"Thresholds: {result.thresholds}")
 
     return True, logs_data
 
@@ -410,17 +393,16 @@ def update_input_image(contents, classnames):
     if classnames is None or not on_valid_tab:
         raise PreventUpdate()
 
-    state, filename = AppState.from_file_or_new(None)
-
     content_type, content_string = contents.split(",")
-
-    # save the image data to the state
-    state.set_img_data(Image.open(io.BytesIO(base64.b64decode(content_string))))
-
+    del content_type
+    result = workflow_service.upload_image(
+        UploadImage(Image.open(io.BytesIO(base64.b64decode(content_string))))
+    )
+    state = AppState.from_cache(result.state_id)
     img_uri = state.serve_input_image()
 
     return (
-        filename,
+        result.state_id,
         True,
         True,
         img_uri,
@@ -551,28 +533,8 @@ def generate_depth_map_callback(ignored_data, filename, model):
         raise PreventUpdate()
 
     print(f"Received a request to generate a depth map for state f{filename}")
-    state = AppState.from_cache(filename)
-
-    PIL_image = state.imgData
-
-    if PIL_image.mode == "RGBA":
-        PIL_image = PIL_image.convert("RGB")
-
-    np_image = np.array(PIL_image)
-
-    depth_model = DepthEstimationModel(model=model)
-    if depth_model != state.depth_estimation_model:
-        state.depth_estimation_model = depth_model
-
-    state.depthMapData = generate_depth_map(
-        np_image,
-        model=state.depth_estimation_model,
-        progress_callback=progress_callback,
-    )
-    state.imgThresholds = None
-
-    state.to_file(
-        filename, save_image_slices=False, save_depth_map=True, save_input_image=False
+    workflow_service.generate_depth(
+        GenerateDepth(state_id=filename, model_name=model)
     )
 
     return True, ""
@@ -1123,20 +1085,11 @@ def generate_slices(ignored_data, filename):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-    if state.depthMapData is None:
+    try:
+        result = workflow_service.generate_slices(GenerateSlices(state_id=filename))
+    except WorkflowNotReady:
         raise PreventUpdate()
-
-    # XXX - refactor the state update into the AppState class
-    state.image_slices = generate_image_slices(
-        np.array(state.imgData),
-        state.depthMapData,
-        state.imgThresholds,
-        num_expand=EXPAND_MASK,
-    )
-
-    print(f"Generated {len(state.image_slices)} image slices; saving to file")
-    state.to_file(filename)
+    print(f"Generated {result.slice_count} image slices; saving to file")
 
     return True, ""
 

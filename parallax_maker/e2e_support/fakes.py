@@ -263,6 +263,11 @@ def install_fakes():
 
     # Classes captured as module globals by callback functions.
     webui.DepthEstimationModel = FakeDepthEstimationModel
+    webui.workflow_service = webui.WorkflowService(
+        depth_model_factory=FakeDepthEstimationModel,
+        progress_reporter=webui.progress_callback,
+        slice_expand=webui.EXPAND_MASK,
+    )
     webui.SegmentationModel = FakeSegmentationModel
     webui.InpaintingModel = FakeInpaintingModel
     controller.Upscaler = FakeUpscaler
