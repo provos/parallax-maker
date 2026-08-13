@@ -345,6 +345,15 @@ class TestDisocclusionAndClamping(unittest.TestCase):
         self.assertTrue((self.temp_dir / "rendered_image_000.png").exists())
         self.assertTrue((self.temp_dir / "rendered_image_001.png").exists())
 
+    def test_midas_dependency_validation(self):
+        from unittest.mock import patch
+        from parallax_maker.depth import create_medias_pipeline
+        # Mock torch.hub.load to raise the conv_cfg ValueError
+        with patch("torch.hub.load", side_effect=ValueError("mutable default <class 'timm.models.maxxvit.MaxxVitConvCfg'> for field conv_cfg is not allowed: use default_factory")):
+            with self.assertRaises(ValueError) as ctx:
+                create_medias_pipeline()
+            self.assertIn("MiDaS model loading failed due to a known 'timm' dependency compatibility issue", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

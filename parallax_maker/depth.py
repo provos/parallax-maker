@@ -133,9 +133,27 @@ def create_medias_pipeline(progress_callback=None):
         tuple: A tuple containing the MiDaS model and the transformation pipeline.
 
     """
+    # Verify environment/dependency compatibility before loading torch hub
+    try:
+        import timm
+    except ImportError as e:
+        raise ImportError(
+            "The MiDaS backend requires the 'timm' package to be installed. "
+            "Please install it using 'pip install timm'."
+        ) from e
+
     # Load the MiDaS v2.1 model
     model_type = "DPT_Large"
-    midas = torch.hub.load("intel-isl/MiDaS", model_type, skip_validation=True)
+    try:
+        midas = torch.hub.load("intel-isl/MiDaS", model_type, skip_validation=True)
+    except ValueError as e:
+        if "default_factory" in str(e) and "conv_cfg" in str(e):
+            raise ValueError(
+                "MiDaS model loading failed due to a known 'timm' dependency compatibility issue with Python 3.11+. "
+                f"Your installed timm version is {getattr(timm, '__version__', 'unknown')}. "
+                "Please upgrade 'timm' to a compatible version (e.g. 'pip install timm>=0.9.2') and try again."
+            ) from e
+        raise e
 
     if progress_callback:
         progress_callback(30, 100)
