@@ -10,6 +10,11 @@ export type E2EState = {
   slice_count: number;
   mesh_displacement: number;
   slice_mask: E2EMaskStats;
+  slice_pixel: [number, number] | null;
+  slice_pixel_depth: number | null;
+  multi_point_mode: boolean;
+  points_selected: Array<{ point: [number, number]; negative: boolean }>;
+  segmentation_input: { calls: number; source: string } | null;
   selected_mask_file: E2EMaskStats;
   [key: string]: unknown;
 };

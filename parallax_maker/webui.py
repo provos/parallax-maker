@@ -53,6 +53,17 @@ from .workflow_services import (
     WorkflowService,
     WorkflowUnchanged,
 )
+from .segmentation_services import (
+    AppliedMaskResult,
+    CommitMultiPoint,
+    MaskOperation,
+    PointPolarity,
+    QueuedPointResult,
+    SegmentationService,
+    SegmentationServiceError,
+    SelectDepthPoint,
+    SelectInstancePoint,
+)
 
 # Globals
 EXPAND_MASK = 5
@@ -72,6 +83,17 @@ def progress_callback(current, total):
 workflow_service = WorkflowService(
     progress_reporter=progress_callback,
     slice_expand=EXPAND_MASK,
+)
+
+
+def create_segmentation_model():
+    """Resolve the current model class when a service command needs it."""
+
+    return SegmentationModel()
+
+
+segmentation_service = SegmentationService(
+    model_factory=create_segmentation_model,
 )
 
 
@@ -210,7 +232,7 @@ app.scripts.config.serve_locally = True
 
 make_clientside_callbacks(app)
 
-components.make_segmentation_callbacks(app)
+components.make_segmentation_callbacks(app, segmentation_service)
 components.make_canvas_callbacks(app)
 components.make_navigation_callbacks(app)
 components.make_inpainting_container_callbacks(app)
@@ -298,7 +320,7 @@ def update_threshold_values(threshold_values, num_slices, filename):
                 num_slices=num_slices,
             )
         )
-    except WorkflowUnchanged:
+    except (WorkflowUnchanged, WorkflowNotReady):
         print("Threshold values are the same; not erasing data.")
         raise PreventUpdate()
 
@@ -360,7 +382,7 @@ def update_thresholds(contents, num_slices, filename, logs_data):
         result = workflow_service.configure_thresholds(
             ConfigureThresholds(state_id=filename, num_slices=num_slices)
         )
-    except WorkflowUnchanged:
+    except (WorkflowUnchanged, WorkflowNotReady):
         print("Number of slices is the same; not erasing data.")
         raise PreventUpdate()
 
@@ -395,9 +417,12 @@ def update_input_image(contents, classnames):
 
     content_type, content_string = contents.split(",")
     del content_type
-    result = workflow_service.upload_image(
-        UploadImage(Image.open(io.BytesIO(base64.b64decode(content_string))))
-    )
+    try:
+        result = workflow_service.upload_image(
+            UploadImage(Image.open(io.BytesIO(base64.b64decode(content_string))))
+        )
+    except WorkflowNotReady:
+        raise PreventUpdate()
     state = AppState.from_cache(result.state_id)
     img_uri = state.serve_input_image()
 
@@ -429,81 +454,79 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-
     t_id = ctx.triggered_id
-    shiftClick = False
-    ctrlClick = False
+    point = None
+    shift_click = False
+    ctrl_click = False
 
     if t_id == "el":
+        state = AppState.from_cache(filename)
         if e is None or rect_data is None or state.imgData is None:
             raise PreventUpdate()
 
-        pixel_x, pixel_y = find_pixel_from_event(state, e, rect_data)
-
-        # we need to find the depth even if we use instance segmentation
-        new_mask, depth = state.depth_slice_from_pixel(pixel_x, pixel_y)
-        state.slice_pixel = (pixel_x, pixel_y)
-        state.slice_pixel_depth = depth
-
-        logs_data.append(
-            f"Click event at pixel coordinates ({pixel_x}, {pixel_y}) at depth {depth}"
-        )
-
-        shiftClick = e["shiftKey"]
-        ctrlClick = e["ctrlKey"]
+        point = find_pixel_from_event(state, e, rect_data)
+        shift_click = e["shiftKey"]
+        ctrl_click = e["ctrlKey"]
     elif t_id != C.SEG_MULTI_COMMIT:
         raise ValueError(f"Unexpected trigger {t_id}")
 
-    image = state.imgData
-    if mode == "segment":
-        positive_points = []
-        negative_points = []
-
-        if state.multi_point_mode:
-            # if we are still selecting points, add them to the state
-            if t_id != C.SEG_MULTI_COMMIT:
-                state.points_selected.append(((pixel_x, pixel_y), ctrlClick))
-                return no_update, no_update, no_update, e
-            # if we are committing the points, add them to the positive and negative points
-            for point, ctrl_click in state.points_selected:
-                if ctrl_click:
-                    negative_points.append(point)
-                else:
-                    positive_points.append(point)
+    operation = (
+        MaskOperation.ADD
+        if shift_click
+        else MaskOperation.SUBTRACT
+        if ctrl_click
+        else MaskOperation.REPLACE
+    )
+    try:
+        if t_id == C.SEG_MULTI_COMMIT:
+            if mode != "segment":
+                raise PreventUpdate()
+            result = segmentation_service.commit_multi_point(
+                CommitMultiPoint(state_id=filename)
+            )
+        elif mode == "segment":
+            result = segmentation_service.select_instance_point(
+                SelectInstancePoint(
+                    state_id=filename,
+                    point=point,
+                    operation=operation,
+                    polarity=(
+                        PointPolarity.NEGATIVE
+                        if ctrl_click
+                        else PointPolarity.POSITIVE
+                    ),
+                )
+            )
         else:
-            assert t_id == "el"
-            positive_points.append((pixel_x, pixel_y))
+            result = segmentation_service.select_depth_point(
+                SelectDepthPoint(
+                    state_id=filename,
+                    point=point,
+                    operation=operation,
+                )
+            )
+    except SegmentationServiceError:
+        raise PreventUpdate() from None
 
-        if state.segmentation_model == None:
-            state.segmentation_model = SegmentationModel()
-        # if we have a slice, take it and compose the background image over it
-        if state.selected_slice is not None:
-            image = state.slice_image_composed(state.selected_slice, CompositeMode.NONE)
-        state.segmentation_model.segment_image(image)
-        # XXX - allow selection of the cheap vs the expensive alogrithm
-        new_mask = state.segmentation_model.mask_at_point_blended(
-            {"positive_points": positive_points, "negative_points": negative_points}
-        )
+    if isinstance(result, QueuedPointResult):
+        return no_update, no_update, no_update, e
 
+    if not isinstance(result, AppliedMaskResult):
+        raise PreventUpdate()
+
+    if result.point is not None:
         logs_data.append(
-            f"Committed points {positive_points} and {negative_points} for Segment Anything"
+            f"Click event at pixel coordinates ({result.point[0]}, {result.point[1]}) "
+            f"at depth {result.depth}"
+        )
+    if mode == "segment":
+        logs_data.append(
+            f"Committed points {list(result.positive_points)} and "
+            f"{list(result.negative_points)} for Segment Anything"
         )
 
-    # allow mask manipulation with add and subtract via shift and ctrl click
-    if state.slice_mask is None or not (shiftClick or ctrlClick):
-        state.slice_mask = new_mask
-    elif shiftClick:
-        state.slice_mask = np.maximum(state.slice_mask, new_mask)
-    elif ctrlClick:
-        state.slice_mask = np.minimum(state.slice_mask, 255 - new_mask)
-
-    if state.slice_mask is not None:
-        result = state.apply_mask(image, state.slice_mask)
-        img_data = state.serve_main_image(result)
-    else:
-        img_data = state.serve_main_image(state.imgData)
-
+    state = AppState.from_cache(result.state_id)
+    img_data = state.serve_main_image(result.preview_image)
     return img_data, logs_data, "", no_update
 
 
@@ -533,9 +556,12 @@ def generate_depth_map_callback(ignored_data, filename, model):
         raise PreventUpdate()
 
     print(f"Received a request to generate a depth map for state f{filename}")
-    workflow_service.generate_depth(
-        GenerateDepth(state_id=filename, model_name=model)
-    )
+    try:
+        workflow_service.generate_depth(
+            GenerateDepth(state_id=filename, model_name=model)
+        )
+    except WorkflowNotReady:
+        raise PreventUpdate()
 
     return True, ""
 

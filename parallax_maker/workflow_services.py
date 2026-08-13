@@ -158,6 +158,8 @@ class WorkflowService:
         self._slice_expand = slice_expand
 
     def upload_image(self, command: UploadImage) -> UploadImageResult:
+        if not isinstance(command.image, Image.Image):
+            raise WorkflowNotReady("an input image must be a PIL image")
         state, state_id = self._states.create()
         state.set_img_data(command.image)
         return UploadImageResult(state_id=state_id)
@@ -165,6 +167,8 @@ class WorkflowService:
     def generate_depth(self, command: GenerateDepth) -> GenerateDepthResult:
         state = self._states.load(command.state_id)
         image = state.imgData
+        if image is None:
+            raise WorkflowNotReady("an input image is required to generate depth")
         if image.mode == "RGBA":
             image = image.convert("RGB")
 
@@ -184,6 +188,9 @@ class WorkflowService:
     def configure_thresholds(
         self, command: ConfigureThresholds
     ) -> ConfigureThresholdsResult:
+        if command.num_slices <= 0:
+            raise WorkflowNotReady("the number of slices must be positive")
+
         state = self._states.load(command.state_id)
         if (
             state.num_slices == command.num_slices
@@ -217,6 +224,45 @@ class WorkflowService:
         self, command: UpdateThresholdValues
     ) -> UpdateThresholdValuesResult:
         state = self._states.load(command.state_id)
+        if command.num_slices <= 0:
+            raise WorkflowNotReady("the number of slices must be positive")
+        if state.num_slices != command.num_slices:
+            raise WorkflowNotReady("thresholds do not match the configured slice count")
+        if (
+            state.imgThresholds is None
+            or len(state.imgThresholds) != command.num_slices + 1
+        ):
+            raise WorkflowNotReady("complete threshold boundaries are required")
+        if command.values is None or len(command.values) != command.num_slices - 1:
+            raise WorkflowNotReady(
+                "one threshold edit per interior boundary is required"
+            )
+
+        if state.slice_pixel is not None:
+            if state.imgData is None:
+                raise WorkflowNotReady(
+                    "an input image is required to preview thresholds"
+                )
+            if state.depthMapData is None:
+                raise WorkflowNotReady("a depth map is required to preview thresholds")
+            if state.depthMapData.ndim != 2:
+                raise WorkflowNotReady("the depth map must be two-dimensional")
+            if state.depthMapData.shape != (state.imgData.height, state.imgData.width):
+                raise WorkflowNotReady("the depth map must match the input image")
+            try:
+                pixel_x, pixel_y = state.slice_pixel
+            except (TypeError, ValueError):
+                raise WorkflowNotReady("the selected pixel is invalid") from None
+            if (
+                not isinstance(pixel_x, int)
+                or not isinstance(pixel_y, int)
+                or pixel_x < 0
+                or pixel_y < 0
+                or pixel_x >= state.depthMapData.shape[1]
+                or pixel_y >= state.depthMapData.shape[0]
+            ):
+                raise WorkflowNotReady("the selected pixel is outside the image")
+
         values = list(command.values)
         if state.imgThresholds[1:-1] == values:
             raise WorkflowUnchanged("threshold values are unchanged")
@@ -253,6 +299,8 @@ class WorkflowService:
 
     def generate_slices(self, command: GenerateSlices) -> GenerateSlicesResult:
         state = self._states.load(command.state_id)
+        if state.imgData is None:
+            raise WorkflowNotReady("an input image is required to generate slices")
         if state.depthMapData is None:
             raise WorkflowNotReady("a depth map is required to generate slices")
         if (

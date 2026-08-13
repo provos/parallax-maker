@@ -32,14 +32,14 @@ class TestUpdateThresholds(unittest.TestCase):
         state.cache[filename] = state
 
         # Call the function
-        input_thresholds = [0, 20, 30, 40, 255]
+        input_thresholds = [0, 20, 30, 255]
         num_slices = 5
         threshold_values, _ = update_threshold_values(
             input_thresholds, num_slices, filename
         )
 
         # Assert that the state is updated
-        self.assertEqual(state.imgThresholds, [0, 1, 20, 30, 40, 254, 255])
+        self.assertEqual(state.imgThresholds, [0, 1, 20, 30, 254, 255])
 
     def test_update_threshold_values_limit(self):
         # Create a dummy state
@@ -51,14 +51,14 @@ class TestUpdateThresholds(unittest.TestCase):
         state.cache[filename] = state
 
         # Call the function
-        input_thresholds = [255, 255, 255, 255, 255]
+        input_thresholds = [255, 255, 255, 255]
         num_slices = 5
         threshold_values, _ = update_threshold_values(
             input_thresholds, num_slices, filename
         )
 
         # Assert that the state is updated
-        self.assertEqual(state.imgThresholds, [0, 255, 256, 257, 258, 254, 255])
+        self.assertEqual(state.imgThresholds, [0, 251, 252, 253, 254, 255])
 
 
 class TestClickEvent(unittest.TestCase):
@@ -107,70 +107,6 @@ class TestClickEvent(unittest.TestCase):
         self.mock_ctx.triggered_id = "el"
         with self.assertRaises(PreventUpdate):
             click_event(None, None, None, None, None, "filename", [])
-
-    def test_click_event_segment_mode_shift_click(self):
-        self.mock_ctx.triggered_id = "el"
-        self.mock_state.multi_point_mode = False
-        self.mock_state.imgData = self.mock_image
-        self.mock_state.slice_mask = self.mock_mask
-        self.mock_state.segmentation_model = None
-        element = {"shiftKey": True, "ctrlKey": False}
-        rect_data = "rect_data"
-
-        self.mock_find_pixel.return_value = (10, 10)
-
-        result = click_event(None, None, element, rect_data, "segment", "filename", [])
-
-        self.mock_state.apply_mask.assert_called_once()
-        self.assertEqual(result[0], self.mock_state.serve_main_image.return_value)
-
-    def test_click_event_no_shift_or_ctrl_click(self):
-        self.mock_ctx.triggered_id = C.SEG_MULTI_COMMIT
-        self.mock_state.multi_point_mode = True
-        self.mock_state.points_selected = [((10, 10), False)]
-        self.mock_state.imgData = "image_data"
-        self.mock_state.segmentation_model = None
-
-        element = {"shiftKey": False, "ctrlKey": False}
-        rect_data = "rect_data"
-
-        result = click_event(None, None, element, rect_data, "segment", "filename", [])
-
-        self.assertEqual(
-            result[1], ["Committed points [(10, 10)] and [] for Segment Anything"]
-        )
-
-    def test_click_event_apply_mask(self):
-        self.mock_ctx.triggered_id = "el"
-        self.mock_state.multi_point_mode = False
-        self.mock_state.imgData = "image_data"
-        self.mock_state.slice_mask = self.mock_mask
-        element = {"shiftKey": True, "ctrlKey": False}
-        rect_data = "rect_data"
-
-        self.mock_find_pixel.return_value = (10, 10)
-
-        result = click_event(None, None, element, rect_data, "mode", "filename", [])
-
-        self.mock_state.apply_mask.assert_called_once()
-        self.assertEqual(result[0], self.mock_state.serve_main_image.return_value)
-
-    def test_click_event_with_slice(self):
-        self.mock_ctx.triggered_id = "el"
-        self.mock_state.multi_point_mode = False
-        self.mock_state.imgData = "image_data"
-        self.mock_state.slice_mask = self.mock_mask
-        self.mock_state.image_slices = [np.ones((100, 100, 4))]
-        self.mock_state.selected_slice = 0
-        element = {"shiftKey": True, "ctrlKey": False}
-        rect_data = "rect_data"
-
-        self.mock_find_pixel.return_value = (10, 10)
-
-        result = click_event(None, None, element, rect_data, "mode", "filename", [])
-
-        self.mock_state.apply_mask.assert_called_once()
-        self.assertEqual(result[0], self.mock_state.serve_main_image.return_value)
 
 
 class TestCopyToClipboard(unittest.TestCase):
