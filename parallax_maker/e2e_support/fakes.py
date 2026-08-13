@@ -89,6 +89,8 @@ class FakeSegmentationModel:
         self.image_processor = None
         self.image: Image.Image | None = None
         self.mask: np.ndarray | None = None
+        self.segment_image_calls = 0
+        self.segment_input_source: str | None = None
 
     def __eq__(self, other: object) -> bool:
         return (
@@ -100,6 +102,10 @@ class FakeSegmentationModel:
         return self.model
 
     def segment_image(self, image: Any) -> None:
+        self.segment_image_calls += 1
+        self.segment_input_source = getattr(image, "info", {}).get(
+            "e2e-segmentation-source", "state-image"
+        )
         self.image = (
             Image.fromarray(np.asarray(image))
             if isinstance(image, np.ndarray)
@@ -279,6 +285,7 @@ def install_fakes():
     # a stale image. Give the test process a monotonic query value so each real
     # file write is observable without sleeps.
     original_serve_main_image = controller.AppState.serve_main_image
+    original_slice_image_composed = controller.AppState.slice_image_composed
     image_versions = count()
 
     def serve_main_image_with_unique_url(state, image):
@@ -287,6 +294,17 @@ def install_fakes():
         return f"{path}?e2e-v={next(image_versions)}"
 
     controller.AppState.serve_main_image = serve_main_image_with_unique_url
+
+    # Fresh fixture slices are pixel-identical to the source image, so tag the
+    # composed object to make the selected-slice inference branch observable.
+    def slice_image_composed_with_source(
+        state, slice_index, mode=controller.CompositeMode.NONE
+    ):
+        image = original_slice_image_composed(state, slice_index, mode=mode)
+        image.info["e2e-segmentation-source"] = f"slice:{slice_index}:{mode.name}"
+        return image
+
+    controller.AppState.slice_image_composed = slice_image_composed_with_source
 
     # The production factory resolves this module global when a callback invokes it.
     inpainting.InpaintingModel = FakeInpaintingModel

@@ -67,6 +67,20 @@ def test_upload_image_initializes_state_without_persisting_json() -> None:
     assert state.selected_slice is None
 
 
+@pytest.mark.parametrize("image", [None, np.zeros((3, 4, 3), dtype=np.uint8)])
+def test_upload_image_requires_a_pil_image_before_creating_state(image) -> None:
+    state = AppState()
+    repository = RecordingStateRepository(state)
+    service = WorkflowService(repository)
+
+    with pytest.raises(WorkflowNotReady, match="input image"):
+        service.upload_image(UploadImage(image))
+
+    assert repository.create_count == 0
+    assert repository.loaded_ids == []
+    assert repository.saves == []
+
+
 @dataclass(frozen=True)
 class StubDepthModel:
     model_name: str
@@ -147,6 +161,26 @@ def test_generate_depth_reuses_equal_model_already_held_by_state() -> None:
 
     assert state.depth_estimation_model is existing_model
     assert received_models == [existing_model]
+
+
+def test_generate_depth_requires_an_input_image() -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    repository = RecordingStateRepository(state)
+
+    def unexpected_dependency(*args, **kwargs):
+        raise AssertionError("depth dependencies must not run without an input image")
+
+    service = WorkflowService(
+        repository,
+        depth_model_factory=unexpected_dependency,
+        depth_generator=unexpected_dependency,
+    )
+
+    with pytest.raises(WorkflowNotReady, match="input image"):
+        service.generate_depth(GenerateDepth("appstate-test", "dinov2"))
+
+    assert repository.saves == []
 
 
 def test_configure_thresholds_uses_injected_analyzer_without_saving() -> None:
@@ -239,6 +273,24 @@ def test_configure_thresholds_signals_when_state_would_not_change() -> None:
     assert repository.saves == []
 
 
+@pytest.mark.parametrize("num_slices", [0, -1])
+def test_configure_thresholds_requires_a_positive_slice_count(num_slices) -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    original_num_slices = state.num_slices
+    repository = RecordingStateRepository(state)
+    service = WorkflowService(repository)
+
+    with pytest.raises(WorkflowNotReady, match="positive"):
+        service.configure_thresholds(
+            ConfigureThresholds("appstate-test", num_slices=num_slices)
+        )
+
+    assert state.num_slices == original_num_slices
+    assert state.imgThresholds is None
+    assert repository.saves == []
+
+
 def test_update_threshold_values_normalizes_and_only_mutates_cached_state() -> None:
     state = AppState()
     state.filename = "appstate-test"
@@ -260,6 +312,7 @@ def test_update_threshold_values_normalizes_and_only_mutates_cached_state() -> N
 def test_update_threshold_values_recomputes_selected_mask_preview() -> None:
     state = AppState()
     state.filename = "appstate-test"
+    state.num_slices = 3
     state.imgData = Image.new("RGB", (4, 3), (120, 80, 40))
     state.depthMapData = np.array(
         [[10, 60, 130, 220], [20, 70, 140, 230], [30, 80, 150, 240]],
@@ -286,6 +339,7 @@ def test_update_threshold_values_recomputes_selected_mask_preview() -> None:
 def test_update_threshold_values_signals_when_state_would_not_change() -> None:
     state = AppState()
     state.filename = "appstate-test"
+    state.num_slices = 3
     state.imgThresholds = [0, 90, 160, 255]
     repository = RecordingStateRepository(state)
     service = WorkflowService(repository)
@@ -295,6 +349,96 @@ def test_update_threshold_values_signals_when_state_would_not_change() -> None:
             UpdateThresholdValues("appstate-test", values=[90, 160], num_slices=3)
         )
 
+    assert repository.saves == []
+
+
+@pytest.mark.parametrize("thresholds", [None, []])
+def test_update_threshold_values_requires_configured_thresholds(thresholds) -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.num_slices = 3
+    state.imgThresholds = thresholds
+    repository = RecordingStateRepository(state)
+    service = WorkflowService(repository)
+
+    with pytest.raises(WorkflowNotReady, match="threshold"):
+        service.update_threshold_values(
+            UpdateThresholdValues("appstate-test", values=[90, 160], num_slices=3)
+        )
+
+    assert state.imgThresholds == thresholds
+    assert repository.saves == []
+
+
+@pytest.mark.parametrize("values", [None, [], [90], [70, 110, 160]])
+def test_update_threshold_values_requires_one_edit_per_interior_boundary(
+    values,
+) -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.num_slices = 3
+    state.imgThresholds = [0, 90, 160, 255]
+    repository = RecordingStateRepository(state)
+    service = WorkflowService(repository)
+
+    with pytest.raises(WorkflowNotReady, match="threshold"):
+        service.update_threshold_values(
+            UpdateThresholdValues("appstate-test", values=values, num_slices=3)
+        )
+
+    assert state.imgThresholds == [0, 90, 160, 255]
+    assert repository.saves == []
+
+
+def test_update_threshold_values_requires_matching_state_slice_count() -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.num_slices = 4
+    state.imgThresholds = [0, 90, 160, 255]
+    repository = RecordingStateRepository(state)
+    service = WorkflowService(repository)
+
+    with pytest.raises(WorkflowNotReady, match="threshold"):
+        service.update_threshold_values(
+            UpdateThresholdValues("appstate-test", values=[70, 110, 160], num_slices=4)
+        )
+
+    assert state.imgThresholds == [0, 90, 160, 255]
+    assert repository.saves == []
+
+
+@pytest.mark.parametrize(
+    ("image", "depth_map", "slice_pixel", "message"),
+    [
+        (None, np.arange(12, dtype=np.uint8).reshape(3, 4), (2, 1), "input image"),
+        (Image.new("RGB", (4, 3)), None, (2, 1), "depth map"),
+        (
+            Image.new("RGB", (4, 3)),
+            np.arange(12, dtype=np.uint8).reshape(3, 4),
+            (20, 10),
+            "selected pixel",
+        ),
+    ],
+)
+def test_update_threshold_values_validates_preview_prerequisites(
+    image, depth_map, slice_pixel, message
+) -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.num_slices = 3
+    state.imgData = image
+    state.depthMapData = depth_map
+    state.slice_pixel = slice_pixel
+    state.imgThresholds = [0, 90, 160, 255]
+    repository = RecordingStateRepository(state)
+    service = WorkflowService(repository)
+
+    with pytest.raises(WorkflowNotReady, match=message):
+        service.update_threshold_values(
+            UpdateThresholdValues("appstate-test", values=[80, 150], num_slices=3)
+        )
+
+    assert state.imgThresholds == [0, 90, 160, 255]
     assert repository.saves == []
 
 
@@ -356,6 +500,26 @@ def test_generate_slices_requires_a_depth_map_without_saving() -> None:
     service = WorkflowService(repository, slice_generator=unexpected_generator)
 
     with pytest.raises(WorkflowNotReady, match="depth map"):
+        service.generate_slices(GenerateSlices("appstate-test"))
+
+    assert state.image_slices == []
+    assert repository.saves == []
+
+
+def test_generate_slices_requires_an_input_image_without_saving() -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.num_slices = 3
+    state.depthMapData = np.arange(12, dtype=np.uint8).reshape(3, 4)
+    state.imgThresholds = [0, 90, 160, 255]
+    repository = RecordingStateRepository(state)
+
+    def unexpected_generator(*args, **kwargs):
+        raise AssertionError("slice generator must not run without an input image")
+
+    service = WorkflowService(repository, slice_generator=unexpected_generator)
+
+    with pytest.raises(WorkflowNotReady, match="input image"):
         service.generate_slices(GenerateSlices("appstate-test"))
 
     assert state.image_slices == []

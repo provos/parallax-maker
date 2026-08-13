@@ -71,8 +71,12 @@ def _mask_metadata(mask: np.ndarray | None) -> dict:
     outside = [int(zero_x[0]), int(zero_y[0])] if len(zero_x) else None
     samples = {
         "8,8": int(mask[min(8, height - 1), min(8, width - 1)]),
+        "16,16": int(mask[min(16, height - 1), min(16, width - 1)]),
+        "80,96": int(mask[min(96, height - 1), min(80, width - 1)]),
         "90,96": int(mask[min(96, height - 1), min(90, width - 1)]),
         "128,96": int(mask[min(96, height - 1), min(128, width - 1)]),
+        "160,96": int(mask[min(96, height - 1), min(160, width - 1)]),
+        "200,96": int(mask[min(96, height - 1), min(200, width - 1)]),
     }
     return {
         "present": True,
@@ -142,6 +146,13 @@ def _register_routes(app, fixture_root: Path) -> None:
             abort(404)
         state = AppState.from_cache(filename)
         selected_mask = _read_mask_file(state)
+        segmentation_model = state.segmentation_model
+        segmentation_input = None
+        if segmentation_model is not None:
+            segmentation_input = {
+                "calls": getattr(segmentation_model, "segment_image_calls", None),
+                "source": getattr(segmentation_model, "segment_input_source", None),
+            }
         return jsonify(
             {
                 "filename": state.filename,
@@ -159,6 +170,14 @@ def _register_routes(app, fixture_root: Path) -> None:
                 "selected_slice": state.selected_slice,
                 "selected_inpainting": state.selected_inpainting,
                 "slice_mask": _mask_metadata(state.slice_mask),
+                "slice_pixel": list(state.slice_pixel) if state.slice_pixel else None,
+                "slice_pixel_depth": state.slice_pixel_depth,
+                "multi_point_mode": state.multi_point_mode,
+                "points_selected": [
+                    {"point": list(point), "negative": bool(ctrl_click)}
+                    for point, ctrl_click in state.points_selected
+                ],
+                "segmentation_input": segmentation_input,
                 "selected_mask_file": _mask_metadata(selected_mask),
                 "dark_mode": state.dark_mode,
                 "camera": {

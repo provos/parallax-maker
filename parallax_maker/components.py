@@ -22,6 +22,7 @@ from .controller import AppState, CompositeMode
 from .utils import to_image_url, find_square_bounding_box
 from .inpainting import patch_image, create_inpainting_pipeline
 from .segmentation import render_view, remove_mask_from_alpha
+from .segmentation_services import SegmentationServiceError, SetMultiPointMode
 from .stabilityai import StabilityAI
 
 
@@ -1621,7 +1622,7 @@ def make_tabs_callback(app, tab_id: str):
         return [None] * len(n_clicks), label_class, content_class
 
 
-def make_segmentation_callbacks(app):
+def make_segmentation_callbacks(app, segmentation_service):
     @app.callback(
         Output(C.IMAGE, "src", allow_duplicate=True),
         Output(C.LOGS_DATA, "data", allow_duplicate=True),
@@ -1695,14 +1696,17 @@ def make_segmentation_callbacks(app):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-
         selected_color = "color-is-selected"
         deselected_color = "color-not-selected"
 
         # if it's blue, we'll switch to green and turn on multi-point mode
-        state.multi_point_mode = True if deselected_color in class_name else False
-        state.points_selected = []
+        enabled = deselected_color in class_name
+        try:
+            segmentation_service.set_multi_point_mode(
+                SetMultiPointMode(state_id=filename, enabled=enabled)
+            )
+        except SegmentationServiceError:
+            raise PreventUpdate() from None
         if deselected_color in class_name:
             class_name = class_name.replace(deselected_color, selected_color)
         else:

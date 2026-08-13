@@ -60,6 +60,52 @@ test('upload generates deterministic depth and three real slices', async ({ page
   ]);
 });
 
+test('point mask modifiers replace, union, and subtract exact regions', async ({ page }) => {
+  const filename = await restoreFixtureState(page);
+  await selectDashOption(page, 'mode-selector', 'Instance Segmentation');
+  await clickMainTab(page, 'Segmentation');
+
+  const image = page.locator('#image');
+  const originalHash = await imageHash(image);
+
+  await clickImagePixel(image, 80, 96);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_mask.samples['80,96'])
+    .toBe(255);
+  const first = (await readE2EState(page, filename)).slice_mask;
+  expect(first.samples).toMatchObject({ '8,8': 0, '80,96': 255, '200,96': 0 });
+  expect(first.nonzero).toBeGreaterThan(4_000);
+  await expect.poll(() => imageHash(image)).not.toBe(originalHash);
+  const firstHash = await imageHash(image);
+
+  await clickImagePixel(image, 200, 96, ['Shift']);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_mask.nonzero)
+    .toBe(first.nonzero * 2);
+  const union = (await readE2EState(page, filename)).slice_mask;
+  expect(union.samples).toMatchObject({ '8,8': 0, '80,96': 255, '200,96': 255 });
+  await expect.poll(() => imageHash(image)).not.toBe(firstHash);
+  const unionHash = await imageHash(image);
+
+  await clickImagePixel(image, 80, 96, ['Control']);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_mask.samples['80,96'])
+    .toBe(0);
+  const subtracted = (await readE2EState(page, filename)).slice_mask;
+  expect(subtracted.samples).toMatchObject({ '8,8': 0, '80,96': 0, '200,96': 255 });
+  expect(subtracted.nonzero).toBe(first.nonzero);
+  await expect.poll(() => imageHash(image)).not.toBe(unionHash);
+
+  await clickImagePixel(image, 80, 96);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_mask.samples['200,96'])
+    .toBe(0);
+  const replaced = (await readE2EState(page, filename)).slice_mask;
+  expect(replaced.samples).toMatchObject({ '8,8': 0, '80,96': 255, '200,96': 0 });
+  expect(replaced.nonzero).toBe(first.nonzero);
+  await expect.poll(() => imageHash(image)).toBe(firstHash);
+});
+
 test('point segmentation honors positive and negative points through the UI', async ({ page }) => {
   const filename = await restoreFixtureState(page);
   await selectDashOption(page, 'mode-selector', 'Instance Segmentation');
@@ -82,8 +128,53 @@ test('point segmentation honors positive and negative points through the UI', as
   expect(afterPositive[0]).not.toEqual(before[0]);
   expect(afterPositive[1]).not.toEqual(before[1]);
   expect(afterPositive[0]).not.toEqual(afterPositive[1]);
+  const committedImageHash = await imageHash(image);
+  expect((await readE2EState(page, filename)).segmentation_input).toEqual({
+    calls: 1,
+    source: 'state-image',
+  });
 
-  await page.locator('#multi-point').click();
+  const multiPoint = page.locator('#multi-point');
+  await multiPoint.click();
+  await expect(multiPoint).toHaveClass(/color-is-selected/);
+  await expect
+    .poll(async () => {
+      const state = await readE2EState(page, filename);
+      return { enabled: state.multi_point_mode, points: state.points_selected };
+    })
+    .toEqual({ enabled: true, points: [] });
+
+  await clickImagePixel(image, 90, 96);
+  // The current browser-to-image transform scales the rendered click and then
+  // truncates it, so these requested positions arrive one pixel lower on each axis.
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).points_selected)
+    .toEqual([{ point: [89, 95], negative: false }]);
+  expect((await readE2EState(page, filename)).slice_mask).toEqual(positiveMask);
+  expect(await imageHash(image)).toBe(committedImageHash);
+
+  await clickImagePixel(image, 128, 96, ['Control']);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).points_selected)
+    .toEqual([
+      { point: [89, 95], negative: false },
+      { point: [127, 95], negative: true },
+    ]);
+  expect((await readE2EState(page, filename)).slice_mask).toEqual(positiveMask);
+  expect(await imageHash(image)).toBe(committedImageHash);
+
+  await multiPoint.click();
+  await expect(multiPoint).toHaveClass(/color-not-selected/);
+  await expect
+    .poll(async () => {
+      const state = await readE2EState(page, filename);
+      return { enabled: state.multi_point_mode, points: state.points_selected };
+    })
+    .toEqual({ enabled: false, points: [] });
+  expect((await readE2EState(page, filename)).slice_mask).toEqual(positiveMask);
+  expect(await imageHash(image)).toBe(committedImageHash);
+
+  await multiPoint.click();
   await clickImagePixel(image, 90, 96);
   await clickImagePixel(image, 128, 96, ['Control']);
   await page.locator('#multi-commit').click();
@@ -93,6 +184,41 @@ test('point segmentation honors positive and negative points through the UI', as
   const negativeMask = (await readE2EState(page, filename)).slice_mask;
   expect(negativeMask.samples).toMatchObject({ '8,8': 0, '90,96': 255, '128,96': 0 });
   expect(negativeMask.nonzero).toBeGreaterThan(0);
+});
+
+test('default depth click records its pixel, depth, log, and mask', async ({ page }) => {
+  const filename = await restoreFixtureState(page);
+  await expect(page.locator('#mode-selector')).toContainText('Depth Map');
+  await clickMainTab(page, 'Segmentation');
+
+  await clickImagePixel(page.locator('#image'), 16, 16);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_pixel)
+    .not.toBeNull();
+  const state = await readE2EState(page, filename);
+  // Lock in the same rendered-coordinate truncation exercised by real clicks.
+  expect(state.slice_pixel).toEqual([15, 15]);
+  expect(state.slice_pixel_depth).toBe(1);
+  expect(state.slice_mask.samples).toMatchObject({ '16,16': 255, '160,96': 0 });
+  await expect(page.locator('#log')).toContainText(
+    'Click event at pixel coordinates (15, 15) at depth 1',
+  );
+});
+
+test('selected-slice segmentation sends the composed slice to the model', async ({ page }) => {
+  const filename = await restoreFixtureState(page);
+  await selectDashOption(page, 'mode-selector', 'Instance Segmentation');
+  await clickMainTab(page, 'Segmentation');
+  await selectSlice(page, filename, 1);
+
+  await clickImagePixel(page.locator('#image'), 128, 96);
+  await expect(page.locator('#log')).toContainText(/Segment Anything/);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).segmentation_input)
+    .toEqual({ calls: 1, source: 'slice:1:NONE' });
+  const state = await readE2EState(page, filename);
+  expect(state.selected_slice).toBe(1);
+  expect(state.slice_mask.samples['128,96']).toBe(255);
 });
 
 test('painted mask drives three checkerboard candidates, apply, and undo', async ({ page }) => {
