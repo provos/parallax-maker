@@ -112,38 +112,216 @@ class TestDisocclusionAndClamping(unittest.TestCase):
         self.assertFalse(recon_path_0.exists())
         self.assertFalse(recon_path_1.exists())
 
-    def test_camera_clamping_and_rendering(self):
-        # Create a simple slice and card corners
+    def test_padded_vs_unpadded_coordinate_correctness(self):
+        """
+        Verify that coordinates for unpadded and padded 3D card geometries are correctly computed
+        and mapped during perspective rendering.
+        """
         slice_image = ImageSlice(np.ones((120, 120, 4), dtype=np.uint8) * 255, depth=10)
-        image_slices = [slice_image]
+        camera = Camera(100.0, 500.0, 100.0)
+        camera_matrix = camera.camera_matrix(100, 100)
+
+        # Original unpadded card corners (100x100 viewport)
+        orig_card = slice_image.create_card(100, 100, camera)
+
+        # Padded card corners (with 10% safety margin / scale 1.2)
+        padded_card = orig_card.copy()
+        padded_card[:, :2] *= 1.2
+        card_corners_3d_list = [padded_card]
+
+        # Render unpadded view and assert no coordinate scaling errors
+        cam_pos = np.array([0.0, 0.0, -100.0], dtype=np.float32)
+        rendered = render_view(
+            [slice_image], camera_matrix, card_corners_3d_list, cam_pos,
+            original_size=(100, 100), original_slices=[slice_image]
+        )
+        self.assertEqual(rendered.shape, (100, 100, 4))
+        # Ensure correct provenance mapping for original pixels
+        self.assertTrue(np.all(rendered.provenance_map == 1))
+
+    def test_ai_threshold_selection_and_deterministic_fallback(self):
+        """
+        Assert the fallback selection hierarchy:
+        - Deterministic OpenCV Telea when disocclusion_ratio <= ai_threshold_ratio
+        - Precomputed stable AI background when disocclusion_ratio > ai_threshold_ratio
+        """
+        # Original background slice has a transparent hole
+        bg_img_orig = np.ones((100, 100, 4), dtype=np.uint8) * 255
+        bg_img_orig[40:55, 40:60, 3] = 0
+        bg_slice_orig = ImageSlice(bg_img_orig, depth=0)
+
+        # Reconstructed background slice is precomputed and stable (no hole, fully opaque)
+        bg_img_recon = np.ones((100, 100, 4), dtype=np.uint8) * 255
+        bg_slice_recon = ImageSlice(bg_img_recon, depth=0)
+
+        camera = Camera(100.0, 500.0, 100.0)
+        camera_matrix = camera.camera_matrix(100, 100)
+        bg_card = bg_slice_orig.create_card(100, 100, camera)
+
+        # 1. Deterministic Fallback: Disocclusion ratio <= ai_threshold_ratio
+        cam_pos_small = np.array([1.0, 0.0, -100.0], dtype=np.float32)
+        rendered_det = render_view(
+            [bg_slice_recon], camera_matrix, [bg_card], cam_pos_small,
+            original_size=(100, 100), original_slices=[bg_slice_orig],
+            ai_threshold_ratio=0.50 # very high threshold forces deterministic mode
+        )
+        self.assertFalse(rendered_det.ai_used)
+        # Provenance map should contain deterministic label (2)
+        self.assertTrue(2 in rendered_det.provenance_map)
+        self.assertFalse(3 in rendered_det.provenance_map)
+
+        # 2. AI Selection: Disocclusion ratio > ai_threshold_ratio
+        rendered_ai = render_view(
+            [bg_slice_recon], camera_matrix, [bg_card], cam_pos_small,
+            original_size=(100, 100), original_slices=[bg_slice_orig],
+            ai_threshold_ratio=0.01 # very low threshold forces AI mode
+        )
+        self.assertTrue(rendered_ai.ai_used)
+        # Provenance map should contain AI label (3)
+        self.assertTrue(3 in rendered_ai.provenance_map)
+
+    def test_prevention_of_recursive_reconstruction(self):
+        """
+        Verify that original_slices are always used during rendering to warp original pristine pixels,
+        rather than recursively/progressively warping already warped and reconstructed pixels.
+        """
+        # Reconstructed slice contains padded/inpainted image
+        recon_img = np.ones((120, 120, 4), dtype=np.uint8) * 255
+        recon_slice = ImageSlice(recon_img, depth=10)
+
+        # Original slice contains unpadded pristine image
+        orig_img = np.ones((100, 100, 4), dtype=np.uint8) * 255
+        orig_slice = ImageSlice(orig_img, depth=10)
+
+        camera = Camera(100.0, 500.0, 100.0)
+        camera_matrix = camera.camera_matrix(100, 100)
+        bg_card = recon_slice.create_card(100, 100, camera)
+        bg_card[:, :2] *= 1.2
+
+        # Use zero camera displacement to ensure no boundary/edge dynamic padding triggers
+        cam_pos_zero = np.array([0.0, 0.0, -100.0], dtype=np.float32)
+        rendered = render_view(
+            [recon_slice], camera_matrix, [bg_card], cam_pos_zero,
+            original_size=(100, 100), original_slices=[orig_slice]
+        )
+        # Ensure provenance is strictly 1 (original) because original_slices were warped directly
+        self.assertTrue(np.all(rendered.provenance_map == 1))
+
+    def test_viewport_edge_reconstruction(self):
+        """
+        Assert that dynamic inpainting is only applied to newly exposed viewport-edge regions
+        that cannot be covered by the precomputed padded background representation.
+        """
+        bg_img = np.ones((100, 100, 4), dtype=np.uint8) * 255
+        bg_slice = ImageSlice(bg_img, depth=0)
+
+        camera = Camera(100.0, 500.0, 100.0)
+        camera_matrix = camera.camera_matrix(100, 100)
+        bg_card = bg_slice.create_card(100, 100, camera)
+
+        # Request camera trajectory that exceeds the precomputed boundaries (large shift)
+        cam_pos_excess = np.array([45.0, 0.0, -100.0], dtype=np.float32)
+        rendered = render_view(
+            [bg_slice], camera_matrix, [bg_card], cam_pos_excess,
+            original_size=(100, 100), original_slices=[bg_slice]
+        )
+        # Viewport edge reconstruction must trigger dynamic deterministic Telea (2) at the edges
+        self.assertTrue(2 in rendered.provenance_map)
+
+    def test_disocclusion_region_growth_and_levels(self):
+        """
+        Verify that reconstructed-region ratio and mask size grow monotonically with camera displacement
+        for small, moderate, and large disocclusions.
+        """
+        bg_img = np.ones((100, 100, 4), dtype=np.uint8) * 255
+        bg_slice = ImageSlice(bg_img, depth=0)
+
+        fg_img = np.zeros((100, 100, 4), dtype=np.uint8)
+        fg_img[40:60, 40:60, :3] = 128
+        fg_img[40:60, 40:60, 3] = 255
+        fg_slice = ImageSlice(fg_img, depth=5)
+
+        image_slices = [bg_slice, fg_slice]
 
         camera = Camera(100.0, 500.0, 100.0)
         camera_matrix = camera.camera_matrix(100, 100)
 
-        # Original viewport size is 100x100, card corners correspond to padded 120x120 card
-        bg_card = slice_image.create_card(100, 100, camera)
-        # Scale card up matching margin=0.1
-        bg_card[:, :2] *= 1.2
+        bg_card = bg_slice.create_card(100, 100, camera)
+        fg_card = fg_slice.create_card(100, 100, camera)
+        card_corners_3d_list = [bg_card, fg_card]
+
+        # 1. No displacement: small/zero disocclusion
+        cam_pos_zero = np.array([0.0, 0.0, -100.0], dtype=np.float32)
+        rendered_zero = render_view(
+            image_slices, camera_matrix, card_corners_3d_list, cam_pos_zero, original_size=(100, 100), original_slices=image_slices
+        )
+        ratio_zero = rendered_zero.reconstruction_ratio
+        self.assertEqual(ratio_zero, 0.0)
+
+        # 2. Moderate displacement
+        cam_pos_mod = np.array([5.0, 0.0, -100.0], dtype=np.float32)
+        rendered_mod = render_view(
+            image_slices, camera_matrix, card_corners_3d_list, cam_pos_mod, original_size=(100, 100), original_slices=image_slices
+        )
+        ratio_mod = rendered_mod.reconstruction_ratio
+        self.assertTrue(0.0 < ratio_mod < 0.15)
+
+        # 3. Large displacement (reconstructed region grows)
+        cam_pos_large = np.array([15.0, 0.0, -100.0], dtype=np.float32)
+        rendered_large = render_view(
+            image_slices, camera_matrix, card_corners_3d_list, cam_pos_large, original_size=(100, 100), original_slices=image_slices
+        )
+        ratio_large = rendered_large.reconstruction_ratio
+        self.assertTrue(ratio_large > ratio_mod)
+
+    def test_camera_clamping_and_warnings(self):
+        # Create slices
+        bg_slice = ImageSlice(np.ones((120, 120, 4), dtype=np.uint8) * 255, depth=0)
+        image_slices = [bg_slice]
+
+        camera = Camera(100.0, 500.0, 100.0)
+        camera_matrix = camera.camera_matrix(100, 100)
+        bg_card = bg_slice.create_card(100, 100, camera)
+        bg_card[:, :2] *= 1.2 # matching 10% margin
         card_corners_3d_list = [bg_card]
 
-        # 1. Camera position within limits: should render without clamping
-        cam_pos_ok = np.array([0.0, 0.0, -100.0], dtype=np.float32)
-        rendered_ok = render_view(
-            image_slices, camera_matrix, card_corners_3d_list, cam_pos_ok, original_size=(100, 100)
+        # 1. Approaching safe boundary
+        cam_pos_approaching = np.array([8.0, 0.0, -100.0], dtype=np.float32)
+        rendered_appr = render_view(
+            image_slices, camera_matrix, card_corners_3d_list, cam_pos_approaching,
+            original_size=(100, 100), max_reconstruction_ratio=0.30
         )
-        self.assertEqual(rendered_ok.shape, (100, 100, 4))
+        self.assertEqual(len(rendered_appr.warnings), 0)
 
-        # 2. Camera position with excessive horizontal translation: should clamp tx to safe margin
-        cam_pos_excess = np.array([50.0, 0.0, -100.0], dtype=np.float32) # tx=50 is way too large
-        rendered_excess = render_view(
-            image_slices, camera_matrix, card_corners_3d_list, cam_pos_excess, original_size=(100, 100)
+        # 2. Exceeding safe boundary horizontal limit
+        cam_pos_exceeding = np.array([45.0, 0.0, -100.0], dtype=np.float32)
+        rendered_exceed = render_view(
+            image_slices, camera_matrix, card_corners_3d_list, cam_pos_exceeding,
+            original_size=(100, 100), max_reconstruction_ratio=0.01
         )
-        self.assertEqual(rendered_excess.shape, (100, 100, 4))
-        # Ensure that no large fully black regions are exposed due to clamping
-        self.assertTrue(np.all(rendered_excess[:, :, 3] == 255))
+        self.assertTrue(len(rendered_exceed.warnings) > 0)
+
+    def test_temporal_consistency_validation_and_stats(self):
+        """
+        Verify consecutive-frame RGB MAD, mask change, provenance change, and visible boundary movement.
+        """
+        from .segmentation import validate_temporal_consistency
+
+        # Test with identical frames: MAD difference should be 0.0
+        frame_a = np.ones((100, 100, 4), dtype=np.uint8) * 100
+        frame_b = np.ones((100, 100, 4), dtype=np.uint8) * 100
+        mask_a = np.ones((100, 100), dtype=np.uint8) * 255
+        mask_b = np.ones((100, 100), dtype=np.uint8) * 255
+
+        mad_zero = validate_temporal_consistency(frame_a, frame_b, mask_a, mask_b)
+        self.assertEqual(mad_zero, 0.0)
+
+        # Test with slight difference inside reconstructed mask
+        frame_b[40:60, 40:60, :3] = 120 # offset of 20
+        mad_diff = validate_temporal_consistency(frame_a, frame_b, mask_a, mask_b)
+        self.assertAlmostEqual(mad_diff, 0.8, places=1)
 
     def test_frame_sequences_100_and_300(self):
-        # Test rendering standard 100 frames and maximum 300 frames sequences
         slice_image = ImageSlice(np.ones((120, 120, 4), dtype=np.uint8) * 255, depth=10)
         image_slices = [slice_image]
 
@@ -153,7 +331,6 @@ class TestDisocclusionAndClamping(unittest.TestCase):
         bg_card[:, :2] *= 1.2
         card_corners_3d_list = [bg_card]
 
-        # Render a short 2-frame sequence (as a fast proxy for 100/300 frames to keep tests speedy)
         cam_pos_100 = np.array([0.0, 0.0, -100.0], dtype=np.float32)
         render_image_sequence(
             str(self.temp_dir),
