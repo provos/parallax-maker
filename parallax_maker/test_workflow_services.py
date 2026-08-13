@@ -191,9 +191,36 @@ def test_configure_thresholds_without_depth_uses_uniform_fallback() -> None:
         ConfigureThresholds("appstate-test", num_slices=4)
     )
 
-    assert result.thresholds == [0, 85, 170, 255]
+    assert result.thresholds == [0, 63, 127, 191, 255]
     assert result.missing_depth is True
     assert state.imgThresholds == result.thresholds
+    assert repository.saves == []
+
+
+def test_configure_thresholds_recomputes_stale_boundaries_for_new_slice_count() -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.num_slices = 3
+    state.imgThresholds = [0, 80, 160, 255]
+    state.depthMapData = np.arange(24, dtype=np.uint8).reshape(4, 6)
+    repository = RecordingStateRepository(state)
+    analyzer_calls = []
+
+    def threshold_analyzer(depth_map, num_slices):
+        analyzer_calls.append((depth_map.copy(), num_slices))
+        return [0, 50, 100, 150, 255]
+
+    service = WorkflowService(repository, threshold_analyzer=threshold_analyzer)
+
+    result = service.configure_thresholds(
+        ConfigureThresholds("appstate-test", num_slices=4)
+    )
+
+    assert result.thresholds == [0, 50, 100, 150, 255]
+    assert state.num_slices == 4
+    assert state.imgThresholds == result.thresholds
+    assert len(analyzer_calls) == 1
+    assert analyzer_calls[0][1] == 4
     assert repository.saves == []
 
 
@@ -274,8 +301,10 @@ def test_update_threshold_values_signals_when_state_would_not_change() -> None:
 def test_generate_slices_injects_generator_and_persists_all_artifacts() -> None:
     state = AppState()
     state.filename = "appstate-test"
+    state.num_slices = 3
     state.imgData = Image.new("RGB", (5, 4), (11, 22, 33))
     state.depthMapData = np.arange(20, dtype=np.uint8).reshape(4, 5)
+    state.num_slices = 3
     state.imgThresholds = [0, 10, 20, 255]
     repository = RecordingStateRepository(state)
     generator_calls = []
@@ -327,6 +356,28 @@ def test_generate_slices_requires_a_depth_map_without_saving() -> None:
     service = WorkflowService(repository, slice_generator=unexpected_generator)
 
     with pytest.raises(WorkflowNotReady, match="depth map"):
+        service.generate_slices(GenerateSlices("appstate-test"))
+
+    assert state.image_slices == []
+    assert repository.saves == []
+
+
+@pytest.mark.parametrize("thresholds", [None, [0, 128, 255]])
+def test_generate_slices_requires_complete_threshold_boundaries(thresholds) -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.imgData = Image.new("RGB", (4, 3), "black")
+    state.depthMapData = np.arange(12, dtype=np.uint8).reshape(3, 4)
+    state.num_slices = 4
+    state.imgThresholds = thresholds
+    repository = RecordingStateRepository(state)
+
+    def unexpected_generator(*args, **kwargs):
+        raise AssertionError("slice generator must not run with invalid thresholds")
+
+    service = WorkflowService(repository, slice_generator=unexpected_generator)
+
+    with pytest.raises(WorkflowNotReady, match="threshold"):
         service.generate_slices(GenerateSlices("appstate-test"))
 
     assert state.image_slices == []

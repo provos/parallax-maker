@@ -195,16 +195,13 @@ class WorkflowService:
         state.num_slices = command.num_slices
         missing_depth = state.depthMapData is None
         if missing_depth:
-            state.imgThresholds = [0]
-            state.imgThresholds.extend(
-                [
-                    i * (255 // (command.num_slices - 1))
-                    for i in range(1, command.num_slices)
-                ]
-            )
+            state.imgThresholds = [
+                index * 255 // command.num_slices
+                for index in range(command.num_slices + 1)
+            ]
         elif (
             state.imgThresholds is None
-            or len(state.imgThresholds) != command.num_slices
+            or len(state.imgThresholds) != command.num_slices + 1
         ):
             state.imgThresholds = self._threshold_analyzer(
                 state.depthMapData, num_slices=command.num_slices
@@ -258,6 +255,13 @@ class WorkflowService:
         state = self._states.load(command.state_id)
         if state.depthMapData is None:
             raise WorkflowNotReady("a depth map is required to generate slices")
+        if (
+            state.imgThresholds is None
+            or len(state.imgThresholds) != state.num_slices + 1
+        ):
+            raise WorkflowNotReady(
+                "complete threshold boundaries are required to generate slices"
+            )
 
         state.image_slices = self._slice_generator(
             np.array(state.imgData),
