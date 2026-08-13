@@ -59,10 +59,14 @@ def _mask_metadata(mask: np.ndarray | None) -> dict:
         ]
     height, width = mask.shape[:2]
     maximum = int(mask.max())
-    max_y, max_x = np.nonzero(mask == maximum)
-    center_x, center_y = (width - 1) / 2, (height - 1) / 2
-    nearest_max = np.argmin((max_x - center_x) ** 2 + (max_y - center_y) ** 2)
-    inside = [int(max_x[nearest_max]), int(max_y[nearest_max])]
+    inside = None
+    if maximum > 0:
+        max_y, max_x = np.nonzero(mask == maximum)
+        center_x, center_y = (width - 1) / 2, (height - 1) / 2
+        nearest_max = np.argmin(
+            (max_x - center_x) ** 2 + (max_y - center_y) ** 2
+        )
+        inside = [int(max_x[nearest_max]), int(max_y[nearest_max])]
     zero_y, zero_x = np.nonzero(mask == 0)
     outside = [int(zero_x[0]), int(zero_y[0])] if len(zero_x) else None
     samples = {

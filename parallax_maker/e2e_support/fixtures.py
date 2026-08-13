@@ -37,6 +37,9 @@ def create_input_image(size: tuple[int, int] = (320, 240)) -> Image.Image:
 def create_fixture_state(root: Path, state_name: str | None = None) -> Path:
     """Write a complete restorable state and return its JSON path."""
 
+    root = root.resolve()
+    if root != Path.cwd().resolve():
+        raise ValueError("fixture root must be the current working directory")
     if state_name is None:
         state_name = FIXTURE_STATE_PREFIX
     if Path(state_name).name != state_name or not state_name.startswith("appstate-"):

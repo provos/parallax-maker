@@ -3,6 +3,7 @@ from pathlib import Path
 
 import numpy as np
 from PIL import Image
+import pytest
 
 from .e2e_support.fakes import (
     INPAINT_PALETTES,
@@ -93,6 +94,19 @@ def test_restore_fixture_supports_isolated_state_names(tmp_path, monkeypatch):
     )
 
 
+def test_restore_fixture_rejects_a_root_outside_the_working_directory(
+    tmp_path, monkeypatch
+):
+    working_directory = tmp_path / "working"
+    other_directory = tmp_path / "other"
+    working_directory.mkdir()
+    other_directory.mkdir()
+    monkeypatch.chdir(working_directory)
+
+    with pytest.raises(ValueError, match="fixture root must be"):
+        create_fixture_state(other_directory)
+
+
 def test_mask_metadata_reports_exact_inside_outside_and_bounds():
     mask = np.zeros((20, 30), dtype=np.uint8)
     mask[7:13, 9:18] = 255
@@ -104,3 +118,14 @@ def test_mask_metadata_reports_exact_inside_outside_and_bounds():
     assert metadata["nonzero"] == 54
     assert mask[metadata["inside"][1], metadata["inside"][0]] == 255
     assert mask[metadata["outside"][1], metadata["outside"][0]] == 0
+
+
+def test_mask_metadata_has_no_inside_point_for_an_empty_mask():
+    metadata = _mask_metadata(np.zeros((20, 30), dtype=np.uint8))
+
+    assert metadata["present"] is True
+    assert metadata["nonzero"] == 0
+    assert metadata["bounds"] is None
+    assert metadata["max"] == 0
+    assert metadata["inside"] is None
+    assert metadata["outside"] == [0, 0]
