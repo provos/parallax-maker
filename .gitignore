@@ -156,7 +156,8 @@ tmp-images/
 
 # Node modules
 node_modules/
-package-lock.json
+test-results/
+playwright-report/
 
 # Parallax Maker
 appstate-*/

@@ -73,7 +73,7 @@ parallax-gltf-cli = "parallax_maker.gltf_cli:main"
 include-package-data = false
 
 [tool.setuptools.packages.find]
-include = ["parallax_maker"]
+include = ["parallax_maker*"]
 
 [tool.setuptools.package-data]
 parallax_maker = [

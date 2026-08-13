@@ -6,7 +6,9 @@
   "scripts": {
     "build": "tailwindcss -i ./tailwind.css -o ./parallax_maker/assets/css/tailwind_compiled.css",
     "watch": "tailwindcss -i ./tailwind.css -o ./parallax_maker/assets/css/tailwind_compiled.css --watch",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "test:e2e": "playwright test --config=e2e/playwright.config.ts",
+    "test:e2e:headed": "playwright test --config=e2e/playwright.config.ts --headed"
   },
   "author": "Niels Provos",
   "license": "AGPL-3.0-only",
@@ -15,6 +17,7 @@
     "postcss": "^8.4.38"
   },
   "devDependencies": {
+    "@playwright/test": "1.62.1",
     "tailwindcss": "^3.4.4"
   }
 }
