@@ -11,6 +11,7 @@ import {
   imagePixel,
   imageSignature,
   sourceImagePixel,
+  sourceImageAlphaPoint,
   inpaintingImages,
   restoreFixtureState,
   readE2EState,
@@ -243,8 +244,15 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   expect(persistedMask.outside).not.toBeNull();
 
   await page.locator('#positive-prompt').fill('deterministic browser test');
+  await page.locator('#negative-prompt').fill('deterministic exclusion');
   await page.locator('#generate-inpainting-button').click();
   await expect(inpaintingImages(page)).toHaveCount(3);
+  await expect
+    .poll(async () => {
+      const state = await readE2EState(page, filename);
+      return [state.positive_prompts[1], state.negative_prompts[1]];
+    })
+    .toEqual(['deterministic browser test', 'deterministic exclusion']);
   await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(0), [0, 255, 255])).toBe(true);
   await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(0), [255, 0, 255])).toBe(true);
   await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(1), [255, 128, 0])).toBe(true);
@@ -280,6 +288,146 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   expect(await imageHash(sliceImages(page).nth(1))).not.toBe(originalHash);
   await undo.click();
   await expect.poll(() => imageHash(sliceImages(page).nth(1))).toBe(originalHash);
+
+  await selectSlice(page, filename, 0);
+  await selectSlice(page, filename, 1);
+  await clickMainTab(page, 'Inpainting');
+  await expect(page.locator('#positive-prompt')).toHaveValue('deterministic browser test');
+  await expect(page.locator('#negative-prompt')).toHaveValue('deterministic exclusion');
+});
+
+test('fill generates three checkerboards weighted toward transparent slice pixels', async ({ page }) => {
+  const filename = await restoreFixtureState(page);
+  await clickMainTab(page, 'Segmentation');
+  await selectSlice(page, filename, 1);
+  const rawSliceResponse = await page.request.get(
+    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
+  );
+  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
+  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
+  const transparent = await sourceImageAlphaPoint(page, rawSliceSrc, 0);
+  const opaque: [number, number] = [160, 120];
+
+  await clickMainTab(page, 'Inpainting');
+  await page.locator('#fill-inpainting-button').click();
+  await expect(inpaintingImages(page)).toHaveCount(3);
+  expect(await imageDimensions(inpaintingImages(page).nth(0))).toEqual({ width: 320, height: 240 });
+
+  const filledPixel = await imagePixel(inpaintingImages(page).nth(0), ...transparent);
+  const originalOpaque = await sourceImagePixel(page, rawSliceSrc, ...opaque);
+  expect(originalOpaque[3]).toBe(255);
+  const candidateOpaque = await imagePixel(inpaintingImages(page).nth(0), ...opaque);
+  const distanceFromPalette = ([red, green, blue]: number[]) =>
+    Math.max(
+      Math.abs(filledPixel[0] - red),
+      Math.abs(filledPixel[1] - green),
+      Math.abs(filledPixel[2] - blue),
+    );
+  const filledDistance = Math.min(
+    distanceFromPalette([0, 255, 255]),
+    distanceFromPalette([255, 0, 255]),
+  );
+  const opaqueDistance = Math.min(
+    Math.max(
+      Math.abs(candidateOpaque[0] - 0),
+      Math.abs(candidateOpaque[1] - 255),
+      Math.abs(candidateOpaque[2] - 255),
+    ),
+    Math.max(
+      Math.abs(candidateOpaque[0] - 255),
+      Math.abs(candidateOpaque[1] - 0),
+      Math.abs(candidateOpaque[2] - 255),
+    ),
+  );
+  expect(filledDistance).toBeLessThanOrEqual(5);
+  expect(filledPixel[3]).toBe(255);
+  expect(candidateOpaque[3]).toBe(originalOpaque[3]);
+  expect(opaqueDistance).toBeGreaterThan(filledDistance + 50);
+});
+
+test('enhance returns two same-size candidates while preserving slice alpha', async ({ page }) => {
+  const filename = await restoreFixtureState(page);
+  await clickMainTab(page, 'Segmentation');
+  await selectSlice(page, filename, 1);
+  const rawSliceResponse = await page.request.get(
+    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
+  );
+  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
+  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
+
+  await clickMainTab(page, 'Inpainting');
+  await page.locator('#enhance-button').click();
+  await expect(inpaintingImages(page)).toHaveCount(2);
+  for (const candidate of await inpaintingImages(page).all()) {
+    expect(await imageDimensions(candidate)).toEqual({ width: 320, height: 240 });
+    const transparent: [number, number] = [0, 0];
+    const opaqueBorder: [number, number] = [160, 0];
+    const originalTransparent = await sourceImagePixel(page, rawSliceSrc, ...transparent);
+    const originalOpaqueBorder = await sourceImagePixel(page, rawSliceSrc, ...opaqueBorder);
+    expect(originalTransparent[3]).toBe(0);
+    expect(originalOpaqueBorder[3]).toBe(255);
+    expect((await imagePixel(candidate, ...transparent))[3]).toBe(originalTransparent[3]);
+    const enhancedBorder = await imagePixel(candidate, ...opaqueBorder);
+    expect(enhancedBorder[0]).toBeGreaterThan(200);
+    expect(enhancedBorder[1]).toBeGreaterThan(200);
+    expect(enhancedBorder[2]).toBeLessThan(50);
+    expect(enhancedBorder[3]).toBe(originalOpaqueBorder[3]);
+  }
+});
+
+test('erase removes painted alpha and supports undo and redo', async ({ page }) => {
+  const filename = await restoreFixtureState(page);
+  await clickMainTab(page, 'Segmentation');
+  const selectedSlice = await selectSlice(page, filename, 1);
+  const originalHash = await imageHash(selectedSlice);
+  const rawSliceResponse = await page.request.get(
+    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
+  );
+  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
+  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
+
+  await clickMainTab(page, 'Inpainting');
+  await drawCanvasStroke(page);
+  const mask = (await readE2EState(page, filename)).selected_mask_file;
+  expect(mask.inside).not.toBeNull();
+  expect(mask.outside).not.toBeNull();
+  const inside = mask.inside!;
+  const outside = mask.outside!;
+  const originalInside = await sourceImagePixel(page, rawSliceSrc, ...inside);
+  const originalOutside = await sourceImagePixel(page, rawSliceSrc, ...outside);
+
+  await page.locator('#erase-inpainting-button').click();
+  await expect(page.locator('#log')).toContainText(`Inpainting erased for slice 1`);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_filenames[1])
+    .toBe('image_slice_1_v2.png');
+  const erasedResponse = await page.request.get(
+    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1_v2.png`,
+  );
+  expect(erasedResponse.ok(), 'download erased slice 1').toBeTruthy();
+  const erasedSrc = `data:image/png;base64,${(await erasedResponse.body()).toString('base64')}`;
+  expect((await sourceImagePixel(page, erasedSrc, ...inside))[3]).toBe(0);
+  expect(await sourceImagePixel(page, erasedSrc, ...outside)).toEqual(originalOutside);
+  expect(originalInside[3]).toBeGreaterThan(0);
+
+  await clickMainTab(page, 'Segmentation');
+  const erasedHash = await imageHash(sliceImages(page).nth(1));
+  expect(erasedHash).not.toBe(originalHash);
+  const undo = page.locator('[title="Undo last change"]').nth(1);
+  await expect(undo).toBeEnabled();
+  await undo.click();
+  await expect.poll(() => imageHash(sliceImages(page).nth(1))).toBe(originalHash);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_filenames[1])
+    .toBe('image_slice_1.png');
+
+  const redo = page.locator('[title="Redo last change"]').nth(1);
+  await expect(redo).toBeEnabled();
+  await redo.click();
+  await expect.poll(() => imageHash(sliceImages(page).nth(1))).toBe(erasedHash);
+  await expect
+    .poll(async () => (await readE2EState(page, filename)).slice_filenames[1])
+    .toBe('image_slice_1_v2.png');
 });
 
 test('saved state restores images, controls, prompts, camera, and theme', async ({ page }) => {

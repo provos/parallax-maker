@@ -6,6 +6,9 @@ export type RGBA = readonly [number, number, number, number];
 export type E2EState = {
   selected_slice: number | null;
   selected_inpainting: number | null;
+  positive_prompts: string[];
+  negative_prompts: string[];
+  slice_filenames: string[];
   thresholds: number[];
   slice_count: number;
   mesh_displacement: number;
@@ -221,6 +224,35 @@ export async function sourceImagePixel(page: Page, src: string, x: number, y: nu
       return Array.from(context.getImageData(x, y, 1, 1).data) as unknown as RGBA;
     },
     { src, x, y },
+  );
+}
+
+export async function sourceImageAlphaPoint(
+  page: Page,
+  src: string,
+  expectedAlpha: number,
+): Promise<[number, number]> {
+  return page.evaluate(
+    async ({ src, expectedAlpha }): Promise<[number, number]> => {
+      const image = new Image();
+      image.src = src;
+      await image.decode();
+      const canvas = document.createElement('canvas');
+      canvas.width = image.naturalWidth;
+      canvas.height = image.naturalHeight;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error('Unable to create 2D context for alpha-point assertion');
+      context.drawImage(image, 0, 0);
+      const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+      for (let offset = 3; offset < pixels.length; offset += 4) {
+        if (pixels[offset] === expectedAlpha) {
+          const pixelIndex = (offset - 3) / 4;
+          return [pixelIndex % canvas.width, Math.floor(pixelIndex / canvas.width)];
+        }
+      }
+      throw new Error(`No pixel with alpha ${expectedAlpha} found`);
+    },
+    { src, expectedAlpha },
   );
 }
 

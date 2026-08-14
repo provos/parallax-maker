@@ -15,6 +15,8 @@ from .components import (
     make_inpainting_container,
     make_configuration_container,
 )
+from . import inpainting
+from .inpainting_services import InpaintingService
 from .slice import ImageSlice
 
 
@@ -30,21 +32,28 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         )
 
         # Save the callback
+        self.artifacts = MagicMock()
+        self.artifacts.load_mask.return_value = Image.new("L", (100, 100))
+        self.artifacts.save_workflow.return_value = MagicMock()
+        service = InpaintingService(
+            artifact_repository=self.artifacts,
+            pipeline_factory=lambda *args, **kwargs: inpainting.InpaintingModel(
+                *args, **kwargs
+            ),
+        )
         self._update_inpainting_image_display = make_inpainting_container_callbacks(
-            self.app
+            self.app, service
         )
 
     @patch("parallax_maker.components.ctx", new_callable=MagicMock)
     @patch("parallax_maker.components.Image.open")
     @patch("parallax_maker.components.Image.fromarray")
-    @patch("parallax_maker.components.Path")
     @patch("parallax_maker.controller.AppState.from_cache")
     @patch("parallax_maker.inpainting.InpaintingModel")
     def test_callback_triggered_comfyui(
         self,
         mock_model,
         mock_from_cache,
-        mock_path,
         mock_image_open,
         mock_image_fromarray,
         mock_callback_context,
@@ -55,7 +64,6 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         n_clicks = 1
         filename = "test_filename"
         model = "comfyui"
-        server_address = "http://localhost:8000"
         workflow = "data:filetype;base64,workflow_data"
         positive_prompt = "sky is clear"
         negative_prompt = "cloudy sky"
@@ -74,12 +82,9 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
             0  # Ensure this matches the state expected by the function
         )
         state.mask_filename.return_value = "mask_0.png"
-        state.image_slices = [ImageSlice(np.zeros((100, 100, 4)))]
+        state.image_slices = [ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8))]
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
-
-        # Mock mask Path exists
-        mock_path.return_value.exists.return_value = True
 
         # Return a mock Image when open succeeds
         mock_img = Image.new("L", (100, 100))
@@ -88,7 +93,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # Setup InpaintingModel mock
         pipeline = MagicMock()
         mock_model.return_value = pipeline
-        pipeline.inpaint.return_value = "painted_image"  # Mock the result of inpainting
+        pipeline.inpaint.return_value = Image.new("RGBA", (100, 100))
 
         # Return the final image
         mock_image_fromarray.return_value = Image.new("RGBA", (100, 100))
@@ -128,14 +133,12 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
     @patch("parallax_maker.components.ctx", new_callable=MagicMock)
     @patch("parallax_maker.components.Image.open")
     @patch("parallax_maker.components.Image.fromarray")
-    @patch("parallax_maker.components.Path")
     @patch("parallax_maker.controller.AppState.from_cache")
     @patch("parallax_maker.inpainting.InpaintingModel")
     def test_callback_triggered_normal(
         self,
         mock_model,
         mock_from_cache,
-        mock_path,
         mock_image_open,
         mock_image_fromarray,
         mock_callback_context,
@@ -147,7 +150,6 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         n_clicks = 1
         filename = "test_filename"
         model = "other_model"
-        server_address = None
         workflow = None
         positive_prompt = "sky is clear"
         negative_prompt = "cloudy sky"
@@ -166,12 +168,9 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
             0  # Ensure this matches the state expected by the function
         )
         state.mask_filename.return_value = "mask_0.png"
-        state.image_slices = [ImageSlice(np.zeros((100, 100, 4)))]
+        state.image_slices = [ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8))]
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
-
-        # Mock mask Path exists
-        mock_path.return_value.exists.return_value = True
 
         # Return a mock Image when open succeeds
         mock_img = Image.new("L", (100, 100))
@@ -180,7 +179,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         # Setup InpaintingModel mock
         pipeline = MagicMock()
         mock_model.return_value = pipeline
-        pipeline.inpaint.return_value = "painted_image"  # Mock the result of inpainting
+        pipeline.inpaint.return_value = Image.new("RGBA", (100, 100))
 
         # Return the final image
         mock_image_fromarray.return_value = Image.new("RGBA", (100, 100))

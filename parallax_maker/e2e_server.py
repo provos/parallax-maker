@@ -167,6 +167,9 @@ def _register_routes(app, fixture_root: Path) -> None:
                 "negative_prompts": [
                     item.negative_prompt for item in state.image_slices
                 ],
+                "slice_filenames": [
+                    Path(item.filename).name for item in state.image_slices
+                ],
                 "selected_slice": state.selected_slice,
                 "selected_inpainting": state.selected_inpainting,
                 "slice_mask": _mask_metadata(state.slice_mask),
