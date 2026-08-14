@@ -327,6 +327,22 @@ def test_generation_reuses_equal_pipeline_and_wraps_model_failures(
     assert state.selected_inpainting == 1
 
 
+def test_non_comfyui_workflow_changes_do_not_reload_the_pipeline(
+    tmp_path: Path,
+) -> None:
+    state = make_state(tmp_path)
+    service, _ = make_service(state, patcher=lambda image, mask: image)
+    save_mask(service)
+    command = generate_command(InpaintingMode.PAINT)
+
+    service.generate_candidates(replace(command, workflow=b"first workflow"))
+    first = state.pipeline_spec
+    service.generate_candidates(replace(command, workflow=b"second workflow"))
+
+    assert state.pipeline_spec is first
+    assert getattr(first, "load_calls") == 1
+
+
 def test_comfyui_workflow_is_saved_and_supplied_to_the_pipeline(tmp_path: Path) -> None:
     state = make_state(tmp_path)
     service, _ = make_service(state, patcher=lambda image, mask: image)

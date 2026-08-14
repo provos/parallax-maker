@@ -589,7 +589,7 @@ class InpaintingService:
     ) -> tuple[object, ...]:
         workflow_digest = (
             hashlib.sha256(command.workflow).digest()
-            if command.workflow is not None
+            if command.model_name == "comfyui" and command.workflow is not None
             else None
         )
         return (
