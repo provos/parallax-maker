@@ -3,7 +3,6 @@
 # Standard library imports
 import io
 import base64
-from pathlib import Path
 from PIL import Image
 import cv2
 
@@ -19,9 +18,20 @@ from . import constants as C
 from .automatic1111 import make_models_request
 from .comfyui import get_history, patch_inpainting_workflow
 from .controller import AppState, CompositeMode
-from .utils import to_image_url, find_square_bounding_box
-from .inpainting import patch_image, create_inpainting_pipeline
-from .segmentation import render_view, remove_mask_from_alpha
+from .utils import to_image_url
+from .segmentation import render_view
+from .inpainting_services import (
+    ApplyInpaintingCandidate,
+    ClearInpaintingSelection,
+    DeleteInpaintingMask,
+    EraseInpainting,
+    GenerateInpaintingCandidates,
+    InpaintingMode,
+    InpaintingServiceError,
+    LoadInpaintingMask,
+    SaveInpaintingMask,
+    SelectInpaintingCandidate,
+)
 from .segmentation_services import SegmentationServiceError, SetMultiPointMode
 from .stabilityai import StabilityAI
 
@@ -664,13 +674,26 @@ def make_inpainting_container():
     )
 
 
-def make_inpainting_container_callbacks(app):
+def make_inpainting_container_callbacks(app, inpainting_service):
     @app.callback(
         Output(C.BTN_APPLY_INPAINTING, "disabled"),
         Input(C.CTR_INPAINTING_DISPLAY, "children"),
+        Input({"type": C.ID_INPAINTING_IMAGE, "index": ALL}, "className"),
+        State(C.STORE_APPSTATE_FILENAME, "data"),
     )
-    def enable_apply_inpainting_button(children):
-        return False if children else True
+    def enable_apply_inpainting_button(children, classnames, filename):
+        if not children or not classnames or filename is None:
+            return True
+        state = AppState.from_cache(filename)
+        selected = state.selected_inpainting
+        valid_selection = (
+            isinstance(selected, int)
+            and not isinstance(selected, bool)
+            and 0 <= selected < len(classnames)
+        )
+        if not valid_selection:
+            return True
+        return " color-is-selected-light" not in (classnames[selected] or "")
 
     @app.callback(
         Output(C.STORE_UPDATE_SLICE, "data", allow_duplicate=True),
@@ -685,38 +708,20 @@ def make_inpainting_container_callbacks(app):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-        if state.selected_slice is None:
-            logs.append("No slice selected")
+        try:
+            result = inpainting_service.erase(EraseInpainting(state_id=filename))
+        except InpaintingServiceError as error:
+            logs.append(str(error))
             return no_update, logs
 
-        index = state.selected_slice
-        mask_filename = state.mask_filename(index)
-        if not Path(mask_filename).exists():
-            logs.append(f"No mask found for slice {index}")
-            return no_update, logs
-        mask = Image.open(mask_filename).convert("L")
-        mask = np.array(mask)
-
-        final_mask = remove_mask_from_alpha(state.image_slices[index].image, mask)
-        state.image_slices[index].image[:, :, 3] = final_mask
-        state.image_slices[index].new_version()
-
-        state.to_file(
-            state.filename,
-            save_image_slices=False,
-            save_depth_map=False,
-            save_input_image=False,
-        )
-        logs.append(f"Inpainting erased for slice {index}")
-
-        logs.append(f"Inpainting erased for slice {index}")
+        logs.append(f"Inpainting erased for slice {result.slice_index}")
 
         return True, logs
 
     @app.callback(
         Output(C.CTR_INPAINTING_DISPLAY, "children"),
         Output(C.LOADING_GENERATE_INPAINTING, "children"),
+        Output(C.LOGS_DATA, "data", allow_duplicate=True),
         Input(C.BTN_GENERATE_INPAINTING, "n_clicks"),
         Input(C.BTN_FILL_INPAINTING, "n_clicks"),
         Input(C.BTN_ENHANCE, "n_clicks"),
@@ -729,6 +734,7 @@ def make_inpainting_container_callbacks(app):
         State(C.SLIDER_INPAINT_GUIDANCE, "value"),
         State(C.SLIDER_MASK_PADDING, "value"),
         State(C.SLIDER_MASK_BLUR, "value"),
+        State(C.LOGS_DATA, "data"),
         running=[
             (Output(C.BTN_GENERATE_INPAINTING, "disabled"), True, False),
             (Output(C.BTN_FILL_INPAINTING, "disabled"), True, False),
@@ -749,6 +755,7 @@ def make_inpainting_container_callbacks(app):
         guidance_scale,
         padding,
         blur,
+        logs,
     ):
         if n_clicks_one is None and n_clicks_two is None and n_clicks_three is None:
             raise PreventUpdate()
@@ -756,86 +763,44 @@ def make_inpainting_container_callbacks(app):
         if filename is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-        if state.selected_slice is None:
-            raise PreventUpdate()  # XXX - write controller logic to clear this on image changes
-
-        index = state.selected_slice
-        # An empty prompt is OK.
-        if positive_prompt is None:
-            positive_prompt = ""
-        if negative_prompt is None:
-            negative_prompt = ""
-
-        state.image_slices[state.selected_slice].positive_prompt = positive_prompt
-        state.image_slices[state.selected_slice].negative_prompt = negative_prompt
-        state.to_file(
-            state.filename,
-            save_image_slices=False,
-            save_depth_map=False,
-            save_input_image=False,
-        )
-
         tid = ctx.triggered_id
+        modes = {
+            C.BTN_GENERATE_INPAINTING: InpaintingMode.PAINT,
+            C.BTN_FILL_INPAINTING: InpaintingMode.FILL,
+            C.BTN_ENHANCE: InpaintingMode.ENHANCE,
+        }
+        if tid not in modes:
+            raise PreventUpdate()
 
-        image = state.image_slices[index].image
+        workflow_bytes = None
+        if model == "comfyui" and workflow:
+            try:
+                workflow_bytes = base64.b64decode(workflow.split(",", 1)[1])
+            except (IndexError, ValueError):
+                logs.append("Invalid ComfyUI workflow data")
+                return no_update, [], logs
 
-        pipeline = create_inpainting_pipeline(model, workflow, state)
-
-        if tid == C.BTN_GENERATE_INPAINTING or tid == C.BTN_FILL_INPAINTING:
-            if tid == C.BTN_GENERATE_INPAINTING:
-                mask_filename = state.mask_filename(index)
-                if not Path(mask_filename).exists():
-                    raise PreventUpdate()
-
-                mask = Image.open(mask_filename).convert("L")
-                mask = np.array(mask)
-            else:
-                # we'll fill everything that does not have an alpha
-                mask = 255 - image[:, :, 3]
-
-            def execute(input_image):
-                return pipeline.inpaint(
-                    positive_prompt,
-                    negative_prompt,
-                    input_image,
-                    mask,
+        try:
+            result = inpainting_service.generate_candidates(
+                GenerateInpaintingCandidates(
+                    state_id=filename,
+                    mode=modes[tid],
+                    model_name=model,
+                    workflow=workflow_bytes,
+                    positive_prompt=positive_prompt,
+                    negative_prompt=negative_prompt,
                     strength=strength,
                     guidance_scale=guidance_scale,
-                    blur_radius=blur,
                     padding=padding,
-                    crop=True,
+                    blur=blur,
                 )
-
-            # patch the image
-            image = patch_image(image, mask)
-            num_images = 3
-        else:
-            assert tid == C.BTN_ENHANCE
-
-            def upscale_image(input_image):
-                upscaled_image = state.upscale_image(
-                    input_image, prompt=positive_prompt, negative_prompt=negative_prompt
-                )
-                upscaled_image = upscaled_image.resize(
-                    (input_image.shape[1], input_image.shape[0]), Image.LANCZOS
-                )
-                upscaled_image = np.array(upscaled_image)
-                upscaled_image[:, :, 3] = input_image[:, :, 3]
-                return upscaled_image
-
-            def execute(input_image):
-                return upscale_image(input_image)
-
-            num_images = 2
-
-        images = []
-        for i in range(num_images):
-            new_image = execute(image)
-            images.append(new_image)
+            )
+        except InpaintingServiceError as error:
+            logs.append(str(error))
+            return no_update, [], logs
 
         children = []
-        for i, new_image in enumerate(images):
+        for i, new_image in enumerate(result.candidates):
             children.append(
                 html.Img(
                     src=to_image_url(new_image),
@@ -843,7 +808,7 @@ def make_inpainting_container_callbacks(app):
                     id={"type": C.ID_INPAINTING_IMAGE, "index": i},
                 )
             )
-        return children, []
+        return children, [], logs
 
     @app.callback(
         Output(C.IMAGE, "src", allow_duplicate=True),
@@ -856,42 +821,43 @@ def make_inpainting_container_callbacks(app):
         prevent_initial_call=True,
     )
     def select_inpainting_image(n_clicks, filename, images, classnames):
-        if n_clicks is None or filename is None:
+        if not n_clicks or filename is None or not isinstance(ctx.triggered_id, dict):
             raise PreventUpdate()
 
         index = ctx.triggered_id["index"]
         if n_clicks[index] is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-        if state.selected_slice is None:
+        try:
+            result = inpainting_service.select_candidate(
+                SelectInpaintingCandidate(
+                    state_id=filename,
+                    candidate_index=index,
+                    candidate_count=len(images),
+                )
+            )
+        except InpaintingServiceError:
             raise PreventUpdate()
-
-        state.selected_inpainting = index
-
-        print(f"Applying inpainting image {index}")
 
         # give a visual highlight on the selected children
         return_image = no_update
         new_classnames = []
         selected_background = " color-is-selected-light"
         for i, classname in enumerate(classnames):
-            already_selected = selected_background in classname
             classname = classname.replace(selected_background, "")
-            if i == index:
-                if not already_selected:
-                    classname += selected_background
-                    return_image = images[i]
-                else:
-                    mode = (
-                        CompositeMode.CHECKERBOARD
-                        if state.use_checkerboard
-                        else CompositeMode.GRAYSCALE
-                    )
-                    return_image = state.serve_slice_image_composed(
-                        state.selected_slice, mode
-                    )
+            if i == result.selected_index:
+                classname += selected_background
+                return_image = images[i]
             new_classnames.append(classname)
+
+        if result.selected_index is None:
+            state = AppState.from_cache(filename)
+            mode = (
+                CompositeMode.CHECKERBOARD
+                if state.use_checkerboard
+                else CompositeMode.GRAYSCALE
+            )
+            return_image = state.serve_slice_image_composed(state.selected_slice, mode)
 
         return return_image, new_classnames, ""
 
@@ -910,27 +876,25 @@ def make_inpainting_container_callbacks(app):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-        if state.selected_inpainting is None:
-            raise PreventUpdate()
-
-        index = state.selected_slice
-        new_image_data = inpainted_images[state.selected_inpainting]
-
-        new_image = Image.open(
-            io.BytesIO(base64.b64decode(new_image_data.split(",")[1]))
-        )
-
-        image_filename = state.image_slices[index].new_version(np.array(new_image))
-        state.to_file(
-            state.filename,
-            save_image_slices=False,
-            save_depth_map=False,
-            save_input_image=False,
-        )
+        try:
+            candidates = tuple(
+                Image.open(io.BytesIO(base64.b64decode(data.split(",", 1)[1])))
+                .convert("RGBA")
+                .copy()
+                for data in inpainted_images
+            )
+            result = inpainting_service.apply_candidate(
+                ApplyInpaintingCandidate(state_id=filename, candidates=candidates)
+            )
+        except InpaintingServiceError as error:
+            logs.append(str(error))
+            return no_update, logs, no_update
+        except (IndexError, OSError, TypeError, ValueError):
+            logs.append("Invalid inpainting candidate image")
+            return no_update, logs, no_update
 
         logs.append(
-            f"Inpainting applied to slice {index} with new image {image_filename}"
+            f"Inpainting applied to slice {result.slice_index} with new image {result.image_filename}"
         )
 
         return True, logs, True
@@ -944,19 +908,32 @@ def make_inpainting_container_callbacks(app):
         Output(C.BTN_ENHANCE, "disabled"),
         Output(C.BTN_ERASE_INPAINTING, "disabled"),
         Output(C.STORE_SELECTED_SLICE, "data"),
+        Output(C.CTR_INPAINTING_DISPLAY, "children", allow_duplicate=True),
         Input(C.STORE_INPAINTING, "data"),
         State(C.STORE_APPSTATE_FILENAME, "data"),
         prevent_initial_call=True,
     )
     def react_selected_slice_change(ignore, filename):
         if filename is None:
-            return True, True, True, True, True, True, None
+            return True, True, True, True, True, True, None, []
 
         state = AppState.from_cache(filename)
         if state.selected_slice is None:
-            return True, True, True, True, True, True, None
+            try:
+                inpainting_service.clear_selection(
+                    ClearInpaintingSelection(state_id=filename)
+                )
+            except InpaintingServiceError:
+                raise PreventUpdate() from None
+            return True, True, True, True, True, True, None, []
 
-        return False, False, False, False, False, False, state.selected_slice
+        try:
+            inpainting_service.clear_selection(
+                ClearInpaintingSelection(state_id=filename)
+            )
+        except InpaintingServiceError:
+            raise PreventUpdate() from None
+        return False, False, False, False, False, False, state.selected_slice, []
 
     return update_inpainting_image_display
 
@@ -1172,6 +1149,7 @@ def make_configuration_callbacks(app):
             if len(api_key) > 10:  # fal.ai keys don't have a specific prefix
                 try:
                     from .falai import FalAI
+
                     inpaint_model = FalAI(api_key)
                     success, error = inpaint_model.validate_key()
                     if success:
@@ -1242,7 +1220,10 @@ def make_configuration_div():
                             {"label": "ComfyUI", "value": "comfyui"},
                             {"label": "StabilityAI", "value": "stabilityai"},
                             {"label": "Fal.ai Foocus", "value": "falai-foocus"},
-                            {"label": "Fal.ai Flux General", "value": "falai-flux-general"},
+                            {
+                                "label": "Fal.ai Flux General",
+                                "value": "falai-flux-general",
+                            },
                             {"label": "Fal.ai SD", "value": "falai-sd"},
                             {"label": "Fal.ai SDXL", "value": "falai-sdxl"},
                         ],
@@ -1753,7 +1734,7 @@ def make_segmentation_callbacks(app, segmentation_service):
         return class_name, "", img_data
 
 
-def make_canvas_callbacks(app):
+def make_canvas_callbacks(app, inpainting_service):
     @app.callback(
         Output(C.STORE_BOUNDING_BOX, "data", allow_duplicate=True),
         Output(C.LOGS_DATA, "data", allow_duplicate=True),
@@ -1768,41 +1749,44 @@ def make_canvas_callbacks(app):
         if data is None or filename is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-
-        if state.selected_slice is None:
-            logs.append("No slice selected to save mask")
-            return no_update, logs
-
         if data == "":
-            mask_filename = state.mask_filename(state.selected_slice)
-            if Path(mask_filename).exists():
-                Path(mask_filename).unlink()
-                logs.append(f"Deleted mask for slice {state.selected_slice}")
+            try:
+                result = inpainting_service.delete_mask(
+                    DeleteInpaintingMask(state_id=filename)
+                )
+            except InpaintingServiceError as error:
+                logs.append(str(error))
+                return no_update, logs
+            if result.deleted:
+                logs.append(f"Deleted mask for slice {result.slice_index}")
             return no_update, logs
 
-        # turn the data url into a RGBA PIL image
-        image = Image.open(io.BytesIO(base64.b64decode(data.split(",")[1])))
+        try:
+            image = Image.open(
+                io.BytesIO(base64.b64decode(data.split(",", 1)[1]))
+            ).convert("RGBA")
+            result = inpainting_service.save_mask(
+                SaveInpaintingMask(
+                    state_id=filename,
+                    canvas_image=image,
+                    padding=padding,
+                    show_crop_region="crop" in (crop or []),
+                )
+            )
+        except InpaintingServiceError as error:
+            logs.append(str(error))
+            return no_update, logs
+        except (IndexError, OSError, TypeError, ValueError):
+            logs.append("Invalid canvas mask data")
+            return no_update, logs
 
-        # Split the image into individual channels
-        r, g, b, a = image.split()
+        logs.append(
+            f"Saved mask for slice {result.slice_index} to {result.mask_filename}"
+        )
 
-        # Create a grayscale image with the alpha channel
-        new_image = a
-
-        # Scale new image to the same dimensions as imgData
-        new_image = new_image.resize(state.imgData.size, resample=Image.BICUBIC)
-
-        mask_filename = state.save_image_mask(state.selected_slice, new_image)
-
-        # communicate the bounding box to the javascript client where we can visualize it
-        bounding_box = no_update
-        if "crop" in crop:
-            bounding_box = find_square_bounding_box(new_image, padding=padding)
-
-        logs.append(f"Saved mask for slice {state.selected_slice} to {mask_filename}")
-
-        return bounding_box, logs
+        return (
+            result.bounding_box if result.bounding_box is not None else no_update
+        ), logs
 
     @app.callback(
         Output(C.CANVAS_MASK_DATA, "data"),
@@ -1816,23 +1800,14 @@ def make_canvas_callbacks(app):
         if n_clicks is None or filename is None:
             raise PreventUpdate()
 
-        state = AppState.from_cache(filename)
-        if state.selected_slice is None:
-            logs.append("No slice selected to load mask")
+        try:
+            result = inpainting_service.load_mask(LoadInpaintingMask(state_id=filename))
+        except InpaintingServiceError as error:
+            logs.append(str(error))
             return no_update, logs
 
-        index = state.selected_slice
-        mask_filename = state.mask_filename(index)
-        if not Path(mask_filename).exists():
-            print(f"Mask file {mask_filename} does not exist")
-            logs.append(f"Mask file {mask_filename} does not exist")
-            return no_update, logs
-
-        print(f"Loading mask for slice {state.selected_slice}")
-        logs.append(f"Loading mask for slice {state.selected_slice}")
-        mask = Image.open(mask_filename).convert("RGB")
-
-        r, _, _ = mask.split()
+        logs.append(f"Loading mask for slice {result.slice_index}")
+        r = result.mask
 
         width, height = r.size
         zero_channel = Image.new("L", (width, height))
@@ -1964,13 +1939,11 @@ def make_mode_selector():
                         className="w-full",
                     ),
                     html.Div(
-                        [
-                            """
+                        ["""
             Switch between depth map and instance segmentation.
             Depth map allows the creation of slices from bands of depth based on the depth map.
             Instance segmentation allows the creation of slices from selected objects on the image.
-            """
-                        ],
+            """],
                         className="w-full",
                     ),
                 ],

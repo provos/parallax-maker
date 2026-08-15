@@ -64,6 +64,15 @@ from .segmentation_services import (
     SelectDepthPoint,
     SelectInstancePoint,
 )
+from .inpainting_services import (
+    ClearInpaintingSelection,
+    InpaintingService,
+    InpaintingServiceError,
+    MoveSliceVersion,
+    SliceVersionDirection,
+    UpdateInpaintingModel,
+    UpdateInpaintingPrompts,
+)
 
 # Globals
 EXPAND_MASK = 5
@@ -94,6 +103,17 @@ def create_segmentation_model():
 
 segmentation_service = SegmentationService(
     model_factory=create_segmentation_model,
+)
+
+
+def create_inpainting_model(*args, **kwargs):
+    """Resolve the runtime model class when an inpainting command needs it."""
+
+    return InpaintingModel(*args, **kwargs)
+
+
+inpainting_service = InpaintingService(
+    pipeline_factory=create_inpainting_model,
 )
 
 
@@ -233,9 +253,9 @@ app.scripts.config.serve_locally = True
 make_clientside_callbacks(app)
 
 components.make_segmentation_callbacks(app, segmentation_service)
-components.make_canvas_callbacks(app)
+components.make_canvas_callbacks(app, inpainting_service)
 components.make_navigation_callbacks(app)
-components.make_inpainting_container_callbacks(app)
+components.make_inpainting_container_callbacks(app, inpainting_service)
 components.make_configuration_callbacks(app)
 
 
@@ -473,9 +493,7 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
     operation = (
         MaskOperation.ADD
         if shift_click
-        else MaskOperation.SUBTRACT
-        if ctrl_click
-        else MaskOperation.REPLACE
+        else MaskOperation.SUBTRACT if ctrl_click else MaskOperation.REPLACE
     )
     try:
         if t_id == C.SEG_MULTI_COMMIT:
@@ -491,9 +509,7 @@ def click_event(n_clicks, n_events, e, rect_data, mode, filename, logs_data):
                     point=point,
                     operation=operation,
                     polarity=(
-                        PointPolarity.NEGATIVE
-                        if ctrl_click
-                        else PointPolarity.POSITIVE
+                        PointPolarity.NEGATIVE if ctrl_click else PointPolarity.POSITIVE
                     ),
                 )
             )
@@ -789,22 +805,16 @@ def update_prompt_text(positive, negative, filename):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-    if state.selected_slice is None:
+    try:
+        inpainting_service.update_prompts(
+            UpdateInpaintingPrompts(
+                state_id=filename,
+                positive_prompt=positive,
+                negative_prompt=negative,
+            )
+        )
+    except InpaintingServiceError:
         raise PreventUpdate()
-
-    if (
-        state.image_slices[state.selected_slice].positive_prompt == positive
-        and state.image_slices[state.selected_slice].negative_prompt == negative
-    ):
-        raise PreventUpdate()
-
-    state.image_slices[state.selected_slice].positive_prompt = positive
-    state.image_slices[state.selected_slice].negative_prompt = negative
-
-    state.to_file(
-        filename, save_image_slices=False, save_depth_map=False, save_input_image=False
-    )
 
 
 @app.callback(
@@ -1074,8 +1084,6 @@ def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-
     # don't need to use ctx.triggered_id since we are repaining the whole thing
     index = None
     forward = None
@@ -1088,14 +1096,19 @@ def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
     else:
         raise PreventUpdate()
 
-    if not state.image_slices[index].undo(forward=forward):
-        print(f"Cannot undo slice {index} with forward {forward}")
-        raise PreventUpdate()
-
-    # only save the json with the updated file mapping
-    state.to_file(
-        filename, save_image_slices=False, save_depth_map=False, save_input_image=False
+    direction = (
+        SliceVersionDirection.FORWARD if forward else SliceVersionDirection.BACKWARD
     )
+    try:
+        inpainting_service.move_slice_version(
+            MoveSliceVersion(
+                state_id=filename,
+                slice_index=index,
+                direction=direction,
+            )
+        )
+    except InpaintingServiceError:
+        raise PreventUpdate()
 
     return True
 
@@ -1163,6 +1176,11 @@ def display_slice(n_clicks, n_clicks_two, id, src, classnames, filename):
     else:
         state.selected_slice = None
         result = state.serve_input_image()
+
+    try:
+        inpainting_service.clear_selection(ClearInpaintingSelection(state_id=filename))
+    except InpaintingServiceError:
+        raise PreventUpdate() from None
 
     for i in range(len(classnames)):
         classnames[i] = "overlay" if i == state.selected_slice else "hidden"
@@ -1275,6 +1293,7 @@ def remember_camera_parameters(
 
 
 @app.callback(
+    Output(C.CTR_INPAINTING_DISPLAY, "children", allow_duplicate=True),
     Input(C.DROPDOWN_INPAINT_MODEL, "value"),
     State(C.STORE_APPSTATE_FILENAME, "data"),
     prevent_initial_call=True,
@@ -1283,15 +1302,13 @@ def remember_inpaint_model(value, filename):
     if filename is None:
         raise PreventUpdate()
 
-    state = AppState.from_cache(filename)
-    if state.inpainting_model_name == value:
+    try:
+        inpainting_service.update_model(
+            UpdateInpaintingModel(state_id=filename, model_name=value)
+        )
+    except InpaintingServiceError:
         raise PreventUpdate()
-
-    state.inpainting_model_name = value
-    state.to_file(
-        filename, save_image_slices=False, save_depth_map=False, save_input_image=False
-    )
-    return
+    return []
 
 
 # XXX - this and the callback above can be chained to avoid code duplication

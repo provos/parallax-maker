@@ -51,6 +51,7 @@ class AppState:
         "image_slices",
         "selected_slice",
         "pipeline_spec",
+        "inpainting_pipeline_cache_identity",
         "depth_estimation_model",
         "segmentation_model",
         "selected_inpainting",
@@ -100,6 +101,7 @@ class AppState:
         self.image_slices: List[ImageSlice] = []
         self.selected_slice = None
         self.pipeline_spec = None  # PipelineSpec() for inpainting
+        self.inpainting_pipeline_cache_identity = None
         self.depth_estimation_model = (
             None  # DepthEstimationModel() for depth estimation
         )
@@ -401,7 +403,9 @@ class AppState:
         if self.inpainting_model_name == "stabilityai":
             model_name = "stabilityai"
             model = StabilityAI(self.api_key)
-        elif self.inpainting_model_name and self.inpainting_model_name.startswith("falai-"):
+        elif self.inpainting_model_name and self.inpainting_model_name.startswith(
+            "falai-"
+        ):
             # For fal.ai models, use the inpainting pipeline for upscaling
             model_name = "inpainting"
             model = self.pipeline_spec
