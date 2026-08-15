@@ -68,10 +68,8 @@ from .inpainting_services import (
     ClearInpaintingSelection,
     InpaintingService,
     InpaintingServiceError,
-    InpaintingUnchanged,
     MoveSliceVersion,
     SliceVersionDirection,
-    SliceVersionUnavailable,
     UpdateInpaintingModel,
     UpdateInpaintingPrompts,
 )
@@ -815,7 +813,7 @@ def update_prompt_text(positive, negative, filename):
                 negative_prompt=negative,
             )
         )
-    except (InpaintingServiceError, InpaintingUnchanged):
+    except InpaintingServiceError:
         raise PreventUpdate()
 
 
@@ -1109,7 +1107,7 @@ def undo_slice(n_clicks_backwards, n_clicks_forwards, filename):
                 direction=direction,
             )
         )
-    except (InpaintingServiceError, SliceVersionUnavailable):
+    except InpaintingServiceError:
         raise PreventUpdate()
 
     return True
@@ -1308,7 +1306,7 @@ def remember_inpaint_model(value, filename):
         inpainting_service.update_model(
             UpdateInpaintingModel(state_id=filename, model_name=value)
         )
-    except (InpaintingServiceError, InpaintingUnchanged):
+    except InpaintingServiceError:
         raise PreventUpdate()
     return []
 

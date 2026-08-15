@@ -109,10 +109,10 @@ def test_generate_adapter_constructs_command_and_renders_service_candidates(
     monkeypatch.setattr(components, "ctx", context)
     workflow = "data:application/json;base64," + base64.b64encode(b"workflow").decode()
 
-    children, loading = callback(
+    children, loading, logs = callback(
         *clicks,
         "state",
-        "fake-model",
+        "comfyui",
         workflow,
         "positive",
         "negative",
@@ -120,13 +120,14 @@ def test_generate_adapter_constructs_command_and_renders_service_candidates(
         6.5,
         11,
         4,
+        ["before"],
     )
 
     service.generate_candidates.assert_called_once_with(
         GenerateInpaintingCandidates(
             state_id="state",
             mode=mode,
-            model_name="fake-model",
+            model_name="comfyui",
             workflow=b"workflow",
             positive_prompt="positive",
             negative_prompt="negative",
@@ -137,12 +138,15 @@ def test_generate_adapter_constructs_command_and_renders_service_candidates(
         )
     )
     assert loading == []
+    assert logs == ["before"]
     assert len(children) == candidate_count
     assert [child.id["index"] for child in children] == list(range(candidate_count))
     assert all(child.src.startswith("data:image/png;base64,") for child in children)
 
 
-def test_generate_adapter_maps_service_error_to_prevent_update(monkeypatch) -> None:
+def test_generate_adapter_logs_service_error_without_clearing_candidates(
+    monkeypatch,
+) -> None:
     service = MagicMock()
     service.generate_candidates.side_effect = InpaintingNotReady("mask")
     app = register_inpainting_callbacks(service)
@@ -153,21 +157,82 @@ def test_generate_adapter_maps_service_error_to_prevent_update(monkeypatch) -> N
         MagicMock(triggered_id=components.C.BTN_GENERATE_INPAINTING),
     )
 
-    with pytest.raises(PreventUpdate):
-        callback(
-            1,
-            None,
-            None,
-            "state",
-            "fake-model",
-            None,
-            "",
-            "",
-            0.8,
-            7.5,
-            10,
-            5,
-        )
+    assert callback(
+        1,
+        None,
+        None,
+        "state",
+        "fake-model",
+        None,
+        "",
+        "",
+        0.8,
+        7.5,
+        10,
+        5,
+        ["before"],
+    ) == (components.no_update, [], ["before", "mask"])
+
+
+def test_generate_adapter_ignores_workflow_for_non_comfyui_model(
+    monkeypatch,
+) -> None:
+    service = MagicMock()
+    service.generate_candidates.return_value = GeneratedInpaintingCandidatesResult(
+        "state", 1, InpaintingMode.PAINT, ()
+    )
+    app = register_inpainting_callbacks(service)
+    callback = callback_named(app, "update_inpainting_image_display")
+    monkeypatch.setattr(
+        components,
+        "ctx",
+        MagicMock(triggered_id=components.C.BTN_GENERATE_INPAINTING),
+    )
+
+    assert callback(
+        1,
+        None,
+        None,
+        "state",
+        "fake-model",
+        "malformed workflow upload",
+        "",
+        "",
+        0.8,
+        7.5,
+        10,
+        5,
+        [],
+    ) == ([], [], [])
+    assert service.generate_candidates.call_args.args[0].workflow is None
+
+
+def test_generate_adapter_logs_malformed_comfyui_workflow(monkeypatch) -> None:
+    service = MagicMock()
+    app = register_inpainting_callbacks(service)
+    callback = callback_named(app, "update_inpainting_image_display")
+    monkeypatch.setattr(
+        components,
+        "ctx",
+        MagicMock(triggered_id=components.C.BTN_GENERATE_INPAINTING),
+    )
+
+    assert callback(
+        1,
+        None,
+        None,
+        "state",
+        "comfyui",
+        "malformed workflow upload",
+        "",
+        "",
+        0.8,
+        7.5,
+        10,
+        5,
+        [],
+    ) == (components.no_update, [], ["Invalid ComfyUI workflow data"])
+    service.generate_candidates.assert_not_called()
 
 
 @pytest.mark.parametrize(
@@ -342,19 +407,35 @@ def test_apply_adapter_decodes_candidates_and_emits_one_log_entry() -> None:
     )
 
 
-def test_apply_domain_error_maps_to_prevent_update() -> None:
+def test_apply_domain_error_is_logged_without_updating_slice() -> None:
     service = MagicMock()
     service.apply_candidate.side_effect = InpaintingNotReady("selection")
     app = register_inpainting_callbacks(service)
     callback = callback_named(app, "apply_inpainting")
 
-    with pytest.raises(PreventUpdate):
-        callback(
-            1,
-            "state",
-            [image_data_url(Image.new("RGBA", (2, 2)))],
-            [],
-        )
+    assert callback(
+        1,
+        "state",
+        [image_data_url(Image.new("RGBA", (2, 2)))],
+        ["before"],
+    ) == (
+        components.no_update,
+        ["before", "selection"],
+        components.no_update,
+    )
+
+
+def test_apply_invalid_candidate_transport_is_logged() -> None:
+    service = MagicMock()
+    app = register_inpainting_callbacks(service)
+    callback = callback_named(app, "apply_inpainting")
+
+    assert callback(1, "state", ["not an image"], []) == (
+        components.no_update,
+        ["Invalid inpainting candidate image"],
+        components.no_update,
+    )
+    service.apply_candidate.assert_not_called()
 
 
 def test_erase_adapter_emits_exactly_one_log_entry() -> None:
@@ -405,3 +486,20 @@ def test_canvas_save_delete_and_load_translate_transport_at_the_boundary() -> No
     assert loaded.mode == "RGBA"
     assert loaded.getpixel((0, 0)) == (127, 0, 0, 127)
     assert logs == ["Loading mask for slice 1"]
+
+
+def test_canvas_save_logs_service_and_transport_errors() -> None:
+    service = MagicMock()
+    app = register_canvas_callbacks(service)
+    save_callback = callback_named(app, "save_slice_mask")
+
+    service.save_mask.side_effect = InpaintingNotReady("no slice is selected")
+    assert save_callback(
+        image_data_url(Image.new("RGBA", (2, 2))), "state", 12, ["crop"], []
+    ) == (components.no_update, ["no slice is selected"])
+
+    service.save_mask.reset_mock(side_effect=True)
+    assert save_callback("not an image", "state", 12, ["crop"], []) == (
+        components.no_update,
+        ["Invalid canvas mask data"],
+    )

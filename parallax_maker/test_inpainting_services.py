@@ -201,6 +201,7 @@ def test_prompt_and_model_updates_persist_and_model_change_invalidates_caches(
     state.image_slices[0].positive_prompt = "old"
     state.image_slices[0].negative_prompt = "old"
     state.pipeline_spec = object()
+    state.inpainting_pipeline_cache_identity = (state.pipeline_spec, ("old",))
     state.upscaler = object()
     service, repository = make_service(state)
 
@@ -211,6 +212,7 @@ def test_prompt_and_model_updates_persist_and_model_change_invalidates_caches(
     service.update_model(UpdateInpaintingModel("state", "new-model"))
     assert state.inpainting_model_name == "new-model"
     assert state.pipeline_spec is None
+    assert state.inpainting_pipeline_cache_identity is None
     assert state.upscaler is None
     assert len(repository.saved) == 2
 
@@ -317,6 +319,9 @@ def test_generation_reuses_equal_pipeline_and_wraps_model_failures(
     service.generate_candidates(generate_command(InpaintingMode.PAINT))
     assert state.pipeline_spec is first
     assert getattr(first, "load_calls") == 1
+    assert state.inpainting_pipeline_cache_identity is not None
+    assert state.inpainting_pipeline_cache_identity[0] is first
+    assert not hasattr(first, "_inpainting_service_configuration")
 
     state.selected_inpainting = 1
     first.fail = True
@@ -325,6 +330,27 @@ def test_generation_reuses_equal_pipeline_and_wraps_model_failures(
     assert isinstance(exc_info.value.__cause__, RuntimeError)
     assert str(exc_info.value.__cause__) == "model exploded"
     assert state.selected_inpainting == 1
+
+
+def test_pipeline_replacement_outside_service_invalidates_cached_identity(
+    tmp_path: Path,
+) -> None:
+    state = make_state(tmp_path)
+    service, _ = make_service(state, patcher=lambda image, mask: image)
+    save_mask(service)
+    command = generate_command(InpaintingMode.PAINT)
+
+    service.generate_candidates(command)
+    original = state.pipeline_spec
+    state.pipeline_spec = RecordingPipeline("external-replacement")
+    replacement = state.pipeline_spec
+
+    service.generate_candidates(command)
+
+    assert state.pipeline_spec is not original
+    assert state.pipeline_spec is not replacement
+    assert state.inpainting_pipeline_cache_identity[0] is state.pipeline_spec
+    assert getattr(state.pipeline_spec, "load_calls") == 1
 
 
 def test_non_comfyui_workflow_changes_do_not_reload_the_pipeline(

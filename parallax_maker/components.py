@@ -721,6 +721,7 @@ def make_inpainting_container_callbacks(app, inpainting_service):
     @app.callback(
         Output(C.CTR_INPAINTING_DISPLAY, "children"),
         Output(C.LOADING_GENERATE_INPAINTING, "children"),
+        Output(C.LOGS_DATA, "data", allow_duplicate=True),
         Input(C.BTN_GENERATE_INPAINTING, "n_clicks"),
         Input(C.BTN_FILL_INPAINTING, "n_clicks"),
         Input(C.BTN_ENHANCE, "n_clicks"),
@@ -733,6 +734,7 @@ def make_inpainting_container_callbacks(app, inpainting_service):
         State(C.SLIDER_INPAINT_GUIDANCE, "value"),
         State(C.SLIDER_MASK_PADDING, "value"),
         State(C.SLIDER_MASK_BLUR, "value"),
+        State(C.LOGS_DATA, "data"),
         running=[
             (Output(C.BTN_GENERATE_INPAINTING, "disabled"), True, False),
             (Output(C.BTN_FILL_INPAINTING, "disabled"), True, False),
@@ -753,6 +755,7 @@ def make_inpainting_container_callbacks(app, inpainting_service):
         guidance_scale,
         padding,
         blur,
+        logs,
     ):
         if n_clicks_one is None and n_clicks_two is None and n_clicks_three is None:
             raise PreventUpdate()
@@ -770,11 +773,12 @@ def make_inpainting_container_callbacks(app, inpainting_service):
             raise PreventUpdate()
 
         workflow_bytes = None
-        if workflow:
+        if model == "comfyui" and workflow:
             try:
                 workflow_bytes = base64.b64decode(workflow.split(",", 1)[1])
             except (IndexError, ValueError):
-                raise PreventUpdate()
+                logs.append("Invalid ComfyUI workflow data")
+                return no_update, [], logs
 
         try:
             result = inpainting_service.generate_candidates(
@@ -791,8 +795,9 @@ def make_inpainting_container_callbacks(app, inpainting_service):
                     blur=blur,
                 )
             )
-        except InpaintingServiceError:
-            raise PreventUpdate()
+        except InpaintingServiceError as error:
+            logs.append(str(error))
+            return no_update, [], logs
 
         children = []
         for i, new_image in enumerate(result.candidates):
@@ -803,7 +808,7 @@ def make_inpainting_container_callbacks(app, inpainting_service):
                     id={"type": C.ID_INPAINTING_IMAGE, "index": i},
                 )
             )
-        return children, []
+        return children, [], logs
 
     @app.callback(
         Output(C.IMAGE, "src", allow_duplicate=True),
@@ -881,8 +886,12 @@ def make_inpainting_container_callbacks(app, inpainting_service):
             result = inpainting_service.apply_candidate(
                 ApplyInpaintingCandidate(state_id=filename, candidates=candidates)
             )
-        except (InpaintingServiceError, IndexError, ValueError):
-            raise PreventUpdate()
+        except InpaintingServiceError as error:
+            logs.append(str(error))
+            return no_update, logs, no_update
+        except (IndexError, OSError, TypeError, ValueError):
+            logs.append("Invalid inpainting candidate image")
+            return no_update, logs, no_update
 
         logs.append(
             f"Inpainting applied to slice {result.slice_index} with new image {result.image_filename}"
@@ -1764,8 +1773,12 @@ def make_canvas_callbacks(app, inpainting_service):
                     show_crop_region="crop" in (crop or []),
                 )
             )
-        except (InpaintingServiceError, IndexError, ValueError):
-            raise PreventUpdate()
+        except InpaintingServiceError as error:
+            logs.append(str(error))
+            return no_update, logs
+        except (IndexError, OSError, TypeError, ValueError):
+            logs.append("Invalid canvas mask data")
+            return no_update, logs
 
         logs.append(
             f"Saved mask for slice {result.slice_index} to {result.mask_filename}"

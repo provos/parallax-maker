@@ -83,6 +83,8 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         )
         state.mask_filename.return_value = "mask_0.png"
         state.image_slices = [ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8))]
+        state.pipeline_spec = None
+        state.inpainting_pipeline_cache_identity = None
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
 
@@ -112,6 +114,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
             guidance_scale,
             padding,
             blur,
+            [],
         )
 
         # Verify outputs and behaviors
@@ -169,6 +172,8 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
         )
         state.mask_filename.return_value = "mask_0.png"
         state.image_slices = [ImageSlice(np.zeros((100, 100, 4), dtype=np.uint8))]
+        state.pipeline_spec = None
+        state.inpainting_pipeline_cache_identity = None
         state.workflow_path.return_value = workflow_path
         mock_from_cache.return_value = state
 
@@ -198,6 +203,7 @@ class TestUpdateInpaintingImageDisplay(unittest.TestCase):
             guidance_scale,
             padding,
             blur,
+            [],
         )
 
         # Verify outputs and behaviors

@@ -390,6 +390,7 @@ class InpaintingService:
             raise InpaintingUnchanged("the inpainting model is unchanged")
         state.inpainting_model_name = command.model_name
         state.pipeline_spec = None
+        state.inpainting_pipeline_cache_identity = None
         state.upscaler = None
         state.selected_inpainting = None
         self._states.save(command.state_id, state, self.JSON_ONLY)
@@ -558,19 +559,13 @@ class InpaintingService:
                 getattr(candidate, "inpaint", None)
             ):
                 raise InpaintingModelFailed("the inpainting pipeline is invalid")
-            if not self._can_reuse_pipeline(
-                state.pipeline_spec, candidate, configuration
-            ):
+            if not self._can_reuse_pipeline(state, configuration):
                 candidate.load_model()
-                try:
-                    setattr(
-                        candidate, "_inpainting_service_configuration", configuration
-                    )
-                except (AttributeError, TypeError):
-                    # Some injected pipeline implementations may use slots. Their
-                    # equality implementation remains the reuse fallback.
-                    pass
                 state.pipeline_spec = candidate
+                state.inpainting_pipeline_cache_identity = (
+                    candidate,
+                    configuration,
+                )
                 state.upscaler = None
             pipeline = state.pipeline_spec
         except InpaintingServiceError:
@@ -601,18 +596,17 @@ class InpaintingService:
 
     @staticmethod
     def _can_reuse_pipeline(
-        existing: object,
-        candidate: InpaintingPipelineLike,
+        state: AppState,
         configuration: tuple[object, ...],
     ) -> bool:
-        if existing is None:
+        identity = state.inpainting_pipeline_cache_identity
+        if identity is None:
             return False
-        existing_configuration = getattr(
-            existing, "_inpainting_service_configuration", None
+        cached_pipeline, cached_configuration = identity
+        return (
+            cached_pipeline is state.pipeline_spec
+            and cached_configuration == configuration
         )
-        if existing_configuration is not None:
-            return existing_configuration == configuration
-        return existing == candidate
 
     def _generation_mask(
         self,
