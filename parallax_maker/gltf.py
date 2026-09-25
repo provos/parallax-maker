@@ -33,7 +33,12 @@ def rotation_quaternion_y(y_rot_degrees):
 
 
 def create_camera(
-    gltf_obj, focal_length, aspect_ratio, translation, rotation_quarternion
+    gltf_obj,
+    focal_length,
+    aspect_ratio,
+    translation,
+    rotation_quarternion,
+    sensor_width=35.0,
 ):
     """
     Creates a camera in the glTF object with the specified parameters.
@@ -44,6 +49,7 @@ def create_camera(
         aspect_ratio (float): The aspect ratio of the camera.
         translation (List[float]): The translation of the camera node.
         rotation_quarternion (List[float]): The rotation of the camera node as a quaternion.
+        sensor_width (float, optional): The sensor width in mm. Defaults to 35.0.
 
     Returns:
         int: The index of the created camera.
@@ -51,7 +57,6 @@ def create_camera(
     """
     camera_index = len(gltf_obj.cameras)
 
-    sensor_width = 35.0  # Sensor width in mm
     sensor_height = sensor_width / aspect_ratio
 
     # Create the camera object
@@ -60,7 +65,8 @@ def create_camera(
         name=f"Camera_{camera_index}",
         perspective=gltf.Perspective(
             aspectRatio=aspect_ratio,
-            yfov=2 * np.arctan(sensor_height / focal_length),
+            # Pinhole: the half-angle's tangent is half the sensor over f.
+            yfov=2 * np.arctan(sensor_height / (2 * focal_length)),
             znear=0.01,
             zfar=10000,
         ),
@@ -159,13 +165,21 @@ def triangle_indices_from_grid(vertices):
     return np.array(indices, dtype=np.uint32)
 
 
-def displace_vertices(vertices, depth_map, displacement_scale=10.0):
+def displace_vertices(
+    vertices, depth_map, displacement_scale=10.0, camera_distance=None
+):
     """
     Displaces the vertices of a plane based on a depth map.
 
     Args:
-        vertices (numpy.ndarray): The 3D corner coordinates of the plane.
+        vertices (numpy.ndarray): The 3D corner coordinates of the plane, in the
+            card's local frame (plane at z=0, displacement along +z).
         depth_map (numpy.ndarray): The depth map to displace the vertices with. Normalized to [0, 1].
+        camera_distance (float, optional): Distance from the camera to the plane,
+            with the camera on the local +z axis at (0, 0, camera_distance). When
+            given, each vertex moves along its camera ray instead of straight
+            along z, so it still projects to the same image point (and keeps
+            lining up with its texture and the other cards).
 
     Returns:
         numpy.ndarray: The displaced vertices.
@@ -192,13 +206,25 @@ def displace_vertices(vertices, depth_map, displacement_scale=10.0):
     depths = depth_map[pixel_coords[:, 1], pixel_coords[:, 0]] * displacement_scale
 
     # Displace the vertices based on the depth values
+    if camera_distance:
+        # Slide along the ray from the camera through the vertex: moving
+        # `depth` closer scales x/y by (D - depth) / D.
+        scale = (camera_distance - depths) / camera_distance
+        vertices[:, 0] *= scale
+        vertices[:, 1] *= scale
     vertices[:, 2] = depths
 
     return vertices
 
 
 def create_card(
-    gltf_obj, i, corners_3d, subdivisions=300, depth_map=None, displacement_scale=0.0
+    gltf_obj,
+    i,
+    corners_3d,
+    subdivisions=300,
+    depth_map=None,
+    displacement_scale=0.0,
+    camera_distance=None,
 ):
     """
     Creates a card (plane) in the glTF object with the specified parameters.
@@ -210,6 +236,8 @@ def create_card(
         subdivisions (int, optional): The number of subdivisions for the card. Defaults to 300.
         depth_map (numpy.ndarray, optional): The depth map for the card. Defaults to None.
         displacement_scale (float, optional): The scale of the displacement. Defaults to 0.0.
+        camera_distance (float, optional): Distance from the camera to the card
+            plane; displacement then follows camera rays (see displace_vertices).
 
     Returns:
         int: The index of the created mesh.
@@ -233,7 +261,10 @@ def create_card(
     if displacement_scale > 0.0 and depth_map is not None:
         vertices = subdivide_geometry(vertices, subdivisions, 3)
         vertices = displace_vertices(
-            vertices, depth_map, displacement_scale=displacement_scale
+            vertices,
+            depth_map,
+            displacement_scale=displacement_scale,
+            camera_distance=camera_distance,
         )
         tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)
 
@@ -354,6 +385,7 @@ def export_gltf(
         aspect_ratio,
         [0, 0, -camera_distance],
         rotation_quaternion_y(180),
+        sensor_width=cam.sensor_width,
     )
     # Add the camera node to the scene
     scene.nodes.append(camera_index)
@@ -366,7 +398,7 @@ def export_gltf(
     for i, image_slice in enumerate(image_slices):
         corners_3d = image_slice.create_card(image_height, image_width, cam)
         # Translaton hack so that we can put the depth on the node
-        z_transform = corners_3d[0][2]
+        z_transform = float(corners_3d[0][2])
         corners_3d[:, 2] -= z_transform
 
         depth_map = None
@@ -387,6 +419,7 @@ def export_gltf(
             subdivisions,
             depth_map,
             displacement_scale=displacement_scale,
+            camera_distance=z_transform + camera_distance,
         )
         gltf_obj.meshes.append(mesh)
 
@@ -417,7 +450,7 @@ def export_gltf(
         # Create the card node and add it to the scene
         card_node = gltf.Node(
             mesh=i,
-            translation=[0, 0, int(z_transform)],
+            translation=[0, 0, z_transform],
             rotation=rotation_quaternion_y(180),
         )
         gltf_obj.nodes.append(card_node)
