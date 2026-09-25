@@ -301,6 +301,16 @@ export class SvelteDriver implements UiDriver {
     await expect(this.log()).toContainText(/Saved mask for slice/);
   }
 
+  async maskCanvasPainted(): Promise<boolean> {
+    return this.page.getByTestId('mask-canvas').evaluate((canvas: HTMLCanvasElement) => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx || canvas.width === 0 || canvas.height === 0) return false;
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return true;
+      return false;
+    });
+  }
+
   async expectGenerateEnabled(): Promise<void> {
     await expect(this.page.getByTestId('generate-inpainting')).toBeEnabled();
   }

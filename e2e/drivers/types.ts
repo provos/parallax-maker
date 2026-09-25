@@ -105,6 +105,8 @@ export interface UiDriver {
   // Canvas / inpainting
   /** Paints one stroke on the mask canvas and waits until the mask is persisted. */
   drawMaskStroke(): Promise<void>;
+  /** Whether the mask canvas currently shows any painted pixel. */
+  maskCanvasPainted(): Promise<boolean>;
   expectGenerateEnabled(): Promise<void>;
   fillPrompts(positive: string, negative: string): Promise<void>;
   expectPrompts(positive: string, negative: string): Promise<void>;

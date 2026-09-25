@@ -265,9 +265,12 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   ).toBeLessThanOrEqual(5);
   expect(candidateOutside).toEqual(originalOutside);
 
+  expect(await ui.maskCanvasPainted()).toBe(true);
   await ui.selectCandidate(1);
   await ui.applyCandidate();
   await expect(ui.log()).toContainText(/Inpainting applied to slice 1/);
+  // The applied version has no mask; the canvas must not keep showing the old stroke.
+  await expect.poll(() => ui.maskCanvasPainted()).toBe(false);
 
   await ui.openTab('Segmentation');
   const undo = ui.undoButton(1);
@@ -275,7 +278,11 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   expect(await imageHash(ui.sliceImages().nth(1))).not.toBe(originalHash);
   await undo.click();
   await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(originalHash);
+  // Undo restores the previous version together with its saved mask.
+  await ui.openTab('Inpainting');
+  await expect.poll(() => ui.maskCanvasPainted()).toBe(true);
 
+  await ui.openTab('Segmentation');
   await ui.selectSlice(projectId, 0);
   await ui.selectSlice(projectId, 1);
   await ui.openTab('Inpainting');
