@@ -12,6 +12,8 @@
   import { uiStore } from '../../state/ui.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
+  import HelpTooltip from '../shared/HelpTooltip.svelte';
+  import { CONFIGURATION_HELP_TEXTS } from '../../helpTexts';
 
   // Keep the slider in sync with the project once one exists (including
   // after a restore), the same way Dash's slider reflects state.
@@ -121,6 +123,9 @@
 </script>
 
 <div class="configuration-tab" data-testid="tab-configuration">
+  <div class="tab-header">
+    <HelpTooltip label="Configuration" texts={CONFIGURATION_HELP_TEXTS} />
+  </div>
   <div class="field">
     <label class="field-label" for="num-slices">Number of Slices</label>
     <input
@@ -296,6 +301,12 @@
 </div>
 
 <style>
+  .tab-header {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: var(--space-2);
+  }
+
   .field {
     margin-bottom: var(--space-4);
   }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findPixelFromClick, screenToImage, type Rect } from './geometry';
+import { findPixelFromClick, screenToImage, transformedRect, type Rect } from './geometry';
 
 describe('screenToImage', () => {
   it('maps the box center to the image center for a square image in a square box', () => {
@@ -110,5 +110,63 @@ describe('findPixelFromClick', () => {
   it('returns null for degenerate rects or images', () => {
     expect(findPixelFromClick(0, 0, { left: 0, top: 0, width: 0, height: 100 }, 100, 100)).toBeNull();
     expect(findPixelFromClick(0, 0, { left: 0, top: 0, width: 100, height: 100 }, 0, 100)).toBeNull();
+  });
+});
+
+describe('findPixelFromClick under zoom and pan (InputImagePanel.svelte + state/viewport.svelte.ts)', () => {
+  // A real browser's `getBoundingClientRect()` already reflects any CSS
+  // `transform` applied to an element (or one of its ancestors), so zoomed/
+  // panned clicks need no special-casing in `findPixelFromClick` itself --
+  // only the *rect* passed in changes. `transformedRect` computes exactly
+  // that rect for a given `viewport.svelte.ts` state, so these tests double
+  // as a proof that "click a known source pixel after zooming in and
+  // panning" resolves to the exact same pixel a plain, unzoomed click would.
+  const naturalWidth = 320;
+  const naturalHeight = 240;
+  // The base (zoom=1, pan=0) rect: a clean half-scale rendering, same as
+  // the plain findPixelFromClick tests above.
+  const baseRect: Rect = { left: 0, top: 0, width: 160, height: 120 };
+
+  it('zooming in 2x about the origin doubles the rendered box and halves the per-pixel screen distance', () => {
+    const rect = transformedRect(baseRect, { scale: 2, panX: 0, panY: 0 });
+    expect(rect).toEqual({ left: 0, top: 0, width: 320, height: 240 });
+    // Source pixel (160, 120) -- the exact center of the 320x240 image --
+    // is now at screen (160, 120) rather than the unzoomed (80, 60).
+    expect(findPixelFromClick(160, 120, rect, naturalWidth, naturalHeight)).toEqual({ x: 160, y: 120 });
+  });
+
+  it('a pan offset shifts every mapped pixel by exactly the pan amount', () => {
+    const rect = transformedRect(baseRect, { scale: 1, panX: 37, panY: -11 });
+    expect(rect).toEqual({ left: 37, top: -11, width: 160, height: 120 });
+    // Unpanned, source pixel (80, 60) is at screen (40, 30) (half-scale).
+    // Panned by (37, -11), it moves to screen (77, 19).
+    expect(findPixelFromClick(77, 19, rect, naturalWidth, naturalHeight)).toEqual({ x: 80, y: 60 });
+  });
+
+  it('combined zoom + pan (as produced by zooming to a cursor position) still resolves the exact clicked pixel', () => {
+    // Mirrors state/viewport.svelte.ts's `zoomAt`: zoom 3x about local point
+    // (40, 30) (the unzoomed screen position of source pixel (80, 60)), which
+    // keeps that same content point fixed under the cursor.
+    const scale = 3;
+    const localX = 40;
+    const localY = 30;
+    const contentX = (localX - 0) / 1; // pan was 0 before this zoom
+    const contentY = (localY - 0) / 1;
+    const panX = localX - contentX * scale;
+    const panY = localY - contentY * scale;
+
+    const rect = transformedRect(baseRect, { scale, panX, panY });
+    // The point under the cursor should still be source pixel (80, 60).
+    expect(findPixelFromClick(localX, localY, rect, naturalWidth, naturalHeight)).toEqual({ x: 80, y: 60 });
+
+    // A different, previously off-screen pixel is now reachable too: source
+    // pixel (0, 0) (the image's top-left corner) maps to screen (panX, panY).
+    expect(findPixelFromClick(panX, panY, rect, naturalWidth, naturalHeight)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('zooming out below 1x still maps correctly (clamped scale range is state/viewport.svelte.ts\'s concern, not geometry.ts\'s)', () => {
+    const rect = transformedRect(baseRect, { scale: 0.5, panX: 5, panY: 5 });
+    expect(rect).toEqual({ left: 5, top: 5, width: 80, height: 60 });
+    expect(findPixelFromClick(5, 5, rect, naturalWidth, naturalHeight)).toEqual({ x: 0, y: 0 });
   });
 });

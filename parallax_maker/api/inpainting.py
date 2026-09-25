@@ -44,7 +44,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
-from flask import Blueprint, request
+from flask import Blueprint, jsonify, request
 from PIL import Image, UnidentifiedImageError
 
 from ..controller import AppState, CompositeMode
@@ -75,6 +75,7 @@ from .projects import (
     _mutation_response,
     _parse_json_body,
     _slice_version,
+    _view_json,
 )
 
 if TYPE_CHECKING:  # pragma: no cover - import-cycle avoidance only
@@ -218,6 +219,15 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
         except (UnidentifiedImageError, OSError, ValueError) as exc:
             raise InvalidRequest(f"uploaded mask is not a valid image: {exc}") from None
 
+        # `cropToRegion` mirrors Dash's "Crop to region of interest" checkbox
+        # (components.py's CHECKLIST_REGION_OF_INTEREST, CMP-24's
+        # `show_crop_region`): when true (the default, matching that
+        # checkbox's own `value=["crop"]` default), the response's
+        # `boundingBox` is the mask's own padded/squared bounding box for
+        # PreviewOverlay.svelte's ROI preview (Dash's CLI-07); when false, no
+        # bounding box is computed at all, exactly like Dash.
+        crop_to_region = request.form.get("cropToRegion", "true").strip().lower() != "false"
+
         with _mutation_guard(record):
             settings = record.get_inpainting_settings()
             result = runtime.inpainting_service.save_mask(
@@ -225,11 +235,7 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
                     state_id=project_id,
                     canvas_image=image,
                     padding=settings.padding,
-                    # The ROI/crop-box preview is a Dash-only overlay that
-                    # doesn't affect the saved mask itself (only whether a
-                    # bounding box is computed), and this API doesn't expose
-                    # one - see the final report's noted deviations.
-                    show_crop_region=False,
+                    show_crop_region=crop_to_region,
                 )
             )
             record.log.append(
@@ -238,7 +244,15 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
             record.bump_revision()
 
         view = _build_project_view(runtime, project_id, state)
-        return _mutation_response(view, True)
+        payload = _view_json(view)
+        payload["changed"] = True
+        # `find_square_bounding_box` returns numpy integer types (via
+        # `np.nonzero(...).min()/.max()`), which the stdlib JSON encoder
+        # cannot serialize directly - cast to plain `int`s.
+        payload["boundingBox"] = (
+            [int(v) for v in result.bounding_box] if result.bounding_box else None
+        )
+        return jsonify(payload), 200
 
     @blueprint.delete("/projects/<project_id>/slices/<int:index>/mask")
     def delete_inpainting_mask(project_id: str, index: int):

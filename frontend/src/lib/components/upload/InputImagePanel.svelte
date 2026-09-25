@@ -3,11 +3,14 @@
   import { uiStore } from '../../state/ui.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import { findPixelFromClick } from '../../geometry';
+  import { viewportStore } from '../../state/viewport.svelte';
   import * as workflow from '../../workflow';
   import MaskCanvas from '../canvas/MaskCanvas.svelte';
+  import PreviewOverlay from '../canvas/PreviewOverlay.svelte';
 
   let fileInput: HTMLInputElement | undefined;
   let dragging = $state(false);
+  let dropZoneEl: HTMLDivElement | undefined;
 
   function pickFile(): void {
     if (isBusy()) return;
@@ -67,10 +70,22 @@
    * Reads `event.ctrlKey` (not `metaKey`): Playwright's `Control` modifier
    * sets `ctrlKey` on click events in Chromium on both macOS and Linux, and
    * this must match Dash's `click_event`, which also keys off `ctrlKey`.
+   *
+   * `rect` is read live from `getBoundingClientRect()` at click time, which
+   * already reflects the current zoom/pan CSS transform applied to
+   * `.image-stack` below -- `findPixelFromClick`'s plain ratio math needs no
+   * changes at all to stay pixel-exact under zoom/pan (see geometry.ts's
+   * `transformedRect` doc comment and its own zoom/pan unit tests).
    */
   function onImageClick(event: MouseEvent): void {
     if (!hasInputImage) return; // let the click bubble to the drop-zone's pickFile
     event.stopPropagation();
+    if (suppressNextClick) {
+      // A real drag-to-pan just ended on this same pointer sequence; treat
+      // it as a pan, not a segmentation click (see onDropZonePointerMove).
+      suppressNextClick = false;
+      return;
+    }
     if (isBusy()) return;
 
     const size = projectStore.view?.image;
@@ -98,6 +113,121 @@
     if (!event.ctrlKey) return;
     event.preventDefault();
     onImageClick(event);
+  }
+
+  // -- Zoom/pan for the main image + mask canvas (see state/viewport.svelte.ts
+  // for why Dash only has wheel-zoom, and why drag-to-pan/reset buttons here
+  // are a documented improvement rather than a strict parity port).
+
+  /** `.drop-zone`-relative coordinates, ignoring any current zoom/pan transform -- see viewportStore.zoomAt's own doc. */
+  function localPoint(clientX: number, clientY: number): { x: number; y: number } | null {
+    if (!dropZoneEl) return null;
+    const rect = dropZoneEl.getBoundingClientRect();
+    return { x: clientX - rect.left, y: clientY - rect.top };
+  }
+
+  function onWheel(event: WheelEvent): void {
+    if (!hasInputImage) return;
+    const point = localPoint(event.clientX, event.clientY);
+    if (!point) return;
+    event.preventDefault();
+    // Matches Dash's handleWheel exactly: deltaY < 0 (scroll up) zooms in.
+    viewportStore.zoomAt(point.x, point.y, event.deltaY < 0);
+  }
+
+  // Drag-to-pan: the middle mouse button always pans (works on every tab,
+  // never ambiguous with anything else); the primary button also pans, but
+  // only outside the Inpainting tab, where it instead paints on
+  // MaskCanvas.svelte -- and only once the drag has moved far enough to
+  // stop looking like a plain click, so a real Playwright `.click()` (zero
+  // movement) is never affected. A drag that *does* cross that threshold
+  // suppresses the `click` event that would otherwise still fire afterward.
+  const PAN_THRESHOLD_PX = 4;
+  let panPointerId: number | null = null;
+  let panStartX = 0;
+  let panStartY = 0;
+  let panEngaged = false;
+  let panButton = 0;
+  let suppressNextClick = false;
+
+  function canLeftDragPan(): boolean {
+    return uiStore.mainTab !== 'Inpainting';
+  }
+
+  function onDropZonePointerDown(event: PointerEvent): void {
+    if (!hasInputImage) return;
+    const isMiddle = event.button === 1;
+    const isPrimary = event.button === 0;
+    if (!isMiddle && !(isPrimary && canLeftDragPan())) return;
+
+    panPointerId = event.pointerId;
+    panStartX = event.clientX;
+    panStartY = event.clientY;
+    panEngaged = false;
+    panButton = event.button;
+    if (isMiddle) {
+      // A middle-button press never generates a `click` DOM event at all
+      // (only `auxclick`), so capturing immediately here can never hijack
+      // the image's segmentation-click handler the way capturing on a
+      // primary-button press would -- see the deferred capture in
+      // onDropZonePointerMove below for why that one waits.
+      dropZoneEl?.setPointerCapture?.(event.pointerId);
+      event.preventDefault(); // suppress the OS's middle-click autoscroll cursor
+    }
+  }
+
+  function onDropZonePointerMove(event: PointerEvent): void {
+    if (panPointerId === null || event.pointerId !== panPointerId) return;
+    const dx = event.clientX - panStartX;
+    const dy = event.clientY - panStartY;
+    if (!panEngaged) {
+      if (Math.hypot(dx, dy) < PAN_THRESHOLD_PX) return;
+      panEngaged = true;
+      // Only a *primary*-button drag has a `click` to suppress afterward
+      // (a middle-button press never generates one at all -- only
+      // `auxclick`); setting this unconditionally would leave a stale
+      // `true` around forever after a middle-drag pan, silently swallowing
+      // the *next*, unrelated real click.
+      if (panButton === 0) suppressNextClick = true;
+      // Deferred until a real drag is detected (not on pointerdown): a
+      // capturing element intercepts the browser's compatibility mouse
+      // events too (not just pointer events), which would silently steal
+      // the `click` a zero-movement press should still deliver to the
+      // <img> beneath -- capturing only once we know this is really a
+      // drag keeps a plain click completely unaffected.
+      dropZoneEl?.setPointerCapture?.(event.pointerId);
+    }
+    viewportStore.panBy(event.movementX, event.movementY);
+  }
+
+  function onDropZonePointerUp(event: PointerEvent): void {
+    if (panPointerId === null || event.pointerId !== panPointerId) return;
+    try {
+      dropZoneEl?.releasePointerCapture(event.pointerId);
+    } catch {
+      // Pointer capture may already have been released.
+    }
+    panPointerId = null;
+    panEngaged = false;
+  }
+
+  function zoomButtonCenter(): { x: number; y: number } {
+    const rect = dropZoneEl?.getBoundingClientRect();
+    return rect ? { x: rect.width / 2, y: rect.height / 2 } : { x: 0, y: 0 };
+  }
+
+  function zoomIn(): void {
+    const { x, y } = zoomButtonCenter();
+    viewportStore.zoomInAt(x, y);
+  }
+
+  function zoomOut(): void {
+    const { x, y } = zoomButtonCenter();
+    viewportStore.zoomOutAt(x, y);
+  }
+
+  function resetZoom(): void {
+    viewportStore.reset();
   }
 
   const segmentation = $derived(projectStore.view?.segmentation);
@@ -152,6 +282,7 @@
 <div class="input-image-outer panel">
   <span class="panel-label">Input Image</span>
   <div
+    bind:this={dropZoneEl}
     class="drop-zone panel"
     class:dragging
     role="button"
@@ -163,13 +294,24 @@
     ondrop={onDrop}
     ondragover={onDragOver}
     ondragleave={onDragLeave}
+    onwheel={onWheel}
+    onpointerdown={onDropZonePointerDown}
+    onpointermove={onDropZonePointerMove}
+    onpointerup={onDropZonePointerUp}
+    onpointercancel={onDropZonePointerUp}
   >
     <!-- Shared box for the main image and the mask canvas overlay (same
          size, `MaskCanvas.svelte`'s own doc comment explains why); the
          wrapper takes on the image's rendered size exactly like the `<img>`
          did on its own before, so lib/geometry.ts's ratio-based pixel math
-         above stays correct. -->
-    <div class="image-stack">
+         above stays correct. `transform` implements zoom/pan
+         (state/viewport.svelte.ts); every descendant (image, mask canvas,
+         preview overlay) inherits it, and each one's own
+         `getBoundingClientRect()` automatically reflects it. -->
+    <div
+      class="image-stack"
+      style={`transform: translate(${viewportStore.panX}px, ${viewportStore.panY}px) scale(${viewportStore.scale}); transform-origin: 0 0;`}
+    >
       <!-- Segmentation click target: mirrors Dash's EventListener-wrapped
            <img id="image">, which is likewise mouse-only (no keyboard
            equivalent for "pick a pixel"). -->
@@ -179,10 +321,13 @@
         data-testid="main-image"
         alt=""
         src={mainImageUrl}
+        draggable="false"
         onclick={onImageClick}
         oncontextmenu={onImageContextMenu}
+        ondragstart={(event) => event.preventDefault()}
       />
       <MaskCanvas />
+      <PreviewOverlay />
     </div>
     <input
       bind:this={fileInput}
@@ -192,6 +337,47 @@
       data-testid="upload-image-input"
       onchange={onInputChange}
     />
+  </div>
+
+  <!-- Zoom/pan controls (state/viewport.svelte.ts): buttons zoom about the
+       viewport center; the wheel and drag-to-pan gestures live on the
+       drop-zone above. See viewport.svelte.ts's doc comment for why Dash
+       has no equivalent buttons/pan/reset of its own. -->
+  <div class="viewport-controls" data-testid="viewport-controls">
+    <button
+      type="button"
+      class="tool-btn tool-btn-icon"
+      data-testid="zoom-out"
+      aria-label="Zoom out"
+      title="Zoom out"
+      disabled={!hasInputImage}
+      onclick={zoomOut}
+    >
+      &minus;
+    </button>
+    <button
+      type="button"
+      class="tool-btn tool-btn-icon"
+      data-testid="zoom-reset"
+      aria-label="Reset zoom and pan"
+      title="Reset zoom and pan"
+      disabled={!hasInputImage}
+      onclick={resetZoom}
+    >
+      &#x27F3;
+    </button>
+    <button
+      type="button"
+      class="tool-btn tool-btn-icon"
+      data-testid="zoom-in"
+      aria-label="Zoom in"
+      title="Zoom in"
+      disabled={!hasInputImage}
+      onclick={zoomIn}
+    >
+      &plus;
+    </button>
+    <span class="zoom-level" data-testid="zoom-level">{Math.round(viewportStore.scale * 100)}%</span>
   </div>
 
   <!-- Tool row under the Input Image panel, same order as Dash's
@@ -270,6 +456,9 @@
     justify-content: center;
     cursor: pointer;
     overflow: hidden;
+    /* The wheel/drag-to-pan gestures above handle zoom/pan themselves;
+       without this, touch input would also try to scroll/zoom the page. */
+    touch-action: none;
   }
 
   .drop-zone.dragging {
@@ -335,5 +524,18 @@
   .tool-btn-selected:not(:disabled) {
     background-color: var(--color-success);
     color: var(--color-success-text);
+  }
+
+  .viewport-controls {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-2) 0 0;
+  }
+
+  .zoom-level {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    min-width: 3rem;
   }
 </style>

@@ -178,6 +178,53 @@ def test_mask_save_renders_rgba_and_resizes_to_source_dims(client) -> None:
     assert outside == (0, 0, 0, 0)
 
 
+def test_mask_save_defaults_to_cropping_region_of_interest_and_returns_bounding_box(
+    client,
+) -> None:
+    """Matches Dash's "Crop to region of interest" checkbox default
+    (components.py's CHECKLIST_REGION_OF_INTEREST, `value=["crop"]`): a
+    mask-save request that omits `cropToRegion` entirely still computes a
+    bounding box, mirroring CMP-24's `show_crop_region` default and feeding
+    PreviewOverlay.svelte's ROI-box preview (CLI-07).
+    """
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _select_slice(client, project_id, 1)
+
+    result = _save_mask(client, project_id, 1, _mask_image())
+    assert result["changed"] is True
+    assert "boundingBox" in result
+    box = result["boundingBox"]
+    assert box is not None
+    assert len(box) == 4
+    x0, y0, x1, y1 = box
+    assert 0 <= x0 < x1 <= SOURCE_SIZE[0]
+    assert 0 <= y0 < y1 <= SOURCE_SIZE[1]
+    # The mask's own box (MASK_BOX) must be contained in the padded/squared
+    # result - find_square_bounding_box only ever grows a box, never shrinks it.
+    mx0, my0, mx1, my1 = MASK_BOX
+    assert x0 <= mx0 and y0 <= my0 and x1 >= mx1 and y1 >= my1
+
+
+def test_mask_save_with_crop_to_region_false_omits_bounding_box(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _select_slice(client, project_id, 1)
+
+    buffer = io.BytesIO()
+    _mask_image().save(buffer, format="PNG")
+    buffer.seek(0)
+    response = client.put(
+        f"/api/v1/projects/{project_id}/slices/1/mask",
+        data={"mask": (buffer, "mask.png"), "cropToRegion": "false"},
+        content_type="multipart/form-data",
+    )
+    assert response.status_code == 200, response.get_json()
+    result = response.get_json()
+    assert result["changed"] is True
+    assert result["boundingBox"] is None
+
+
 def test_mask_save_requires_matching_selected_slice(client) -> None:
     view = _restore_fixture(client)
     project_id = view["id"]

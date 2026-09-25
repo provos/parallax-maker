@@ -1,5 +1,6 @@
 <script lang="ts">
   import { uiStore, type ViewerTab } from '../../state/ui.svelte';
+  import { rovingTabs } from '../../a11y/rovingTabindex';
   import InputImagePanel from './InputImagePanel.svelte';
   import Model3DViewer from '../viewer/Model3DViewer.svelte';
 
@@ -7,12 +8,18 @@
 </script>
 
 <div class="viewer-column">
-  <div class="tab-strip" role="tablist" aria-label="Viewer">
+  <div
+    class="tab-strip"
+    role="tablist"
+    aria-label="Viewer"
+    use:rovingTabs={(index) => uiStore.setViewerTab(tabs[index])}
+  >
     {#each tabs as tab (tab)}
       <button
         type="button"
         role="tab"
         aria-selected={uiStore.viewerTab === tab}
+        tabindex={uiStore.viewerTab === tab ? 0 : -1}
         class:active={uiStore.viewerTab === tab}
         onclick={() => uiStore.setViewerTab(tab)}
       >

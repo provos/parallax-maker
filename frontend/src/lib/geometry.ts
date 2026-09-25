@@ -102,3 +102,31 @@ export function findPixelFromClick(
 
   return { x, y };
 }
+
+/** A 2D CSS `translate(x, y) scale(s)` transform, matching `viewport.svelte.ts`'s store shape. */
+export type ViewportTransform = {
+  scale: number;
+  panX: number;
+  panY: number;
+};
+
+/**
+ * Computes the on-screen `Rect` a box would occupy after
+ * `transform: translate(panX, panY) scale(scale); transform-origin: 0 0` is
+ * applied to it (see `state/viewport.svelte.ts`).
+ *
+ * This is what a real browser's `getBoundingClientRect()` already returns
+ * for a transformed element -- `findPixelFromClick`/`screenToImage` need no
+ * changes at all to stay correct under zoom/pan, as long as the caller
+ * passes the *live* (post-transform) rect. This helper exists so the same
+ * zoom/pan math can be exercised from a plain unit test, where jsdom's
+ * `getBoundingClientRect()` does not apply CSS transforms itself.
+ */
+export function transformedRect(base: Rect, viewport: ViewportTransform): Rect {
+  return {
+    left: base.left + viewport.panX,
+    top: base.top + viewport.panY,
+    width: base.width * viewport.scale,
+    height: base.height * viewport.scale,
+  };
+}

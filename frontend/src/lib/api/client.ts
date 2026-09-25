@@ -431,16 +431,40 @@ export function redoSlice(
 // `409 not_ready`), per the architecture doc's "Canvas-mask and inpainting
 // endpoints" table.
 
-/** PUT /api/v1/projects/{id}/slices/{index}/mask (multipart `mask`, the canvas PNG) */
+/**
+ * A `[x0, y0, x1, y1]` bounding box in source-image pixels, or `null` when
+ * none was requested/computed (see `boundingBox` below).
+ */
+export type BoundingBox = [number, number, number, number] | null;
+
+/**
+ * `saveInpaintingMask`'s response: the usual `MutationResult`, plus an
+ * optional `boundingBox` -- a small, additive field the generated
+ * `ProjectView` schema does not carry (it is not part of persisted project
+ * state, only this one response), matching Dash's CLI-07/CMP-24 ROI-preview
+ * box. See PreviewOverlay.svelte and docs/svelte-migration/ARCHITECTURE.md.
+ */
+export type MaskSaveResult = MutationResult & { boundingBox: BoundingBox };
+
+/**
+ * PUT /api/v1/projects/{id}/slices/{index}/mask (multipart `mask`, the
+ * canvas PNG, plus `cropToRegion` -- mirrors Dash's
+ * `CHECKLIST_REGION_OF_INTEREST`/CMP-24's `show_crop_region`: when true, the
+ * response's `boundingBox` is the mask's own (padded, squared) bounding box;
+ * when false, `boundingBox` is `null` and no bounding-box computation runs
+ * at all, matching Dash exactly).
+ */
 export function saveInpaintingMask(
   id: string,
   index: number,
   mask: Blob,
+  cropToRegion: boolean,
   signal?: AbortSignal,
-): Promise<MutationResult> {
+): Promise<MaskSaveResult> {
   const form = new FormData();
   form.append('mask', mask, 'mask.png');
-  return request<MutationResult>(
+  form.append('cropToRegion', cropToRegion ? 'true' : 'false');
+  return request<MaskSaveResult>(
     `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/mask`,
     { method: 'PUT', body: form, signal },
   );

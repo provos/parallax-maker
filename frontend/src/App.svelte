@@ -48,5 +48,26 @@
     grid-template-columns: 3fr 2fr;
     gap: var(--space-4);
     padding: var(--space-2) var(--space-2) 0;
+    /* Prevent a too-narrow column from forcing its content (button rows,
+       slider labels, tab strips) to overflow horizontally instead of
+       wrapping -- see the two-column -> single-column breakpoint below for
+       the actual fix; this only stops the grid track itself from ever
+       being narrower than its content demands before that breakpoint
+       kicks in. */
+    min-width: 0;
+  }
+
+  .app-main > :global(*) {
+    min-width: 0;
+  }
+
+  /* Below this width the two-column layout (Input Image / workflow tabs)
+     no longer has room for both columns without overflowing; stack them
+     instead. Checked at 1440x1000, 1024x768 and 768x1024 (see
+     docs/svelte-migration/PARITY.md's responsive-pass notes). */
+  @media (max-width: 900px) {
+    .app-main {
+      grid-template-columns: 1fr;
+    }
   }
 </style>

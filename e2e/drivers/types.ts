@@ -73,11 +73,44 @@ export interface UiDriver {
   expectSegmentationMode(mode: SegmentationMode): Promise<void>;
   /** Real click at source-image pixel (x, y) on the main image. */
   clickImagePixel(x: number, y: number, modifiers?: Modifier[]): Promise<void>;
+  /**
+   * Zooms in once on the main image/canvas via a real wheel gesture over
+   * its center, mirroring Dash's only zoom mechanism (utility.js's
+   * `handleWheel`/JS-03: mouse wheel, no buttons). See
+   * DashDriver.zoomIn's own doc comment for what "zoom in" resolves to on
+   * that UI specifically.
+   */
+  zoomIn(): Promise<void>;
+  /**
+   * Pans the main image/canvas by a real drag gesture of `(dx, dy)` CSS
+   * pixels. Dash has no drag-to-pan of its own at all (only the CSS
+   * wheel-zoom above; see docs/svelte-migration/PARITY.md's Navigation/
+   * Layout section for why the near-identically-named `NAV_*` buttons are
+   * not this) -- DashDriver's implementation performs the gesture and
+   * documents that it is a real, expected no-op there.
+   */
+  panBy(dx: number, dy: number): Promise<void>;
+  /**
+   * Resets zoom/pan back to the default view. Svelte has an explicit Reset
+   * button for this (state/viewport.svelte.ts); Dash has none, so
+   * DashDriver's implementation is a documented best-effort (repeated
+   * zoom-out) rather than an exact reset.
+   */
+  resetZoom(): Promise<void>;
   /** Selects a slice by thumbnail click and waits until the backend reports it selected. */
   selectSlice(projectId: string, index: number): Promise<Locator>;
   toggleMultiPoint(): Promise<void>;
   expectMultiPointEnabled(enabled: boolean): Promise<void>;
   commitMultiPoint(): Promise<void>;
+  /**
+   * Asserts that a queued-point marker of the right color (green for a
+   * plain/Shift point, red for a Ctrl/negative one -- Dash's CLI-05
+   * `visualize_point`) is currently visible for each of `points`, in order.
+   * DashDriver samples the preview canvas's own pixels (Dash draws these
+   * directly onto `#preview-canvas`, not as DOM nodes); SvelteDriver reads
+   * `PreviewOverlay.svelte`'s marker elements instead.
+   */
+  expectQueuedPointMarkers(points: Array<{ x: number; y: number; negative: boolean }>): Promise<void>;
 
   // Canvas / inpainting
   /** Paints one stroke on the mask canvas and waits until the mask is persisted. */

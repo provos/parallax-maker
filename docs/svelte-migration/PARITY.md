@@ -158,10 +158,10 @@ one avoids re-triggering:
 | ID | Function (file:line) | Trigger(s) | Effect | Backend service | E2E coverage | Svelte |
 | --- | --- | --- | --- | --- | --- | --- |
 | WEB-08 | `click_event` webui.py:473 | Input `SEG_MULTI_COMMIT.n_clicks`, `el.n_events` (image click); State rect data, mode, filename | Routes plain/Shift/Ctrl clicks to `SegmentationService.select_depth_point` / `select_instance_point`, or commits queued multipoint via `commit_multi_point`; renders resulting mask preview and appends log lines | SegmentationService | 2, 3, 4, 5 (also exercised over HTTP by `POST .../segmentation/click` and `.../segmentation/commit`, `test_api_segmentation.py`, PR 3) | [x] Svelte: `InputImagePanel.svelte`'s `onImageClick`/`onImageContextMenu` + `workflow.clickSegmentation`/`commitMultiPoint` (`POST .../segmentation/click`, `.../segmentation/commit`); depth/instance replace/Shift-union/Ctrl-subtract and the commit log line are asserted on both UIs by e2e scenarios 2, 3, 4, and 5 |
-| CMP-21 | `toggle_segmentation_buttons` components.py:1663 | Input `DROPDOWN_MODE_SELECTOR.value`, `STORE_APPSTATE_FILENAME.data` | Enables/disables Multi and Commit buttons when mode == "segment" and a project is loaded | inline | 1–11 (fires on every filename set); mode explicitly switched in 2, 3, 5 | [ ] |
-| CMP-22 | `toggle_multi_point` components.py:1676 | Input `SEG_MULTI_POINT.n_clicks` (`#multi-point`) | Calls `SegmentationService.set_multi_point_mode`; toggles selected/unselected class; clears point-preview via `STORE_CLEAR_PREVIEW` (CLI-06) | SegmentationService | 3 (also exercised over HTTP by `PUT .../segmentation/multi-point`, `test_api_segmentation.py`, PR 3) | [x] Svelte: `InputImagePanel.svelte`'s Multi button + `workflow.setMultiPointMode` (`PUT .../segmentation/multi-point`); toggle/aria-pressed and queue-reset-on-toggle asserted on both UIs by e2e scenario 3 (point preview canvas dot/CLI-05/CLI-06 itself is not ported) |
-| CLI-05 | `visualize_point` clientside.py:39 | Input `STORE_CLICKED_POINT.data` (written only by WEB-08's queued-point branch) | Draws a green/red dot on the preview canvas for a queued multipoint click | inline (JS) | 3 | [ ] |
-| CLI-06 | `preview_canvas_clear` clientside.py:46 | Input `STORE_CLEAR_PREVIEW.data` (written only by CMP-22) | Clears the preview canvas overlay when multipoint mode is toggled | inline (JS) | 3 | [ ] |
+| CMP-21 | `toggle_segmentation_buttons` components.py:1663 | Input `DROPDOWN_MODE_SELECTOR.value`, `STORE_APPSTATE_FILENAME.data` | Enables/disables Multi and Commit buttons when mode == "segment" and a project is loaded | inline | 1–11 (fires on every filename set); mode explicitly switched in 2, 3, 5; also `e2e/ux-parity.spec.ts`'s "queued multi-point markers appear at the clicked points" (switches to Instance Segmentation before toggling Multi) | [x] Svelte: `InputImagePanel.svelte`'s `segmentationToolsActive` (`uiStore.segmentationMode === 'segment' && !!projectStore.view`) gates the Multi/Commit buttons' `disabled` attribute exactly like Dash's `value == "segment" and filename is not None` - same two conditions, same precedence. Asserted on both UIs by scenario 3 and `ux-parity.spec.ts` |
+| CMP-22 | `toggle_multi_point` components.py:1676 | Input `SEG_MULTI_POINT.n_clicks` (`#multi-point`) | Calls `SegmentationService.set_multi_point_mode`; toggles selected/unselected class; clears point-preview via `STORE_CLEAR_PREVIEW` (CLI-06) | SegmentationService | 3 (also exercised over HTTP by `PUT .../segmentation/multi-point`, `test_api_segmentation.py`, PR 3) | [x] Svelte: `InputImagePanel.svelte`'s Multi button + `workflow.setMultiPointMode` (`PUT .../segmentation/multi-point`); toggle/aria-pressed and queue-reset-on-toggle asserted on both UIs by e2e scenario 3. The point-preview canvas dot itself is CLI-05/CLI-06's own row (now also ported, see below) |
+| CLI-05 | `visualize_point` clientside.py:39 | Input `STORE_CLICKED_POINT.data` (written only by WEB-08's queued-point branch) | Draws a green/red dot on the preview canvas for a queued multipoint click | inline (JS) | 3; `e2e/ux-parity.spec.ts`'s "queued multi-point markers appear at the clicked points" | [x] Svelte: `components/canvas/PreviewOverlay.svelte` renders one marker per `ProjectView.segmentation.queuedPoints` entry (green for `negative: false`, red for `negative: true` - same colors as Dash's `rgba(0,255,0,1)`/`rgba(255,0,0,1)`), positioned in source-image-pixel percentage coordinates inside the same zoom/pan-transformed `.image-stack` box the image/mask canvas live in, so markers track zoom/pan exactly (counter-scaled by `1/viewportStore.scale` for a constant on-screen dot size - a deliberate, documented deviation from Dash's own literal behavior, which bakes the dot into the same CSS-scaled canvas and so lets it visually grow with zoom too; see PreviewOverlay.svelte's own doc comment). DashDriver asserts the same behavior by sampling `#preview-canvas`'s own pixels for the expected colors (there is no DOM node to query). Asserted on both UIs by `ux-parity.spec.ts` |
+| CLI-06 | `preview_canvas_clear` clientside.py:46 | Input `STORE_CLEAR_PREVIEW.data` (written only by CMP-22) | Clears the preview canvas overlay when multipoint mode is toggled | inline (JS) | 3 | [x] Svelte: no separate clear step needed - `workflow.setMultiPointMode` always clears the server-held queue (see CMP-22's own row), and `PreviewOverlay.svelte`'s markers are a plain `{#each ProjectView.segmentation.queuedPoints}`, so an empty queue already renders no markers at all. Exercised the same way CMP-22 is (scenario 3's toggle/reset assertions) |
 
 ## Slice editing
 
@@ -213,17 +213,17 @@ characterizing these rows.
 | CMP-05 | `select_inpainting_image` components.py:823 | Input `{inpainting-image,ALL}.n_clicks` | Calls `InpaintingService.select_candidate`; toggles the clicked candidate's highlight class off if re-clicked (deselect); previews selected candidate or falls back to composed slice image | InpaintingService | 6 (also exercised over HTTP by `PUT .../inpainting/selection`, `test_api_inpainting.py`, PR 5; the API now also swaps the main image to the selected candidate and back to the slice composite on deselect, `test_selected_candidate_is_previewed_in_the_main_image`) | [x] Svelte: `InpaintingTab.svelte`'s candidate strip (`candidate-image`, `aria-selected`) + `workflow.selectInpaintingCandidate` (`PUT .../inpainting/selection`, always sending the clicked index - the toggle-off-on-re-click is `InpaintingService.select_candidate`'s own contract, not reimplemented client-side); asserted on both UIs by scenario 6 (`selectCandidate`) and by `InpaintingTab.test.ts`'s toggle/apply-enablement tests. The main-image preview swap on selection is not ported |
 | CMP-06 | `apply_inpainting` components.py:875 | Input `BTN_APPLY_INPAINTING.n_clicks` (`#apply-inpainting-button`); `running=` disables button | Decodes candidate data URLs to PIL images, calls `InpaintingService.apply_candidate` (writes new image version + JSON/file-mapping save); triggers WEB-21 and CMP-07 | InpaintingService | 6 (also exercised over HTTP by `POST .../slices/{index}/inpainting/apply`, which additionally rejects a stale `generationId`/slice/version with `409 stale_revision`, `test_api_inpainting.py`, PR 5) | [x] Svelte: `InpaintingTab.svelte`'s Apply button (`apply-inpainting`) + `workflow.applyInpaintingCandidate` (`POST .../slices/{index}/inpainting/apply`, after flushing any pending mask/prompt save); asserted on both UIs by scenario 6 (log text + version change via Undo) |
 | CMP-07 | `react_selected_slice_change` components.py:916 | Input `STORE_INPAINTING.data` | Enables/disables all inpainting controls based on whether a slice is selected; calls `InpaintingService.clear_selection`; writes `STORE_SELECTED_SLICE` (feeds CLI-04) | InpaintingService | 5, 6, 7, 8, 9, 10 (the `clear_selection` call is also exercised over HTTP by `PUT .../selection`, `test_api_segmentation.py`, PR 3, which now also drops the API's server-held candidate set the same way, `test_api_inpainting.py`, PR 5; control enable/disable stays a Svelte-side concern) | [x] Svelte: `InpaintingTab.svelte`'s `hasSlice`/`canGenerate`/`canApply` derived state disables Generate/Fill/Enhance/Erase/Apply whenever `ProjectView.selectedSlice` is `null`; the server-side `clear_selection` half is exercised by `PUT .../selection` as noted above. Asserted on both UIs by scenarios 5-9 (a selected slice's controls behave correctly) and by `InpaintingTab.test.ts`'s "disables ... with no project loaded" test |
-| CMP-24 | `save_slice_mask` components.py:1748 | Input `CANVAS_DATA.data` (from CLI-09's mouseout save) | Empty string → `InpaintingService.delete_mask`; else decodes canvas PNG → `InpaintingService.save_mask` (alpha resized BICUBIC, padding, ROI-crop flag); returns bounding box for CLI-07 | InpaintingService | 6, 9 (also exercised over HTTP by `PUT`/`DELETE .../slices/{index}/mask`, `test_api_inpainting.py`, PR 5; the API always passes `show_crop_region=False` - it does not expose a CLI-07-equivalent bounding-box preview) | [x] Svelte: `MaskCanvas.svelte`'s Clear button (`canvas-clear`) + `workflow.deleteMask` (`DELETE .../mask`); painting itself (`PUT .../mask` on pointerup) is CLI-09's row. Save/delete asserted on both UIs by scenarios 6 and 9 |
+| CMP-24 | `save_slice_mask` components.py:1748 | Input `CANVAS_DATA.data` (from CLI-09's mouseout save) | Empty string → `InpaintingService.delete_mask`; else decodes canvas PNG → `InpaintingService.save_mask` (alpha resized BICUBIC, padding, ROI-crop flag); returns bounding box for CLI-07 | InpaintingService | 6, 9 (also exercised over HTTP by `PUT`/`DELETE .../slices/{index}/mask`, `test_api_inpainting.py`, PR 5). **Updated in the UX-parity slice**: `PUT .../slices/{index}/mask` now accepts an additional multipart field `cropToRegion` (default `"true"`, matching Dash's own `CHECKLIST_REGION_OF_INTEREST` default-checked state) and threads it through to `show_crop_region`; the response gains an additive `boundingBox: [x0,y0,x1,y1] \| null` field (not part of the generated `ProjectView` schema - see `api/inpainting.py`'s `save_inpainting_mask`) for PreviewOverlay.svelte's CLI-07-equivalent preview. `test_api_inpainting.py::test_mask_save_defaults_to_cropping_region_of_interest_and_returns_bounding_box`/`test_mask_save_with_crop_to_region_false_omits_bounding_box` | [x] Svelte: `MaskCanvas.svelte`'s Clear button (`canvas-clear`) + `workflow.deleteMask` (`DELETE .../mask`); painting itself (`PUT .../mask` on pointerup) is CLI-09's row, now sending `uiStore.cropToRoi` as `cropToRegion` and feeding a returned `boundingBox` into `canvasPreviewStore.showRoiBox` (see CLI-07). Save/delete asserted on both UIs by scenarios 6 and 9 |
 | CMP-25 | `load_canvas_mask` components.py:1799 | Input `BTN_LOAD_CANVAS.n_clicks` ("Load") | Calls `InpaintingService.load_mask`; re-renders it as RGBA `(r,0,0,r)` and feeds CLI-08 to paint it back onto the canvas | InpaintingService | none (handoff-listed gap: canvas load) (the RGBA `(r,0,0,r)` rendering itself is also exercised over HTTP by `GET .../assets/mask-{index}`, `test_api_inpainting.py`, PR 5, served directly from disk rather than through `InpaintingService.load_mask`, which is selection-scoped) | [ ] Svelte: `MaskCanvas.svelte`'s Load button (`canvas-load`) fetches `SliceView.mask.url` (already rendered server-side as RGBA `(r,0,0,r)`, exactly as this row describes) and draws it onto the canvas via `drawImage`; not checked here because no shared e2e scenario exercises the Load button (same handoff-listed gap as Dash) |
 | CLI-04 | `record_selected_slice` clientside.py:30 | Input `STORE_SELECTED_SLICE.data` (written by CMP-07) | Sets JS `currentSlice`, which gates whether CLI-09/JS-01 record paint strokes and drives JS-06's contextual help text | inline (JS) | 5, 6, 7, 8, 9, 10 | [x] Svelte: `MaskCanvas.svelte`'s slice-transition `$effect` (`lastSelected`/`loadToken`) is the equivalent gate - it flushes any pending save, then clears/reloads the canvas only on a real `ProjectView.selectedSlice` change, so a stroke is always attributed to the slice it was drawn on. The contextual-help-text half (JS-06) is not ported. Exercised on both UIs by scenarios 6 and 9 (paint only persists/affects the selected slice) |
-| CLI-07 | `show_bounding_box` clientside.py:55 | Input `STORE_BOUNDING_BOX.data` (written by CMP-24) | Draws a 2s ROI-preview rectangle on the preview canvas | inline (JS) | none (no test enables the ROI checkbox, so `bounding_box` stays `None`) | [ ] |
+| CLI-07 | `show_bounding_box` clientside.py:55 | Input `STORE_BOUNDING_BOX.data` (written by CMP-24) | Draws a 2s ROI-preview rectangle on the preview canvas | inline (JS) | none (no *e2e* test enables the ROI checkbox on either UI, so `bounding_box` stays untested end-to-end there; pytest covers the Svelte/API side directly - see CMP-24) | [ ] Svelte: implemented - `MaskCanvas.svelte`'s `saveCurrentCanvas` passes `uiStore.cropToRoi` (default checked, matching Dash) as the mask-save request's `cropToRegion` field and feeds the response's `boundingBox` into `canvasPreviewStore.showRoiBox`, which auto-clears after 2000ms (`setTimeout`, matching Dash's own `previewRect`'s timing exactly); `PreviewOverlay.svelte` renders it as an orange (`rgb(255,128,0)`, matching Dash's `rgba(255,128,0,1)`) rectangle, counter-scaled border width for a constant on-screen line thickness (see CLI-05's row for the same zoom/pan-tracking technique). Not ticked because no *shared e2e* scenario exercises it (same handoff-listed gap as Dash itself) - verified instead by `test_api_inpainting.py`'s bounding-box tests (CMP-24) and by manual screenshot inspection (`ux-inpainting-*.png`) |
 | CLI-08 | `canvas_load` components.py:1818 | Input `CANVAS_MASK_DATA.data` (written by CMP-25) | Sets up the main canvas if needed and draws the loaded mask image onto it | inline (JS) | none | [ ] Svelte: see CMP-25's `drawMaskImage`; not checked for the same reason (no shared scenario exercises Load) |
 | CLI-09 | `canvas_draw` components.py:1825 | Input `CANVAS_PAINT.event` (mousedown/mouseup/**mouseout**/mouseenter via `EventListener`) | Sets up canvas on first use; starts/stops drawing; **saves on `mouseout`, not `mouseup`** — returns `canvas.toDataURL()` into `CANVAS_DATA` only if a stroke was drawn since last save | inline (JS) | 6, 9 | [x] Svelte: `MaskCanvas.svelte`'s `pointerdown`/`pointermove`/`pointerup` handlers, with pointer capture - a deliberate improvement over Dash's `mouseout`-triggered save (see the migration handoff's "Deterministic harness details"): the canvas saves directly on `pointerup` via `workflow.saveMask`, registered with `canvasSaveStore` so Generate/Apply/Erase/a slice-selection change all await it first (`state/canvas.svelte.ts`, unit-tested in `canvas.svelte.test.ts` and `workflow.inpainting.test.ts`). The backing store is sized to the source image's own pixel dimensions rather than the CSS-rendered size Dash uses, so the saved mask maps 1:1 with no resampling and a window resize never touches the canvas's pixel content. Asserted on both UIs by scenarios 6 and 9 (`drawMaskStroke`, which waits for the `Saved mask for slice` log line on both) |
 | CLI-10 | `canvas_clear` (Clear button) components.py:1832 | Input `BTN_CLEAR_CANVAS.n_clicks` | Clears canvas pixels and resets cached 2D context | inline (JS) | none (handoff-listed gap) | [ ] Svelte: implemented (`MaskCanvas.svelte`'s `canvas-clear` button, `onClear` - clears pixels and calls `DELETE .../mask`); not checked because no shared scenario clicks it (same handoff-listed gap as Dash) |
 | CLI-11 | `canvas_clear` (auto-clear) components.py:1838 | Input `IMAGE.src` (**every** main-image change) | Clears canvas pixels whenever the main image updates — see Known quirks (`# XXX - this will kill the canvas during inpainting - bad`) | inline (JS) | 1–11 (fires on virtually every image update) | [ ] Deliberately **not** reproduced in Svelte - this row *is* the bug the handoff's "give the new canvas an explicit lifecycle" guidance calls out by name. `MaskCanvas.svelte` never watches `mainImage`/`ProjectView` updates in general; it only clears/reloads on an actual `selectedSlice` transition (see CLI-04's row), so a Generate/Fill/Enhance/Apply/Erase in progress - all of which repaint the main image - can never silently wipe an unsaved stroke the way Dash's `IMAGE.src`-triggered `canvas_clear` can |
 | CLI-12 | `canvas_toggle_erase` components.py:1845 | Input `BTN_ERASE_MODE.n_clicks` ("Erase" — the canvas eraser-brush toggle, distinct from `#erase-inpainting-button`) | Flips `isErasing`, switches `globalCompositeOperation` between `source-over`/`destination-out` and stroke color/width | inline (JS) | none | [ ] Svelte: implemented (`MaskCanvas.svelte`'s `canvas-erase-mode` button, `toggleErase` - flips `isErasing`, switches `globalCompositeOperation`/brush width exactly like this row); not checked because no shared scenario exercises the paint-canvas eraser toggle (same handoff-listed gap as Dash - distinct from `#erase-inpainting-button`/CMP-03, which *is* covered) |
-| JS-01 | canvas `mousemove` → `draw`/`previewBrush` utility.js:288,152,58 | Native `mousemove` on `#canvas` | Live brush-size preview circle when idle; paints the red stroke and records `canvasLastDrawnTime` while `isDrawing` | inline (JS) | 6, 9 (via `drawCanvasStroke` helper) | [x] Svelte: `MaskCanvas.svelte`'s `pointermove`/`moveStroke` paints the stroke (see CLI-09); the idle live brush-size *preview circle* is not ported (a `brush-size` range input is used instead - see the final report's noted deviations). The paint half is asserted on both UIs by scenarios 6 and 9 |
-| JS-02 | canvas `contextmenu` suppression utility.js:289 | Native `contextmenu` on `#canvas` | `preventDefault()`s the native menu so Alt+Right-drag can resize the brush instead | inline (JS) | none | [ ] Svelte: `MaskCanvas.svelte`'s `oncontextmenu={(event) => event.preventDefault()}` suppresses the native menu the same way, but there is no Alt+Right-drag brush-resize gesture to preserve (brush size is a plain slider); not checked since no shared scenario exercises either |
+| JS-01 | canvas `mousemove` → `draw`/`previewBrush` utility.js:288,152,58 | Native `mousemove` on `#canvas` | Live brush-size preview circle when idle; paints the red stroke and records `canvasLastDrawnTime` while `isDrawing` | inline (JS) | 6, 9 (via `drawCanvasStroke` helper) | [x] Svelte: `MaskCanvas.svelte`'s `pointermove`/`moveStroke` paints the stroke (see CLI-09). **Updated in the UX-parity slice**: the idle live brush-size preview circle is now also ported - `updateBrushPreview` (called from `pointermove` while idle, and momentarily on `pointerup`) sets `canvasPreviewStore.brush` (source-image-pixel position + diameter, converted from the CSS `drawWidth`/`eraseWidth` via the same `scaleFactor()` the real stroke's `lineWidth` uses), rendered by `PreviewOverlay.svelte` as a circle that follows the pointer, colored red (drawing) or black-ish (erasing) like Dash's `previewBrush`; cleared on `pointerleave` and on leaving the Inpainting tab. Its diameter is deliberately a constant on-screen size regardless of zoom (Dash's own preview, baked onto the same CSS-scaled canvas as the real stroke, visually grows with zoom instead - a documented simplification, not a bug fix, since `scaleFactor()` already compensates for the current zoom when computing the natural-pixel diameter). The paint half is asserted on both UIs by scenarios 6 and 9; the preview circle itself has no shared e2e scenario (not independently testable without pixel-sampling the canvas - see JS-02 for what *is* covered) but is unit-exercised indirectly via `MaskCanvas.svelte`'s `scaleFactor`/`canvasPoint` logic and visually verified in the `ux-inpainting-*.png` screenshots |
+| JS-02 | canvas `contextmenu` suppression utility.js:289 | Native `contextmenu` on `#canvas` | `preventDefault()`s the native menu so Alt+Right-drag can resize the brush instead | inline (JS) | none | [x] Svelte: `MaskCanvas.svelte`'s `oncontextmenu={(event) => event.preventDefault()}` suppresses the native menu the same way. **Updated in the UX-parity slice**: Alt+Right-drag brush resize is now also ported - `beginStroke`'s `event.button === 2 && event.altKey` branch (mirroring Dash's `startDrawing`'s identical check) starts a resize instead of a paint stroke; `moveStroke`'s `adjustBrushSize` applies the exact same formula and `[5, 100]` clamp as Dash's `adjustBrushSize` (1 unit per 15px of horizontal drag). Not checked because no shared e2e scenario exercises either the menu suppression or the resize gesture (same handoff-listed gap as Dash itself) |
 
 ## Project lifecycle
 
@@ -278,13 +278,13 @@ characterizing these rows.
 | CMP-16 | `toggle_depth_map` components.py:1527 (**dead — never registered**) | Would be Input `{label}-label.n_clicks` | Would show/hide a labeled container; `make_label_container_callback` is defined but `webui.py` never calls it, and its only real consumer (`make_configuration_container`) is used only in `test_components.py`, not the live layout | inline | none (unreachable) | [ ] |
 | CMP-17 | `toggle_tab_container` ("viewer" instance) components.py:1588 | Input `{tab-label-viewer,ALL}.n_clicks` (2D/3D tabs) | Switches the 2D/3D viewer tab, underlines the active label | inline | none (no scenario clicks the 2D/3D viewer tabs) | [x] Svelte: `ViewerTabs.svelte`'s 2D/3D `role="tab"` strip + `uiStore.setViewerTab`; no shared scenario clicks it (same gap as Dash), but the switch and each panel's visibility are pinned by `ViewerTabs.test.ts` |
 | CMP-18 | `toggle_tab_container` ("main" instance) components.py:1588 | Input `{tab-label-main,ALL}.n_clicks` (Mode/Segmentation/Inpainting/Export/Configuration) | Same logic as CMP-17, bound to the main tab strip; this is what `clickMainTab()` drives | inline | 1–11 | [ ] |
-| CMP-26 | `navigate_image` components.py:1869 | Input `NAV_RESET`/`NAV_UP`/`NAV_DOWN`/`NAV_LEFT`/`NAV_RIGHT`/`NAV_ZOOM_IN`/`NAV_ZOOM_OUT` `.n_clicks` | Moves `state.camera.camera_position`, re-renders the composed 3D-ish preview via `segmentation.render_view`, deselects any selected slice | inline (AppState + `segmentation.render_view`) | none (handoff-listed gap: pan/zoom via UI buttons) | [ ] |
-| CLI-01 | `store_rect_coords` clientside.py:9 | Input `IMAGE.src`, `evScroll.n_events` | Resolves `#image`'s bounding rect + rendered size (waiting for the `load` event if needed) into `STORE_RECT_DATA`, used by WEB-08 to map click coordinates to pixels | inline (JS) | 2, 3, 4, 5 (via `clickImagePixel`) | [ ] |
+| CMP-26 | `navigate_image` components.py:1869 | Input `NAV_RESET`/`NAV_UP`/`NAV_DOWN`/`NAV_LEFT`/`NAV_RIGHT`/`NAV_ZOOM_IN`/`NAV_ZOOM_OUT` `.n_clicks` | Moves `state.camera.camera_position`, re-renders the composed 3D-ish preview via `segmentation.render_view`, deselects any selected slice | inline (AppState + `segmentation.render_view`) | none (handoff-listed gap: pan/zoom via UI buttons) | [ ] **Not to be confused with the UX-parity slice's new zoom/pan controls** (`InputImagePanel.svelte`'s `−`/`⟳`/`+` buttons, `state/viewport.svelte.ts`) - despite living in the same Dash toolbar container (`make_inpainting_tools_container`) as this row's `NAV_*` buttons and both being colloquially "zoom", they are unrelated features: this row is a server-side 3D-camera dolly over the composited slice cards (deselects the current slice and re-renders `IMAGE.src` from scratch on every click), while the new controls are a client-only CSS `transform` over the existing image/canvas (JS-03's row). This row remains untouched/out of scope |
+| CLI-01 | `store_rect_coords` clientside.py:9 | Input `IMAGE.src`, `evScroll.n_events` | Resolves `#image`'s bounding rect + rendered size (waiting for the `load` event if needed) into `STORE_RECT_DATA`, used by WEB-08 to map click coordinates to pixels | inline (JS) | 2, 3, 4, 5 (via `clickImagePixel`); zoom/pan correctness specifically: `e2e/ux-parity.spec.ts`'s "after zooming in and panning, a depth-mode click..." | [x] Svelte: no caching step exists or is needed - `InputImagePanel.svelte`'s `onImageClick` reads `event.currentTarget.getBoundingClientRect()` *live*, at click time, which already reflects any current CSS `transform` (zoom/pan or otherwise) on an ancestor; `lib/geometry.ts`'s `findPixelFromClick` is unmodified for zoom/pan (its plain ratio math is transform-agnostic by construction - see its own doc comment and the new `transformedRect` helper/tests in `geometry.test.ts`, which prove a click at a known source pixel round-trips exactly under an arbitrary zoom+pan state). Exact-pixel-under-zoom-and-pan is asserted on both UIs by `ux-parity.spec.ts` |
 | CLI-02 | `suppress_contextmenu` clientside.py:16 | Input `CTR_INPUT_IMAGE.id` (fires once on load) | Calls `setupHelper()` (wires JS-06) and adds a `contextmenu` listener that turns a Ctrl+right-click into a synthetic left-click dispatch | inline (JS) | none | [ ] |
 | CLI-03 | `store_current_tab` clientside.py:24 | Input `STORE_CURRENT_TAB.data` (self-referential Output==Input; always returns `no_update`) | Records JS `currentTab` for JS-06's help text; resets cached canvas context | inline (JS) | 1–11 | [ ] |
-| JS-03 | canvas `wheel` → `handleWheel` utility.js:292,203 | Native `wheel` on `#canvas` | Zooms image/canvas/preview via CSS `transform: scale()` + `transform-origin`, clamped to 0.125×–8× | inline (JS) | none (handoff-listed gap: zoom/pan) | [ ] |
-| JS-04 | `window resize` → `resetContext` utility.js:294,39 | Native `resize` on `window` | Drops cached canvas 2D contexts/rect so they're rebuilt at the new size | inline (JS) | none | [ ] |
-| JS-05 | `ResizeObserver(#canvas)` utility.js:34-37,296 | Native canvas resize | Keeps the cached `gRect` bounding-rect in sync with layout changes | inline (JS) | none (passive infra; not independently asserted) | [ ] |
+| JS-03 | canvas `wheel` → `handleWheel` utility.js:292,203 | Native `wheel` on `#canvas` | Zooms image/canvas/preview via CSS `transform: scale()` + `transform-origin`, clamped to 0.125×–8× | inline (JS) | none (handoff-listed gap: zoom/pan) → closed: `e2e/ux-parity.spec.ts`'s zoom/pan scenarios | [x] Svelte: `state/viewport.svelte.ts`'s `zoomAt` (same `ZOOM_FACTOR = 1.1` and `[0.125, 8]` clamp as Dash, same "zoom towards the cursor" math), wired to `InputImagePanel.svelte`'s `onWheel` on the same sign check (`deltaY < 0` zooms in) and applied as `transform: translate(panX, panY) scale(scale)` on `.image-stack` (image + mask canvas + `PreviewOverlay.svelte` together, so every overlay tracks it identically). **Empirically discovered while writing this scenario** (see "Known quirks"): Dash's own wheel-zoom only works while the Inpainting tab is active and only after the canvas has been hovered/pressed at least once - a real, confirmed gap in Dash itself, not reproduced here (Svelte's zoom works on every tab, always). Svelte also adds drag-to-pan (`onDropZonePointerDown`/`Move`/`Up`, middle-button always, primary-button outside the Inpainting tab past a 4px threshold so a real click is never affected) and Zoom In/Out/Reset buttons - all deliberate, documented improvements over Dash, which has neither (see viewport.svelte.ts's own doc comment). Unit-tested in `state/viewport.svelte.test.ts` and `lib/geometry.test.ts`; asserted end-to-end on both UIs by `e2e/ux-parity.spec.ts` (zoom on both; pan and reset `test.fail()`-pinned on Dash only, per the confirmed gaps above) |
+| JS-04 | `window resize` → `resetContext` utility.js:294,39 | Native `resize` on `window` | Drops cached canvas 2D contexts/rect so they're rebuilt at the new size | inline (JS) | none | [ ] Svelte has no equivalent cache to invalidate (see CLI-01's row - rects are always read live), so there is nothing for this row to port; not ticked since it describes Dash-internal cache-invalidation plumbing, not user-visible behavior |
+| JS-05 | `ResizeObserver(#canvas)` utility.js:34-37,296 | Native canvas resize | Keeps the cached `gRect` bounding-rect in sync with layout changes | inline (JS) | none (passive infra; not independently asserted) | [ ] Same as JS-04 - Svelte's live `getBoundingClientRect()` reads make a cached/observed rect unnecessary |
 | JS-06 | help-window tooltip system utility.js:543-649 | Native `mousemove`/`mousedown`/`keypress`/`mouseout`/`mouseenter` on the input-image container (wired by CLI-02) | Shows a randomized, tab-contextual help tip after a 3s idle delay | inline (JS) | none | [ ] |
 
 ## Progress/Logs
@@ -499,59 +499,114 @@ characterizing these rows.
   all" instruction for extraction), only characterized; it is a strong
   candidate for a deliberate behavior fix (fit/crop into the canvas instead)
   before this endpoint is used from a real Svelte upload control.
+- **Dash's wheel-zoom (JS-03) only works while the Inpainting tab is
+  active, and only after the canvas has been hovered/clicked at least
+  once - a real, confirmed Dash limitation, discovered empirically while
+  writing `e2e/ux-parity.spec.ts`.** `setupMainCanvas` (which attaches
+  `canvas.addEventListener('wheel', handleWheel)`) is only ever called
+  lazily, from `canvas_draw`'s `mouseenter`/`mousedown` cases - never
+  unconditionally at page load. Even once attached, a wheel event only
+  reaches that listener while `#canvas` is the topmost element under the
+  cursor, which `update_events`/CMP-01 only makes true while the Inpainting
+  tab is active (every other tab puts `#image` on top instead, with no
+  wheel listener of its own). Net effect, verified directly against the
+  live Dash app: scrolling over the Input Image box on the Mode/
+  Segmentation/Export/Configuration tabs does nothing at all, ever;
+  scrolling on the Inpainting tab works, but only from the moment the
+  pointer first enters/presses the canvas onward. `state/viewport.svelte.ts`
+  does not reproduce this - Svelte's zoom works on every tab, immediately.
+  Dash also has **no drag-to-pan mechanism at all** for the image/canvas
+  (only wheel-zoom; the similarly-named `NAV_*` buttons are an unrelated
+  3D-camera-dolly feature - see CMP-26's own row) and **no reset control**
+  for the zoom it does have. `e2e/ux-parity.spec.ts`'s pan and reset
+  scenarios `test.fail(ui.target === 'dash', ...)`-pin these two gaps
+  directly against a real drag/repeated-zoom-out gesture (not a synthetic
+  shortcut), and its zoom scenario visits the Inpainting tab first
+  specifically so Dash's own zoom has a fair chance to actually engage.
 
 ## Remaining gaps
 
-Rows still unticked after this slice (project lifecycle, export/render,
-configuration, the 3D viewer, and the two Navigation/Layout rows this slice
-happened to touch - WEB-01/CMP-17), grouped by reason. Every row below either
-already carries its own inline reason in the table (most do) or is inherited,
-untouched, from an earlier PR's slice of work.
+Updated by the **UX-parity slice** (zoom/pan, queued-point markers, ROI-box
+preview, brush preview + Alt+drag resize, help tooltips, slider value
+labels, CMP-21, keyboard/roving-tabindex, responsive layout), which closed
+CMP-21, CLI-05, CLI-06, CLI-01, JS-03, JS-01 (the preview-circle half) and
+JS-02 (the resize-gesture half) from the previous version of this section,
+and added the CMP-24/CLI-07 backend field described below. Everything below
+is what is still genuinely missing after that slice, grouped by reason.
 
-**This slice's own rows, deliberately or provisionally unticked:**
+**Implemented in this slice but not tickable per this document's own rule**
+(Svelte code + Dash-matching behavior exist, but no *shared* e2e scenario
+exercises the specific row - each row's own text says so):
 
-- **WEB-39** (`restore_api_key`) - deliberately **not** reproduced: the API's
-  `apiKey` is write-only and never echoed back by any response, so restoring
-  it into a visible field would be a real credential-echoing regression
-  relative to the API's own contract, not a missing feature. Pinned by
-  `ConfigurationTab.test.ts`.
-- **WEB-40** (`restore_workflow`), **CMP-08** (`validate_workflow`, ComfyUI
-  workflow upload), **CMP-09** (`toggle_blur_slider`, stabilityai mask-blur
-  disable), **CMP-15** (`test_api_key`, API-key validate highlight) - all
-  implemented in Svelte (see their own rows), just not ticked because no
-  *shared* e2e scenario exercises them - identically true of Dash for the
-  same rows (each row says so), so this is an inherited, not a new, gap.
+- **CLI-07** (`show_bounding_box`, the ROI-box preview) - the mask-save
+  request now carries a real `cropToRegion` flag and the response a real
+  `boundingBox` (see CMP-24's row and `api/inpainting.py`), and
+  `PreviewOverlay.svelte` renders it exactly like Dash's `previewRect`
+  (same color, same 2s auto-clear). Covered by `test_api_inpainting.py`
+  and manually verified via the `ux-inpainting-*.png` screenshots, but no
+  *e2e* scenario enables the checkbox and asserts the rendered box on
+  either UI - an inherited gap (Dash's own row says the same: "no test
+  enables the ROI checkbox"), not a new one.
+- **JS-01**'s brush-preview circle and **JS-02**'s Alt+drag resize
+  gesture - both implemented in `MaskCanvas.svelte`/`PreviewOverlay.svelte`
+  (see their own rows), not independently checked by a shared scenario
+  (canvas-content pixel-sampling would be the only way to assert a preview
+  circle's presence, which felt like more test fragility than the payoff
+  justified); visually verified in the `ux-inpainting-*.png` screenshots.
 
-**Pre-existing gaps from earlier PRs' slices, untouched by this one** (listed
-for completeness, per this task's instruction to enumerate every remaining
-unticked row - none of the Upload/Depth/Slices, Segmentation, Mask tools,
-Canvas/Inpainting or Navigation/Layout/Progress/Logs rows below were in this
-task's scope, which was project lifecycle/export/configuration/the 3D
-viewer only):
+**Deliberate redesigns, not straight ports** (own reasoning in each area):
+
+- **JS-06** (the idle-timer help-tooltip popup) - replaced with
+  `components/shared/HelpTooltip.svelte`, an on-demand, accessible "?"
+  button per relevant tab (Segmentation/Inpainting/Export/Configuration)
+  instead of a floating, randomized, 3-second-idle popup with no ARIA
+  semantics or keyboard path at all. Same texts (`lib/helpTexts.ts`, copied
+  verbatim from `utility.js`'s `helpTexts`), different (and, unlike Dash's,
+  keyboard/screen-reader-reachable) interaction model - see
+  `HelpTooltip.svelte`'s own doc comment. Unit-tested in `HelpTooltip.test.ts`;
+  not "ticked" against JS-06 since it is not the same behavior, by design.
+- **CMP-18**/tab-strip keyboard support - Dash's tab strips
+  (`MainTabs.svelte`/`ViewerTabs.svelte`'s equivalents) have no keyboard
+  affordance at all (plain `<label>` click targets). Both Svelte tab strips
+  now use roving tabindex (`lib/a11y/rovingTabindex.ts`: only the active tab
+  is in the Tab order, Left/Right/Home/End move and activate) - a deliberate
+  accessibility improvement with no Dash equivalent to match, so CMP-18
+  itself stays unticked (its own row is about click-based tab switching,
+  which is unchanged) rather than being (mis)credited with a Dash behavior
+  that doesn't exist. Unit-tested in `rovingTabindex.test.ts`.
+- **CMP-26**'s `NAV_*` buttons remain completely untouched (see that row's
+  own note distinguishing them from the new zoom/pan controls) - out of
+  scope; a different feature entirely.
+
+**Pre-existing gaps from earlier PRs' slices, untouched by this one** (not
+this task's scope: zoom/pan, markers, tooltips, sliders, keyboard nav,
+responsiveness):
 
 - Upload/Depth/Slices: WEB-04, WEB-05, WEB-06, WEB-07, WEB-09, WEB-10,
   WEB-20, WEB-25 - inline `AppState`/trigger-only rows with no Svelte column
   entry at all yet; the actual upload/depth/slice-generation *behavior* they
   describe is implemented and covered (scenario 1 and others), but these
   specific Dash-internal plumbing rows were never individually annotated.
-- Segmentation: CMP-21, CLI-05, CLI-06 - CMP-21's button-enablement logic and
-  CLI-05/06's queued-point preview-canvas dot are not ported (the underlying
-  multi-point workflow itself is, per CMP-22's ticked row).
 - Mask tools: WEB-11 - depth-map `<img>` rendering; implemented
   (`ModeTab.svelte`'s `depth-image`) but not individually annotated.
-- Canvas/Inpainting: CMP-25/CLI-07/CLI-08/CLI-10/CLI-12/JS-02 - canvas
-  Load/eraser-toggle/ROI-preview/contextmenu-suppression rows, each already
-  documented inline as implemented-but-unchecked (no shared scenario) or a
-  deliberately-dropped Dash bug (CLI-11, already `[ ]` with its own
-  "Deliberately not reproduced" note).
-- Navigation/Layout (everything except WEB-01/CMP-17, this slice's two
-  rows): WEB-48, CMP-01, CMP-16 (dead code in Dash itself - unreachable,
-  nothing to port), CMP-18, CMP-26 (pan/zoom buttons), CLI-01/02/03 (click
-  coordinate mapping / contextmenu / current-tab bookkeeping), JS-03/04/05
-  (canvas zoom/resize), JS-06 (help-tooltip system) - none of these are
-  project/export/configuration/viewer concerns; out of this task's scope.
+- Canvas/Inpainting: CMP-25/CLI-08/CLI-10/CLI-12 - canvas Load/eraser-toggle
+  rows, each already documented inline as implemented-but-unchecked (no
+  shared scenario) or a deliberately-dropped Dash bug (CLI-11, already `[ ]`
+  with its own "Deliberately not reproduced" note).
+- Navigation/Layout: WEB-48, CMP-01, CMP-16 (dead code in Dash itself -
+  unreachable, nothing to port), CLI-02/03 (Ctrl+right-click-as-click
+  bookkeeping / current-tab bookkeeping - CLI-02's actual behavior is
+  implemented, see `InputImagePanel.svelte`'s `onImageContextMenu`, but its
+  row was never individually annotated - inherited, not new), JS-04/JS-05
+  (Dash-internal rect-caching plumbing that Svelte's always-live
+  `getBoundingClientRect()` reads make structurally unnecessary - see their
+  own rows).
 - Progress/Logs: WEB-02, WEB-03 - the log pane and progress bar are already
   implemented generically (`LogPanel.svelte`, and every tab's own
   `*-progress` bar in `ModeTab`/`InpaintingTab`/`ExportTab.svelte`) and
   exercised indirectly by nearly every scenario, but were never individually
-  annotated by the PR that added them; out of this task's scope to formalize.
+  annotated by the PR that added them.
+- Configuration: CMP-08, CMP-09, CMP-15, WEB-39 (deliberately not
+  reproduced - see its own row), WEB-40 - all implemented, just not ticked
+  because no shared e2e scenario exercises them (identically true of Dash
+  for the same rows).
