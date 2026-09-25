@@ -309,7 +309,7 @@
       <span class="slider-value">{Math.round(draft.groundNear)}</span>
     </div>
     <p class="ground-readout" data-testid="horizon-readout">
-      {#if view?.settings.camera.horizonRow !== null && view?.settings.camera.horizonRow !== undefined}
+      {#if view?.settings.camera.horizonRow != null}
         Horizon at row {Math.round(view.settings.camera.horizonRow)}, camera pitch
         {(view.settings.camera.pitch ?? 0).toFixed(1)}°
       {:else}

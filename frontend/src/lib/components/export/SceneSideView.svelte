@@ -17,7 +17,7 @@
     if (profile.ground) {
       zs.push(profile.ground.nearZ, profile.ground.farZ);
       ys.push(profile.ground.height);
-      if (profile.ground.backdropTop !== null && profile.ground.backdropTop !== undefined) {
+      if (profile.ground.backdropTop != null) {
         ys.push(profile.ground.backdropTop);
       }
     }
@@ -71,7 +71,7 @@
       y2={profile.ground.height}
       stroke-width={stroke * 3}
     />
-    {#if profile.ground.backdropTop !== null && profile.ground.backdropTop !== undefined}
+    {#if profile.ground.backdropTop != null}
       <line
         class="ground"
         x1={profile.ground.farZ}

@@ -17,10 +17,14 @@
   const row = $derived(draftRow ?? committedRow);
   const topPercent = $derived(row === null || height === 0 ? 0 : Math.min(100, Math.max(0, (row / height) * 100)));
 
+  function clampRow(value: number): number {
+    return Math.min(height - 1, Math.max(0, value));
+  }
+
   function rowAt(clientY: number): number | null {
     const box = lineEl?.parentElement?.getBoundingClientRect();
     if (!box || box.height <= 0 || height === 0) return null;
-    return Math.min(height - 1, Math.max(0, ((clientY - box.top) / box.height) * height));
+    return clampRow(((clientY - box.top) / box.height) * height);
   }
 
   function onPointerDown(event: PointerEvent): void {
@@ -47,7 +51,7 @@
     event.preventDefault();
     event.stopPropagation();
     const step = (event.shiftKey ? 10 : 1) * (event.key === 'ArrowUp' ? -1 : 1);
-    void workflow.setHorizonRow(Math.min(height - 1, Math.max(0, committedRow + step)));
+    void workflow.setHorizonRow(clampRow(committedRow + step));
   }
 
   async function onPointerUp(event: PointerEvent): Promise<void> {
