@@ -270,6 +270,14 @@ def displace_vertices(
     return vertices
 
 
+def _grid_points_and_uvs(us, vs, image_width, image_height):
+    """Row-major image points over the ``us`` x ``vs`` grid, and their UVs."""
+    grid_u, grid_v = np.meshgrid(us, vs)
+    points = np.stack([grid_u.ravel(), grid_v.ravel()], axis=1)
+    uvs = (points / [image_width, image_height]).astype(np.float32)
+    return points, uvs
+
+
 def card_grid(cam, z, image_width, image_height, subdivisions):
     """Vertex grid (card-local: plane at z=0) and UVs for the card at depth ``z``.
 
@@ -279,11 +287,9 @@ def card_grid(cam, z, image_width, image_height, subdivisions):
     """
     us = np.linspace(0, image_width, subdivisions + 1)
     vs = np.linspace(0, image_height, subdivisions + 1)
-    grid_u, grid_v = np.meshgrid(us, vs)
-    points = np.stack([grid_u.ravel(), grid_v.ravel()], axis=1)
+    points, uvs = _grid_points_and_uvs(us, vs, image_width, image_height)
     vertices = cam.backproject_to_depth(points, z, image_width, image_height)
     vertices[:, 2] -= z
-    uvs = (points / [image_width, image_height]).astype(np.float32)
     return vertices, uvs
 
 
@@ -322,13 +328,11 @@ def ground_grids(cam, image, image_width, image_height, subdivisions):
         else:
             vs = np.linspace(top, bottom, BACKDROP_ROWS + 1)
         vs[0], vs[-1] = top, bottom  # exact edges
-        grid_u, grid_v = np.meshgrid(us, vs)
-        points = np.stack([grid_u.ravel(), grid_v.ravel()], axis=1)
+        points, uvs = _grid_points_and_uvs(us, vs, image_width, image_height)
         vertices = cam.backproject_to_plane(
             points, layer.normal, layer.offset, image_width, image_height
         )
         vertices[:, 2] = z_node - vertices[:, 2]
-        uvs = (points / [image_width, image_height]).astype(np.float32)
         grids.append((vertices, uvs, len(us)))
     return grids, z_node
 
