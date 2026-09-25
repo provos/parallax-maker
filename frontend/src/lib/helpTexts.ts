@@ -1,8 +1,9 @@
 /**
- * Dash's own contextual help texts, copied verbatim from
+ * Dash's own contextual help texts, copied from
  * `parallax_maker/assets/scripts/utility.js`'s `setupHelper`/`helpTexts`
  * (JS-06). Dash picks one at random per idle-timeout popup; HelpTooltip.svelte
  * shows the whole list at once instead (see its own doc comment for why).
+ * One typo is fixed ("panting" -> "painting").
  */
 
 export const SEGMENTATION_HELP_TEXTS: string[] = [
@@ -14,7 +15,7 @@ export const SEGMENTATION_HELP_TEXTS: string[] = [
 export const INPAINTING_HELP_TEXTS: string[] = [
   'Drag Alt + Right-click to adjust brush size',
   'Use the mouse wheel to zoom in and out of the image',
-  'You can clean up the image by panting over the areas you want to remove and ' +
+  'You can clean up the image by painting over the areas you want to remove and ' +
     'pressing the erase button to remove them',
 ];
 

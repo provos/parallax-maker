@@ -91,13 +91,13 @@
     height: 10px;
     border-radius: 50%;
     /* Positive point: green, matches Dash's `rgba(0, 255, 0, 1)`. */
-    background-color: rgb(0, 200, 0);
+    background-color: rgb(0, 255, 0);
     box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
   }
 
   /* Negative (Ctrl-click) point: red, matches Dash's `rgba(255, 0, 0, 1)`. */
   .marker.negative {
-    background-color: rgb(220, 0, 0);
+    background-color: rgb(255, 0, 0);
   }
 
   .roi-box {
