@@ -100,7 +100,7 @@ type SegmentationView = {
   slicePixelDepth: number | null;
   hasMask: boolean;
 };
-type AssetRef = { url: string };  // /api/v1/projects/{id}/assets/{assetId}?rev={revision}
+type AssetRef = { url: string };  // /api/v1/projects/{id}/assets/{assetId}?v={contentVersion}
 ```
 
 Never serialize `AppState`, PIL/NumPy objects, model objects or credentials.
@@ -144,6 +144,9 @@ status, since both segmentation routes above run asynchronously; Dash ignores
 them silently, but the service guarantees no partial state mutation either
 way.
 
+The `v` query is a content version that changes only when that asset changes
+(file mtime/size, or in-memory input/display counters), so a mutation that
+leaves an image untouched does not make the browser reload it.
 Asset IDs are logical (`input`, `depth`, `slice-{i}`, `slice-{i}-thumb`, later
 `mask-{i}`, `candidate-{gen}-{k}`), resolved server-side; raw paths are never
 accepted. `/next/` must not reuse the legacy unrestricted `/{SRV_DIR}/<path>` route.

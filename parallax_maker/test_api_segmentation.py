@@ -519,3 +519,41 @@ def test_mutation_is_409_while_a_click_job_is_running(isolated_cwd) -> None:
         f"/api/v1/projects/{project_id}/segmentation/multi-point", json={"enabled": True}
     )
     assert ok_response.status_code == 200
+
+
+def test_asset_urls_change_only_with_their_content(client) -> None:
+    """Queueing a point bumps the revision but must not reload any image."""
+
+    view = _restore_fixture(client)
+    project_id = view["id"]
+
+    def urls(v: dict) -> dict:
+        return {
+            "main": v["mainImage"]["url"],
+            "input": v["assets"]["input"]["url"],
+            "depth": v["assets"]["depth"]["url"],
+            "thumbs": [s["thumbnail"]["url"] for s in v["slices"]],
+        }
+
+    before = urls(view)
+    client.put(
+        f"/api/v1/projects/{project_id}/segmentation/multi-point", json={"enabled": True}
+    )
+    queued = _click(client, project_id, 90, 96)["project"]
+    assert queued["revision"] > view["revision"]
+    assert queued["segmentation"]["queuedPoints"] == [
+        {"x": 90, "y": 96, "negative": False}
+    ]
+    assert urls(queued) == before
+
+    committed = poll_job(
+        client,
+        client.post(f"/api/v1/projects/{project_id}/segmentation/commit").get_json()[
+            "job"
+        ]["id"],
+    )["project"]
+    after = urls(committed)
+    assert after["main"] != before["main"]
+    assert {k: v for k, v in after.items() if k != "main"} == {
+        k: v for k, v in before.items() if k != "main"
+    }

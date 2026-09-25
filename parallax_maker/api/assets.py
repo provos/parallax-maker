@@ -102,17 +102,17 @@ def main_asset_bytes(
     segmentation/selection interaction has produced a preview image yet (or the
     project was just uploaded/restored/re-depth-mapped, which reset it),
     ``record.display_image`` is ``None`` and the input image is served
-    instead. Encoded bytes are cached on the record, keyed by revision, so
-    repeated GETs at the same revision don't re-encode.
+    instead. Encoded bytes are cached on the record, keyed by the input and
+    display content versions, so repeated GETs don't re-encode.
     """
 
-    revision = record.revision
+    key, display_image = record.main_asset_key()
     cached = record.main_asset_cache()
-    if cached is not None and cached[0] == revision:
+    if cached is not None and cached[0] == key:
         return cached[1]
 
-    if record.display_image is not None:
-        image = record.display_image
+    if display_image is not None:
+        image = display_image
         if not isinstance(image, Image.Image):
             image = Image.fromarray(image)
         buffer = io.BytesIO()
@@ -124,8 +124,18 @@ def main_asset_bytes(
         input_path = resolve_asset_path(project_dir, state, "input")
         data = input_path.read_bytes()
 
-    record.cache_main_asset(revision, data)
+    record.cache_main_asset(key, data)
     return data
+
+
+def file_version(path: Path) -> str:
+    """A cache-busting token that changes whenever the file is rewritten."""
+
+    try:
+        stat = path.stat()
+    except OSError:
+        return "0"
+    return f"{stat.st_mtime_ns:x}.{stat.st_size:x}"
 
 
 def slice_thumbnail(project_dir: Path, state: AppState, index: int) -> bytes:

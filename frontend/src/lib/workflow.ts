@@ -10,6 +10,7 @@
 
 import * as api from './api/client';
 import { ApiError } from './api/client';
+import type { SegmentationMode } from './api/types';
 import { projectStore } from './state/project.svelte';
 import { jobStore } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
@@ -126,6 +127,99 @@ export async function updateSliceCount(numSlices: number): Promise<void> {
   jobStore.begin('slice-count');
   try {
     const result = await api.setSliceCount(view.id, numSlices);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Selects (or, with `slice: null`, deselects) a slice for display and
+ * segmentation input (`PUT .../selection`, sync). Matches Dash's
+ * `display_slice`: the caller (SegmentationTab.svelte) is responsible for
+ * sending `null` when the clicked slice is already selected, mirroring
+ * Dash's click-to-toggle.
+ */
+export async function selectSlice(slice: number | null): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+
+  jobStore.begin('selection');
+  try {
+    const result = await api.updateSelection(view.id, slice);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Sends one segmentation click (`POST .../segmentation/click`, a job) and
+ * polls it to completion, mirroring Dash's `click_event`. `mode` is the
+ * Mode Selector's current value ("depth" or "instance"); `shiftKey`/
+ * `ctrlKey` are the browser click event's modifier keys, read as-is (see
+ * InputImagePanel.svelte's note on `ctrlKey` vs `metaKey`).
+ */
+export async function clickSegmentation(
+  x: number,
+  y: number,
+  mode: SegmentationMode,
+  shiftKey: boolean,
+  ctrlKey: boolean,
+): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  const projectId = view.id;
+
+  jobStore.begin('segmentation');
+  try {
+    const { job } = await api.segmentationClick(projectId, { x, y, mode, shiftKey, ctrlKey });
+    const finished = await api.pollJob(job.id, {
+      onProgress: (j) => jobStore.setProgress(j.progress),
+    });
+    if (finished.project) projectStore.applyView(finished.project);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(projectId);
+  }
+}
+
+/** Commits the queued multi-point selection (`POST .../segmentation/commit`, a job). */
+export async function commitMultiPoint(): Promise<void> {
+  const projectId = projectStore.view?.id;
+  if (!projectId) return;
+
+  jobStore.begin('segmentation');
+  try {
+    const { job } = await api.segmentationCommit(projectId);
+    const finished = await api.pollJob(job.id, {
+      onProgress: (j) => jobStore.setProgress(j.progress),
+    });
+    if (finished.project) projectStore.applyView(finished.project);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(projectId);
+  }
+}
+
+/** Toggles multi-point mode (`PUT .../segmentation/multi-point`, sync); always clears the queue. */
+export async function setMultiPointMode(enabled: boolean): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+
+  jobStore.begin('multi-point');
+  try {
+    const result = await api.setMultiPointMode(view.id, enabled);
     projectStore.applyView(result);
   } catch (err) {
     logStore.pushClient(errorMessage(err));

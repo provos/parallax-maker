@@ -30,6 +30,7 @@ from ..workflow_services import (
 )
 from . import schemas
 from .assets import (
+    file_version,
     main_asset_bytes,
     resolve_asset_path,
     send_asset,
@@ -71,9 +72,11 @@ def _slice_version(image_slice) -> int:
     return 1
 
 
-def _asset_ref(project_id: str, revision: int, asset_id: str) -> schemas.AssetRef:
+def _asset_ref(project_id: str, asset_id: str, version: str) -> schemas.AssetRef:
+    """URL for ``asset_id`` whose query changes only when its content does."""
+
     return schemas.AssetRef(
-        url=f"/api/v1/projects/{project_id}/assets/{asset_id}?rev={revision}"
+        url=f"/api/v1/projects/{project_id}/assets/{asset_id}?v={version}"
     )
 
 
@@ -91,19 +94,29 @@ def _build_project_view(
 
     assets = schemas.ProjectAssets(
         input=(
-            _asset_ref(project_id, revision, "input")
+            _asset_ref(project_id, "input", f"i{record.input_version}")
             if state.imgData is not None
             else None
         ),
         depth=(
-            _asset_ref(project_id, revision, "depth")
+            _asset_ref(
+                project_id,
+                "depth",
+                file_version(Path(project_id) / AppState.DEPTH_MAP_FILE),
+            )
             if state.depthMapData is not None
             else None
         ),
     )
 
     main_image = (
-        _asset_ref(project_id, revision, "main") if state.imgData is not None else None
+        _asset_ref(
+            project_id,
+            "main",
+            f"{record.input_version}.{record.display_version}",
+        )
+        if state.imgData is not None
+        else None
     )
 
     segmentation = schemas.SegmentationView(
@@ -134,8 +147,14 @@ def _build_project_view(
             can_redo=image_slice.can_undo(forward=True),
             positive_prompt=image_slice.positive_prompt,
             negative_prompt=image_slice.negative_prompt,
-            image=_asset_ref(project_id, revision, f"slice-{index}"),
-            thumbnail=_asset_ref(project_id, revision, f"slice-{index}-thumb"),
+            image=_asset_ref(
+                project_id, f"slice-{index}", file_version(Path(image_slice.filename))
+            ),
+            thumbnail=_asset_ref(
+                project_id,
+                f"slice-{index}-thumb",
+                file_version(Path(image_slice.filename)),
+            ),
         )
         for index, image_slice in enumerate(state.image_slices)
     ]
@@ -278,6 +297,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
         state.num_slices = DEFAULT_NUM_SLICES
 
         record = runtime.projects.ensure(result.state_id)
+        record.bump_input_version()
         record.set_display_image(None)
         record.log.append(
             f"Uploaded image ({state.imgData.width}x{state.imgData.height})"
@@ -320,6 +340,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
 
         AppState.cache[state.filename] = state
         record = runtime.projects.ensure(state.filename)
+        record.bump_input_version()
         record.set_display_image(None)
         record.bump_revision()
         record.log.append(f"Restored state from {state.filename}")
@@ -439,7 +460,9 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
                         if state.use_checkerboard
                         else CompositeMode.GRAYSCALE
                     )
-                    composed = state.slice_image_composed(state.selected_slice, mode=mode)
+                    composed = state.slice_image_composed(
+                        state.selected_slice, mode=mode
+                    )
                     record.set_display_image(composed)
                     state.slice_pixel = None
                     state.slice_pixel_depth = None

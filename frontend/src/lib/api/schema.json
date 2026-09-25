@@ -236,6 +236,20 @@
       "title": "LogsView",
       "type": "object"
     },
+    "MultiPointRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "enabled": {
+          "title": "Enabled",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled"
+      ],
+      "title": "MultiPointRequest",
+      "type": "object"
+    },
     "ProjectAssets": {
       "additionalProperties": false,
       "properties": {
@@ -302,6 +316,17 @@
           ],
           "default": null
         },
+        "mainImage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "numSlices": {
           "title": "Numslices",
           "type": "integer"
@@ -309,6 +334,9 @@
         "revision": {
           "title": "Revision",
           "type": "integer"
+        },
+        "segmentation": {
+          "$ref": "#/$defs/SegmentationView"
         },
         "selectedSlice": {
           "anyOf": [
@@ -335,6 +363,11 @@
           },
           "title": "Thresholds",
           "type": "array"
+        },
+        "useCheckerboard": {
+          "default": false,
+          "title": "Usecheckerboard",
+          "type": "boolean"
         }
       },
       "required": [
@@ -344,9 +377,158 @@
         "depthModel",
         "numSlices",
         "thresholds",
-        "slices"
+        "slices",
+        "segmentation"
       ],
       "title": "ProjectView",
+      "type": "object"
+    },
+    "SegmentationClickRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST .../segmentation/click``.\n\n``x``/``y`` are integer source-image pixel coordinates (the client\nperforms Dash's ``find_pixel_from_click`` truncation); ``shiftKey``/\n``ctrlKey`` mirror the browser click event's modifier keys exactly like\nDash's ``click_event``.",
+      "properties": {
+        "ctrlKey": {
+          "title": "Ctrlkey",
+          "type": "boolean"
+        },
+        "mode": {
+          "enum": [
+            "depth",
+            "instance"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "shiftKey": {
+          "title": "Shiftkey",
+          "type": "boolean"
+        },
+        "x": {
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "mode",
+        "shiftKey",
+        "ctrlKey"
+      ],
+      "title": "SegmentationClickRequest",
+      "type": "object"
+    },
+    "SegmentationPoint": {
+      "additionalProperties": false,
+      "description": "One queued multi-point click; ``negative`` mirrors ``PointPolarity``.",
+      "properties": {
+        "negative": {
+          "title": "Negative",
+          "type": "boolean"
+        },
+        "x": {
+          "title": "X",
+          "type": "integer"
+        },
+        "y": {
+          "title": "Y",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "x",
+        "y",
+        "negative"
+      ],
+      "title": "SegmentationPoint",
+      "type": "object"
+    },
+    "SegmentationView": {
+      "additionalProperties": false,
+      "description": "Interaction state owned by ``SegmentationService``/``AppState``.",
+      "properties": {
+        "hasMask": {
+          "title": "Hasmask",
+          "type": "boolean"
+        },
+        "multiPointMode": {
+          "title": "Multipointmode",
+          "type": "boolean"
+        },
+        "queuedPoints": {
+          "items": {
+            "$ref": "#/$defs/SegmentationPoint"
+          },
+          "title": "Queuedpoints",
+          "type": "array"
+        },
+        "slicePixel": {
+          "anyOf": [
+            {
+              "maxItems": 2,
+              "minItems": 2,
+              "prefixItems": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "integer"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slicepixel"
+        },
+        "slicePixelDepth": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Slicepixeldepth"
+        }
+      },
+      "required": [
+        "multiPointMode",
+        "queuedPoints",
+        "hasMask"
+      ],
+      "title": "SegmentationView",
+      "type": "object"
+    },
+    "SelectionRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``PUT .../selection``; ``slice=None`` deselects.",
+      "properties": {
+        "slice": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Slice"
+        }
+      },
+      "required": [
+        "slice"
+      ],
+      "title": "SelectionRequest",
       "type": "object"
     },
     "SliceCountRequest": {

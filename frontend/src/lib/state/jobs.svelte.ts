@@ -9,7 +9,16 @@
  * mutating controls be disabled right now?".
  */
 
-export type JobKind = 'upload' | 'depth' | 'slices' | 'thresholds' | 'slice-count' | 'restore';
+export type JobKind =
+  | 'upload'
+  | 'depth'
+  | 'slices'
+  | 'thresholds'
+  | 'slice-count'
+  | 'restore'
+  | 'selection'
+  | 'segmentation'
+  | 'multi-point';
 
 function createJobStore() {
   let active = $state<JobKind | null>(null);

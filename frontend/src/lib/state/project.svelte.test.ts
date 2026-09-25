@@ -13,6 +13,7 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
     thresholds: [],
     slices: [],
     selectedSlice: null,
+    segmentation: { multiPointMode: false, queuedPoints: [], hasMask: false },
     busy: null,
     ...overrides,
   };

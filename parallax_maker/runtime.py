@@ -105,27 +105,44 @@ class ProjectRecord:
         #: vs. ``serve_input_image`` in Dash). In-memory only: never persisted
         #: to the project JSON, mirroring Dash's own transient main-image src.
         self.display_image: Image.Image | None = None
+        #: Content versions used in asset URLs, so a mutation only reloads the
+        #: images it actually changed (the project revision changes on every
+        #: mutation, including ones that leave every image untouched).
+        self.display_version = 0
+        self.input_version = 0
         self._main_asset_lock = threading.Lock()
-        #: ``(revision, encoded_png_bytes)``, invalidated on every
-        #: ``set_display_image`` call so a stale encode is never served.
-        self._main_asset_cache: tuple[int, bytes] | None = None
+        #: ``((input_version, display_version), encoded_png_bytes)``.
+        self._main_asset_cache: tuple[tuple[int, int], bytes] | None = None
 
     def set_display_image(self, image: Image.Image | None) -> None:
         """Set the in-memory display image (``None`` means "show the input")."""
 
-        self.display_image = image
         with self._main_asset_lock:
+            self.display_image = image
+            self.display_version += 1
             self._main_asset_cache = None
 
-    def main_asset_cache(self) -> tuple[int, bytes] | None:
-        """Return ``(revision, bytes)`` cached by :meth:`cache_main_asset`, if any."""
+    def bump_input_version(self) -> None:
+        """Record that ``AppState.imgData`` was replaced (upload/restore)."""
 
+        with self._main_asset_lock:
+            self.input_version += 1
+            self._main_asset_cache = None
+
+    def main_asset_key(self) -> tuple[tuple[int, int], Image.Image | None]:
+        """The main asset's content key and display image, read atomically."""
+
+        with self._main_asset_lock:
+            return (self.input_version, self.display_version), self.display_image
+
+    def main_asset_cache(self) -> tuple[tuple[int, int], bytes] | None:
         with self._main_asset_lock:
             return self._main_asset_cache
 
-    def cache_main_asset(self, revision: int, data: bytes) -> None:
+    def cache_main_asset(self, key: tuple[int, int], data: bytes) -> None:
         with self._main_asset_lock:
-            self._main_asset_cache = (revision, data)
+            if key == (self.input_version, self.display_version):
+                self._main_asset_cache = (key, data)
 
     @property
     def revision(self) -> int:

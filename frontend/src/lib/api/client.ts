@@ -4,6 +4,7 @@ import type {
   Job,
   LogsPage,
   ProjectView,
+  SegmentationMode,
 } from './types';
 
 const API_BASE = '/api/v1';
@@ -194,6 +195,66 @@ export function getLogs(
   return request<LogsPage>(
     `/projects/${encodeURIComponent(id)}/logs?after=${encodeURIComponent(String(after))}`,
     { signal },
+  );
+}
+
+/** PUT /api/v1/projects/{id}/selection; `slice: null` deselects. */
+export function updateSelection(
+  id: string,
+  slice: number | null,
+  signal?: AbortSignal,
+): Promise<ProjectView & { changed: boolean }> {
+  return requestJson<ProjectView & { changed: boolean }>(
+    `/projects/${encodeURIComponent(id)}/selection`,
+    'PUT',
+    { slice },
+    signal,
+  );
+}
+
+export type SegmentationClickBody = {
+  x: number;
+  y: number;
+  mode: SegmentationMode;
+  shiftKey: boolean;
+  ctrlKey: boolean;
+};
+
+/** POST /api/v1/projects/{id}/segmentation/click -> 202 {job} */
+export function segmentationClick(
+  id: string,
+  body: SegmentationClickBody,
+  signal?: AbortSignal,
+): Promise<{ job: Job }> {
+  return requestJson<{ job: Job }>(
+    `/projects/${encodeURIComponent(id)}/segmentation/click`,
+    'POST',
+    body,
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/segmentation/commit -> 202 {job} */
+export function segmentationCommit(id: string, signal?: AbortSignal): Promise<{ job: Job }> {
+  return requestJson<{ job: Job }>(
+    `/projects/${encodeURIComponent(id)}/segmentation/commit`,
+    'POST',
+    {},
+    signal,
+  );
+}
+
+/** PUT /api/v1/projects/{id}/segmentation/multi-point */
+export function setMultiPointMode(
+  id: string,
+  enabled: boolean,
+  signal?: AbortSignal,
+): Promise<ProjectView & { changed: boolean }> {
+  return requestJson<ProjectView & { changed: boolean }>(
+    `/projects/${encodeURIComponent(id)}/segmentation/multi-point`,
+    'PUT',
+    { enabled },
+    signal,
   );
 }
 
