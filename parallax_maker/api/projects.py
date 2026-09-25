@@ -117,12 +117,13 @@ def _build_inpainting_view(
             ],
         )
     return schemas.InpaintingView(
-        model=settings.model,
+        # Persisted project values win over per-process defaults (restore).
+        model=state.inpainting_model_name or settings.model,
         strength=settings.strength,
         guidance_scale=settings.guidance_scale,
         padding=settings.padding,
         blur=settings.blur,
-        external_server=settings.external_server,
+        external_server=state.server_address or settings.external_server,
         has_workflow=record.get_inpainting_workflow() is not None,
         candidates=candidates_view,
         selected_candidate=state.selected_inpainting,

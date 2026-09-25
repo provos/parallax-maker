@@ -738,3 +738,27 @@ def test_erase_requires_a_saved_mask(client) -> None:
     response = client.post(f"/api/v1/projects/{project_id}/slices/1/inpainting/erase")
     assert response.status_code == 409
     assert response.get_json()["error"]["code"] == "not_ready"
+
+
+def test_restored_project_reports_its_persisted_inpainting_model(client) -> None:
+    view = _restore_fixture(client)
+    state = AppState.from_cache(view["id"])
+    assert state.inpainting_model_name
+    assert view["inpainting"]["model"] == state.inpainting_model_name
+
+
+def test_null_settings_are_ignored(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    before = view["inpainting"]
+
+    response = client.put(
+        f"/api/v1/projects/{project_id}/inpainting/settings",
+        json={"model": None, "strength": None, "guidanceScale": 5.0},
+    )
+
+    assert response.status_code == 200, response.get_json()
+    after = response.get_json()["inpainting"]
+    assert after["model"] == before["model"]
+    assert after["strength"] == before["strength"]
+    assert after["guidanceScale"] == 5.0

@@ -13,7 +13,7 @@
 
   // Same options/values/default as components.py's DROPDOWN_INPAINT_MODEL.
   const inpaintModelOptions: Array<{ value: string; label: string }> = [
-    { value: 'kandinsky-community/kandinsky-2-2-decoder-inpaint', label: 'Kadinksy' },
+    { value: 'kandinsky-community/kandinsky-2-2-decoder-inpaint', label: 'Kandinsky' },
     { value: 'runwayml/stable-diffusion-v1-5', label: 'SD 1.5' },
     { value: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', label: 'SD XL 1.0' },
     { value: 'stabilityai/stable-diffusion-3-medium-diffusers', label: 'StableDiffusion3' },

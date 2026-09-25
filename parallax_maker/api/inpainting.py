@@ -292,7 +292,12 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
         payload = _parse_json_body(request, schemas.InpaintingSettingsRequest)
         record = runtime.projects.ensure(project_id)
 
-        provided = payload.model_dump(exclude_unset=True)
+        # An explicit null means "leave unchanged", not "store None".
+        provided = {
+            key: value
+            for key, value in payload.model_dump(exclude_unset=True).items()
+            if value is not None
+        }
         changed = False
         with _mutation_guard(record):
             if "model" in provided:
@@ -393,9 +398,9 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
 
         mode = _GENERATE_MODES[payload.mode]
         settings = record.get_inpainting_settings()
-        workflow = (
-            record.get_inpainting_workflow() if settings.model == "comfyui" else None
-        )
+        # The persisted project model wins (e.g. after a restore).
+        model_name = state.inpainting_model_name or settings.model
+        workflow = record.get_inpainting_workflow() if model_name == "comfyui" else None
 
         def run(job: Job) -> None:
             with record.lock:
@@ -403,7 +408,7 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
                     GenerateInpaintingCandidates(
                         state_id=project_id,
                         mode=mode,
-                        model_name=settings.model,
+                        model_name=model_name,
                         workflow=workflow,
                         positive_prompt=payload.positive_prompt,
                         negative_prompt=payload.negative_prompt,
