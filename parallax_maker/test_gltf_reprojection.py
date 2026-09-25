@@ -166,3 +166,19 @@ def test_displaced_cards_still_reproject_onto_their_texture(tmp_path):
         assert np.ptp(forward) > 5
         # ...but only along their camera rays, so the image is unchanged.
         np.testing.assert_allclose(ndc, _expected_ndc(uvs), atol=TOLERANCE_NDC)
+
+
+def test_displacement_never_reaches_or_passes_the_camera():
+    from .gltf import displace_vertices
+
+    vertices = np.array([[-10.0, 5.0, 0.0], [10.0, -5.0, 0.0]], np.float32)
+    depth_map = np.ones((4, 4), np.float32)
+    displaced = displace_vertices(
+        vertices.copy(), depth_map, displacement_scale=500.0, camera_distance=100.0
+    )
+    assert (displaced[:, 2] < 100.0).all()
+    # Still in front of the camera: x/y keep their sign (no mirroring).
+    assert (np.sign(displaced[:, :2]) == np.sign(vertices[:, :2])).all()
+
+    with pytest.raises(ValueError):
+        displace_vertices(vertices.copy(), depth_map, 1.0, camera_distance=0.0)

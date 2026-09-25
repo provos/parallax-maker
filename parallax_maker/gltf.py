@@ -206,7 +206,12 @@ def displace_vertices(
     depths = depth_map[pixel_coords[:, 1], pixel_coords[:, 0]] * displacement_scale
 
     # Displace the vertices based on the depth values
-    if camera_distance:
+    if camera_distance is not None:
+        if camera_distance <= 0:
+            raise ValueError("camera_distance must be positive")
+        # Never reach (or pass) the camera, which would collapse or mirror
+        # the card; stop just short of it instead.
+        depths = np.minimum(depths, 0.99 * camera_distance)
         # Slide along the ray from the camera through the vertex: moving
         # `depth` closer scales x/y by (D - depth) / D.
         scale = (camera_distance - depths) / camera_distance
