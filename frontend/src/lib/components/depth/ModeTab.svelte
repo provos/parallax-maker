@@ -17,15 +17,28 @@
     { value: 'segment', label: 'Instance Segmentation' },
   ];
 
-  // Keep the dropdown in sync with the project once it reports a model
-  // (e.g. after a restore), the same way Dash's dropdown reflects state.
+  // Keep the dropdown in sync with the project once it reports a model.
+  // `settings.depthModel` is the *persisted* dropdown selection
+  // (`AppState.depth_model_name`, restored from JSON - WEB-41/WEB-29; see
+  // ARCHITECTURE.md's `ProjectSettingsView` doc comment) and takes
+  // precedence once it has ever been set; before that (a fresh upload, where
+  // `settings.depthModel` is still `""`), fall back to the top-level
+  // `depthModel` (the model instance actually used for the last depth
+  // generation) so the dropdown still reflects reality immediately after the
+  // very first depth job, exactly like before this field existed.
   $effect(() => {
-    const model = projectStore.view?.depthModel;
+    const view = projectStore.view;
+    if (!view) return;
+    const model = view.settings.depthModel || view.depthModel;
     if (model) uiStore.setDepthModel(model);
   });
 
   function onDepthModelChange(event: Event): void {
-    uiStore.setDepthModel((event.currentTarget as HTMLSelectElement).value);
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    uiStore.setDepthModel(value);
+    // Persists on every change, regardless of whether Regenerate is ever
+    // clicked - mirrors Dash's `remember_depth_model` (WEB-29) exactly.
+    if (projectStore.view) void workflow.updateSettings({ depthModel: value });
   }
 
   function onModeChange(event: Event): void {

@@ -38,6 +38,13 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
       selectedCandidate: null,
     },
     busy: null,
+    settings: {
+      darkMode: false,
+      camera: { distance: 100, focalLength: 100, maxDistance: 200 },
+      meshDisplacement: 0,
+      depthModel: "dinov2",
+    },
+    exports: { gltf: null, upscaled: false },
     ...overrides,
   };
 }
@@ -137,5 +144,48 @@ describe('App', () => {
       `/api/v1/projects/${projectId}/depth`,
       expect.objectContaining({ method: 'POST' }),
     );
+  });
+
+  it('restoring a project applies its persisted dark-mode setting to the theme', async () => {
+    projectStore.applyView(makeView({ settings: { ...makeView().settings, darkMode: true } }));
+    render(App);
+
+    const root = document.documentElement;
+    await waitFor(() => expect(root.classList.contains('dark')).toBe(true));
+    expect(screen.getByTestId('app-title').closest('.app-root')).toHaveClass('dark');
+  });
+
+  it('toggling the theme persists it via PUT settings once a project is loaded', async () => {
+    const projectId = 'appstate-e2e-test';
+    projectStore.applyView(makeView({ settings: { ...makeView().settings, darkMode: false } }));
+
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+      const url = String(input);
+      const method = init?.method ?? 'GET';
+      if (url === `/api/v1/projects/${projectId}/settings` && method === 'PUT') {
+        return jsonResponse(200, {
+          ...makeView({ revision: 2, settings: { ...makeView().settings, darkMode: true } }),
+          changed: true,
+        });
+      }
+      if (url.startsWith(`/api/v1/projects/${projectId}/logs`)) {
+        return jsonResponse(200, { entries: [], next: 0 });
+      }
+      throw new Error(`Unexpected fetch: ${method} ${url}`);
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(App);
+    await fireEvent.click(screen.getByTestId('theme-toggle'));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        `/api/v1/projects/${projectId}/settings`,
+        expect.objectContaining({ method: 'PUT' }),
+      ),
+    );
+    const call = fetchMock.mock.calls.find(([reqUrl]) => String(reqUrl) === `/api/v1/projects/${projectId}/settings`);
+    expect(JSON.parse(call![1]!.body as string)).toEqual({ darkMode: true });
+    await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(true));
   });
 });

@@ -12,9 +12,13 @@
 import type { Mode as GeneratedInpaintingMode, Mode1 as GeneratedSegmentationMode } from './generated';
 
 export type {
+  AnimationExportRequest,
   AssetRef,
   BusyView,
+  CameraSettingsRequest,
+  CameraSettingsView,
   ErrorBody as ApiErrorBody,
+  GltfExportRequest,
   HealthView as HealthResponse,
   ImageSize,
   InpaintingApplyRequest,
@@ -28,7 +32,12 @@ export type {
   LogEntryView as LogEntry,
   LogsView as LogsPage,
   MultiPointRequest,
+  ProbeResultView,
+  ProbeServerRequest,
   ProjectAssets,
+  ProjectExportsView,
+  ProjectSettingsRequest,
+  ProjectSettingsView,
   ProjectView,
   SegmentationClickRequest,
   SegmentationPoint,
@@ -36,6 +45,7 @@ export type {
   SelectionRequest,
   SliceView,
   Status as JobStatus,
+  ValidateKeyRequest,
 } from './generated';
 
 /** Matches `InpaintingGenerateRequest.mode` ("paint" | "fill" | "enhance"). */

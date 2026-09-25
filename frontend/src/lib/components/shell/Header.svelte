@@ -1,5 +1,6 @@
 <script lang="ts">
   import { uiStore } from '../../state/ui.svelte';
+  import * as workflow from '../../workflow';
 </script>
 
 <header class="app-header">
@@ -10,7 +11,7 @@
       data-testid="theme-toggle"
       aria-label="Toggle dark mode"
       aria-pressed={uiStore.theme === 'dark'}
-      onclick={() => uiStore.toggleTheme()}
+      onclick={() => void workflow.toggleDarkMode()}
     >
       <span class="thumb"></span>
     </button>

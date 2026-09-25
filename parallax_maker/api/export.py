@@ -93,7 +93,7 @@ def register_export_routes(blueprint: Blueprint, runtime: "Runtime") -> None:
 
         def run(job: Job) -> None:
             with record.lock:
-                result = runtime.export_service.upscale_textures(
+                runtime.export_service.upscale_textures(
                     UpscaleTextures(
                         state_id=project_id,
                         model_name=settings.model,
@@ -102,9 +102,11 @@ def register_export_routes(blueprint: Blueprint, runtime: "Runtime") -> None:
                         workflow=workflow,
                     )
                 )
-                record.log.append(
-                    f"Upscaled textures for {result.slice_count} slices"
-                )
+                # Matches webui.py's upscale_texture log line exactly (no
+                # slice count - see PARITY.md's WEB-27 row and the shared
+                # e2e assertion in project-export.spec.ts). The slice count
+                # itself is still asserted directly by test_export_services.py.
+                record.log.append("Upscaled textures for slices")
             job.set_progress(1.0)
 
         job = _begin_job(runtime, record, project_id, kind="upscale", run=run)

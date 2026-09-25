@@ -22,7 +22,15 @@ export type JobKind =
   | 'slice-editing'
   | 'mask-tools'
   | 'inpainting'
-  | 'inpainting-mutate';
+  | 'inpainting-mutate'
+  | 'save'
+  | 'settings'
+  | 'export-gltf'
+  | 'upscale'
+  | 'animation'
+  | 'workflow-upload'
+  | 'probe'
+  | 'validate-key';
 
 function createJobStore() {
   let active = $state<JobKind | null>(null);

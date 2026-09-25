@@ -10,11 +10,17 @@
 
 import * as api from './api/client';
 import { ApiError } from './api/client';
-import type { InpaintingGenerateMode, InpaintingSettingsRequest, SegmentationMode } from './api/types';
+import type {
+  InpaintingGenerateMode,
+  InpaintingSettingsRequest,
+  ProjectSettingsRequest,
+  SegmentationMode,
+} from './api/types';
 import { projectStore } from './state/project.svelte';
 import { jobStore } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
 import { canvasSaveStore } from './state/canvas.svelte';
+import { uiStore } from './state/ui.svelte';
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -600,5 +606,191 @@ export async function eraseInpainting(): Promise<void> {
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
+  }
+}
+
+// --- Project lifecycle / export / configuration -----------------------------
+//
+// Project/export/configuration settings (PARITY.md's "Project lifecycle",
+// "Configuration" and "Export/Render" sections; see ARCHITECTURE.md's
+// "Project lifecycle, export/render and configuration endpoints"). Every UI
+// control that shows a *persisted* value (camera/displacement sliders, the
+// depth-model select, the inpainting-model select, the external-server
+// field, dark mode) reads straight from `projectStore.view.settings`/
+// `.inpainting` - restoring/loading a project just re-populates that view, so
+// no separate "apply restored settings" step is needed beyond the two
+// exceptions below that mirror server state into transient `uiStore` fields
+// (`theme`, the depth-model select's local draft, kept for the same reason
+// ModeTab.svelte already tracks one - see its own comment).
+
+/** POST /api/v1/projects/{id}/save (Configuration tab's "Save State"); no browser download - matches Dash's own save_state exactly (see ARCHITECTURE.md). */
+export async function saveProject(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('save');
+  try {
+    const result = await api.saveProject(view.id);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * PUT /api/v1/projects/{id}/settings. Only the fields present on `settings`
+ * are applied server-side (see `ProjectSettingsRequest`); callers send
+ * whichever subset they own (e.g. just `depthModel`, or `camera` +
+ * `meshDisplacement` together - see ExportTab.svelte's comment on why those
+ * two are always sent together, mirroring Dash's own single
+ * `remember_camera_parameters` callback).
+ */
+export async function updateSettings(settings: ProjectSettingsRequest): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('settings');
+  try {
+    const result = await api.updateSettings(view.id, settings);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Flips the theme immediately (matching Dash's own immediate class toggle),
+ * then persists it (`PUT .../settings`, `darkMode`) when a project is
+ * loaded - mirrors `toggle_dark_mode` (WEB-01), which only ever writes to
+ * `AppState` "if filename is not None". Without a project, the toggle stays
+ * purely local, same as Dash before any image is uploaded.
+ */
+export async function toggleDarkMode(): Promise<void> {
+  const next = uiStore.theme === 'dark' ? 'light' : 'dark';
+  uiStore.setTheme(next);
+  if (!projectStore.view) return;
+  await updateSettings({ darkMode: next === 'dark' });
+}
+
+/** Starts a glTF export job (`POST .../export/gltf`) and polls it to completion. */
+export async function startGltfExport(dof: boolean): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('export-gltf');
+  try {
+    const { job } = await api.startGltfExport(view.id, dof);
+    const finished = await api.pollJob(job.id, {
+      onProgress: (j) => jobStore.setProgress(j.progress),
+    });
+    if (finished.project) projectStore.applyView(finished.project);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/** Starts a texture-upscale job (`POST .../export/upscale`) and polls it to completion. */
+export async function startUpscaleExport(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('upscale');
+  try {
+    const { job } = await api.startUpscaleExport(view.id);
+    const finished = await api.pollJob(job.id, {
+      onProgress: (j) => jobStore.setProgress(j.progress),
+    });
+    if (finished.project) projectStore.applyView(finished.project);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Starts an animation-render job (`POST .../export/animation`) and polls it
+ * to completion. Deliberately never triggers a browser download - matches
+ * Dash's `export_animation` exactly (frames are written server-side only;
+ * see PARITY.md "Known quirks").
+ */
+export async function startAnimationExport(frames: number): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('animation');
+  try {
+    const { job } = await api.startAnimationExport(view.id, frames);
+    const finished = await api.pollJob(job.id, {
+      onProgress: (j) => jobStore.setProgress(j.progress),
+    });
+    if (finished.project) projectStore.applyView(finished.project);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/** Uploads a ComfyUI workflow JSON file (`PUT .../inpainting/workflow`). */
+export async function uploadInpaintingWorkflow(file: File): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('workflow-upload');
+  try {
+    const result = await api.uploadInpaintingWorkflow(view.id, file);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Probes an Automatic1111/ComfyUI server (`POST /api/v1/config/probe-server`,
+ * not project-scoped - mirrors `test_external_connection`/CMP-12). Never
+ * throws for a failed probe (the route itself never returns non-2xx); the
+ * result's `message` is pushed to the log exactly as Dash logs it, since
+ * this route has no project to attach a server-side log entry to.
+ */
+export async function probeExternalServer(model: string, serverAddress: string): Promise<void> {
+  jobStore.begin('probe');
+  try {
+    const result = await api.probeServer(model, serverAddress);
+    uiStore.setExternalConnectionStatus(result.ok ? 'success' : 'failure');
+    logStore.pushClient(result.message, result.ok ? 'info' : 'error');
+  } catch (err) {
+    uiStore.setExternalConnectionStatus('failure');
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+  }
+}
+
+/**
+ * Validates a StabilityAI/fal.ai API key (`POST /api/v1/config/validate-key`,
+ * not project-scoped - mirrors `test_api_key`/CMP-15). Same never-throws/
+ * client-only-log contract as `probeExternalServer`; `apiKey` is write-only
+ * and never sent anywhere else.
+ */
+export async function probeApiKey(model: string, apiKey: string): Promise<void> {
+  jobStore.begin('validate-key');
+  try {
+    const result = await api.validateApiKey(model, apiKey);
+    uiStore.setApiKeyStatus(result.ok ? 'success' : 'failure');
+    logStore.pushClient(result.message, result.ok ? 'info' : 'error');
+  } catch (err) {
+    uiStore.setApiKeyStatus('failure');
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
   }
 }

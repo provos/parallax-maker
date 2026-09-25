@@ -11,30 +11,24 @@ import type {
   Workflow,
 } from './types';
 
+// Every slider's `data-testid` equals its `SliderName` directly (see
+// ConfigurationTab.svelte/ExportTab.svelte) - unlike DashDriver, no lookup
+// table of distinct DOM ids is needed.
+
 /**
- * Svelte-specific implementation of `UiDriver`, built during the migration's
- * first vertical slice (upload -> depth -> thresholds -> slices, plus legacy
- * state restore and the log pane). Every Svelte selector and gesture used by
- * the shared behavioral scenarios lives here; the scenario file itself never
- * mentions a Svelte `data-testid`.
- *
- * `upload-depth-slices` and `segmentation` are supported so far: every other
- * workflow (inpainting, export, ...) is not yet implemented in the new UI
- * (see docs/svelte-migration/PARITY.md), so those methods throw.
+ * Svelte-specific implementation of `UiDriver`. Every Svelte selector and
+ * gesture used by the shared behavioral scenarios lives here; the scenario
+ * file itself never mentions a Svelte `data-testid`. All workflows are
+ * implemented (see docs/svelte-migration/PARITY.md); `supports()` always
+ * returns `true`.
  */
 export class SvelteDriver implements UiDriver {
   readonly target: UiTarget = 'svelte';
 
   constructor(private readonly page: Page) {}
 
-  supports(workflow: Workflow): boolean {
-    return (
-      workflow === 'upload-depth-slices' ||
-      workflow === 'segmentation' ||
-      workflow === 'slice-editing' ||
-      workflow === 'mask-tools' ||
-      workflow === 'inpainting'
-    );
+  supports(_workflow: Workflow): boolean {
+    return true;
   }
 
   // Navigation
@@ -402,86 +396,151 @@ export class SvelteDriver implements UiDriver {
   // Project / configuration
 
   async expectDarkTheme(): Promise<void> {
-    throw new Error('SvelteDriver: expectDarkTheme not implemented yet');
+    await expect(this.page.locator('#app-container')).toHaveClass(/\bdark\b/);
   }
 
-  async expectSliderValue(_name: SliderName, _value: number): Promise<void> {
-    throw new Error('SvelteDriver: expectSliderValue not implemented yet');
+  async expectSliderValue(name: SliderName, value: number): Promise<void> {
+    const input = this.page.getByTestId(name);
+    await expect(input).toHaveValue(String(value));
   }
 
-  async setSlider(_name: SliderName, _value: number): Promise<void> {
-    throw new Error('SvelteDriver: setSlider not implemented yet');
+  /**
+   * Native `<input type=range>` elements (unlike Dash's rc-slider) have no
+   * `aria-valuestep` quirk to work around, but the same "step directly from
+   * the current value, never via Home" rationale from DashDriver.setSlider
+   * still applies here (ExportTab.svelte's camera/displacement sliders are
+   * committed together - see its own doc comment), so this mirrors that
+   * driver's technique with real keyboard events (`ArrowRight`/`ArrowLeft`)
+   * rather than any synthetic value assignment.
+   */
+  async setSlider(name: SliderName, value: number): Promise<void> {
+    const input = this.page.getByTestId(name);
+    await input.focus();
+    const min = Number(await input.getAttribute('min'));
+    const max = Number(await input.getAttribute('max'));
+    if (value < min || value > max) {
+      throw new Error(`Value ${value} is out of range for ${name} (${min}..${max})`);
+    }
+
+    let current = Number(await input.inputValue());
+    let guard = 0;
+    while (current !== value && guard < 2000) {
+      await input.press(current < value ? 'ArrowRight' : 'ArrowLeft');
+      const next = Number(await input.inputValue());
+      if (next === current) break;
+      current = next;
+      guard += 1;
+    }
+    if (current !== value) {
+      throw new Error(`Could not step ${name} to ${value}; stuck at ${current}`);
+    }
   }
 
-  async expectDepthModel(_label: string): Promise<void> {
-    throw new Error('SvelteDriver: expectDepthModel not implemented yet');
+  async expectDepthModel(label: string): Promise<void> {
+    const selected = this.page.getByTestId('depth-model').locator('option:checked');
+    await expect(selected).toHaveText(label);
   }
 
-  async expectInpaintingModel(_label: string): Promise<void> {
-    throw new Error('SvelteDriver: expectInpaintingModel not implemented yet');
+  async expectInpaintingModel(label: string): Promise<void> {
+    const selected = this.page.getByTestId('inpainting-model').locator('option:checked');
+    await expect(selected).toHaveText(label);
   }
 
-  async selectDepthModel(_label: string): Promise<void> {
-    throw new Error('SvelteDriver: selectDepthModel not implemented yet');
+  async selectDepthModel(label: string): Promise<void> {
+    await this.withModeTabVisible(async () => {
+      await this.page.getByTestId('depth-model').selectOption({ label });
+    });
   }
 
-  async selectInpaintingModel(_label: string): Promise<void> {
-    throw new Error('SvelteDriver: selectInpaintingModel not implemented yet');
+  async selectInpaintingModel(label: string): Promise<void> {
+    await this.page.getByTestId('inpainting-model').selectOption({ label });
   }
 
-  async setExternalServer(_address: string): Promise<void> {
-    throw new Error('SvelteDriver: setExternalServer not implemented yet');
+  async setExternalServer(address: string): Promise<void> {
+    const input = this.page.getByTestId('external-server-address');
+    await input.fill(address);
+    // Commits on blur (ConfigurationTab.svelte's `onchange`), same as
+    // DashDriver's debounced field.
+    await input.press('Tab');
   }
 
   async testExternalConnection(): Promise<void> {
-    throw new Error('SvelteDriver: testExternalConnection not implemented yet');
+    await this.page.getByTestId('external-test-connection').click();
   }
 
-  async expectExternalConnectionStatus(_status: 'success' | 'failure' | 'none'): Promise<void> {
-    throw new Error('SvelteDriver: expectExternalConnectionStatus not implemented yet');
+  private async expectStatus(
+    locator: Locator,
+    status: 'success' | 'failure' | 'none',
+  ): Promise<void> {
+    await expect(locator).toHaveAttribute('data-status', status);
   }
 
-  async setApiKey(_key: string): Promise<void> {
-    throw new Error('SvelteDriver: setApiKey not implemented yet');
+  async expectExternalConnectionStatus(status: 'success' | 'failure' | 'none'): Promise<void> {
+    await this.expectStatus(this.page.getByTestId('external-server-address'), status);
+  }
+
+  async setApiKey(key: string): Promise<void> {
+    const input = this.page.getByTestId('api-key');
+    await input.fill(key);
+    await input.press('Tab');
   }
 
   async validateApiKey(): Promise<void> {
-    throw new Error('SvelteDriver: validateApiKey not implemented yet');
+    await this.page.getByTestId('validate-api-key').click();
   }
 
-  async expectApiKeyStatus(_status: 'success' | 'failure' | 'none'): Promise<void> {
-    throw new Error('SvelteDriver: expectApiKeyStatus not implemented yet');
+  async expectApiKeyStatus(status: 'success' | 'failure' | 'none'): Promise<void> {
+    await this.expectStatus(this.page.getByTestId('api-key'), status);
   }
 
   // Project lifecycle
 
   async saveState(): Promise<void> {
-    throw new Error('SvelteDriver: saveState not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('save-state'));
   }
 
-  async restoreStateFromBytes(_buffer: Buffer): Promise<void> {
-    throw new Error('SvelteDriver: restoreStateFromBytes not implemented yet');
+  async restoreStateFromBytes(buffer: Buffer): Promise<void> {
+    let input = this.page.getByTestId('restore-state-input');
+    if ((await input.count()) === 0) {
+      await this.openTab('Configuration');
+      input = this.page.getByTestId('restore-state-input');
+    }
+    await input.setInputFiles({
+      name: 'appstate.json',
+      mimeType: 'application/json',
+      buffer,
+    });
+    await waitForImage(this.mainImage());
+    await waitForImage(this.depthImage());
   }
 
   // Export
 
   async exportGltf(): Promise<Download> {
-    throw new Error('SvelteDriver: exportGltf not implemented yet');
+    const downloadPromise = this.page.waitForEvent('download');
+    await this.page.getByTestId('gltf-export').click();
+    return downloadPromise;
   }
 
   async exportAnimation(): Promise<void> {
-    throw new Error('SvelteDriver: exportAnimation not implemented yet');
+    await this.page.getByTestId('animation-export').click();
   }
 
-  async setDofEnabled(_enabled: boolean): Promise<void> {
-    throw new Error('SvelteDriver: setDofEnabled not implemented yet');
+  async setDofEnabled(enabled: boolean): Promise<void> {
+    const checkbox = this.page.getByTestId('toggle-dof');
+    if ((await checkbox.isChecked()) !== enabled) {
+      await checkbox.click();
+    }
+    await expect(checkbox).toBeChecked({ checked: enabled });
   }
 
   async upscaleTextures(): Promise<void> {
-    throw new Error('SvelteDriver: upscaleTextures not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('upscale-textures'));
   }
 
-  async downloadSlice(_index: number): Promise<Download> {
-    throw new Error('SvelteDriver: downloadSlice not implemented yet');
+  async downloadSlice(index: number): Promise<Download> {
+    const downloadPromise = this.page.waitForEvent('download');
+    await this.page.getByTestId('slice-download').nth(index).click();
+    return downloadPromise;
   }
 }

@@ -5,12 +5,20 @@
  * and run json-schema-to-typescript to regenerate this file.
  */
 
+export type Frames = number;
 export type Url = string;
 export type Jobid = string;
 export type Kind = string;
+export type Distance = number;
+export type Focallength = number;
+export type Maxdistance = number;
+export type Distance1 = number;
+export type Focallength1 = number;
+export type Maxdistance1 = number;
 export type Model = string;
 export type Code = string;
 export type Message = string;
+export type Dof = boolean;
 export type Ok = boolean;
 export type Version = string;
 export type Height = number;
@@ -47,6 +55,7 @@ export type Kind1 = string;
 export type Progress = number;
 export type Clipboard = boolean;
 export type Depthmodel = string;
+export type Upscaled = boolean;
 export type Id1 = string;
 export type Numslices = number;
 export type Revision = number;
@@ -59,6 +68,9 @@ export type Queuedpoints = SegmentationPoint[];
 export type Slicepixel = [unknown, unknown] | null;
 export type Slicepixeldepth = number | null;
 export type Selectedslice = number | null;
+export type Darkmode = boolean;
+export type Depthmodel1 = string;
+export type Meshdisplacement = number;
 export type Canredo = boolean;
 export type Canundo = boolean;
 export type Depth = number;
@@ -76,6 +88,13 @@ export type Seq = number;
 export type Entries = LogEntryView[];
 export type Next = number;
 export type Enabled = boolean;
+export type Message2 = string;
+export type Ok1 = boolean;
+export type Model3 = string;
+export type Serveraddress = string;
+export type Darkmode1 = boolean | null;
+export type Depthmodel2 = string | null;
+export type Meshdisplacement1 = number | null;
 export type Ctrlkey = boolean;
 export type Mode1 = "depth" | "instance";
 export type Shiftkey = boolean;
@@ -87,9 +106,20 @@ export type Depth1 = number;
 export type Numslices1 = number;
 export type Baserevision = number;
 export type Values = number[];
+export type Apikey1 = string;
+export type Model4 = string;
 
 export interface ParallaxMakerApi {
   [k: string]: unknown;
+}
+/**
+ * Body of ``POST /projects/{id}/export/animation``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "AnimationExportRequest".
+ */
+export interface AnimationExportRequest {
+  frames: Frames;
 }
 /**
  * A fetchable asset URL; opaque to clients beyond ``fetch``-ing it.
@@ -107,6 +137,29 @@ export interface AssetRef {
 export interface BusyView {
   jobId: Jobid;
   kind: Kind;
+}
+/**
+ * The nested ``camera`` object of ``PUT .../settings``; all three fields
+ * are required together (a client that wants to change one camera value
+ * sends the whole triple, matching Dash's own sliders, which always submit
+ * distance/focal length/max distance together).
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "CameraSettingsRequest".
+ */
+export interface CameraSettingsRequest {
+  distance: Distance;
+  focalLength: Focallength;
+  maxDistance: Maxdistance;
+}
+/**
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "CameraSettingsView".
+ */
+export interface CameraSettingsView {
+  distance: Distance1;
+  focalLength: Focallength1;
+  maxDistance: Maxdistance1;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -129,6 +182,15 @@ export interface ErrorBody {
 export interface ErrorDetail {
   code: Code;
   message: Message;
+}
+/**
+ * Body of ``POST /projects/{id}/export/gltf``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "GltfExportRequest".
+ */
+export interface GltfExportRequest {
+  dof?: Dof;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -278,6 +340,7 @@ export interface ProjectView {
   busy?: BusyView | null;
   clipboard?: Clipboard;
   depthModel: Depthmodel;
+  exports: ProjectExportsView;
   id: Id1;
   image?: ImageSize | null;
   inpainting: InpaintingView;
@@ -286,6 +349,7 @@ export interface ProjectView {
   revision: Revision;
   segmentation: SegmentationView;
   selectedSlice?: Selectedslice;
+  settings: ProjectSettingsView;
   slices: Slices;
   thresholds: Thresholds;
   useCheckerboard?: Usecheckerboard;
@@ -297,6 +361,16 @@ export interface ProjectView {
 export interface ProjectAssets {
   depth?: AssetRef | null;
   input?: AssetRef | null;
+}
+/**
+ * Content-versioned export availability (PARITY.md "Export/Render").
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProjectExportsView".
+ */
+export interface ProjectExportsView {
+  gltf?: AssetRef | null;
+  upscaled?: Upscaled;
 }
 /**
  * Interaction state owned by ``SegmentationService``/``AppState``.
@@ -321,6 +395,27 @@ export interface SegmentationPoint {
   negative: Negative;
   x: X;
   y: Y;
+}
+/**
+ * Persisted project-lifecycle/configuration settings (``PUT .../settings``).
+ *
+ * ``depth_model`` here is ``AppState.depth_model_name`` - the *persisted*
+ * depth-model dropdown selection (``remember_depth_model``'s own value) -
+ * which is a different concept from ``ProjectView.depth_model`` above
+ * (``state.depth_estimation_model.model_name``, the model instance actually
+ * used for the last depth generation; not restored from JSON, see
+ * ``test_api_restore.py``). Both are kept: the top-level field's existing
+ * contract is unchanged, and this one is what "configuration persistence"
+ * (PARITY.md's WEB-29/WEB-30/WEB-38 rows) needs to expose.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProjectSettingsView".
+ */
+export interface ProjectSettingsView {
+  camera: CameraSettingsView;
+  darkMode: Darkmode;
+  depthModel: Depthmodel1;
+  meshDisplacement: Meshdisplacement;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -361,6 +456,44 @@ export interface LogsView {
  */
 export interface MultiPointRequest {
   enabled: Enabled;
+}
+/**
+ * Response of both configuration-probe routes; ``message`` mirrors
+ * Dash's own log line and never contains the tested credential.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProbeResultView".
+ */
+export interface ProbeResultView {
+  message: Message2;
+  ok: Ok1;
+}
+/**
+ * Body of ``POST /api/v1/config/probe-server``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProbeServerRequest".
+ */
+export interface ProbeServerRequest {
+  model: Model3;
+  serverAddress: Serveraddress;
+}
+/**
+ * Body of ``PUT /projects/{id}/settings``.
+ *
+ * Every top-level field is optional so a client can update just one
+ * setting; a field is only applied (and only counted toward ``changed``)
+ * when both present *and* different from the project's current value - see
+ * ``project_services.UpdateSettings``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProjectSettingsRequest".
+ */
+export interface ProjectSettingsRequest {
+  camera?: CameraSettingsRequest | null;
+  darkMode?: Darkmode1;
+  depthModel?: Depthmodel2;
+  meshDisplacement?: Meshdisplacement1;
 }
 /**
  * Body of ``POST .../segmentation/click``.
@@ -417,4 +550,16 @@ export interface SliceCountRequest {
 export interface ThresholdsRequest {
   baseRevision: Baserevision;
   values: Values;
+}
+/**
+ * Body of ``POST /api/v1/config/validate-key``. ``api_key`` is
+ * write-only: it is used for exactly one probe request and never stored or
+ * echoed back.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ValidateKeyRequest".
+ */
+export interface ValidateKeyRequest {
+  apiKey: Apikey1;
+  model: Model4;
 }

@@ -3,8 +3,8 @@
   import ModeTab from '../depth/ModeTab.svelte';
   import SegmentationTab from '../segmentation/SegmentationTab.svelte';
   import InpaintingTab from '../inpainting/InpaintingTab.svelte';
+  import ExportTab from '../export/ExportTab.svelte';
   import ConfigurationTab from '../config/ConfigurationTab.svelte';
-  import TabPlaceholder from '../shared/TabPlaceholder.svelte';
 </script>
 
 <div class="main-tabs">
@@ -38,7 +38,7 @@
     <InpaintingTab />
   </div>
   <div class="panel tab-content" class:hidden={uiStore.mainTab !== 'Export'}>
-    <TabPlaceholder />
+    <ExportTab />
   </div>
   <div class="panel tab-content" class:hidden={uiStore.mainTab !== 'Configuration'}>
     <ConfigurationTab />

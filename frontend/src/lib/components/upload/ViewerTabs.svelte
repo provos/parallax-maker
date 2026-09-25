@@ -1,6 +1,7 @@
 <script lang="ts">
   import { uiStore, type ViewerTab } from '../../state/ui.svelte';
   import InputImagePanel from './InputImagePanel.svelte';
+  import Model3DViewer from '../viewer/Model3DViewer.svelte';
 
   const tabs: ViewerTab[] = ['2D', '3D'];
 </script>
@@ -20,11 +21,11 @@
     {/each}
   </div>
 
-  <div class:hidden={uiStore.viewerTab !== '2D'}>
+  <div class:hidden={uiStore.viewerTab !== '2D'} data-testid="viewer-2d">
     <InputImagePanel />
   </div>
-  <div class="panel viewer-3d" class:hidden={uiStore.viewerTab !== '3D'} data-testid="viewer-3d-placeholder">
-    3D viewer is not yet available in the new UI.
+  <div class="panel viewer-3d" class:hidden={uiStore.viewerTab !== '3D'} data-testid="viewer-3d">
+    <Model3DViewer />
   </div>
 </div>
 
@@ -36,9 +37,5 @@
 
   .viewer-3d {
     min-height: 30rem;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: var(--color-text-muted);
   }
 </style>

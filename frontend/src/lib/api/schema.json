@@ -1,5 +1,21 @@
 {
   "$defs": {
+    "AnimationExportRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST /projects/{id}/export/animation``.",
+      "properties": {
+        "frames": {
+          "exclusiveMinimum": 0,
+          "title": "Frames",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "frames"
+      ],
+      "title": "AnimationExportRequest",
+      "type": "object"
+    },
     "AssetRef": {
       "additionalProperties": false,
       "description": "A fetchable asset URL; opaque to clients beyond ``fetch``-ing it.",
@@ -32,6 +48,58 @@
         "kind"
       ],
       "title": "BusyView",
+      "type": "object"
+    },
+    "CameraSettingsRequest": {
+      "additionalProperties": false,
+      "description": "The nested ``camera`` object of ``PUT .../settings``; all three fields\nare required together (a client that wants to change one camera value\nsends the whole triple, matching Dash's own sliders, which always submit\ndistance/focal length/max distance together).",
+      "properties": {
+        "distance": {
+          "minimum": 0.0,
+          "title": "Distance",
+          "type": "number"
+        },
+        "focalLength": {
+          "exclusiveMinimum": 0.0,
+          "title": "Focallength",
+          "type": "number"
+        },
+        "maxDistance": {
+          "minimum": 0.0,
+          "title": "Maxdistance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "distance",
+        "focalLength",
+        "maxDistance"
+      ],
+      "title": "CameraSettingsRequest",
+      "type": "object"
+    },
+    "CameraSettingsView": {
+      "additionalProperties": false,
+      "properties": {
+        "distance": {
+          "title": "Distance",
+          "type": "number"
+        },
+        "focalLength": {
+          "title": "Focallength",
+          "type": "number"
+        },
+        "maxDistance": {
+          "title": "Maxdistance",
+          "type": "number"
+        }
+      },
+      "required": [
+        "distance",
+        "focalLength",
+        "maxDistance"
+      ],
+      "title": "CameraSettingsView",
       "type": "object"
     },
     "DepthRequest": {
@@ -78,6 +146,19 @@
         "message"
       ],
       "title": "ErrorDetail",
+      "type": "object"
+    },
+    "GltfExportRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST /projects/{id}/export/gltf``.",
+      "properties": {
+        "dof": {
+          "default": false,
+          "title": "Dof",
+          "type": "boolean"
+        }
+      },
+      "title": "GltfExportRequest",
       "type": "object"
     },
     "HealthView": {
@@ -533,6 +614,46 @@
       "title": "MultiPointRequest",
       "type": "object"
     },
+    "ProbeResultView": {
+      "additionalProperties": false,
+      "description": "Response of both configuration-probe routes; ``message`` mirrors\nDash's own log line and never contains the tested credential.",
+      "properties": {
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "ok",
+        "message"
+      ],
+      "title": "ProbeResultView",
+      "type": "object"
+    },
+    "ProbeServerRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST /api/v1/config/probe-server``.",
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "serverAddress": {
+          "title": "Serveraddress",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "serverAddress"
+      ],
+      "title": "ProbeServerRequest",
+      "type": "object"
+    },
     "ProjectAssets": {
       "additionalProperties": false,
       "properties": {
@@ -562,6 +683,115 @@
       "title": "ProjectAssets",
       "type": "object"
     },
+    "ProjectExportsView": {
+      "additionalProperties": false,
+      "description": "Content-versioned export availability (PARITY.md \"Export/Render\").",
+      "properties": {
+        "gltf": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "upscaled": {
+          "default": false,
+          "title": "Upscaled",
+          "type": "boolean"
+        }
+      },
+      "title": "ProjectExportsView",
+      "type": "object"
+    },
+    "ProjectSettingsRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``PUT /projects/{id}/settings``.\n\nEvery top-level field is optional so a client can update just one\nsetting; a field is only applied (and only counted toward ``changed``)\nwhen both present *and* different from the project's current value - see\n``project_services.UpdateSettings``.",
+      "properties": {
+        "camera": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CameraSettingsRequest"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "darkMode": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Darkmode"
+        },
+        "depthModel": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depthmodel"
+        },
+        "meshDisplacement": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Meshdisplacement"
+        }
+      },
+      "title": "ProjectSettingsRequest",
+      "type": "object"
+    },
+    "ProjectSettingsView": {
+      "additionalProperties": false,
+      "description": "Persisted project-lifecycle/configuration settings (``PUT .../settings``).\n\n``depth_model`` here is ``AppState.depth_model_name`` - the *persisted*\ndepth-model dropdown selection (``remember_depth_model``'s own value) -\nwhich is a different concept from ``ProjectView.depth_model`` above\n(``state.depth_estimation_model.model_name``, the model instance actually\nused for the last depth generation; not restored from JSON, see\n``test_api_restore.py``). Both are kept: the top-level field's existing\ncontract is unchanged, and this one is what \"configuration persistence\"\n(PARITY.md's WEB-29/WEB-30/WEB-38 rows) needs to expose.",
+      "properties": {
+        "camera": {
+          "$ref": "#/$defs/CameraSettingsView"
+        },
+        "darkMode": {
+          "title": "Darkmode",
+          "type": "boolean"
+        },
+        "depthModel": {
+          "title": "Depthmodel",
+          "type": "string"
+        },
+        "meshDisplacement": {
+          "title": "Meshdisplacement",
+          "type": "number"
+        }
+      },
+      "required": [
+        "darkMode",
+        "camera",
+        "meshDisplacement",
+        "depthModel"
+      ],
+      "title": "ProjectSettingsView",
+      "type": "object"
+    },
     "ProjectView": {
       "additionalProperties": false,
       "description": "Public projection of ``AppState``; never serialize PIL/NumPy/credentials.",
@@ -588,6 +818,9 @@
         "depthModel": {
           "title": "Depthmodel",
           "type": "string"
+        },
+        "exports": {
+          "$ref": "#/$defs/ProjectExportsView"
         },
         "id": {
           "title": "Id",
@@ -641,6 +874,9 @@
           "default": null,
           "title": "Selectedslice"
         },
+        "settings": {
+          "$ref": "#/$defs/ProjectSettingsView"
+        },
         "slices": {
           "items": {
             "$ref": "#/$defs/SliceView"
@@ -670,7 +906,9 @@
         "thresholds",
         "slices",
         "segmentation",
-        "inpainting"
+        "inpainting",
+        "settings",
+        "exports"
       ],
       "title": "ProjectView",
       "type": "object"
@@ -948,6 +1186,26 @@
         "baseRevision"
       ],
       "title": "ThresholdsRequest",
+      "type": "object"
+    },
+    "ValidateKeyRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST /api/v1/config/validate-key``. ``api_key`` is\nwrite-only: it is used for exactly one probe request and never stored or\nechoed back.",
+      "properties": {
+        "apiKey": {
+          "title": "Apikey",
+          "type": "string"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model",
+        "apiKey"
+      ],
+      "title": "ValidateKeyRequest",
       "type": "object"
     }
   },

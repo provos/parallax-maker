@@ -51,6 +51,13 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
       selectedCandidate: null,
     },
     busy: null,
+    settings: {
+      darkMode: false,
+      camera: { distance: 100, focalLength: 100, maxDistance: 200 },
+      meshDisplacement: 0,
+      depthModel: "dinov2",
+    },
+    exports: { gltf: null, upscaled: false },
     ...overrides,
   };
 }
