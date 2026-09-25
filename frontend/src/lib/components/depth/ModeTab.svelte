@@ -1,0 +1,144 @@
+<script lang="ts">
+  import { projectStore } from '../../state/project.svelte';
+  import { uiStore, type SegmentationMode } from '../../state/ui.svelte';
+  import { jobStore } from '../../state/jobs.svelte';
+  import { isBusy } from '../../state/busy.svelte';
+  import * as workflow from '../../workflow';
+
+  // Same labels/values as components.py's DROPDOWN_DEPTH_MODEL.
+  const depthOptions: Array<{ value: string; label: string }> = [
+    { value: 'midas', label: 'MiDaS' },
+    { value: 'dinov2', label: 'DINOv2' },
+  ];
+
+  // Same labels/values as components.py's DROPDOWN_MODE_SELECTOR.
+  const modeOptions: Array<{ value: SegmentationMode; label: string }> = [
+    { value: 'depth', label: 'Depth Map' },
+    { value: 'segment', label: 'Instance Segmentation' },
+  ];
+
+  // Keep the dropdown in sync with the project once it reports a model
+  // (e.g. after a restore), the same way Dash's dropdown reflects state.
+  $effect(() => {
+    const model = projectStore.view?.depthModel;
+    if (model) uiStore.setDepthModel(model);
+  });
+
+  function onDepthModelChange(event: Event): void {
+    uiStore.setDepthModel((event.currentTarget as HTMLSelectElement).value);
+  }
+
+  function onModeChange(event: Event): void {
+    uiStore.setSegmentationMode((event.currentTarget as HTMLSelectElement).value as SegmentationMode);
+  }
+
+  function regenerate(): void {
+    if (isBusy() || !projectStore.view) return;
+    void workflow.startDepth(uiStore.depthModel);
+  }
+
+  const showProgress = $derived(jobStore.active === 'depth' || jobStore.active === 'upload');
+  const progressPercent = $derived(Math.round((showProgress ? jobStore.progress : 0) * 100));
+</script>
+
+<div class="mode-tab" data-testid="tab-mode">
+  <span class="panel-label">Depth Map</span>
+  <div class="panel depth-box">
+    <img data-testid="depth-image" alt="" src={projectStore.view?.assets.depth?.url} />
+  </div>
+
+  <div class="depth-controls">
+    <div>
+      <label class="field-label" for="depth-model">Depth Module Algorithm</label>
+      <select
+        id="depth-model"
+        class="select"
+        data-testid="depth-model"
+        value={uiStore.depthModel}
+        onchange={onDepthModelChange}
+        disabled={isBusy()}
+      >
+        {#each depthOptions as option (option.value)}
+          <option value={option.value}>{option.label}</option>
+        {/each}
+      </select>
+    </div>
+    <button
+      type="button"
+      class="btn"
+      data-testid="regenerate-depth"
+      disabled={isBusy() || !projectStore.view}
+      onclick={regenerate}
+    >
+      Regenerate Depth Map
+    </button>
+  </div>
+
+  <div class="progress-bar" data-testid="depth-progress">
+    <div class="progress-bar-fill" style={`width: ${showProgress ? progressPercent : 0}%`}></div>
+  </div>
+
+  <div class="mode-selector">
+    <span class="panel-label">Mode Selector</span>
+    <div class="mode-selector-row">
+      <select
+        class="select"
+        data-testid="mode-selector"
+        value={uiStore.segmentationMode}
+        onchange={onModeChange}
+      >
+        {#each modeOptions as option (option.value)}
+          <option value={option.value}>{option.label}</option>
+        {/each}
+      </select>
+      <p class="help-text">
+        Switch between depth map and instance segmentation. Depth map allows the creation of
+        slices from bands of depth based on the depth map. Instance segmentation allows the
+        creation of slices from selected objects on the image.
+      </p>
+    </div>
+  </div>
+</div>
+
+<style>
+  .depth-box {
+    min-height: 15rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .depth-box img {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+  }
+
+  /* See InputImagePanel.svelte: hide Chromium's "broken image" glyph until
+     there is a depth map to show. */
+  .depth-box img:not([src]) {
+    visibility: hidden;
+  }
+
+  .depth-controls {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: var(--space-2);
+    align-items: end;
+    padding: var(--space-2) 0;
+  }
+
+  .mode-selector-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--space-2);
+    align-items: start;
+  }
+
+  .help-text {
+    margin: 0;
+    font-size: 0.875rem;
+    color: var(--color-text);
+  }
+</style>

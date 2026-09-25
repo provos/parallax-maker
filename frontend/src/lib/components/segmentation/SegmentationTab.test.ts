@@ -1,0 +1,116 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import SegmentationTab from './SegmentationTab.svelte';
+import { projectStore } from '../../state/project.svelte';
+import { jobStore } from '../../state/jobs.svelte';
+import { logStore } from '../../state/logs.svelte';
+import type { ProjectView, SliceView } from '../../api/types';
+
+function jsonResponse(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function makeSlice(index: number, depth: number): SliceView {
+  return {
+    index,
+    depth,
+    version: 1,
+    canUndo: false,
+    canRedo: false,
+    positivePrompt: '',
+    negativePrompt: '',
+    image: { url: `/api/v1/projects/appstate-test/assets/slice-${index}` },
+    thumbnail: { url: `/api/v1/projects/appstate-test/assets/slice-${index}-thumb` },
+  };
+}
+
+function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
+  return {
+    id: 'appstate-test',
+    revision: 1,
+    image: { width: 320, height: 240 },
+    assets: { input: { url: '/input' }, depth: { url: '/depth' } },
+    depthModel: 'dinov2',
+    numSlices: 3,
+    thresholds: [0, 85, 170, 255],
+    slices: [],
+    selectedSlice: null,
+    busy: null,
+    ...overrides,
+  };
+}
+
+describe('SegmentationTab', () => {
+  beforeEach(() => {
+    projectStore.reset();
+    jobStore.end();
+    logStore.reset();
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('renders one thumbnail per slice', () => {
+    projectStore.applyView(
+      makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170), makeSlice(2, 255)] }),
+    );
+    render(SegmentationTab);
+
+    const thumbnails = screen.getAllByTestId('slice-thumbnail');
+    expect(thumbnails).toHaveLength(3);
+    expect(thumbnails.map((img) => img.getAttribute('alt'))).toEqual([
+      'image_slice_0',
+      'image_slice_1',
+      'image_slice_2',
+    ]);
+  });
+
+  it('disables the Generate button while a job is in flight, and re-enables it after', async () => {
+    projectStore.applyView(makeView());
+    render(SegmentationTab);
+
+    expect(screen.getByTestId('generate-slices')).toBeEnabled();
+
+    jobStore.begin('slices');
+    await waitFor(() => expect(screen.getByTestId('generate-slices')).toBeDisabled());
+
+    jobStore.end();
+    await waitFor(() => expect(screen.getByTestId('generate-slices')).toBeEnabled());
+  });
+
+  it('sends baseRevision on threshold change, and retries once on stale_revision', async () => {
+    projectStore.applyView(makeView());
+
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(409, { error: { code: 'stale_revision', message: 'stale' } }),
+    );
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, makeView({ revision: 2 })));
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...makeView({ revision: 3 }), changed: true }));
+    fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    render(SegmentationTab);
+    const [firstHandle] = screen.getAllByTestId('threshold-handle');
+    await fireEvent.input(firstHandle, { target: { value: '90' } });
+    await fireEvent.change(firstHandle, { target: { value: '90' } });
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+
+    const [firstUrl, firstInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(firstUrl).toBe('/api/v1/projects/appstate-test/thresholds');
+    expect(firstInit.method).toBe('PUT');
+    expect(JSON.parse(firstInit.body as string)).toMatchObject({ baseRevision: 1, values: [90, 170] });
+
+    const [secondUrl] = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(secondUrl).toBe('/api/v1/projects/appstate-test');
+
+    const [thirdUrl, thirdInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+    expect(thirdUrl).toBe('/api/v1/projects/appstate-test/thresholds');
+    expect(JSON.parse(thirdInit.body as string)).toMatchObject({ baseRevision: 2, values: [90, 170] });
+  });
+});

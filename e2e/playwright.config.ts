@@ -47,6 +47,10 @@ export default defineConfig<{ uiTarget: UiTarget }>({
       name: 'dash',
       use: { uiTarget: 'dash' },
     },
+    {
+      name: 'svelte',
+      use: { uiTarget: 'svelte' },
+    },
   ],
   webServer:
     process.env.E2E_SKIP_SERVER === '1'
