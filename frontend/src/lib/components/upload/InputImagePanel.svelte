@@ -4,6 +4,7 @@
   import { isBusy } from '../../state/busy.svelte';
   import { findPixelFromClick } from '../../geometry';
   import * as workflow from '../../workflow';
+  import MaskCanvas from '../canvas/MaskCanvas.svelte';
 
   let fileInput: HTMLInputElement | undefined;
   let dragging = $state(false);
@@ -163,18 +164,26 @@
     ondragover={onDragOver}
     ondragleave={onDragLeave}
   >
-    <!-- Segmentation click target: mirrors Dash's EventListener-wrapped
-         <img id="image">, which is likewise mouse-only (no keyboard
-         equivalent for "pick a pixel"). -->
-    <!-- svelte-ignore a11y_click_events_have_key_events -->
-    <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-    <img
-      data-testid="main-image"
-      alt=""
-      src={mainImageUrl}
-      onclick={onImageClick}
-      oncontextmenu={onImageContextMenu}
-    />
+    <!-- Shared box for the main image and the mask canvas overlay (same
+         size, `MaskCanvas.svelte`'s own doc comment explains why); the
+         wrapper takes on the image's rendered size exactly like the `<img>`
+         did on its own before, so lib/geometry.ts's ratio-based pixel math
+         above stays correct. -->
+    <div class="image-stack">
+      <!-- Segmentation click target: mirrors Dash's EventListener-wrapped
+           <img id="image">, which is likewise mouse-only (no keyboard
+           equivalent for "pick a pixel"). -->
+      <!-- svelte-ignore a11y_click_events_have_key_events -->
+      <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+      <img
+        data-testid="main-image"
+        alt=""
+        src={mainImageUrl}
+        onclick={onImageClick}
+        oncontextmenu={onImageContextMenu}
+      />
+      <MaskCanvas />
+    </div>
     <input
       bind:this={fileInput}
       type="file"
@@ -267,10 +276,16 @@
     border-color: var(--color-accent);
   }
 
+  .image-stack {
+    position: relative;
+    width: 100%;
+  }
+
   /* No letterboxing: the box takes on the image's own aspect ratio, so
      pixel-click math (lib/geometry.ts's findPixelFromClick) can use Dash's
      plain ratio formula without compensating for empty space on an axis. */
-  .drop-zone img {
+  .image-stack img {
+    display: block;
     width: 100%;
     height: auto;
   }
@@ -278,7 +293,7 @@
   /* Chromium renders a "broken image" glyph for an <img> with layout space
      and no loaded resource, even with no `src` attribute at all. Hide it
      until there is something to show, matching Dash's empty panel look. */
-  .drop-zone img:not([src]) {
+  .image-stack img:not([src]) {
     visibility: hidden;
   }
 

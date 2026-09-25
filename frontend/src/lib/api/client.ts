@@ -1,6 +1,8 @@
 import type {
   ApiErrorBody,
   HealthResponse,
+  InpaintingGenerateMode,
+  InpaintingSettingsRequest,
   Job,
   LogsPage,
   ProjectView,
@@ -416,6 +418,158 @@ export function redoSlice(
 ): Promise<MutationResult> {
   return request<MutationResult>(
     `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/redo`,
+    { method: 'POST', signal },
+  );
+}
+
+// --- Canvas masks / inpainting ----------------------------------------------
+//
+// Every route below always acts on `state.selected_slice`; `index` in the
+// path is validated against the current selection server-side (a mismatch is
+// `409 not_ready`), per the architecture doc's "Canvas-mask and inpainting
+// endpoints" table.
+
+/** PUT /api/v1/projects/{id}/slices/{index}/mask (multipart `mask`, the canvas PNG) */
+export function saveInpaintingMask(
+  id: string,
+  index: number,
+  mask: Blob,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  const form = new FormData();
+  form.append('mask', mask, 'mask.png');
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/mask`,
+    { method: 'PUT', body: form, signal },
+  );
+}
+
+/** DELETE /api/v1/projects/{id}/slices/{index}/mask */
+export function deleteInpaintingMask(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/mask`,
+    { method: 'DELETE', signal },
+  );
+}
+
+/** PUT /api/v1/projects/{id}/slices/{index}/prompts */
+export function updateInpaintingPrompts(
+  id: string,
+  index: number,
+  positivePrompt: string,
+  negativePrompt: string,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/prompts`,
+    'PUT',
+    { positivePrompt, negativePrompt },
+    signal,
+  );
+}
+
+/**
+ * PUT /api/v1/projects/{id}/inpainting/settings. Only fields present on
+ * `settings` are sent, so a caller updating just one field (e.g. `strength`)
+ * doesn't clobber the others - the backend only applies fields actually
+ * present in the JSON body (see `InpaintingSettingsRequest`).
+ */
+export function updateInpaintingSettings(
+  id: string,
+  settings: InpaintingSettingsRequest,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/inpainting/settings`,
+    'PUT',
+    settings,
+    signal,
+  );
+}
+
+/** PUT /api/v1/projects/{id}/inpainting/workflow (multipart `workflow`, a ComfyUI JSON file) */
+export function uploadInpaintingWorkflow(
+  id: string,
+  workflow: File | Blob,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  const form = new FormData();
+  form.append('workflow', workflow);
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/inpainting/workflow`, {
+    method: 'PUT',
+    body: form,
+    signal,
+  });
+}
+
+export type InpaintingGenerateBody = {
+  mode: InpaintingGenerateMode;
+  positivePrompt: string;
+  negativePrompt: string;
+};
+
+/** POST /api/v1/projects/{id}/slices/{index}/inpainting/generate -> 202 {job} */
+export function generateInpaintingCandidates(
+  id: string,
+  index: number,
+  body: InpaintingGenerateBody,
+  signal?: AbortSignal,
+): Promise<{ job: Job }> {
+  return requestJson<{ job: Job }>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/inpainting/generate`,
+    'POST',
+    body,
+    signal,
+  );
+}
+
+/**
+ * PUT /api/v1/projects/{id}/inpainting/selection. `candidate: null` clears
+ * the selection; otherwise `InpaintingService.select_candidate`'s own
+ * contract toggles the same index off again, so callers always pass the
+ * clicked index (never compute the toggle client-side).
+ */
+export function updateInpaintingSelection(
+  id: string,
+  generationId: string,
+  candidate: number | null,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/inpainting/selection`,
+    'PUT',
+    { generationId, candidate },
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/slices/{index}/inpainting/apply */
+export function applyInpaintingCandidate(
+  id: string,
+  index: number,
+  generationId: string,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/inpainting/apply`,
+    'POST',
+    { generationId },
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/slices/{index}/inpainting/erase */
+export function eraseInpainting(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/inpainting/erase`,
     { method: 'POST', signal },
   );
 }

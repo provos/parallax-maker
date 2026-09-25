@@ -118,6 +118,289 @@
       "title": "ImageSize",
       "type": "object"
     },
+    "InpaintingApplyRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST .../slices/{index}/inpainting/apply``.",
+      "properties": {
+        "generationId": {
+          "title": "Generationid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "generationId"
+      ],
+      "title": "InpaintingApplyRequest",
+      "type": "object"
+    },
+    "InpaintingCandidatesView": {
+      "additionalProperties": false,
+      "description": "One server-held candidate generation; see the \"Candidates\" section of\n``docs/svelte-migration/ARCHITECTURE.md``.",
+      "properties": {
+        "generationId": {
+          "title": "Generationid",
+          "type": "string"
+        },
+        "images": {
+          "items": {
+            "$ref": "#/$defs/AssetRef"
+          },
+          "title": "Images",
+          "type": "array"
+        },
+        "sliceIndex": {
+          "title": "Sliceindex",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "generationId",
+        "sliceIndex",
+        "images"
+      ],
+      "title": "InpaintingCandidatesView",
+      "type": "object"
+    },
+    "InpaintingGenerateRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST .../slices/{index}/inpainting/generate``.",
+      "properties": {
+        "mode": {
+          "enum": [
+            "paint",
+            "fill",
+            "enhance"
+          ],
+          "title": "Mode",
+          "type": "string"
+        },
+        "negativePrompt": {
+          "default": "",
+          "title": "Negativeprompt",
+          "type": "string"
+        },
+        "positivePrompt": {
+          "default": "",
+          "title": "Positiveprompt",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode"
+      ],
+      "title": "InpaintingGenerateRequest",
+      "type": "object"
+    },
+    "InpaintingPromptsRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``PUT .../slices/{index}/prompts``.",
+      "properties": {
+        "negativePrompt": {
+          "default": "",
+          "title": "Negativeprompt",
+          "type": "string"
+        },
+        "positivePrompt": {
+          "default": "",
+          "title": "Positiveprompt",
+          "type": "string"
+        }
+      },
+      "title": "InpaintingPromptsRequest",
+      "type": "object"
+    },
+    "InpaintingSelectionRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``PUT /projects/{id}/inpainting/selection``.\n\n``candidate=None`` clears the selection; selecting the same index again\ntoggles it off (``InpaintingService.select_candidate``'s own contract).",
+      "properties": {
+        "candidate": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Candidate"
+        },
+        "generationId": {
+          "title": "Generationid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "generationId",
+        "candidate"
+      ],
+      "title": "InpaintingSelectionRequest",
+      "type": "object"
+    },
+    "InpaintingSettingsRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``PUT /projects/{id}/inpainting/settings``.\n\nEvery field is optional so a client can update just one setting; only\nfields actually present in the request body are applied (see\n``model_fields_set``/``exclude_unset``). ``model`` is the only field\n``InpaintingService.update_model`` itself understands - the rest become\nproject-level defaults consumed by the next\n``POST .../inpainting/generate`` (see the \"Candidates\" section of\n``docs/svelte-migration/ARCHITECTURE.md``); ``externalServer``/``apiKey``\nare additionally written onto ``AppState`` the same way Dash's own\nsettings panel does. ``apiKey`` is write-only: it is never echoed back.",
+      "properties": {
+        "apiKey": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Apikey"
+        },
+        "blur": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Blur"
+        },
+        "externalServer": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Externalserver"
+        },
+        "guidanceScale": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Guidancescale"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "padding": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Padding"
+        },
+        "strength": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Strength"
+        }
+      },
+      "title": "InpaintingSettingsRequest",
+      "type": "object"
+    },
+    "InpaintingView": {
+      "additionalProperties": false,
+      "description": "Inpainting model/parameter settings and the current candidate set.\n\nNever carries ``apiKey`` or any other credential; see\n``runtime.InpaintingSettings``/``api/inpainting.py``.",
+      "properties": {
+        "blur": {
+          "title": "Blur",
+          "type": "integer"
+        },
+        "candidates": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/InpaintingCandidatesView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "externalServer": {
+          "title": "Externalserver",
+          "type": "string"
+        },
+        "guidanceScale": {
+          "title": "Guidancescale",
+          "type": "number"
+        },
+        "hasWorkflow": {
+          "title": "Hasworkflow",
+          "type": "boolean"
+        },
+        "model": {
+          "title": "Model",
+          "type": "string"
+        },
+        "padding": {
+          "title": "Padding",
+          "type": "integer"
+        },
+        "selectedCandidate": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selectedcandidate"
+        },
+        "strength": {
+          "title": "Strength",
+          "type": "number"
+        }
+      },
+      "required": [
+        "model",
+        "strength",
+        "guidanceScale",
+        "padding",
+        "blur",
+        "externalServer",
+        "hasWorkflow"
+      ],
+      "title": "InpaintingView",
+      "type": "object"
+    },
     "JobRef": {
       "additionalProperties": false,
       "description": "The ``{job}`` envelope returned by ``202`` job-creation responses.",
@@ -321,6 +604,9 @@
           ],
           "default": null
         },
+        "inpainting": {
+          "$ref": "#/$defs/InpaintingView"
+        },
         "mainImage": {
           "anyOf": [
             {
@@ -383,7 +669,8 @@
         "numSlices",
         "thresholds",
         "slices",
-        "segmentation"
+        "segmentation",
+        "inpainting"
       ],
       "title": "ProjectView",
       "type": "object"
@@ -599,6 +886,17 @@
         "index": {
           "title": "Index",
           "type": "integer"
+        },
+        "mask": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "negativePrompt": {
           "title": "Negativeprompt",

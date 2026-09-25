@@ -32,7 +32,8 @@ export class SvelteDriver implements UiDriver {
       workflow === 'upload-depth-slices' ||
       workflow === 'segmentation' ||
       workflow === 'slice-editing' ||
-      workflow === 'mask-tools'
+      workflow === 'mask-tools' ||
+      workflow === 'inpainting'
     );
   }
 
@@ -237,44 +238,71 @@ export class SvelteDriver implements UiDriver {
 
   // Canvas / inpainting
 
+  /**
+   * Paints one stroke on the mask canvas (`data-testid="mask-canvas"`,
+   * MaskCanvas.svelte). Same relative stroke geometry as DashDriver's own
+   * `drawMaskStroke` (a diagonal drag from ~40%/45% to ~60%/55% of the
+   * canvas box), but the Svelte canvas saves on pointerup directly -- no
+   * need for DashDriver's trailing "move the mouse off the canvas" step,
+   * since the client here does not wait for a `mouseout` to persist (see
+   * MaskCanvas.svelte's doc comment and the migration handoff's
+   * "Deterministic harness details"). `page.mouse` dispatches real mouse
+   * input, which Chromium also synthesizes into the `pointerdown`/
+   * `pointermove`/`pointerup` events the canvas actually listens for.
+   */
   async drawMaskStroke(): Promise<void> {
-    throw new Error('SvelteDriver: drawMaskStroke not implemented yet');
+    const canvas = this.page.getByTestId('mask-canvas');
+    await expect(canvas).toBeVisible();
+    const box = await canvas.boundingBox();
+    if (!box) throw new Error('Canvas has no bounding box');
+
+    await this.page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.45);
+    await this.page.mouse.down();
+    await this.page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.55, { steps: 10 });
+    await this.page.mouse.up();
+    await expect(this.log()).toContainText(/Saved mask for slice/);
   }
 
   async expectGenerateEnabled(): Promise<void> {
-    throw new Error('SvelteDriver: expectGenerateEnabled not implemented yet');
+    await expect(this.page.getByTestId('generate-inpainting')).toBeEnabled();
   }
 
-  async fillPrompts(_positive: string, _negative: string): Promise<void> {
-    throw new Error('SvelteDriver: fillPrompts not implemented yet');
+  async fillPrompts(positive: string, negative: string): Promise<void> {
+    await this.page.getByTestId('positive-prompt').fill(positive);
+    await this.page.getByTestId('negative-prompt').fill(negative);
   }
 
-  async expectPrompts(_positive: string, _negative: string): Promise<void> {
-    throw new Error('SvelteDriver: expectPrompts not implemented yet');
+  async expectPrompts(positive: string, negative: string): Promise<void> {
+    await expect(this.page.getByTestId('positive-prompt')).toHaveValue(positive);
+    await expect(this.page.getByTestId('negative-prompt')).toHaveValue(negative);
   }
 
   async generateInpainting(): Promise<void> {
-    throw new Error('SvelteDriver: generateInpainting not implemented yet');
+    // Deliberately does not wait for candidates: scenarios assert counts themselves.
+    await this.page.getByTestId('generate-inpainting').click();
   }
 
   async fillInpainting(): Promise<void> {
-    throw new Error('SvelteDriver: fillInpainting not implemented yet');
+    await this.page.getByTestId('fill-inpainting').click();
   }
 
   async enhance(): Promise<void> {
-    throw new Error('SvelteDriver: enhance not implemented yet');
+    await this.page.getByTestId('enhance-inpainting').click();
   }
 
   async erase(): Promise<void> {
-    throw new Error('SvelteDriver: erase not implemented yet');
+    await this.page.getByTestId('erase-inpainting').click();
   }
 
-  async selectCandidate(_index: number): Promise<void> {
-    throw new Error('SvelteDriver: selectCandidate not implemented yet');
+  async selectCandidate(index: number): Promise<void> {
+    const candidate = this.candidateImages().nth(index);
+    await candidate.click();
+    await expect(candidate).toHaveAttribute('aria-selected', 'true');
+    await expect(this.page.getByTestId('apply-inpainting')).toBeEnabled();
   }
 
   async applyCandidate(): Promise<void> {
-    throw new Error('SvelteDriver: applyCandidate not implemented yet');
+    await this.page.getByTestId('apply-inpainting').click();
   }
 
   undoButton(index: number): Locator {

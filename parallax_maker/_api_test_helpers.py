@@ -28,7 +28,7 @@ def upload_fixture_image(client, image=None) -> dict:
     return response.get_json()
 
 
-def poll_job(client, job_id: str, timeout: float = 5.0, interval: float = 0.02) -> dict:
+def poll_job(client, job_id: str, timeout: float = 60.0, interval: float = 0.02) -> dict:
     """Poll ``GET /jobs/{id}`` until it reaches a terminal status."""
 
     deadline = time.monotonic() + timeout

@@ -11,6 +11,37 @@
     if (view) uiStore.setPendingNumSlices(view.numSlices);
   });
 
+  // Same options/values/default as components.py's DROPDOWN_INPAINT_MODEL.
+  const inpaintModelOptions: Array<{ value: string; label: string }> = [
+    { value: 'kandinsky-community/kandinsky-2-2-decoder-inpaint', label: 'Kandinsky' },
+    { value: 'runwayml/stable-diffusion-v1-5', label: 'SD 1.5' },
+    { value: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1', label: 'SD XL 1.0' },
+    { value: 'stabilityai/stable-diffusion-3-medium-diffusers', label: 'StableDiffusion3' },
+    { value: 'black-forest-labs/FLUX.1-Fill-dev', label: 'FLUX.1 Fill Dev' },
+    { value: 'automatic1111', label: 'Automatic1111' },
+    { value: 'comfyui', label: 'ComfyUI' },
+    { value: 'stabilityai', label: 'StabilityAI' },
+    { value: 'falai-foocus', label: 'Fal.ai Foocus' },
+    { value: 'falai-flux-general', label: 'Fal.ai Flux General' },
+    { value: 'falai-sd', label: 'Fal.ai SD' },
+    { value: 'falai-sdxl', label: 'Fal.ai SDXL' },
+  ];
+
+  function onInpaintModelChange(event: Event): void {
+    const value = (event.currentTarget as HTMLSelectElement).value;
+    void workflow.updateInpaintingSettings({ model: value });
+  }
+
+  function onPaddingChange(event: Event): void {
+    const value = Number((event.currentTarget as HTMLInputElement).value);
+    void workflow.updateInpaintingSettings({ padding: value });
+  }
+
+  function onBlurChange(event: Event): void {
+    const value = Number((event.currentTarget as HTMLInputElement).value);
+    void workflow.updateInpaintingSettings({ blur: value });
+  }
+
   function onNumSlicesChange(event: Event): void {
     const value = Number((event.currentTarget as HTMLInputElement).value);
     uiStore.setPendingNumSlices(value);
@@ -49,6 +80,54 @@
   </div>
 
   <div class="field">
+    <label class="field-label" for="inpainting-model">Inpainting Model</label>
+    <select
+      id="inpainting-model"
+      class="select"
+      data-testid="inpainting-model"
+      value={projectStore.view?.inpainting.model ?? inpaintModelOptions[2].value}
+      disabled={isBusy()}
+      onchange={onInpaintModelChange}
+    >
+      {#each inpaintModelOptions as option (option.value)}
+        <option value={option.value}>{option.label}</option>
+      {/each}
+    </select>
+  </div>
+
+  <div class="field">
+    <label class="field-label" for="mask-padding">Mask Padding</label>
+    <input
+      id="mask-padding"
+      type="range"
+      min="0"
+      max="200"
+      step="10"
+      data-testid="mask-padding"
+      value={projectStore.view?.inpainting.padding ?? 50}
+      disabled={isBusy()}
+      onchange={onPaddingChange}
+    />
+    <span class="slider-value">{projectStore.view?.inpainting.padding ?? 50}</span>
+  </div>
+
+  <div class="field">
+    <label class="field-label" for="mask-blur">Mask Blur</label>
+    <input
+      id="mask-blur"
+      type="range"
+      min="0"
+      max="200"
+      step="10"
+      data-testid="mask-blur"
+      value={projectStore.view?.inpainting.blur ?? 50}
+      disabled={isBusy()}
+      onchange={onBlurChange}
+    />
+    <span class="slider-value">{projectStore.view?.inpainting.blur ?? 50}</span>
+  </div>
+
+  <div class="field">
     <span class="field-label">Export/Import State</span>
     <div class="state-actions">
       <label class="btn" for="restore-state-input">
@@ -71,6 +150,11 @@
 <style>
   .field {
     margin-bottom: var(--space-4);
+  }
+
+  .slider-value {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
   }
 
   .range-marks {

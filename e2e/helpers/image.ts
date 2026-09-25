@@ -38,7 +38,14 @@ export async function imageDimensions(image: Locator): Promise<{ width: number; 
 export async function imagePixel(image: Locator, x: number, y: number): Promise<RGBA> {
   await waitForImage(image);
   return image.evaluate(
-    (element: HTMLImageElement, point): RGBA => {
+    async (element: HTMLImageElement, point): Promise<RGBA> => {
+      // `waitForImage` polls in a separate round trip from this evaluate;
+      // a `src` reassigned to a fresh revisioned URL between the two (e.g.
+      // a thumbnail reloading right after a mutation) can transiently leave
+      // `naturalWidth` at 0 again. `decode()` waits for whatever the
+      // *current* src resolves to, closing that gap without weakening the
+      // assertion itself.
+      await element.decode().catch(() => {});
       const canvas = document.createElement('canvas');
       canvas.width = element.naturalWidth;
       canvas.height = element.naturalHeight;
@@ -54,7 +61,9 @@ export async function imagePixel(image: Locator, x: number, y: number): Promise<
 export async function imageContainsRGB(image: Locator, expected: RGB): Promise<boolean> {
   await waitForImage(image);
   return image.evaluate(
-    (element: HTMLImageElement, color): boolean => {
+    async (element: HTMLImageElement, color): Promise<boolean> => {
+      // See imagePixel's comment on `decode()` above.
+      await element.decode().catch(() => {});
       const canvas = document.createElement('canvas');
       canvas.width = element.naturalWidth;
       canvas.height = element.naturalHeight;
@@ -83,7 +92,9 @@ export async function imageSignature(image: Locator, points: readonly [number, n
 
 export async function imageHash(image: Locator): Promise<string> {
   await waitForImage(image);
-  return image.evaluate((element: HTMLImageElement): string => {
+  return image.evaluate(async (element: HTMLImageElement): Promise<string> => {
+    // See imagePixel's comment on `decode()` above.
+    await element.decode().catch(() => {});
     const canvas = document.createElement('canvas');
     canvas.width = element.naturalWidth;
     canvas.height = element.naturalHeight;

@@ -15,6 +15,7 @@ from flask import Blueprint, jsonify
 
 from . import schemas
 from .errors import NotFound, register_error_handlers
+from .inpainting import register_inpainting_routes
 from .projects import register_project_routes
 from .segmentation import register_segmentation_routes
 from .slice_editing import register_slice_editing_routes
@@ -38,6 +39,7 @@ def create_api_blueprint(runtime: Runtime) -> Blueprint:
     register_project_routes(blueprint, runtime)
     register_segmentation_routes(blueprint, runtime)
     register_slice_editing_routes(blueprint, runtime)
+    register_inpainting_routes(blueprint, runtime)
 
     @blueprint.get("/health")
     def health():

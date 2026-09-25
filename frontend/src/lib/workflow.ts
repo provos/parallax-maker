@@ -10,10 +10,11 @@
 
 import * as api from './api/client';
 import { ApiError } from './api/client';
-import type { SegmentationMode } from './api/types';
+import type { InpaintingGenerateMode, InpaintingSettingsRequest, SegmentationMode } from './api/types';
 import { projectStore } from './state/project.svelte';
 import { jobStore } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
+import { canvasSaveStore } from './state/canvas.svelte';
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
@@ -146,6 +147,11 @@ export async function updateSliceCount(numSlices: number): Promise<void> {
 export async function selectSlice(slice: number | null): Promise<void> {
   const view = projectStore.view;
   if (!view) return;
+
+  // A pending mask save targets the *currently* selected slice; let it land
+  // before the selection (and thus which slice a mask PUT would even be
+  // valid for) changes out from under it. See state/canvas.svelte.ts.
+  await canvasSaveStore.flush();
 
   jobStore.begin('selection');
   try {
@@ -401,5 +407,198 @@ export async function restoreProject(file: File): Promise<void> {
     logStore.pushClient(errorMessage(err));
   } finally {
     jobStore.end();
+  }
+}
+
+// --- Canvas masks / inpainting -----------------------------------------
+//
+// Every function below (other than `saveMask`/`deleteMask`, called directly
+// by MaskCanvas.svelte's own save/clear lifecycle) always targets
+// `view.selectedSlice`, matching every `InpaintingService` command/API route
+// it calls (see ARCHITECTURE.md's "Canvas-mask and inpainting endpoints").
+// Generate/apply/erase all flush any pending canvas save first (via
+// `canvasSaveStore`), so a just-painted stroke is never silently dropped by
+// a mutation that runs before it lands (see state/canvas.svelte.ts).
+
+/**
+ * Persists the canvas's current pixels as the selected slice's mask
+ * (`PUT .../slices/{index}/mask`, sync). Called by MaskCanvas.svelte on
+ * pointerup; its result is what `canvasSaveStore` tracks as the "pending
+ * save" other actions must await.
+ */
+export async function saveMask(index: number, mask: Blob): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  try {
+    const result = await api.saveInpaintingMask(view.id, index, mask);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    await refreshLogs(view.id);
+  }
+}
+
+/** Deletes the selected slice's saved mask (`DELETE .../slices/{index}/mask`, sync). */
+export async function deleteMask(index: number): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  try {
+    const result = await api.deleteInpaintingMask(view.id, index);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Persists the positive/negative prompt textareas for the selected slice
+ * (`PUT .../slices/{index}/prompts`, sync), mirroring Dash's
+ * `update_prompt_text` (WEB-17), which persists on every textarea change
+ * regardless of whether Generate is ever clicked.
+ */
+export async function updateInpaintingPrompts(
+  index: number,
+  positivePrompt: string,
+  negativePrompt: string,
+): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  try {
+    const result = await api.updateInpaintingPrompts(view.id, index, positivePrompt, negativePrompt);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Updates one or more inpainting settings (model/strength/guidanceScale/
+ * padding/blur) (`PUT /inpainting/settings`, sync). Only fields present on
+ * `settings` are sent (see `api.updateInpaintingSettings`); an actual model
+ * change drops any stored candidate set server-side, mirroring Dash's
+ * `remember_inpaint_model`.
+ */
+export async function updateInpaintingSettings(settings: InpaintingSettingsRequest): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('inpainting-mutate');
+  try {
+    const result = await api.updateInpaintingSettings(view.id, settings);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Starts a Generate/Fill/Enhance job (`POST .../inpainting/generate`) and
+ * polls it to completion. On failure, the previous candidate set (if any) is
+ * left exactly as-is - `generate_candidates`'s own contract guarantees the
+ * server never replaces it until a full success, and this function never
+ * clears `projectStore.view` eagerly, so old candidates simply stay visible.
+ */
+export async function generateInpainting(
+  mode: InpaintingGenerateMode,
+  positivePrompt: string,
+  negativePrompt: string,
+): Promise<void> {
+  await canvasSaveStore.flush();
+  const view = projectStore.view;
+  if (!view || view.selectedSlice === null) return;
+  const index = view.selectedSlice as number;
+
+  jobStore.begin('inpainting');
+  try {
+    const { job } = await api.generateInpaintingCandidates(view.id, index, {
+      mode,
+      positivePrompt,
+      negativePrompt,
+    });
+    const finished = await api.pollJob(job.id, {
+      onProgress: (j) => jobStore.setProgress(j.progress),
+    });
+    if (finished.project) projectStore.applyView(finished.project);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Selects (or, selecting the same index again, toggles off - per
+ * `InpaintingService.select_candidate`'s own contract) one candidate from
+ * the current generation (`PUT /inpainting/selection`, sync).
+ */
+export async function selectInpaintingCandidate(generationId: string, candidate: number): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  jobStore.begin('inpainting-mutate');
+  try {
+    const result = await api.updateInpaintingSelection(view.id, generationId, candidate);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Applies the currently selected candidate to the selected slice
+ * (`POST .../inpainting/apply`, sync); requires both a selected slice and a
+ * current candidate selection, matching Dash's own `#apply-inpainting-button`
+ * enablement (CMP-02).
+ */
+export async function applyInpaintingCandidate(): Promise<void> {
+  await canvasSaveStore.flush();
+  const view = projectStore.view;
+  if (!view || view.selectedSlice === null) return;
+  const candidates = view.inpainting.candidates;
+  if (!candidates || view.inpainting.selectedCandidate == null) return;
+  const index = view.selectedSlice as number;
+
+  jobStore.begin('inpainting-mutate');
+  try {
+    const result = await api.applyInpaintingCandidate(view.id, index, candidates.generationId);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/**
+ * Erases the selected slice's painted alpha (`POST .../inpainting/erase`,
+ * sync). Unlike Apply, any stored candidate set is left alone, mirroring
+ * Dash's `erase_inpainting`.
+ */
+export async function eraseInpainting(): Promise<void> {
+  await canvasSaveStore.flush();
+  const view = projectStore.view;
+  if (!view || view.selectedSlice === null) return;
+  const index = view.selectedSlice as number;
+
+  jobStore.begin('inpainting-mutate');
+  try {
+    const result = await api.eraseInpainting(view.id, index);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
   }
 }
