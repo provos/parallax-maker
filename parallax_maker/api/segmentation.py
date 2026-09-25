@@ -146,6 +146,11 @@ def register_segmentation_routes(blueprint: Blueprint, runtime: "Runtime") -> No
                 runtime.inpainting_service.clear_selection(
                     ClearInpaintingSelection(state_id=project_id)
                 )
+                # Dash's display_slice/react_selected_slice_change also clears
+                # CTR_INPAINTING_DISPLAY whenever the selected slice changes;
+                # our candidate images are new server-side state the service
+                # itself doesn't know about, so drop them here too.
+                record.set_inpainting_candidates(None)
                 record.bump_revision()
 
         view = _build_project_view(runtime, project_id, state)

@@ -17,7 +17,7 @@ from __future__ import annotations
 
 import threading
 from collections import deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Callable, Deque
 
 from PIL import Image
@@ -78,6 +78,45 @@ class ProjectLog:
             return self._seq
 
 
+@dataclass(frozen=True)
+class InpaintingSettings:
+    """Model/parameter settings for inpainting generation (in-memory only).
+
+    Mirrors the Dash sliders'/dropdown's live values (components.py's
+    ``DROPDOWN_INPAINT_MODEL``/``SLIDER_INPAINT_STRENGTH``/
+    ``SLIDER_INPAINT_GUIDANCE``/``SLIDER_MASK_PADDING``/``SLIDER_MASK_BLUR``/
+    ``INPUT_EXTERNAL_SERVER`` state). Dash never persists most of these beyond
+    the browser widget's own state; only ``model`` (via
+    ``InpaintingService.update_model``) and ``external_server``/``api_key``
+    (written straight onto ``AppState`` by Dash's own ``reset_external_*``
+    callbacks) are ever saved to the project JSON, which ``api/inpainting.py``
+    mirrors. ``api_key`` is deliberately never echoed back by the API.
+    """
+
+    model: str = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
+    strength: float = 0.8
+    guidance_scale: float = 7.5
+    padding: int = 50
+    blur: int = 50
+    external_server: str = "localhost:7860"
+    api_key: str = ""
+
+
+@dataclass(frozen=True)
+class InpaintingCandidateSet:
+    """One successful ``generate_candidates`` result, kept server-side.
+
+    Bound to the slice index/version it was generated from so
+    ``POST .../inpainting/apply`` can reject a stale set (see the
+    "Candidates" section of ``docs/svelte-migration/ARCHITECTURE.md``).
+    """
+
+    generation_id: str
+    slice_index: int
+    slice_version: int
+    images: tuple[Image.Image, ...]
+
+
 class ProjectRecord:
     """Per-project concurrency and observability state.
 
@@ -114,6 +153,16 @@ class ProjectRecord:
         self._main_asset_lock = threading.Lock()
         #: ``((input_version, display_version), encoded_png_bytes)``.
         self._main_asset_cache: tuple[tuple[int, int], bytes] | None = None
+
+        #: Inpainting model/parameter settings, the last successful candidate
+        #: generation (if any), and any uploaded ComfyUI workflow bytes; see
+        #: InpaintingSettings/InpaintingCandidateSet. In-memory only, guarded
+        #: separately from the main-asset fields above since api/inpainting.py
+        #: reads/writes them independently from request threads.
+        self._inpainting_lock = threading.Lock()
+        self.inpainting_settings = InpaintingSettings()
+        self.inpainting_candidates: InpaintingCandidateSet | None = None
+        self.inpainting_workflow: bytes | None = None
 
     def set_display_image(self, image: Image.Image | None) -> None:
         """Set the in-memory display image (``None`` means "show the input")."""
@@ -178,6 +227,35 @@ class ProjectRecord:
     def end_job(self) -> None:
         with self._meta_lock:
             self._active_job_id = None
+
+    def get_inpainting_settings(self) -> InpaintingSettings:
+        with self._inpainting_lock:
+            return self.inpainting_settings
+
+    def update_inpainting_settings(self, **fields: object) -> InpaintingSettings:
+        """Merge ``fields`` onto the current settings and return the result."""
+
+        with self._inpainting_lock:
+            self.inpainting_settings = replace(self.inpainting_settings, **fields)
+            return self.inpainting_settings
+
+    def get_inpainting_candidates(self) -> InpaintingCandidateSet | None:
+        with self._inpainting_lock:
+            return self.inpainting_candidates
+
+    def set_inpainting_candidates(
+        self, candidates: InpaintingCandidateSet | None
+    ) -> None:
+        with self._inpainting_lock:
+            self.inpainting_candidates = candidates
+
+    def get_inpainting_workflow(self) -> bytes | None:
+        with self._inpainting_lock:
+            return self.inpainting_workflow
+
+    def set_inpainting_workflow(self, workflow: bytes | None) -> None:
+        with self._inpainting_lock:
+            self.inpainting_workflow = workflow
 
 
 class ProjectRegistry:

@@ -83,8 +83,9 @@ type ProjectView = {
   slices: SliceView[];
   selectedSlice: number | null;
   segmentation: SegmentationView;
+  inpainting: InpaintingView;
   busy: { jobId: string; kind: JobKind } | null;
-  // later PRs add: inpainting, camera, export settings
+  // later PRs add: camera, export settings
 };
 type SliceView = {
   index: number; depth: number; version: number;
@@ -92,6 +93,13 @@ type SliceView = {
   positivePrompt: string; negativePrompt: string;
   image: AssetRef;          // raw RGBA slice
   thumbnail: AssetRef;      // checkerboard composite for display
+  mask: AssetRef | null;    // RGBA (r, 0, 0, r); null when no mask is saved
+};
+type InpaintingView = {
+  model: string; strength: number; guidanceScale: number;
+  padding: number; blur: number; externalServer: string; hasWorkflow: boolean;
+  candidates: { generationId: string; sliceIndex: number; images: AssetRef[] } | null;
+  selectedCandidate: number | null;   // never carries apiKey or any other credential
 };
 type SegmentationView = {
   multiPointMode: boolean;
@@ -147,7 +155,7 @@ way.
 The `v` query is a content version that changes only when that asset changes
 (file mtime/size, or in-memory input/display counters), so a mutation that
 leaves an image untouched does not make the browser reload it.
-Asset IDs are logical (`input`, `depth`, `slice-{i}`, `slice-{i}-thumb`, later
+Asset IDs are logical (`input`, `depth`, `slice-{i}`, `slice-{i}-thumb`,
 `mask-{i}`, `candidate-{gen}-{k}`), resolved server-side; raw paths are never
 accepted. `/next/` must not reuse the legacy unrestricted `/{SRV_DIR}/<path>` route.
 
@@ -191,6 +199,60 @@ bumps the project revision.
 `ProjectView` gained one field for this slice: `clipboard: boolean`
 (`state.clipboard_image is not None`), read by the frontend to enable/disable
 "Paste".
+
+### Canvas-mask and inpainting endpoints (PR 5)
+
+Reproduce `components.py`'s `make_canvas_callbacks`/
+`make_inpainting_container_callbacks`/`make_configuration_callbacks` and
+`webui.py`'s `update_prompt_text`/`remember_inpaint_model` over HTTP; see
+`InpaintingService` in `inpainting_services.py` for the underlying
+command/result types, and `api/inpainting.py` for the routes themselves. All
+mutation routes below always act on `state.selected_slice` (matching every
+`InpaintingService` command they call), so their `{index}` path segment is
+validated against the current selection rather than passed through - a
+mismatch is `409 not_ready`.
+
+| Method & path | Body | Result |
+| --- | --- | --- |
+| `PUT /api/v1/projects/{id}/slices/{index}/mask` | multipart `mask` (canvas PNG, alpha = painted mask) | `200 ProjectView & {changed: true}` (sync); `save_mask` (alpha→L, BICUBIC-resized to source dims); does not save the project JSON. |
+| `DELETE /api/v1/projects/{id}/slices/{index}/mask` | – | `200 ProjectView & {changed}` (sync); `delete_mask`; `changed: false` when no mask existed. |
+| `PUT /api/v1/projects/{id}/slices/{index}/prompts` | `{positivePrompt, negativePrompt}` | `200 ProjectView & {changed}` (sync); `update_prompts`; `changed: false` on `InpaintingUnchanged`. |
+| `PUT /api/v1/projects/{id}/inpainting/settings` | `{model?, strength?, guidanceScale?, padding?, blur?, externalServer?, apiKey?}` | `200 ProjectView & {changed}` (sync); only fields present in the body are applied. `model` calls `update_model` (and drops any stored candidate set on an actual change, mirroring `remember_inpaint_model`); `externalServer`/`apiKey` are additionally written onto `AppState` (JSON-only save) like Dash's own settings panel. The rest become project-level defaults consumed by the next `generate` call. `apiKey` is write-only - never echoed back by any response. |
+| `PUT /api/v1/projects/{id}/inpainting/workflow` | multipart `workflow` (ComfyUI JSON) | `200 ProjectView & {changed: true}` (sync); stored in memory and supplied to `generate_candidates` when `model == "comfyui"`. |
+| `POST /api/v1/projects/{id}/slices/{index}/inpainting/generate` | `{mode: "paint" \| "fill" \| "enhance", positivePrompt, negativePrompt}` | `202 {job}` (kind `inpainting`); `generate_candidates` using the project's current settings (strength/guidanceScale/padding/blur/model/workflow). See "Candidates" below. |
+| `PUT /api/v1/projects/{id}/inpainting/selection` | `{generationId, candidate: number \| null}` | `200 ProjectView & {changed}` (sync); `candidate: null` → `clear_selection`; otherwise `select_candidate` (selecting the same index again toggles it off). A `generationId` that doesn't match the project's current candidate set is `409 stale_revision`. |
+| `POST /api/v1/projects/{id}/slices/{index}/inpainting/apply` | `{generationId}` | `200 ProjectView & {changed: true}` (sync); requires the current candidate set (`generationId`, slice index, and slice version must all still match); `apply_candidate` (new slice version, JSON-only save), re-composes the `main` asset, and drops the stored candidate set - mirrors Dash's `apply_inpainting` re-triggering `react_selected_slice_change`. |
+| `POST /api/v1/projects/{id}/slices/{index}/inpainting/erase` | – | `200 ProjectView & {changed: true}` (sync); `erase` (new slice version, JSON-only save), re-composes the `main` asset. Unlike apply, any stored candidate set is left alone (Dash's `erase_inpainting` doesn't clear `CTR_INPAINTING_DISPLAY` either). |
+
+`InpaintingServiceError` subclasses map to: `InvalidInpaintingCandidate` →
+`400 invalid_request`; `InpaintingModelFailed` → `502 provider_error` (surfaced
+as a failed `generate` job's sanitized `error` string, since that route runs
+asynchronously); everything else (`InpaintingNotReady`, `InpaintingMaskNotFound`,
+`SliceVersionUnavailable`) → `409 not_ready`. `InpaintingUnchanged` is not an
+error (see the table at the top of this document).
+
+#### Candidates
+
+`InpaintingService.generate_candidates` returns PIL images with no notion of
+a server-held asset - Dash encodes them straight into browser data URLs.
+Over HTTP, a successful generation is instead stored as an
+`InpaintingCandidateSet` (`runtime.py`) on the project's `ProjectRecord`,
+keyed by a fresh `generationId` and bound to the slice index/version it was
+generated from; a failed generation leaves the previous set (and its
+`AppState.selected_inpainting` selection) untouched, per the service's own
+contract. `ProjectView.inpainting.candidates` exposes the set as
+`candidate-{generationId}-{k}` assets (`{generationId, sliceIndex, images}`);
+`ProjectView.inpainting.selectedCandidate` mirrors `AppState.
+selected_inpainting` directly, since selection still goes through
+`InpaintingService.select_candidate`/`clear_selection` exactly as Dash does.
+Applying a set requires the *same* `generationId` and that the slice
+index/version still match what it was generated from, so a stale apply
+(after a newer generation, a different selected slice, or another version
+bump) is rejected with `409 stale_revision` instead of silently patching the
+wrong pixels. A slice-selection change (`PUT .../selection`) and an actual
+model change (`PUT .../inpainting/settings`) both drop the stored candidate
+set, matching Dash's `react_selected_slice_change`/`remember_inpaint_model`
+clearing `CTR_INPAINTING_DISPLAY`.
 
 ### Concurrency
 

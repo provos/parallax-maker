@@ -12,7 +12,11 @@ import logging
 
 from flask import jsonify
 
-from ..inpainting_services import InpaintingServiceError
+from ..inpainting_services import (
+    InpaintingModelFailed,
+    InpaintingServiceError,
+    InvalidInpaintingCandidate,
+)
 from ..segmentation_services import (
     InvalidSegmentationPoint,
     SegmentationModelFailed,
@@ -118,8 +122,22 @@ def register_error_handlers(blueprint) -> None:
         # and NoPointsQueued: all "the current state can't do this" cases.
         return error_response(409, "not_ready", str(err))
 
+    @blueprint.errorhandler(InvalidInpaintingCandidate)
+    def _handle_invalid_inpainting_candidate(err: InvalidInpaintingCandidate):
+        # More specific than InpaintingServiceError below: a malformed/out-of-
+        # range candidate selection is a client input error, not a
+        # state-readiness problem.
+        return error_response(400, "invalid_request", str(err))
+
+    @blueprint.errorhandler(InpaintingModelFailed)
+    def _handle_inpainting_model_failed(err: InpaintingModelFailed):
+        return error_response(502, "provider_error", str(err))
+
     @blueprint.errorhandler(InpaintingServiceError)
     def _handle_inpainting_error(err: InpaintingServiceError):
+        # Covers InpaintingNotReady, InpaintingMaskNotFound, InpaintingUnchanged
+        # (routes that can raise InpaintingUnchanged catch it explicitly to
+        # return 200 changed:false instead) and SliceVersionUnavailable.
         return error_response(409, "not_ready", str(err))
 
     @blueprint.errorhandler(InvalidSliceIndex)

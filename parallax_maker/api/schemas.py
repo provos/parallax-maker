@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic.json_schema import models_json_schema
 
@@ -53,6 +53,7 @@ class SliceView(ApiModel):
     negative_prompt: str
     image: AssetRef
     thumbnail: AssetRef
+    mask: AssetRef | None = None
 
 
 class BusyView(ApiModel):
@@ -78,6 +79,33 @@ class SegmentationView(ApiModel):
     has_mask: bool
 
 
+class InpaintingCandidatesView(ApiModel):
+    """One server-held candidate generation; see the "Candidates" section of
+    ``docs/svelte-migration/ARCHITECTURE.md``."""
+
+    generation_id: str
+    slice_index: int
+    images: list[AssetRef]
+
+
+class InpaintingView(ApiModel):
+    """Inpainting model/parameter settings and the current candidate set.
+
+    Never carries ``apiKey`` or any other credential; see
+    ``runtime.InpaintingSettings``/``api/inpainting.py``.
+    """
+
+    model: str
+    strength: float
+    guidance_scale: float
+    padding: int
+    blur: int
+    external_server: str
+    has_workflow: bool
+    candidates: InpaintingCandidatesView | None = None
+    selected_candidate: int | None = None
+
+
 class ProjectView(ApiModel):
     """Public projection of ``AppState``; never serialize PIL/NumPy/credentials."""
 
@@ -94,6 +122,7 @@ class ProjectView(ApiModel):
     slices: list[SliceView]
     selected_slice: int | None = None
     segmentation: SegmentationView
+    inpainting: InpaintingView
     busy: BusyView | None = None
 
 
@@ -171,6 +200,61 @@ class SetCheckerboardRequest(ApiModel):
     use_checkerboard: bool
 
 
+class InpaintingPromptsRequest(ApiModel):
+    """Body of ``PUT .../slices/{index}/prompts``."""
+
+    positive_prompt: str = ""
+    negative_prompt: str = ""
+
+
+class InpaintingSettingsRequest(ApiModel):
+    """Body of ``PUT /projects/{id}/inpainting/settings``.
+
+    Every field is optional so a client can update just one setting; only
+    fields actually present in the request body are applied (see
+    ``model_fields_set``/``exclude_unset``). ``model`` is the only field
+    ``InpaintingService.update_model`` itself understands - the rest become
+    project-level defaults consumed by the next
+    ``POST .../inpainting/generate`` (see the "Candidates" section of
+    ``docs/svelte-migration/ARCHITECTURE.md``); ``externalServer``/``apiKey``
+    are additionally written onto ``AppState`` the same way Dash's own
+    settings panel does. ``apiKey`` is write-only: it is never echoed back.
+    """
+
+    model: str | None = None
+    strength: float | None = Field(default=None, ge=0.0, le=1.0)
+    guidance_scale: float | None = Field(default=None, gt=0.0)
+    padding: int | None = Field(default=None, ge=0)
+    blur: int | None = Field(default=None, ge=0)
+    external_server: str | None = None
+    api_key: str | None = None
+
+
+class InpaintingGenerateRequest(ApiModel):
+    """Body of ``POST .../slices/{index}/inpainting/generate``."""
+
+    mode: Literal["paint", "fill", "enhance"]
+    positive_prompt: str = ""
+    negative_prompt: str = ""
+
+
+class InpaintingSelectionRequest(ApiModel):
+    """Body of ``PUT /projects/{id}/inpainting/selection``.
+
+    ``candidate=None`` clears the selection; selecting the same index again
+    toggles it off (``InpaintingService.select_candidate``'s own contract).
+    """
+
+    generation_id: str
+    candidate: int | None
+
+
+class InpaintingApplyRequest(ApiModel):
+    """Body of ``POST .../slices/{index}/inpainting/apply``."""
+
+    generation_id: str
+
+
 class HealthView(ApiModel):
     ok: bool
     version: str
@@ -205,6 +289,11 @@ def public_models() -> list[type[BaseModel]]:
         MultiPointRequest,
         SetSliceDepthRequest,
         SetCheckerboardRequest,
+        InpaintingPromptsRequest,
+        InpaintingSettingsRequest,
+        InpaintingGenerateRequest,
+        InpaintingSelectionRequest,
+        InpaintingApplyRequest,
     ]
 
 

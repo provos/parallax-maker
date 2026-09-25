@@ -80,6 +80,55 @@ def _asset_ref(project_id: str, asset_id: str, version: str) -> schemas.AssetRef
     )
 
 
+def _slice_mask_ref(
+    project_id: str, state: AppState, index: int
+) -> schemas.AssetRef | None:
+    """The ``mask-{index}`` asset ref, or ``None`` when no mask is saved."""
+
+    path = Path(state.mask_filename(index))
+    if not path.exists():
+        return None
+    return _asset_ref(project_id, f"mask-{index}", file_version(path))
+
+
+def _build_inpainting_view(
+    record: ProjectRecord, state: AppState
+) -> schemas.InpaintingView:
+    """Project the record's inpainting settings/candidates onto the wire.
+
+    Reads only ``ProjectRecord``'s own in-memory fields (settings/candidates/
+    workflow) plus ``state.selected_inpainting``, so this stays a one-way
+    dependency from ``api/inpainting.py`` onto this module rather than a
+    circular one (see that module's docstring).
+    """
+
+    settings = record.get_inpainting_settings()
+    candidate_set = record.get_inpainting_candidates()
+    candidates_view = None
+    if candidate_set is not None:
+        candidates_view = schemas.InpaintingCandidatesView(
+            generation_id=candidate_set.generation_id,
+            slice_index=candidate_set.slice_index,
+            images=[
+                _asset_ref(
+                    record.project_id, f"candidate-{candidate_set.generation_id}-{k}", "1"
+                )
+                for k in range(len(candidate_set.images))
+            ],
+        )
+    return schemas.InpaintingView(
+        model=settings.model,
+        strength=settings.strength,
+        guidance_scale=settings.guidance_scale,
+        padding=settings.padding,
+        blur=settings.blur,
+        external_server=settings.external_server,
+        has_workflow=record.get_inpainting_workflow() is not None,
+        candidates=candidates_view,
+        selected_candidate=state.selected_inpainting,
+    )
+
+
 def _build_project_view(
     runtime: Runtime, project_id: str, state: AppState
 ) -> schemas.ProjectView:
@@ -155,6 +204,7 @@ def _build_project_view(
                 f"slice-{index}-thumb",
                 file_version(Path(image_slice.filename)),
             ),
+            mask=_slice_mask_ref(project_id, state, index),
         )
         for index, image_slice in enumerate(state.image_slices)
     ]
@@ -184,6 +234,7 @@ def _build_project_view(
         slices=slices,
         selected_slice=state.selected_slice,
         segmentation=segmentation,
+        inpainting=_build_inpainting_view(record, state),
         busy=busy,
     )
 
@@ -492,6 +543,27 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
         index = thumbnail_index(asset_id)
         if index is not None:
             data = slice_thumbnail(project_dir, state, index)
+            return send_bytes(data, "image/png", request)
+        # Deferred import: api.inpainting imports several helpers from this
+        # module at its own top level (mirroring api.segmentation's existing
+        # pattern), so importing it back here at module scope would cycle;
+        # by request time (long after both modules have finished loading)
+        # that is no longer a concern.
+        from .inpainting import (
+            candidate_asset_bytes,
+            candidate_asset_ids,
+            mask_asset_bytes,
+            mask_asset_index,
+        )
+
+        mask_index = mask_asset_index(asset_id)
+        if mask_index is not None:
+            data = mask_asset_bytes(project_dir, state, mask_index)
+            return send_bytes(data, "image/png", request)
+        candidate_ids = candidate_asset_ids(asset_id)
+        if candidate_ids is not None:
+            record = runtime.projects.ensure(project_id)
+            data = candidate_asset_bytes(record, *candidate_ids)
             return send_bytes(data, "image/png", request)
         path = resolve_asset_path(project_dir, state, asset_id)
         return send_asset(path, request)
