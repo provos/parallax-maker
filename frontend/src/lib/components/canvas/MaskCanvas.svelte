@@ -318,7 +318,10 @@
   }
 
   // Clear/Load operate on this canvas's pixels; expose them to the toolbar.
-  $effect(() => maskToolsStore.bindCanvas({ clear: onClear, load: onLoad }));
+  $effect(() => {
+    const unbind = maskToolsStore.bindCanvas({ clear: onClear, load: onLoad });
+    return unbind; // unregister on unmount
+  });
 </script>
 
 <canvas
