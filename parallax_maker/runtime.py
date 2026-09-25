@@ -1,0 +1,265 @@
+"""Composition root for the HTTP API and, eventually, the Svelte frontend.
+
+``Runtime`` bundles everything the API blueprint needs that used to live as
+module globals in :mod:`parallax_maker.webui`: the model/pipeline factories,
+the framework-neutral workflow/segmentation/inpainting services built from
+those factories, the per-project :class:`ProjectRegistry` (locks, revisions,
+active jobs, log ring buffers) and the background :class:`~parallax_maker.
+api.jobs.JobManager`.
+
+:func:`create_runtime` builds the production ``Runtime``; the deterministic
+browser-test double lives in :func:`parallax_maker.e2e_support.fakes.
+create_fake_runtime`, which calls :func:`build_runtime` with fake factories so
+both entry points share the exact same wiring code.
+"""
+
+from __future__ import annotations
+
+import threading
+from collections import deque
+from dataclasses import dataclass, field
+from typing import Callable, Deque
+
+from .api.jobs import Job, JobManager
+from .depth import DepthEstimationModel
+from .inpainting import InpaintingModel
+from .inpainting_services import InpaintingService
+from .instance import SegmentationModel
+from .segmentation_services import SegmentationService
+from .upscaler import Upscaler
+from .workflow_services import WorkflowService
+
+#: Number of log entries retained per project before older ones are dropped.
+PROJECT_LOG_CAPACITY = 200
+
+
+@dataclass(frozen=True)
+class LogEntry:
+    """One entry in a project's log ring buffer."""
+
+    seq: int
+    level: str
+    message: str
+
+
+class ProjectLog:
+    """A small, thread-safe, monotonically-numbered ring buffer of log lines.
+
+    Replaces the Dash log pane (``C.LOGS_DATA``) for the API: each project
+    keeps its own bounded history so ``GET /projects/{id}/logs?after={seq}``
+    can page through recent activity without growing without bound.
+    """
+
+    def __init__(self, maxlen: int = PROJECT_LOG_CAPACITY) -> None:
+        self._entries: Deque[LogEntry] = deque(maxlen=maxlen)
+        self._seq = 0
+        self._lock = threading.Lock()
+
+    def append(self, message: str, level: str = "info") -> LogEntry:
+        """Record ``message`` and return the entry that was appended."""
+
+        with self._lock:
+            self._seq += 1
+            entry = LogEntry(seq=self._seq, level=level, message=message)
+            self._entries.append(entry)
+            return entry
+
+    def after(self, seq: int) -> list[LogEntry]:
+        """Return entries with ``seq`` strictly greater than ``seq``."""
+
+        with self._lock:
+            return [entry for entry in self._entries if entry.seq > seq]
+
+    def latest_seq(self) -> int:
+        with self._lock:
+            return self._seq
+
+
+class ProjectRecord:
+    """Per-project concurrency and observability state.
+
+    ``lock`` guards the ``AppState`` mutation itself and is always acquired
+    and released from a single call frame in one thread: either the request
+    thread for a synchronous mutation (slice-count/threshold updates), or the
+    ``JobManager`` worker thread for the duration of a job's ``run`` callback.
+    It is therefore always safe to use a plain :class:`threading.RLock`.
+
+    Whether the project is "busy" is tracked separately via
+    ``try_begin_job``/``end_job``, guarded by a short-lived internal mutex, so
+    a request thread can atomically test-and-set the active job before handing
+    the real work to the worker thread without racing it.
+    """
+
+    def __init__(self, project_id: str) -> None:
+        self.project_id = project_id
+        self.lock = threading.RLock()
+        self.log = ProjectLog()
+        self._meta_lock = threading.Lock()
+        self._revision = 1
+        self._active_job_id: str | None = None
+
+    @property
+    def revision(self) -> int:
+        with self._meta_lock:
+            return self._revision
+
+    def bump_revision(self) -> int:
+        with self._meta_lock:
+            self._revision += 1
+            return self._revision
+
+    @property
+    def active_job_id(self) -> str | None:
+        with self._meta_lock:
+            return self._active_job_id
+
+    def try_begin_job(self, job_id: str) -> bool:
+        """Atomically claim the busy slot for ``job_id``.
+
+        Returns False (without side effects) if another job is already
+        active, which callers turn into a ``409 busy`` response.
+        """
+
+        with self._meta_lock:
+            if self._active_job_id is not None:
+                return False
+            self._active_job_id = job_id
+            return True
+
+    def end_job(self) -> None:
+        with self._meta_lock:
+            self._active_job_id = None
+
+
+class ProjectRegistry:
+    """Track per-project locks, revisions, active jobs and logs.
+
+    Works with the existing ``AppState.cache``/``CachedAppStateRepository``:
+    the project id is the ``appstate-*`` directory name already used as the
+    cache key, so this registry needs no filesystem knowledge of its own.
+    """
+
+    def __init__(self) -> None:
+        self._records: dict[str, ProjectRecord] = {}
+        self._registry_lock = threading.Lock()
+
+    def ensure(self, project_id: str) -> ProjectRecord:
+        """Return the record for ``project_id``, creating it at revision 1."""
+
+        with self._registry_lock:
+            record = self._records.get(project_id)
+            if record is None:
+                record = ProjectRecord(project_id)
+                self._records[project_id] = record
+            return record
+
+    def get(self, project_id: str) -> ProjectRecord | None:
+        with self._registry_lock:
+            return self._records.get(project_id)
+
+    def bump_revision(self, project_id: str) -> int:
+        return self.ensure(project_id).bump_revision()
+
+    def revision(self, project_id: str) -> int:
+        return self.ensure(project_id).revision
+
+    def forget(self, project_id: str) -> None:
+        """Drop bookkeeping for a project; used by tests to avoid leaking state."""
+
+        with self._registry_lock:
+            self._records.pop(project_id, None)
+
+
+class ProgressReporter:
+    """Forward depth-generation progress callbacks to the currently active job.
+
+    ``WorkflowService`` is constructed once with a single progress callback.
+    ``JobManager`` runs at most one job at a time on its single worker thread,
+    so a simple "currently bound job" slot is enough to route progress without
+    per-call synchronization beyond what the worker thread already provides.
+    """
+
+    def __init__(self) -> None:
+        self._current: Job | None = None
+
+    def bind(self, job: Job) -> None:
+        self._current = job
+
+    def clear(self) -> None:
+        self._current = None
+
+    def __call__(self, current: int, total: int) -> None:
+        job = self._current
+        if job is not None and total > 0:
+            job.set_progress(current / total)
+
+
+@dataclass
+class Runtime:
+    """Everything the API blueprint (and, later, other transports) needs.
+
+    ``*_factory`` callables resolve model/pipeline classes the same way the
+    frozen Dash callbacks do (``webui.DepthEstimationModel`` and friends): a
+    plain callable so tests can substitute deterministic fakes.
+    """
+
+    depth_model_factory: Callable[..., object]
+    segmentation_model_factory: Callable[..., object]
+    inpainting_model_factory: Callable[..., object]
+    upscaler_factory: Callable[..., object]
+    workflow_service: WorkflowService
+    segmentation_service: SegmentationService
+    inpainting_service: InpaintingService
+    projects: ProjectRegistry = field(default_factory=ProjectRegistry)
+    jobs: JobManager = field(default_factory=JobManager)
+    progress_reporter: ProgressReporter = field(default_factory=ProgressReporter)
+
+
+#: Mask-generation expansion used by slice generation; mirrors webui.EXPAND_MASK.
+DEFAULT_SLICE_EXPAND = 5
+
+
+def build_runtime(
+    *,
+    depth_model_factory: Callable[..., object],
+    segmentation_model_factory: Callable[..., object],
+    inpainting_model_factory: Callable[..., object],
+    upscaler_factory: Callable[..., object],
+) -> Runtime:
+    """Build a ``Runtime`` from a set of model/pipeline factories.
+
+    Shared by :func:`create_runtime` (production classes) and
+    :func:`parallax_maker.e2e_support.fakes.create_fake_runtime` (fakes), so
+    the wiring of services to factories only needs to be correct once.
+    """
+
+    progress_reporter = ProgressReporter()
+    workflow_service = WorkflowService(
+        depth_model_factory=depth_model_factory,
+        progress_reporter=progress_reporter,
+        slice_expand=DEFAULT_SLICE_EXPAND,
+    )
+    segmentation_service = SegmentationService(model_factory=segmentation_model_factory)
+    inpainting_service = InpaintingService(pipeline_factory=inpainting_model_factory)
+
+    return Runtime(
+        depth_model_factory=depth_model_factory,
+        segmentation_model_factory=segmentation_model_factory,
+        inpainting_model_factory=inpainting_model_factory,
+        upscaler_factory=upscaler_factory,
+        workflow_service=workflow_service,
+        segmentation_service=segmentation_service,
+        inpainting_service=inpainting_service,
+        progress_reporter=progress_reporter,
+    )
+
+
+def create_runtime() -> Runtime:
+    """Build the production ``Runtime`` (real models, real filesystem state)."""
+
+    return build_runtime(
+        depth_model_factory=DepthEstimationModel,
+        segmentation_model_factory=SegmentationModel,
+        inpainting_model_factory=InpaintingModel,
+        upscaler_factory=Upscaler,
+    )

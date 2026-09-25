@@ -47,6 +47,7 @@ dependencies = [
     "sentencepiece (>=0.2.0,<0.3.0)",
     "accelerate (>=1.8.1,<2.0.0)",
     "fal-client (>=0.7.0,<0.8.0)",
+    "pydantic (>=2.7,<3)",
 ]
 
 [project.optional-dependencies]
@@ -78,10 +79,11 @@ include = ["parallax_maker*"]
 [tool.setuptools.package-data]
 parallax_maker = [
     "assets/css/*",
-    "assets/scripts/*", 
+    "assets/scripts/*",
     "example/**/*",
+    "static/next/**/*",
     "*.js",
-    "*.css", 
+    "*.css",
     "*.json",
 ]
 

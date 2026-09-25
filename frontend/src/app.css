@@ -1,0 +1,108 @@
+@import 'tailwindcss';
+
+/*
+ * Theme tokens for the Svelte frontend.
+ *
+ * These intentionally mirror the current (frozen) Dash UI's palette --
+ * see ../../tailwind.css and ../../parallax_maker/assets/css/features.css --
+ * so the Svelte shell looks the same as Dash while both UIs exist. A later
+ * redesign should only need to change the values below, not component code.
+ *
+ * Dash toggles dark mode with a `dark` class on #app-container (Tailwind
+ * `darkMode: 'selector'`). We mirror that here: put `.dark` on the root
+ * element (see App.svelte) and these custom properties flip with it.
+ */
+:root {
+  --color-bg: #ffffff;
+  --color-bg-surface: #ffffff;
+  --color-text: #1f2937; /* gray-800 */
+  --color-text-muted: #6b7280; /* gray-500 */
+
+  --color-header-bg: #1e40af; /* blue-800 */
+  --color-header-text: #ffffff;
+
+  --color-accent: #3b82f6; /* blue-500 */
+  --color-accent-hover: #2563eb; /* blue-600 */
+  --color-accent-text: #ffffff;
+
+  --color-toggle-bg: #2563eb; /* blue-600 */
+  --color-toggle-bg-hover: #1d4ed8; /* blue-700 */
+
+  --color-success: #22c55e; /* green-500 */
+  --color-success-text: #ffffff;
+
+  --color-danger: #fca5a5; /* red-300 */
+  --color-danger-strong: #ef4444; /* red-500 */
+  --color-danger-text: #ffffff;
+
+  --color-border: #d1d5db; /* gray-300 */
+  --color-border-strong: #3b82f6; /* blue-500 */
+
+  --color-surface-muted: #e5e7eb; /* gray-200 */
+  --color-disabled-bg: #d1d5db; /* gray-300 */
+  --color-disabled-text: #6b7280; /* gray-500 */
+
+  --color-help-bg: #fef9c3; /* yellow-100 */
+  --color-help-border: #000000;
+  --color-help-text: #1f2937;
+
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+}
+
+:root.dark {
+  --color-bg: #18181b; /* zinc-900 */
+  --color-bg-surface: #27272a; /* zinc-800 */
+  --color-text: #cbd5e1; /* slate-300 */
+  --color-text-muted: #94a3b8; /* slate-400 */
+
+  --color-header-bg: #60a5fa; /* blue-400 */
+  --color-header-text: #000000;
+
+  --color-accent: #60a5fa; /* blue-400 */
+  --color-accent-hover: #3b82f6; /* blue-500 */
+  --color-accent-text: #e2e8f0; /* slate-200 */
+
+  --color-toggle-bg: #d97706; /* amber-600 */
+  --color-toggle-bg-hover: #f59e0b; /* amber-500 */
+
+  --color-success: #4ade80; /* green-400 */
+  --color-success-text: #e2e8f0; /* slate-200 */
+
+  --color-danger: #ef4444; /* red-500 */
+  --color-danger-strong: #ef4444;
+  --color-danger-text: #e2e8f0;
+
+  --color-border: #374151; /* gray-700 */
+  --color-border-strong: #60a5fa; /* blue-400 */
+
+  --color-surface-muted: #27272a; /* zinc-800 */
+  --color-disabled-bg: #52525b; /* zinc-600 */
+  --color-disabled-text: #cbd5e1; /* slate-300 */
+
+  --color-help-bg: #fef08a; /* yellow-200 */
+  --color-help-border: #374151; /* gray-700 */
+  --color-help-text: #334155; /* slate-700 */
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}

@@ -98,7 +98,7 @@ Never serialize `AppState`, PIL/NumPy objects, model objects or credentials.
 | Method & path | Body | Result |
 | --- | --- | --- |
 | `POST /api/v1/projects` | multipart `image` | `201 ProjectView` (upload; validates via `WorkflowService.upload_image`) |
-| `POST /api/v1/projects/restore` | multipart `state` (legacy `appstate.json`) | `200 ProjectView`; requires the server-side directory, as today |
+| `POST /api/v1/projects/restore` | multipart `state` (legacy `appstate.json`) | `200 ProjectView`; requires the server-side directory, as today. Unlike Dash, `filename` must be a single `appstate-*` name that resolves inside the working directory. |
 | `GET /api/v1/projects/{id}` | – | `ProjectView` |
 | `POST /api/v1/projects/{id}/depth` | `{model}` | `202 {job}` |
 | `PUT /api/v1/projects/{id}/slice-count` | `{numSlices}` | `ProjectView` |
@@ -106,7 +106,8 @@ Never serialize `AppState`, PIL/NumPy objects, model objects or credentials.
 | `POST /api/v1/projects/{id}/slices` | `{}` | `202 {job}` |
 | `GET /api/v1/jobs/{jobId}` | – | `{id, kind, status: queued/running/succeeded/failed, progress: 0..1, error?, project?: ProjectView}` |
 | `GET /api/v1/projects/{id}/assets/{assetId}` | – | image bytes, `Cache-Control: no-cache`, strong ETag |
-| `GET /api/v1/logs?after={seq}` | – | `{entries: [{seq, level, message}], next}` (replaces the Dash log pane) |
+| `GET /api/v1/projects/{id}/logs?after={seq}` | – | `{entries: [{seq, level, message}], next}`; per-project ring buffer (replaces the Dash log pane) |
+| `GET /api/v1/health` | – | `{ok: true, version}` |
 
 Asset IDs are logical (`input`, `depth`, `slice-{i}`, `slice-{i}-thumb`, later
 `mask-{i}`, `candidate-{gen}-{k}`), resolved server-side; raw paths are never

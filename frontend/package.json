@@ -1,0 +1,32 @@
+{
+  "name": "parallax-maker-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Svelte 5 frontend for Parallax Maker (migration target for the Dash UI).",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.app.json --fail-on-warnings && tsc -p tsconfig.node.json",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "gen:api-types": "cd .. && ${PYTHON:-.venv/bin/python} -m parallax_maker.api.schema_export frontend/src/lib/api/schema.json && cd frontend && json2ts -i src/lib/api/schema.json -o src/lib/api/generated.ts --unreachableDefinitions --additionalProperties false"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
+    "@tailwindcss/vite": "^4.3.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/svelte": "^5.4.2",
+    "@tsconfig/svelte": "^5.0.8",
+    "@types/node": "^24.13.3",
+    "jsdom": "^30.1.1",
+    "json-schema-to-typescript": "^16.0.0",
+    "svelte": "^5.57.0",
+    "svelte-check": "^4.7.6",
+    "tailwindcss": "^4.3.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.0",
+    "vitest": "^5.0.1"
+  }
+}

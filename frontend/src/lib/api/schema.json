@@ -1,0 +1,442 @@
+{
+  "$defs": {
+    "AssetRef": {
+      "additionalProperties": false,
+      "description": "A fetchable asset URL; opaque to clients beyond ``fetch``-ing it.",
+      "properties": {
+        "url": {
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "title": "AssetRef",
+      "type": "object"
+    },
+    "BusyView": {
+      "additionalProperties": false,
+      "properties": {
+        "jobId": {
+          "title": "Jobid",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId",
+        "kind"
+      ],
+      "title": "BusyView",
+      "type": "object"
+    },
+    "DepthRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "title": "Model",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model"
+      ],
+      "title": "DepthRequest",
+      "type": "object"
+    },
+    "ErrorBody": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "$ref": "#/$defs/ErrorDetail"
+        }
+      },
+      "required": [
+        "error"
+      ],
+      "title": "ErrorBody",
+      "type": "object"
+    },
+    "ErrorDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {
+          "title": "Code",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ErrorDetail",
+      "type": "object"
+    },
+    "HealthView": {
+      "additionalProperties": false,
+      "properties": {
+        "ok": {
+          "title": "Ok",
+          "type": "boolean"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ok",
+        "version"
+      ],
+      "title": "HealthView",
+      "type": "object"
+    },
+    "ImageSize": {
+      "additionalProperties": false,
+      "properties": {
+        "height": {
+          "title": "Height",
+          "type": "integer"
+        },
+        "width": {
+          "title": "Width",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "width",
+        "height"
+      ],
+      "title": "ImageSize",
+      "type": "object"
+    },
+    "JobRef": {
+      "additionalProperties": false,
+      "description": "The ``{job}`` envelope returned by ``202`` job-creation responses.",
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/JobView"
+        }
+      },
+      "required": [
+        "job"
+      ],
+      "title": "JobRef",
+      "type": "object"
+    },
+    "JobView": {
+      "additionalProperties": false,
+      "properties": {
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Error"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "kind": {
+          "title": "Kind",
+          "type": "string"
+        },
+        "progress": {
+          "title": "Progress",
+          "type": "number"
+        },
+        "project": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProjectView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "status": {
+          "enum": [
+            "queued",
+            "running",
+            "succeeded",
+            "failed"
+          ],
+          "title": "Status",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "status",
+        "progress"
+      ],
+      "title": "JobView",
+      "type": "object"
+    },
+    "LogEntryView": {
+      "additionalProperties": false,
+      "properties": {
+        "level": {
+          "title": "Level",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "seq": {
+          "title": "Seq",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "seq",
+        "level",
+        "message"
+      ],
+      "title": "LogEntryView",
+      "type": "object"
+    },
+    "LogsView": {
+      "additionalProperties": false,
+      "properties": {
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/LogEntryView"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "next": {
+          "title": "Next",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "entries",
+        "next"
+      ],
+      "title": "LogsView",
+      "type": "object"
+    },
+    "ProjectAssets": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AssetRef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "ProjectAssets",
+      "type": "object"
+    },
+    "ProjectView": {
+      "additionalProperties": false,
+      "description": "Public projection of ``AppState``; never serialize PIL/NumPy/credentials.",
+      "properties": {
+        "assets": {
+          "$ref": "#/$defs/ProjectAssets"
+        },
+        "busy": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/BusyView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "depthModel": {
+          "title": "Depthmodel",
+          "type": "string"
+        },
+        "id": {
+          "title": "Id",
+          "type": "string"
+        },
+        "image": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ImageSize"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "numSlices": {
+          "title": "Numslices",
+          "type": "integer"
+        },
+        "revision": {
+          "title": "Revision",
+          "type": "integer"
+        },
+        "selectedSlice": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Selectedslice"
+        },
+        "slices": {
+          "items": {
+            "$ref": "#/$defs/SliceView"
+          },
+          "title": "Slices",
+          "type": "array"
+        },
+        "thresholds": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Thresholds",
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "revision",
+        "assets",
+        "depthModel",
+        "numSlices",
+        "thresholds",
+        "slices"
+      ],
+      "title": "ProjectView",
+      "type": "object"
+    },
+    "SliceCountRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "numSlices": {
+          "title": "Numslices",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "numSlices"
+      ],
+      "title": "SliceCountRequest",
+      "type": "object"
+    },
+    "SliceView": {
+      "additionalProperties": false,
+      "properties": {
+        "canRedo": {
+          "title": "Canredo",
+          "type": "boolean"
+        },
+        "canUndo": {
+          "title": "Canundo",
+          "type": "boolean"
+        },
+        "depth": {
+          "title": "Depth",
+          "type": "integer"
+        },
+        "image": {
+          "$ref": "#/$defs/AssetRef"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "negativePrompt": {
+          "title": "Negativeprompt",
+          "type": "string"
+        },
+        "positivePrompt": {
+          "title": "Positiveprompt",
+          "type": "string"
+        },
+        "thumbnail": {
+          "$ref": "#/$defs/AssetRef"
+        },
+        "version": {
+          "title": "Version",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "index",
+        "depth",
+        "version",
+        "canUndo",
+        "canRedo",
+        "positivePrompt",
+        "negativePrompt",
+        "image",
+        "thumbnail"
+      ],
+      "title": "SliceView",
+      "type": "object"
+    },
+    "ThresholdsRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "baseRevision": {
+          "title": "Baserevision",
+          "type": "integer"
+        },
+        "values": {
+          "items": {
+            "type": "integer"
+          },
+          "title": "Values",
+          "type": "array"
+        }
+      },
+      "required": [
+        "values",
+        "baseRevision"
+      ],
+      "title": "ThresholdsRequest",
+      "type": "object"
+    }
+  },
+  "title": "ParallaxMakerApi"
+}
