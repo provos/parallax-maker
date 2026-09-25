@@ -29,6 +29,7 @@ from PIL import Image
 from .controller import AppState
 from .depth import DepthEstimationModel
 from .inpainting import create_inpainting_pipeline
+from .scene import render_state_view
 from .segmentation import export_gltf, generate_depth_map, render_image_sequence
 from .utils import postprocess_depth_map
 
@@ -228,6 +229,9 @@ class ExportService:
             push_distance=camera_distance * command.push_distance_factor,
             num_frames=command.num_frames,
             camera_rotation=state.camera.rotation_world_to_camera(),
+            render=lambda position: render_state_view(
+                state.image_slices, state.camera, position
+            ),
         )
 
         return RenderedAnimationResult(

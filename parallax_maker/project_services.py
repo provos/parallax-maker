@@ -20,6 +20,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
+from .camera import Camera
 from .controller import AppState
 from .workflow_services import StateSaveOptions
 
@@ -99,6 +100,7 @@ class UpdateSettings:
     focal_length: float | None = None
     max_distance: float | None = None
     pitch: float | None = None
+    ground_near: float | None = None
     mesh_displacement: float | None = None
     dark_mode: bool | None = None
 
@@ -211,6 +213,12 @@ class ProjectService:
             camera.pitch = command.pitch
             changed = True
         if (
+            command.ground_near is not None
+            and camera.ground_near != command.ground_near
+        ):
+            camera.ground_near = command.ground_near
+            changed = True
+        if (
             command.mesh_displacement is not None
             and state.mesh_displacement != command.mesh_displacement
         ):
@@ -224,17 +232,33 @@ class ProjectService:
 
     @staticmethod
     def _validate_camera(state: AppState, command: UpdateSettings) -> None:
-        """Rejects a pitch/focal-length combination whose image rays would no
-        longer reach the card planes, before anything is changed."""
-        if command.pitch is None and command.focal_length is None:
-            return
-        if state.imgData is None:
+        """Rejects camera settings that are individually valid but not together
+        (image rays past vertical, or no ground in view while a slice is the
+        ground plane), before anything is changed."""
+        fields = {
+            "camera_distance": command.camera_distance,
+            "focal_length": command.focal_length,
+            "max_distance": command.max_distance,
+            "pitch": command.pitch,
+            "ground_near": command.ground_near,
+        }
+        if state.imgData is None or all(v is None for v in fields.values()):
             return
         width, height = state.imgData.size
-        if not state.camera.pitch_fits(
-            width, height, pitch=command.pitch, focal_length=command.focal_length
-        ):
+        candidate = Camera.from_json(state.camera.to_json())
+        for name, value in fields.items():
+            if value is not None:
+                setattr(candidate, name, value)
+
+        if not candidate.pitch_fits(width, height):
             raise InvalidSettings(
                 "camera pitch is too steep for this focal length: part of the "
                 "image would look past vertical"
             )
+        if any(s.is_ground_plane for s in state.image_slices):
+            try:
+                candidate.ground_height(width, height)
+            except ValueError as error:
+                raise InvalidSettings(
+                    f"these camera settings leave no ground plane: {error}"
+                ) from None

@@ -82,6 +82,11 @@ def register_project_lifecycle_routes(blueprint: Blueprint, runtime: "Runtime") 
                         else None
                     ),
                     pitch=payload.camera.pitch if payload.camera is not None else None,
+                    ground_near=(
+                        payload.camera.ground_near
+                        if payload.camera is not None
+                        else None
+                    ),
                     mesh_displacement=payload.mesh_displacement,
                     dark_mode=payload.dark_mode,
                 )

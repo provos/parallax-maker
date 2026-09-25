@@ -109,25 +109,10 @@ class ImageSlice:
 
     def create_card(self, image_height: int, image_width: int, cam: Camera):
         if self.is_ground_plane:
-            near_z = 0
-            far_z = cam.max_distance
+            # The horizontal ground quad (far edge TL/TR, near edge BR/BL).
+            from .scene import ground_layers
 
-            near_width, near_height = self._dimension_at_depth(
-                near_z, image_height, image_width, cam
-            )
-            far_width, far_height = self._dimension_at_depth(
-                far_z, image_height, image_width, cam
-            )
-
-            card_corners_3d = np.array(
-                [
-                    [-far_width / 2, -far_height / 2, far_z],
-                    [far_width / 2, -far_height / 2, far_z],
-                    [near_width / 2, near_height / 2, near_z + 2 * far_z],  # NO IDEA
-                    [-near_width / 2, near_height / 2, near_z + 2 * far_z],
-                ],
-                dtype=np.float32,
-            )
+            card_corners_3d = ground_layers(self.image, cam)[0].corners
         else:
             z = self._depth_to_z(self.depth, cam)
 

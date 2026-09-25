@@ -31,7 +31,7 @@ import numpy as np
 from PIL import Image
 
 from .controller import AppState
-from .segmentation import render_view
+from .scene import render_state_view
 
 #: The seven values `navigate_image` accepted, one per `NAV_*` button.
 Direction = Literal["up", "down", "left", "right", "in", "out", "reset"]
@@ -108,15 +108,7 @@ def navigate_camera(state: AppState, direction: Direction) -> NavigatedCameraRes
         raise InvalidNavigationDirection(f"invalid navigation direction: {direction!r}")
 
     state.camera.camera_position = camera_position
-    camera_matrix = state.camera_matrix()
-    card_corners_3d_list = state.get_cards()
-    rendered = render_view(
-        state.image_slices,
-        camera_matrix,
-        card_corners_3d_list,
-        camera_position,
-        camera_rotation=state.camera.rotation_world_to_camera(),
-    )
+    rendered = render_state_view(state.image_slices, state.camera, camera_position)
     preview_image = Image.fromarray(rendered)
 
     return NavigatedCameraResult(

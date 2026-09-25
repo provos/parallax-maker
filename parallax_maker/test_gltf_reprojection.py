@@ -89,20 +89,20 @@ def _project_cards(doc):
     for node in doc["nodes"]:
         if "mesh" not in node:
             continue
-        primitive = doc["meshes"][node["mesh"]]["primitives"][0]
-        positions = _read_accessor(doc, primitive["attributes"]["POSITION"])
-        uvs = _read_accessor(doc, primitive["attributes"]["TEXCOORD_0"])
-        world = _node_matrix(node) @ np.c_[positions, np.ones(len(positions))].T
-        in_camera = (view @ world).T
-        forward = -in_camera[:, 2]
-        ndc = np.stack(
-            [
-                in_camera[:, 0] / forward / (tan_half * aspect),
-                in_camera[:, 1] / forward / tan_half,
-            ],
-            axis=1,
-        )
-        yield uvs, ndc, forward
+        for primitive in doc["meshes"][node["mesh"]]["primitives"]:
+            positions = _read_accessor(doc, primitive["attributes"]["POSITION"])
+            uvs = _read_accessor(doc, primitive["attributes"]["TEXCOORD_0"])
+            world = _node_matrix(node) @ np.c_[positions, np.ones(len(positions))].T
+            in_camera = (view @ world).T
+            forward = -in_camera[:, 2]
+            ndc = np.stack(
+                [
+                    in_camera[:, 0] / forward / (tan_half * aspect),
+                    in_camera[:, 1] / forward / tan_half,
+                ],
+                axis=1,
+            )
+            yield uvs, ndc, forward
 
 
 def _expected_ndc(uvs):

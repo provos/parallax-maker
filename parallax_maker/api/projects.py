@@ -201,6 +201,7 @@ def _build_project_view(
             can_redo=image_slice.can_undo(forward=True),
             positive_prompt=image_slice.positive_prompt,
             negative_prompt=image_slice.negative_prompt,
+            is_ground=image_slice.is_ground_plane,
             image=_asset_ref(
                 project_id, f"slice-{index}", file_version(Path(image_slice.filename))
             ),
@@ -232,6 +233,12 @@ def _build_project_view(
             focal_length=state.camera.focal_length,
             max_distance=state.camera.max_distance,
             pitch=state.camera.pitch,
+            ground_near=state.camera.ground_near,
+            horizon_row=(
+                state.camera.horizon_row(*state.imgData.size)
+                if state.imgData is not None
+                else None
+            ),
         ),
         mesh_displacement=state.mesh_displacement,
         depth_model=state.depth_model_name or "",

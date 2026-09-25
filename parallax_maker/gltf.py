@@ -37,6 +37,12 @@ def rotation_quaternion_y(y_rot_degrees):
 #: keep the texture registered (exact at vertices, sub-pixel in between).
 PITCHED_CARD_SUBDIVISIONS = 64
 
+#: Grid resolution for the ground plane. Its rows are spaced geometrically
+#: in distance from the horizon, so every row of cells spans the same depth
+#: ratio (evenly spaced rows drift up to ~10 px near the horizon on a 12 MP
+#: image; this keeps the texture within ~0.15 px).
+GROUND_SUBDIVISIONS = 256
+
 
 def quaternion_from_matrix(matrix):
     """Unit quaternion (x, y, z, w) for a 3x3 rotation matrix."""
@@ -184,22 +190,25 @@ def subdivide_geometry(coords, subdivisions, dimension):
     return points.reshape(-1, dimension)
 
 
-def triangle_indices_from_grid(vertices):
+def triangle_indices_from_grid(vertices, row_length=None):
     """
     Generates triangle indices for a grid of vertices.
 
     Args:
         vertices (numpy.ndarray): The 3D corner coordinates of the grid.
+        row_length (int, optional): Vertices per row; defaults to a square grid.
 
     Returns:
         numpy.ndarray: The triangle indices for the grid.
     """
     # Calculate the number of vertices in each row
-    row_length = int(np.sqrt(len(vertices)))
+    if row_length is None:
+        row_length = int(np.sqrt(len(vertices)))
+    rows = len(vertices) // row_length
 
     # Create the indices for the triangles
     indices = []
-    for i in range(row_length - 1):
+    for i in range(rows - 1):
         for j in range(row_length - 1):
             # Calculate the indices for the current quad
             tl = i * row_length + j
@@ -294,6 +303,54 @@ def card_grid(cam, z, image_width, image_height, subdivisions):
     return vertices, uvs
 
 
+#: Rows of the backdrop grid (the thin band of ground between the far edge
+#: and the horizon, standing upright on the far edge).
+BACKDROP_ROWS = 8
+
+
+def ground_grids(cam, image, image_width, image_height, subdivisions):
+    """Vertex grids with UVs for the ground (and its backdrop), and their
+    shared node depth (see scene.ground_layers).
+
+    Like the cards, the node sits at a depth ``z_node`` - just beyond the
+    ground's far edge - and vertices are in its frame: x, y as in the world
+    frame and ``z_node - z``, so ``create_card``'s y flip yields glTF world
+    ``(-x, -y, z)``. Placing the node beyond every card makes renderers that
+    sort transparent objects by node position (three.js, Blender) draw the
+    ground first, behind the cards - the same order as ``scene.render_scene``.
+
+    Returns ``([(vertices, uvs, columns), ...], z_node)``.
+    """
+    from .scene import ground_layers
+
+    layers = ground_layers(image, cam)
+    z_node = float(cam.max_distance) * 1.001 + 1.0
+    horizon = cam.horizon_row(image_width, image_height)
+    us = np.linspace(0, image_width, subdivisions + 1)
+    grids = []
+    for layer in layers:
+        top = float(layer.source_quad[0, 1])
+        bottom = float(layer.source_quad[2, 1])
+        if layer.kind == "ground":
+            # Rows spaced geometrically from the horizon: every row of cells
+            # spans the same depth ratio.
+            near, far = bottom - horizon, top - horizon
+            steps = np.arange(subdivisions + 1) / subdivisions
+            vs = horizon + far * (near / far) ** steps
+        else:
+            vs = np.linspace(top, bottom, BACKDROP_ROWS + 1)
+        vs[0], vs[-1] = top, bottom  # exact edges
+        grid_u, grid_v = np.meshgrid(us, vs)
+        points = np.stack([grid_u.ravel(), grid_v.ravel()], axis=1)
+        vertices = cam.backproject_to_plane(
+            points, layer.normal, layer.offset, image_width, image_height
+        )
+        vertices[:, 2] = z_node - vertices[:, 2]
+        uvs = (points / [image_width, image_height]).astype(np.float32)
+        grids.append((vertices, uvs, len(us)))
+    return grids, z_node
+
+
 def create_card(
     gltf_obj,
     i,
@@ -303,6 +360,7 @@ def create_card(
     displacement_scale=0.0,
     camera_distance=None,
     uvs=None,
+    grid_columns=None,
 ):
     """
     Creates a card (plane) in the glTF object with the specified parameters.
@@ -320,6 +378,8 @@ def create_card(
             full (n+1) x (n+1) row-major vertex grid and ``uvs`` its texture
             coordinates (used for pitched cards, whose texture mapping is
             projective); no further subdivision happens.
+        grid_columns (int, optional): Vertices per row of that grid when it is
+            not square.
 
     Returns:
         int: The index of the created mesh.
@@ -361,7 +421,7 @@ def create_card(
             )
             tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)
 
-    indices = triangle_indices_from_grid(vertices)
+    indices = triangle_indices_from_grid(vertices, grid_columns)
 
     # Create the buffer and buffer view for vertices
     vertex_bufferview_index = create_buffer_and_view(
@@ -432,6 +492,44 @@ def create_card(
     return mesh
 
 
+def _add_card(gltf_obj, scene, i, mesh, image_path, alpha_mode, z_transform):
+    """Adds card ``i``'s mesh, textured material and node to the scene."""
+    gltf_obj.meshes.append(mesh)
+
+    # Create the material and assign the texture
+    material = gltf.Material(
+        name=f"Material_{i}",
+        pbrMetallicRoughness=gltf.PbrMetallicRoughness(
+            baseColorTexture=gltf.TextureInfo(index=i)
+        ),
+        # Set the emissive color (RGB values)
+        emissiveFactor=[1.0, 1.0, 1.0],
+        emissiveTexture=gltf.TextureInfo(index=i),
+        alphaMode=alpha_mode,
+        alphaCutoff=0.5 if alpha_mode == "MASK" else None,
+        doubleSided=True,
+    )
+
+    image = gltf.Image(uri=str(image_path))
+    gltf_obj.images.append(image)
+
+    texture = gltf.Texture(
+        source=i,
+    )
+    gltf_obj.textures.append(texture)
+
+    gltf_obj.materials.append(material)
+
+    # Create the card node and add it to the scene
+    card_node = gltf.Node(
+        mesh=i,
+        translation=[0, 0, z_transform],
+        rotation=rotation_quaternion_y(180),
+    )
+    gltf_obj.nodes.append(card_node)
+    scene.nodes.append(len(gltf_obj.nodes) - 1)
+
+
 def export_gltf(
     output_path,
     cam,
@@ -489,6 +587,21 @@ def export_gltf(
 
     # Create the card objects (planes)
     for i, image_slice in enumerate(image_slices):
+        if image_slice.is_ground_plane:
+            # Horizontal ground: a grid at the origin node, no displacement.
+            grids, z_transform = ground_grids(
+                cam, image_slice.image, image_width, image_height, GROUND_SUBDIVISIONS
+            )
+            mesh = None
+            for vertices, uvs, columns in grids:
+                part = create_card(gltf_obj, i, vertices, uvs=uvs, grid_columns=columns)
+                if mesh is None:
+                    mesh = part
+                else:
+                    mesh.primitives.extend(part.primitives)
+            _add_card(gltf_obj, scene, i, mesh, image_paths[i], alpha_mode, z_transform)
+            continue
+
         corners_3d = image_slice.create_card(image_height, image_width, cam)
         # Translaton hack so that we can put the depth on the node
         z_transform = float(corners_3d[0][2])
@@ -529,40 +642,7 @@ def export_gltf(
             camera_distance=z_transform + camera_distance,
             uvs=uvs,
         )
-        gltf_obj.meshes.append(mesh)
-
-        # Create the material and assign the texture
-        material = gltf.Material(
-            name=f"Material_{i}",
-            pbrMetallicRoughness=gltf.PbrMetallicRoughness(
-                baseColorTexture=gltf.TextureInfo(index=i)
-            ),
-            # Set the emissive color (RGB values)
-            emissiveFactor=[1.0, 1.0, 1.0],
-            emissiveTexture=gltf.TextureInfo(index=i),
-            alphaMode=alpha_mode,
-            alphaCutoff=0.5 if alpha_mode == "MASK" else None,
-            doubleSided=True,
-        )
-
-        image = gltf.Image(uri=str(image_paths[i]))
-        gltf_obj.images.append(image)
-
-        texture = gltf.Texture(
-            source=i,
-        )
-        gltf_obj.textures.append(texture)
-
-        gltf_obj.materials.append(material)
-
-        # Create the card node and add it to the scene
-        card_node = gltf.Node(
-            mesh=i,
-            translation=[0, 0, z_transform],
-            rotation=rotation_quaternion_y(180),
-        )
-        gltf_obj.nodes.append(card_node)
-        scene.nodes.append(len(gltf_obj.nodes) - 1)
+        _add_card(gltf_obj, scene, i, mesh, image_paths[i], alpha_mode, z_transform)
 
     # Save the glTF file
     if inline_images:

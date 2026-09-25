@@ -56,6 +56,8 @@ class SliceView(ApiModel):
     image: AssetRef
     thumbnail: AssetRef
     mask: AssetRef | None = None
+    #: This slice is the horizontal ground plane rather than a vertical card.
+    is_ground: bool = False
 
 
 class BusyView(ApiModel):
@@ -114,6 +116,10 @@ class CameraSettingsView(ApiModel):
     max_distance: float
     #: Upward tilt in degrees (negative looks down); see ``Camera.pitch``.
     pitch: float = 0.0
+    #: Card depth where the ground plane meets the image's bottom edge.
+    ground_near: float = 0.0
+    #: Image row of the horizon for the current pitch (null without an image).
+    horizon_row: float | None = None
 
 
 class ProjectSettingsView(ApiModel):
@@ -234,6 +240,12 @@ class SetSliceDepthRequest(ApiModel):
     depth: float
 
 
+class SetGroundPlaneRequest(ApiModel):
+    """Body of ``PUT /projects/{id}/slices/{index}/ground``."""
+
+    is_ground: bool
+
+
 class SetCheckerboardRequest(ApiModel):
     use_checkerboard: bool
 
@@ -303,6 +315,7 @@ class CameraSettingsRequest(ApiModel):
     focal_length: float = Field(gt=0.0)
     max_distance: float = Field(ge=0.0)
     #: Optional (older clients omit it): upward tilt in degrees.
+    ground_near: float | None = Field(default=None, ge=0.0)
     pitch: float | None = Field(
         default=None, ge=-MAX_PITCH_DEGREES, le=MAX_PITCH_DEGREES
     )
@@ -411,6 +424,7 @@ def public_models() -> list[type[BaseModel]]:
         InpaintingSelectionRequest,
         InpaintingApplyRequest,
         CameraNavigateRequest,
+        SetGroundPlaneRequest,
         ProjectSettingsRequest,
         GltfExportRequest,
         AnimationExportRequest,

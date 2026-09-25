@@ -12,10 +12,13 @@ export type Kind = string;
 export type Direction = "up" | "down" | "left" | "right" | "in" | "out" | "reset";
 export type Distance = number;
 export type Focallength = number;
+export type Groundnear = number | null;
 export type Maxdistance = number;
 export type Pitch = number | null;
 export type Distance1 = number;
 export type Focallength1 = number;
+export type Groundnear1 = number;
+export type Horizonrow = number | null;
 export type Maxdistance1 = number;
 export type Pitch1 = number;
 export type Model = string;
@@ -78,6 +81,7 @@ export type Canredo = boolean;
 export type Canundo = boolean;
 export type Depth = number;
 export type Index = number;
+export type Isground = boolean;
 export type Negativeprompt2 = string;
 export type Positiveprompt2 = string;
 export type Version1 = number;
@@ -105,6 +109,7 @@ export type X1 = number;
 export type Y1 = number;
 export type Slice = number | null;
 export type Usecheckerboard1 = boolean;
+export type Isground1 = boolean;
 export type Depth1 = number;
 export type Numslices1 = number;
 export type Baserevision = number;
@@ -167,6 +172,7 @@ export interface CameraNavigateRequest {
 export interface CameraSettingsRequest {
   distance: Distance;
   focalLength: Focallength;
+  groundNear?: Groundnear;
   maxDistance: Maxdistance;
   pitch?: Pitch;
 }
@@ -177,6 +183,8 @@ export interface CameraSettingsRequest {
 export interface CameraSettingsView {
   distance: Distance1;
   focalLength: Focallength1;
+  groundNear?: Groundnear1;
+  horizonRow?: Horizonrow;
   maxDistance: Maxdistance1;
   pitch?: Pitch1;
 }
@@ -446,6 +454,7 @@ export interface SliceView {
   depth: Depth;
   image: AssetRef;
   index: Index;
+  isGround?: Isground;
   mask?: AssetRef | null;
   negativePrompt: Negativeprompt2;
   positivePrompt: Positiveprompt2;
@@ -547,6 +556,15 @@ export interface SelectionRequest {
  */
 export interface SetCheckerboardRequest {
   useCheckerboard: Usecheckerboard1;
+}
+/**
+ * Body of ``PUT /projects/{id}/slices/{index}/ground``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SetGroundPlaneRequest".
+ */
+export interface SetGroundPlaneRequest {
+  isGround: Isground1;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema

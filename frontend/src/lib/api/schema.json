@@ -88,6 +88,19 @@
           "title": "Focallength",
           "type": "number"
         },
+        "groundNear": {
+          "anyOf": [
+            {
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Groundnear"
+        },
         "maxDistance": {
           "minimum": 0.0,
           "title": "Maxdistance",
@@ -126,6 +139,23 @@
         "focalLength": {
           "title": "Focallength",
           "type": "number"
+        },
+        "groundNear": {
+          "default": 0.0,
+          "title": "Groundnear",
+          "type": "number"
+        },
+        "horizonRow": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Horizonrow"
         },
         "maxDistance": {
           "title": "Maxdistance",
@@ -1118,6 +1148,21 @@
       "title": "SetCheckerboardRequest",
       "type": "object"
     },
+    "SetGroundPlaneRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``PUT /projects/{id}/slices/{index}/ground``.",
+      "properties": {
+        "isGround": {
+          "title": "Isground",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "isGround"
+      ],
+      "title": "SetGroundPlaneRequest",
+      "type": "object"
+    },
     "SetSliceDepthRequest": {
       "additionalProperties": false,
       "properties": {
@@ -1167,6 +1212,11 @@
         "index": {
           "title": "Index",
           "type": "integer"
+        },
+        "isGround": {
+          "default": false,
+          "title": "Isground",
+          "type": "boolean"
         },
         "mask": {
           "anyOf": [

@@ -39,6 +39,7 @@ from ..slice_editing_services import (
     RemoveMaskFromSlice,
     ReplaceSliceImage,
     SetCheckerboard,
+    SetGroundPlane,
     SetSliceDepth,
     SliceEditingUnchanged,
     refresh_selection_preview,
@@ -226,6 +227,30 @@ def register_slice_editing_routes(blueprint: Blueprint, runtime: "Runtime") -> N
 
         view = _build_project_view(runtime, project_id, state)
         return _mutation_response(view, True)
+
+    @blueprint.put("/projects/<project_id>/slices/<int:index>/ground")
+    def set_ground_plane(project_id: str, index: int):
+        state = _load_state(project_id)
+        payload = _parse_json_body(request, schemas.SetGroundPlaneRequest)
+        record = runtime.projects.ensure(project_id)
+        _validate_slice_index(state, index)
+
+        with _mutation_guard(record):
+            result = runtime.slice_editing_service.set_ground_plane(
+                SetGroundPlane(
+                    state_id=project_id, slice_index=index, is_ground=payload.is_ground
+                )
+            )
+            if result.changed:
+                record.log.append(
+                    f"Slice {result.slice_index} is now the ground plane"
+                    if result.is_ground
+                    else f"Slice {result.slice_index} is no longer the ground plane"
+                )
+                record.bump_revision()
+
+        view = _build_project_view(runtime, project_id, state)
+        return _mutation_response(view, result.changed)
 
     @blueprint.put("/projects/<project_id>/slices/<int:index>/image")
     def replace_slice_image(project_id: str, index: int):
