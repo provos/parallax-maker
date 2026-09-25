@@ -5,7 +5,7 @@ Reproduces the removed Dash `navigate_image` callback (`components.py`'s
 components.py`` for the exact source, ~line 1853) over HTTP: nudging
 `AppState.camera.camera_position` by a fixed unit step (or resetting it to
 `[0, 0, -camera_distance]`), deselecting the current slice, and re-rendering
-the composited 3D-ish preview via `segmentation.render_view`.
+the composited 3D-ish preview via `scene.render_state_view`.
 
 Unlike most mutation services in this package, Dash's own callback never
 persisted this to disk (no `state.to_file(...)` call anywhere in it) - the
@@ -84,8 +84,7 @@ def navigate_camera(state: AppState, direction: Direction) -> NavigatedCameraRes
     `preview_image=None`. Otherwise either resets the camera to
     `[0, 0, -camera_distance]` (`direction == "reset"`) or steps it by a
     fixed unit vector, then renders the composited view with
-    `segmentation.render_view` using `state.camera_matrix()`/
-    `state.get_cards()`, exactly like Dash's own call.
+    `scene.render_state_view`, exactly like Dash's own call.
     """
 
     state.selected_slice = None

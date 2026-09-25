@@ -10,6 +10,8 @@ import numpy as np
 import pygltflib as gltf
 from PIL import Image
 
+from .scene import ground_layers
+
 
 def rotation_quaternion_y(y_rot_degrees):
     """Calculates the rotation quaternion for a rotation around the y-axis.
@@ -321,8 +323,6 @@ def ground_grids(cam, image, image_width, image_height, subdivisions):
 
     Returns ``([(vertices, uvs, columns), ...], z_node)``.
     """
-    from .scene import ground_layers
-
     layers = ground_layers(image, cam)
     z_node = float(cam.max_distance) * 1.001 + 1.0
     horizon = cam.horizon_row(image_width, image_height)

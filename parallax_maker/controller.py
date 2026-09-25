@@ -588,9 +588,11 @@ class AppState:
             "dark_mode": self.dark_mode,
             "mesh_displacement": self._mesh_displacement,
         }
-        ground = [i for i, s in enumerate(self.image_slices) if s.is_ground_plane]
-        if ground:
-            data["ground_plane_slice"] = ground[0]
+        ground_index = next(
+            (i for i, s in enumerate(self.image_slices) if s.is_ground_plane), None
+        )
+        if ground_index is not None:
+            data["ground_plane_slice"] = ground_index
 
         # merge the camera data
         camera_dict = self._camera.to_json()
