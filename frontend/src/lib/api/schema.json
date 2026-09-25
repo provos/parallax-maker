@@ -297,6 +297,11 @@
           ],
           "default": null
         },
+        "clipboard": {
+          "default": false,
+          "title": "Clipboard",
+          "type": "boolean"
+        },
         "depthModel": {
           "title": "Depthmodel",
           "type": "string"
@@ -529,6 +534,34 @@
         "slice"
       ],
       "title": "SelectionRequest",
+      "type": "object"
+    },
+    "SetCheckerboardRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "useCheckerboard": {
+          "title": "Usecheckerboard",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "useCheckerboard"
+      ],
+      "title": "SetCheckerboardRequest",
+      "type": "object"
+    },
+    "SetSliceDepthRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "title": "Depth",
+          "type": "number"
+        }
+      },
+      "required": [
+        "depth"
+      ],
+      "title": "SetSliceDepthRequest",
       "type": "object"
     },
     "SliceCountRequest": {

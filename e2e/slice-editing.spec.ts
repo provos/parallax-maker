@@ -322,19 +322,21 @@ test('uploading a matching-aspect image replaces the slice content and bumps its
   expect(await sourceImagePixel(page, rawSrc, 30, 30)).toEqual([240, 50, 45, 255]);
 });
 
-test('uploading a mismatched-aspect image collapses the slice to the resized dimensions', async ({
-  page,
-  ui,
-}) => {
+test('uploading a mismatched-aspect image resizes it to the slice canvas', async ({ page, ui }) => {
   requireWorkflow(ui, 'slice-editing');
+  // Dash's slice_upload resizes a mismatched-aspect upload to the *uploaded*
+  // image's height (webui.py:1454), collapsing this 2x1 upload to a 1x1 slice.
+  // The correct behavior -- implemented by SliceEditingService and therefore
+  // the Svelte UI -- resizes it to the slice canvas. See PARITY.md "Known quirks".
+  test.fail(
+    ui.target === 'dash',
+    'Dash collapses a mismatched-aspect slice upload to 1x1 (webui.py:1454).',
+  );
+
   const projectId = await ui.restoreFixtureState();
   await ui.openTab('Segmentation');
 
-  // A 2x1 solid-color PNG: aspect ratio 2.0 versus the slice's 320/240
-  // (~1.333), so slice_upload's mismatched-aspect branch resizes it to
-  // (int(1.333 * 1), 1) = (1, 1) -- collapsing the slice to a single pixel.
-  // This also pins a real bug: the log message is a plain (non-f) string
-  // literal, so it is never interpolated -- see the written report.
+  // A 2x1 solid-color PNG: aspect ratio 2.0 versus the slice's 320/240.
   const twoByOnePng = Buffer.from(
     'iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAIAAAB7QOjdAAAAD0lEQVR4nGPkEpFjYGAAAAEmAD5j+GBZAAAAAElFTkSuQmCC',
     'base64',
@@ -345,18 +347,27 @@ test('uploading a mismatched-aspect image collapses the slice to the resized dim
     buffer: twoByOnePng,
   });
 
-  await expect(ui.log()).toContainText(
-    'Fixing aspect ratio from {image.size[0] / image.size[1]} to {aspect_ratio}',
-  );
   await expect
     .poll(async () => (await readE2EState(page, projectId)).slice_filenames[2])
     .toBe('image_slice_2_v2.png');
-
   const response = await fetchArtifact(page, projectId, 'image_slice_2_v2.png');
   expect(response.ok()).toBeTruthy();
-  const metadata = await imageBufferMetadata(page, await response.body());
-  expect(metadata.width).toBe(1);
-  expect(metadata.height).toBe(1);
+  const buffer = await response.body();
+  const metadata = await imageBufferMetadata(page, buffer);
+  expect({ width: metadata.width, height: metadata.height }).toEqual({ width: 320, height: 240 });
+  const uploaded = await sourceImagePixel(
+    page,
+    `data:image/png;base64,${twoByOnePng.toString('base64')}`,
+    0,
+    0,
+  );
+  const stored = await sourceImagePixel(
+    page,
+    `data:image/png;base64,${buffer.toString('base64')}`,
+    160,
+    120,
+  );
+  expect(stored).toEqual(uploaded);
 });
 
 // --- Invert / feather mask ------------------------------------------------------------

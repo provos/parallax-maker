@@ -3,20 +3,104 @@
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
 
-  type ActionButton = { label: string; testId?: string; onClick?: () => void };
+  type ActionButton = { label: string; testId: string; onClick: () => void };
 
   // Same 8 buttons as components.py's make_slice_generation_container Actions
-  // panel; only Generate is wired up in this PR.
+  // panel. None of them are gated on selection/mask/clipboard state here --
+  // matching Dash exactly, none of webui.py's delete/add-mask/remove-mask/
+  // copy/paste/balance button elements are ever `disabled` for that reason
+  // either; each one just runs and logs a no-op message when a precondition
+  // (selection/mask/clipboard) is missing (see workflow.ts's slice-editing
+  // section for the exact per-button precedence). The only gating here is
+  // "is there a project, and is nothing else in flight", same as Generate.
   const actions: ActionButton[] = [
     { label: 'Generate', testId: 'generate-slices', onClick: () => void workflow.generateSlices() },
-    { label: 'Balance' },
-    { label: 'Create' },
-    { label: 'Delete' },
-    { label: 'Add' },
-    { label: 'Remove' },
-    { label: 'Copy' },
-    { label: 'Paste' },
+    { label: 'Balance', testId: 'balance-slices', onClick: () => void workflow.balanceSlices() },
+    { label: 'Create', testId: 'create-slice', onClick: () => void workflow.createSlice() },
+    { label: 'Delete', testId: 'delete-slice', onClick: () => void workflow.deleteSlice() },
+    { label: 'Add', testId: 'add-mask-to-slice', onClick: () => void workflow.addMaskToSlice() },
+    { label: 'Remove', testId: 'remove-mask-from-slice', onClick: () => void workflow.removeMaskFromSlice() },
+    { label: 'Copy', testId: 'copy-slice', onClick: () => void workflow.copySlice() },
+    { label: 'Paste', testId: 'paste-slice', onClick: () => void workflow.pasteSlice() },
   ];
+
+  // -- Per-slice depth editing: click the badge to reveal a numeric input,
+  // Enter or blur commits it (webui.py's WEB-22/WEB-23: `display_depth_input`
+  // un-hides the input, `record_depth_input` commits on Enter). Unlike Dash,
+  // the selection overlay uses `pointer-events: none` (see `.slice-overlay`
+  // below) so the badge stays clickable on a selected slice too -- Dash's own
+  // depth badge is unreachable through normal hit-testing once its slice is
+  // selected (see PARITY.md "Known quirks"); this UI does not reproduce that.
+  let editingDepthIndex = $state<number | null>(null);
+  let depthDraft = $state('');
+
+  function startEditingDepth(index: number, currentDepth: number, event: Event): void {
+    event.stopPropagation();
+    if (isBusy()) return;
+    editingDepthIndex = index;
+    depthDraft = String(currentDepth);
+  }
+
+  function commitDepth(index: number): void {
+    if (editingDepthIndex !== index) return;
+    editingDepthIndex = null;
+    const value = Number(depthDraft);
+    if (!Number.isFinite(value)) return;
+    void workflow.setSliceDepth(index, value);
+  }
+
+  function onDepthInputKeydown(index: number, event: KeyboardEvent): void {
+    event.stopPropagation();
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      (event.currentTarget as HTMLInputElement).blur();
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      editingDepthIndex = null;
+    }
+  }
+
+  function onDepthInputBlur(index: number): void {
+    commitDepth(index);
+  }
+
+  // -- Undo/redo carets (webui.py's WEB-24 `undo_slice`).
+
+  function onUndo(index: number, event: Event): void {
+    event.stopPropagation();
+    if (isBusy()) return;
+    void workflow.undoSlice(index);
+  }
+
+  function onRedo(index: number, event: Event): void {
+    event.stopPropagation();
+    if (isBusy()) return;
+    void workflow.redoSlice(index);
+  }
+
+  // -- Per-thumbnail image upload/drop target (webui.py's WEB-34 `slice_upload`).
+
+  function uploadFile(index: number, file: File | undefined | null): void {
+    if (!file || isBusy()) return;
+    void workflow.uploadSliceImage(index, file);
+  }
+
+  function onUploadInputChange(index: number, event: Event): void {
+    event.stopPropagation();
+    const target = event.currentTarget as HTMLInputElement;
+    uploadFile(index, target.files?.[0]);
+    target.value = '';
+  }
+
+  function onSliceDrop(index: number, event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    uploadFile(index, event.dataTransfer?.files?.[0]);
+  }
+
+  function onSliceDragOver(event: DragEvent): void {
+    event.preventDefault();
+  }
 
   // Interior threshold boundaries only (length numSlices - 1); the backend
   // rejects any other length (see UpdateThresholdValues.update_threshold_values).
@@ -83,8 +167,7 @@
             type="button"
             class="btn"
             data-testid={action.testId}
-            title={action.onClick ? undefined : 'Not available yet'}
-            disabled={action.onClick ? isBusy() || !projectStore.view : true}
+            disabled={isBusy() || !projectStore.view}
             onclick={action.onClick}
           >
             {action.label}
@@ -111,10 +194,64 @@
             onSliceClick(slice.index);
           }
         }}
+        ondrop={(event) => onSliceDrop(slice.index, event)}
+        ondragover={onSliceDragOver}
       >
-        <span class="depth-number">{slice.depth}</span>
+        {#if editingDepthIndex === slice.index}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            type="number"
+            class="depth-input"
+            data-testid="slice-depth-input"
+            autofocus
+            value={depthDraft}
+            oninput={(event) => (depthDraft = (event.currentTarget as HTMLInputElement).value)}
+            onclick={(event) => event.stopPropagation()}
+            onkeydown={(event) => onDepthInputKeydown(slice.index, event)}
+            onblur={() => onDepthInputBlur(slice.index)}
+          />
+        {:else}
+          <button
+            type="button"
+            class="depth-number"
+            data-testid="slice-depth-display"
+            onclick={(event) => startEditingDepth(slice.index, slice.depth, event)}
+          >
+            {slice.depth}
+          </button>
+        {/if}
         <img data-testid="slice-thumbnail" alt={`image_slice_${slice.index}`} src={slice.thumbnail.url} />
-        <span class="slice-label">{`image_slice_${slice.index}`}</span>
+        <input
+          type="file"
+          accept="image/*"
+          class="sr-only"
+          data-testid="slice-upload-input"
+          onclick={(event) => event.stopPropagation()}
+          onchange={(event) => onUploadInputChange(slice.index, event)}
+        />
+        <div class="slice-label">
+          <button
+            type="button"
+            class="caret"
+            data-testid="slice-undo"
+            title="Undo last change"
+            disabled={!slice.canUndo || isBusy()}
+            onclick={(event) => onUndo(slice.index, event)}
+          >
+            &#x25C2;
+          </button>
+          <button
+            type="button"
+            class="caret"
+            data-testid="slice-redo"
+            title="Redo last change"
+            disabled={!slice.canRedo || isBusy()}
+            onclick={(event) => onRedo(slice.index, event)}
+          >
+            &#x25B8;
+          </button>
+          <span>{`image_slice_${slice.index}`}</span>
+        </div>
         {#if selected}
           <div class="slice-overlay"></div>
         {/if}
@@ -173,25 +310,65 @@
     display: block;
   }
 
-  .depth-number {
+  /* Center badge/input; distinct from .slice-overlay (which is
+     `pointer-events: none` and comes later in DOM order), so this stays
+     clickable even on a selected slice -- see the depth-editing comment
+     above the `<script>` block for why that matters. */
+  .depth-number,
+  .depth-input {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
+    z-index: 1;
+  }
+
+  .depth-number {
     font-size: 2.5rem;
+    line-height: 1;
     color: var(--color-depth-number);
-    pointer-events: none;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    cursor: pointer;
+  }
+
+  .depth-input {
+    width: 3.5rem;
+    font-size: 1.25rem;
+    text-align: center;
   }
 
   .slice-label {
     position: absolute;
+    z-index: 1;
     bottom: 0;
     left: 0;
     right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space-1);
     text-align: center;
     font-size: 0.75rem;
     padding: 2px;
     background-color: color-mix(in srgb, var(--color-bg) 60%, transparent);
     color: var(--color-text);
+  }
+
+  .caret {
+    background: none;
+    border: none;
+    padding: 0 2px;
+    font-family: inherit;
+    font-size: 0.75rem;
+    color: var(--color-text);
+    cursor: pointer;
+  }
+
+  .caret:disabled {
+    color: var(--color-disabled-text);
+    cursor: default;
   }
 </style>

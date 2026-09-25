@@ -19,6 +19,7 @@ export type Error = string | null;
 export type Id = string;
 export type Kind1 = string;
 export type Progress = number;
+export type Clipboard = boolean;
 export type Depthmodel = string;
 export type Id1 = string;
 export type Numslices = number;
@@ -55,6 +56,8 @@ export type Shiftkey = boolean;
 export type X1 = number;
 export type Y1 = number;
 export type Slice = number | null;
+export type Usecheckerboard1 = boolean;
+export type Depth1 = number;
 export type Numslices1 = number;
 export type Baserevision = number;
 export type Values = number[];
@@ -147,6 +150,7 @@ export interface JobView {
 export interface ProjectView {
   assets: ProjectAssets;
   busy?: BusyView | null;
+  clipboard?: Clipboard;
   depthModel: Depthmodel;
   id: Id1;
   image?: ImageSize | null;
@@ -256,6 +260,20 @@ export interface SegmentationClickRequest {
  */
 export interface SelectionRequest {
   slice: Slice;
+}
+/**
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SetCheckerboardRequest".
+ */
+export interface SetCheckerboardRequest {
+  useCheckerboard: Usecheckerboard1;
+}
+/**
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SetSliceDepthRequest".
+ */
+export interface SetSliceDepthRequest {
+  depth: Depth1;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema

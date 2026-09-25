@@ -229,6 +229,166 @@ export async function setMultiPointMode(enabled: boolean): Promise<void> {
   }
 }
 
+// --- Slice editing / mask tools --------------------------------------------
+//
+// Dash's own buttons (webui.py's delete/add-mask/remove-mask/copy/paste
+// handlers) never disable themselves based on selection/mask/clipboard state;
+// instead they run unconditionally and log a plain-text no-op message when a
+// precondition is missing (see components.py/webui.py referenced in
+// ARCHITECTURE.md's "Slice editing and mask-tool endpoints"). The API layer
+// enforces the same preconditions with structured errors instead (409/400),
+// so the functions below reproduce Dash's *exact* precedence and wording as
+// a client-side check before ever calling the API - both so the log text
+// matches the shared e2e scenarios byte-for-byte, and so we don't need a
+// slice index to call an endpoint that requires one (add-mask/remove-mask/
+// delete all key off the currently selected slice).
+//
+// Precedence per Dash source:
+//   delete:        selection required                       ("No slice selected")
+//   add/remove:     mask required, then selection required    ("No mask selected", "No slice selected")
+//   copy:           mask required                             ("No mask selected")
+//   paste:          clipboard required, then selection required ("Nothing in the clipboard", "No slice selected")
+
+async function runSliceMutation(
+  kind: Parameters<typeof jobStore.begin>[0],
+  call: (id: string) => Promise<Awaited<ReturnType<typeof api.createSlice>>>,
+): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+
+  jobStore.begin(kind);
+  try {
+    const result = await call(view.id);
+    projectStore.applyView(result);
+  } catch (err) {
+    logStore.pushClient(errorMessage(err));
+  } finally {
+    jobStore.end();
+    await refreshLogs(view.id);
+  }
+}
+
+/** Creates a slice from the current mask, or an empty slice if there is none. */
+export async function createSlice(): Promise<void> {
+  await runSliceMutation('slice-editing', (id) => api.createSlice(id));
+}
+
+/** Deletes the selected slice (`#delete-slice-button` in Dash); a logged no-op with none selected. */
+export async function deleteSlice(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (view.selectedSlice === null) {
+    logStore.pushClient('No slice selected', 'info');
+    return;
+  }
+  await runSliceMutation('slice-editing', (id) => api.deleteSlice(id, view.selectedSlice as number));
+}
+
+/** Adds the current mask to the selected slice's alpha in place; a logged no-op without a mask/selection. */
+export async function addMaskToSlice(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (!view.segmentation.hasMask) {
+    logStore.pushClient('No mask selected', 'info');
+    return;
+  }
+  if (view.selectedSlice === null) {
+    logStore.pushClient('No slice selected', 'info');
+    return;
+  }
+  await runSliceMutation('slice-editing', (id) => api.addMaskToSlice(id, view.selectedSlice as number));
+}
+
+/** Removes the current mask from the selected slice's alpha in place; same preconditions as addMaskToSlice. */
+export async function removeMaskFromSlice(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (!view.segmentation.hasMask) {
+    logStore.pushClient('No mask selected', 'info');
+    return;
+  }
+  if (view.selectedSlice === null) {
+    logStore.pushClient('No slice selected', 'info');
+    return;
+  }
+  await runSliceMutation('slice-editing', (id) =>
+    api.removeMaskFromSlice(id, view.selectedSlice as number),
+  );
+}
+
+/** Copies the composed selected slice (or full image) plus the current mask to the clipboard. */
+export async function copySlice(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (!view.segmentation.hasMask) {
+    logStore.pushClient('No mask selected', 'info');
+    return;
+  }
+  await runSliceMutation('slice-editing', (id) => api.copyToClipboard(id));
+}
+
+/** Blends the clipboard image into the selected slice in place. */
+export async function pasteSlice(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (!view.clipboard) {
+    logStore.pushClient('Nothing in the clipboard', 'info');
+    return;
+  }
+  if (view.selectedSlice === null) {
+    logStore.pushClient('No slice selected', 'info');
+    return;
+  }
+  await runSliceMutation('slice-editing', (id) => api.pasteClipboard(id));
+}
+
+/** Evenly redistributes slice depths; a no-op (not an error) with zero slices. */
+export async function balanceSlices(): Promise<void> {
+  await runSliceMutation('slice-editing', (id) => api.balanceSlices(id));
+}
+
+/** Sets the depth of the slice currently at `index` (`PUT .../slices/{index}/depth`, sync). */
+export async function setSliceDepth(index: number, depth: number): Promise<void> {
+  await runSliceMutation('slice-editing', (id) => api.setSliceDepth(id, index, depth));
+}
+
+/** Uploads a replacement image for the slice currently at `index` (`PUT .../slices/{index}/image`). */
+export async function uploadSliceImage(index: number, file: File): Promise<void> {
+  await runSliceMutation('slice-editing', (id) => api.replaceSliceImage(id, index, file));
+}
+
+/** Inverts the current mask, creating an all-zero mask first if none exists. */
+export async function invertMask(): Promise<void> {
+  await runSliceMutation('mask-tools', (id) => api.invertMask(id));
+}
+
+/** Feathers (blurs) the current mask by a fixed kernel; requires an existing mask. */
+export async function featherMask(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (!view.segmentation.hasMask) {
+    logStore.pushClient('No mask to feather', 'info');
+    return;
+  }
+  await runSliceMutation('mask-tools', (id) => api.featherMask(id));
+}
+
+/** Toggles the checkerboard vs. grayscale background for the selected-slice preview. */
+export async function toggleCheckerboard(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  await runSliceMutation('mask-tools', (id) => api.setCheckerboard(id, !view.useCheckerboard));
+}
+
+/** Undo/redo one step of a slice's saved image-version history. */
+export async function undoSlice(index: number): Promise<void> {
+  await runSliceMutation('slice-editing', (id) => api.undoSlice(id, index));
+}
+
+export async function redoSlice(index: number): Promise<void> {
+  await runSliceMutation('slice-editing', (id) => api.redoSlice(id, index));
+}
+
 /** Restores a legacy `appstate.json` (Configuration tab's Load State). */
 export async function restoreProject(file: File): Promise<void> {
   jobStore.begin('restore');

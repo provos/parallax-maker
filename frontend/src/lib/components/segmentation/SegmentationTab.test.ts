@@ -166,4 +166,152 @@ describe('SegmentationTab', () => {
       expect(wrappers[1]).toHaveAttribute('data-selected', 'true');
     });
   });
+
+  describe('Actions panel enablement', () => {
+    // Matches Dash exactly: webui.py never disables Create/Delete/Add/Remove/
+    // Copy/Paste/Balance based on selection/mask/clipboard state -- only "is
+    // a project loaded" and "is nothing else in flight" gate them, same as
+    // Generate. Preconditions are enforced by workflow.ts at click time.
+    const actionTestIds = [
+      'balance-slices',
+      'create-slice',
+      'delete-slice',
+      'add-mask-to-slice',
+      'remove-mask-from-slice',
+      'copy-slice',
+      'paste-slice',
+    ];
+
+    it('disables every action button when there is no project', () => {
+      render(SegmentationTab);
+      for (const testId of actionTestIds) {
+        expect(screen.getByTestId(testId)).toBeDisabled();
+      }
+    });
+
+    it('enables every action button with a project loaded, regardless of selection or mask state', () => {
+      projectStore.applyView(
+        makeView({ selectedSlice: null, segmentation: { multiPointMode: false, queuedPoints: [], hasMask: false } }),
+      );
+      render(SegmentationTab);
+      for (const testId of actionTestIds) {
+        expect(screen.getByTestId(testId)).toBeEnabled();
+      }
+    });
+
+    it('disables every action button while a job is in flight', async () => {
+      projectStore.applyView(makeView());
+      render(SegmentationTab);
+      jobStore.begin('slice-editing');
+      await waitFor(() => {
+        for (const testId of actionTestIds) {
+          expect(screen.getByTestId(testId)).toBeDisabled();
+        }
+      });
+    });
+  });
+
+  describe('depth badge editing', () => {
+    it('reveals a numeric input on click and commits the new depth on Enter', async () => {
+      projectStore.applyView(makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)] }));
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, { ...makeView({ revision: 2, slices: [makeSlice(0, 200), makeSlice(1, 170)] }), changed: true }),
+      );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(SegmentationTab);
+      const badges = screen.getAllByTestId('slice-depth-display');
+      expect(screen.queryByTestId('slice-depth-input')).toBeNull();
+
+      await fireEvent.click(badges[0]);
+      const input = screen.getByTestId('slice-depth-input') as HTMLInputElement;
+      expect(input).toBeInTheDocument();
+
+      await fireEvent.input(input, { target: { value: '200' } });
+      await fireEvent.keyDown(input, { key: 'Enter' });
+      await fireEvent.blur(input);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/v1/projects/appstate-test/slices/0/depth');
+      expect(JSON.parse(init.body as string)).toEqual({ depth: 200 });
+      // Enter/blur is a single commit, not two.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    });
+
+    it('clicking a depth badge does not also (de)select its slice', async () => {
+      const view = makeView({ slices: [makeSlice(0, 85)], selectedSlice: null });
+      projectStore.applyView(view);
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(SegmentationTab);
+      await fireEvent.click(screen.getByTestId('slice-depth-display'));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('undo/redo carets', () => {
+    it('disables undo/redo per slice according to canUndo/canRedo', () => {
+      projectStore.applyView(
+        makeView({
+          slices: [
+            { ...makeSlice(0, 85), canUndo: false, canRedo: true },
+            { ...makeSlice(1, 170), canUndo: true, canRedo: false },
+          ],
+        }),
+      );
+      render(SegmentationTab);
+
+      const undoButtons = screen.getAllByTestId('slice-undo');
+      const redoButtons = screen.getAllByTestId('slice-redo');
+      expect(undoButtons[0]).toBeDisabled();
+      expect(redoButtons[0]).toBeEnabled();
+      expect(undoButtons[1]).toBeEnabled();
+      expect(redoButtons[1]).toBeDisabled();
+    });
+
+    it('clicking Undo calls the per-index undo endpoint without selecting the slice', async () => {
+      projectStore.applyView(
+        makeView({ slices: [{ ...makeSlice(0, 85), canUndo: true }], selectedSlice: null }),
+      );
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...makeView({ revision: 2 }), changed: true }));
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(SegmentationTab);
+      await fireEvent.click(screen.getByTestId('slice-undo'));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/v1/projects/appstate-test/slices/0/undo');
+      expect(init.method).toBe('POST');
+    });
+  });
+
+  describe('per-thumbnail image upload', () => {
+    it('uploads the chosen file to the matching slice index', async () => {
+      projectStore.applyView(makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)] }));
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...makeView({ revision: 2 }), changed: true }));
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(SegmentationTab);
+      const inputs = document.querySelectorAll<HTMLInputElement>('[data-testid="slice-upload-input"]');
+      expect(inputs).toHaveLength(2);
+      const file = new File(['bytes'], 'replacement.png', { type: 'image/png' });
+      await fireEvent.change(inputs[1], { target: { files: [file] } });
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/v1/projects/appstate-test/slices/1/image');
+      expect(init.method).toBe('PUT');
+      expect((init.body as FormData).get('image')).toBe(file);
+    });
+  });
 });

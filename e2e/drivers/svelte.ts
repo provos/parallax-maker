@@ -28,7 +28,12 @@ export class SvelteDriver implements UiDriver {
   constructor(private readonly page: Page) {}
 
   supports(workflow: Workflow): boolean {
-    return workflow === 'upload-depth-slices' || workflow === 'segmentation';
+    return (
+      workflow === 'upload-depth-slices' ||
+      workflow === 'segmentation' ||
+      workflow === 'slice-editing' ||
+      workflow === 'mask-tools'
+    );
   }
 
   // Navigation
@@ -272,65 +277,98 @@ export class SvelteDriver implements UiDriver {
     throw new Error('SvelteDriver: applyCandidate not implemented yet');
   }
 
-  undoButton(_index: number): Locator {
-    throw new Error('SvelteDriver: undoButton not implemented yet');
+  undoButton(index: number): Locator {
+    return this.page.getByTestId('slice-undo').nth(index);
   }
 
-  redoButton(_index: number): Locator {
-    throw new Error('SvelteDriver: redoButton not implemented yet');
+  redoButton(index: number): Locator {
+    return this.page.getByTestId('slice-redo').nth(index);
   }
 
   // Slice editing / mask tools
 
+  /**
+   * Clicks `locator` and waits until the log's text differs from its value
+   * beforehand. Mirrors DashDriver.clickAndWaitForLogChange: every
+   * slice-editing/mask-tool action produces exactly one log line on every
+   * path (a client-side no-op message or a server-side success message), so
+   * this generically proves the click was processed; scenarios assert the
+   * resulting text themselves.
+   */
+  private async clickAndWaitForLogChange(locator: Locator): Promise<void> {
+    const before = await this.log().innerText();
+    await locator.click();
+    await expect.poll(() => this.log().innerText()).not.toBe(before);
+  }
+
   async createSlice(): Promise<void> {
-    throw new Error('SvelteDriver: createSlice not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('create-slice'));
   }
 
   async deleteSlice(): Promise<void> {
-    throw new Error('SvelteDriver: deleteSlice not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('delete-slice'));
   }
 
   async addMaskToSlice(): Promise<void> {
-    throw new Error('SvelteDriver: addMaskToSlice not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('add-mask-to-slice'));
   }
 
   async removeMaskFromSlice(): Promise<void> {
-    throw new Error('SvelteDriver: removeMaskFromSlice not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('remove-mask-from-slice'));
   }
 
   async copySlice(): Promise<void> {
-    throw new Error('SvelteDriver: copySlice not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('copy-slice'));
   }
 
   async pasteSlice(): Promise<void> {
-    throw new Error('SvelteDriver: pasteSlice not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('paste-slice'));
   }
 
   async balanceSlices(): Promise<void> {
-    throw new Error('SvelteDriver: balanceSlices not implemented yet');
+    await this.page.getByTestId('balance-slices').click();
   }
 
-  async setSliceDepth(_index: number, _depth: number): Promise<void> {
-    throw new Error('SvelteDriver: setSliceDepth not implemented yet');
+  async setSliceDepth(index: number, depth: number): Promise<void> {
+    const display = this.page.getByTestId('slice-depth-display').nth(index);
+    await expect(display).toBeVisible();
+    await display.click();
+    const input = this.page.getByTestId('slice-depth-input');
+    await expect(input).toBeVisible();
+    await input.fill(String(depth));
+    await input.press('Enter');
+    // The whole thumbnail strip is rebuilt (and may reorder) once the new
+    // depth is committed; wait for a depth badge to show the committed value
+    // anywhere in the (possibly reordered) strip rather than trusting
+    // `index` to still point at the same slice.
+    await expect(
+      this.page.getByTestId('slice-depth-display').filter({ hasText: new RegExp(`^${depth}$`) }),
+    ).not.toHaveCount(0);
   }
 
   async uploadSliceImage(
-    _index: number,
-    _file: { name: string; mimeType: string; buffer: Buffer },
+    index: number,
+    file: { name: string; mimeType: string; buffer: Buffer },
   ): Promise<void> {
-    throw new Error('SvelteDriver: uploadSliceImage not implemented yet');
+    const before = await this.log().innerText();
+    const input = this.page.getByTestId('slice-upload-input').nth(index);
+    await input.setInputFiles(file);
+    await expect.poll(() => this.log().innerText()).not.toBe(before);
   }
 
   async invertMask(): Promise<void> {
-    throw new Error('SvelteDriver: invertMask not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('invert-mask'));
   }
 
   async featherMask(): Promise<void> {
-    throw new Error('SvelteDriver: featherMask not implemented yet');
+    await this.clickAndWaitForLogChange(this.page.getByTestId('feather-mask'));
   }
 
   async toggleCheckerboard(): Promise<void> {
-    throw new Error('SvelteDriver: toggleCheckerboard not implemented yet');
+    const button = this.page.getByTestId('toggle-checkerboard');
+    const wasSelected = (await button.getAttribute('aria-pressed')) === 'true';
+    await button.click();
+    await expect(button).toHaveAttribute('aria-pressed', String(!wasSelected));
   }
 
   // Project / configuration
