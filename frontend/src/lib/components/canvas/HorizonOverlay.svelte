@@ -76,7 +76,7 @@
     tabindex="0"
     aria-label="Horizon"
     aria-valuemin="0"
-    aria-valuemax={height}
+    aria-valuemax={height - 1}
     aria-valuenow={Math.round(row)}
     onpointerdown={onPointerDown}
     onpointermove={onPointerMove}

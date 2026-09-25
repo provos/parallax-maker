@@ -91,6 +91,9 @@
     try {
       while (commitPending) {
         commitPending = false;
+        // The ground must start before the max distance; keep it there when
+        // the max distance shrinks below it.
+        draft.groundNear = Math.min(draft.groundNear, Math.max(0, draft.maxDistance - 1));
         await workflow.updateSettings({
           camera: {
             distance: draft.distance,

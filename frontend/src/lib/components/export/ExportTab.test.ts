@@ -260,6 +260,26 @@ describe('ExportTab', () => {
       expect(body.camera).toEqual({ distance: 100, maxDistance: 500, focalLength: 26, groundNear: 120 });
     });
 
+    it('pulls the ground distance in when the max distance shrinks below it', async () => {
+      projectStore.applyView(groundView());
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects/appstate-test/settings') return jsonResponse(200, { ...groundView(), changed: true });
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      render(ExportTab);
+
+      const slider = screen.getByTestId('max-distance');
+      await fireEvent.input(slider, { target: { value: '60' } });
+      await fireEvent.change(slider);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+      expect(body.camera).toEqual({ distance: 100, maxDistance: 60, focalLength: 26, groundNear: 59 });
+    });
+
     it('disables the ground distance without a ground slice', () => {
       projectStore.applyView(makeView());
       render(ExportTab);

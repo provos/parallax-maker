@@ -73,6 +73,8 @@ def fit_ground(state: AppState) -> GroundFit:
     ground = ground_slice(state)
     if ground is None or state.imgData is None:
         raise GroundNotReady("mark a slice as the ground plane first")
+    if ground.image is None:
+        raise GroundNotReady("the ground slice is empty")
     width, height = state.imgData.size
 
     top = mask_top_row(ground.image)

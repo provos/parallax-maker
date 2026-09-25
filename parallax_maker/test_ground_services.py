@@ -64,6 +64,15 @@ def test_fit_needs_a_ground_slice():
         fit_ground(_state([_slice(slice(0, None), 0)]))
 
 
+@pytest.mark.parametrize("image", [None, np.zeros((H, W, 4), np.uint8)])
+def test_fit_needs_a_ground_slice_with_content(image):
+    ground = _slice(slice(0, None), 60)
+    ground.image = image
+    ground.is_ground_plane = True
+    with pytest.raises(GroundNotReady, match="empty"):
+        fit_ground(_state([ground]))
+
+
 def test_scene_profile_describes_cards_camera_and_ground():
     sky = _slice(slice(0, 130), 0)
     ocean = _slice(slice(125, None), 60)
