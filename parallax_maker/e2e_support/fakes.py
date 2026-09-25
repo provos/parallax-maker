@@ -14,7 +14,6 @@ from typing import Any
 import numpy as np
 from PIL import Image, ImageDraw
 
-
 INPAINT_PALETTES = (
     ((0, 255, 255), (255, 0, 255)),
     ((255, 128, 0), (0, 64, 255)),
@@ -128,9 +127,7 @@ class FakeSegmentationModel:
         draw = ImageDraw.Draw(mask)
 
         for x, y in positive_points:
-            draw.ellipse(
-                (x - radius, y - radius, x + radius, y + radius), fill=255
-            )
+            draw.ellipse((x - radius, y - radius, x + radius, y + radius), fill=255)
         hole_radius = max(5, (radius * 2) // 3)
         for x, y in negative_points:
             draw.ellipse(
@@ -244,6 +241,23 @@ class FakeExternalProvider:
     def upscale_image(self, image, prompt="", negative_prompt=""):
         del prompt, negative_prompt
         return FakeUpscaler().upscale_image_tiled(image)
+
+
+def create_fake_runtime():
+    """Build a :class:`~parallax_maker.runtime.Runtime` from the fake classes.
+
+    Used by :mod:`parallax_maker.e2e_server` so the API and the (separately
+    patched) Dash callbacks share the exact same deterministic substitutes.
+    """
+
+    from ..runtime import build_runtime
+
+    return build_runtime(
+        depth_model_factory=FakeDepthEstimationModel,
+        segmentation_model_factory=FakeSegmentationModel,
+        inpainting_model_factory=FakeInpaintingModel,
+        upscaler_factory=FakeUpscaler,
+    )
 
 
 def _blocked_network(*args, **kwargs):

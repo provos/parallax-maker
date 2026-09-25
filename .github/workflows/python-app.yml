@@ -42,10 +42,30 @@ jobs:
       with:
         node-version: "24"
         cache: npm
-    - name: Install browser-test dependencies
+    - name: Install browser-test and frontend dependencies
       run: |
         npm ci
+        npm --prefix frontend ci
         npx playwright install --with-deps chromium
+    - name: Check, test and build the Svelte frontend
+      run: |
+        npm run check:frontend
+        npm run test:frontend
+        npm run build:frontend
+    - name: Verify generated API types are current
+      run: |
+        PYTHON=python npm --prefix frontend run gen:api-types
+        git diff --exit-code -- frontend/src/lib/api/
+    - name: Verify the wheel ships the built frontend
+      run: |
+        python -m pip wheel . --no-deps -w dist
+        python - <<'PY'
+        import glob, zipfile
+        names = zipfile.ZipFile(glob.glob("dist/parallax_maker-*.whl")[0]).namelist()
+        assert "parallax_maker/static/next/index.html" in names, "index.html missing"
+        assert any(n.startswith("parallax_maker/static/next/assets/") for n in names), "assets missing"
+        print("wheel ships", sum(n.startswith("parallax_maker/static/next/") for n in names), "frontend files")
+        PY
     - name: Type-check browser tests
       run: npm run check:e2e
     - name: Test browser workflows

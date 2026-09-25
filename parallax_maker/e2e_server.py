@@ -19,7 +19,8 @@ import numpy as np
 from PIL import Image
 
 from .e2e_support import INPAINT_PALETTES, create_fixture_state, create_input_image
-from .e2e_support.fakes import CHECK_SIZE, install_fakes
+from .e2e_support.fakes import CHECK_SIZE, create_fake_runtime, install_fakes
+from .server import create_server
 
 
 def _exit_on_sigterm(signum, frame) -> None:
@@ -30,8 +31,10 @@ def _exit_on_sigterm(signum, frame) -> None:
 
 
 def _state_directory(filename: str | None) -> Path:
-    if not filename or Path(filename).name != filename or not filename.startswith(
-        "appstate-"
+    if (
+        not filename
+        or Path(filename).name != filename
+        or not filename.startswith("appstate-")
     ):
         abort(400, "filename must be a single appstate-* directory name")
     return Path.cwd() / filename
@@ -63,9 +66,7 @@ def _mask_metadata(mask: np.ndarray | None) -> dict:
     if maximum > 0:
         max_y, max_x = np.nonzero(mask == maximum)
         center_x, center_y = (width - 1) / 2, (height - 1) / 2
-        nearest_max = np.argmin(
-            (max_x - center_x) ** 2 + (max_y - center_y) ** 2
-        )
+        nearest_max = np.argmin((max_x - center_x) ** 2 + (max_y - center_y) ** 2)
         inside = [int(max_x[nearest_max]), int(max_y[nearest_max])]
     zero_y, zero_x = np.nonzero(mask == 0)
     outside = [int(zero_x[0]), int(zero_y[0])] if len(zero_x) else None
@@ -229,11 +230,15 @@ def main() -> None:
     # reading or overwriting a developer's appstate-* directories.
     with tempfile.TemporaryDirectory(prefix="parallax-maker-e2e-") as work_dir:
         os.chdir(work_dir)
-        webui = install_fakes()
+        install_fakes()
+        # Dash and the API are served from the same process and share the
+        # same fakes: install_fakes() patches the frozen Dash callbacks, and
+        # create_fake_runtime() builds the equivalent fake Runtime for the API.
+        server = create_server(create_fake_runtime())
         fixture_root = Path(work_dir)
-        _register_routes(webui.app, fixture_root)
+        _register_routes(server.app, fixture_root)
         print(f"E2E_READY http://{args.host}:{args.port}/__e2e__/ready", flush=True)
-        webui.app.run_server(
+        server.app.run_server(
             host=args.host,
             port=args.port,
             debug=False,
