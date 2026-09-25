@@ -92,6 +92,52 @@ the tables above refers to this list, in file order:
     quirks); the fixed `balance_slices_depths()` behavior itself is proven by
     `test_controller.py::TestBalanceSlicesDepths`, not by this scenario.
 
+### `e2e/project-export.spec.ts` legend
+
+All 9 scenarios start from `restoreFixtureState()`, whose fixture also sets
+`dark_mode=true`, camera distance/focalLength/maxDistance=125/475/140,
+mesh_displacement=15, depth model `dinov2` and inpainting model SD XL 1.0
+(`parallax_maker/e2e_support/fixtures.py`), in file order:
+
+1. Save State then restore: the actual on-disk `appstate.json` (fetched via
+   the `/__e2e__/artifact/...` oracle after clicking Save State) is fed back
+   through Load State on the *same* project, and every oracle field plus the
+   main/depth image hashes match exactly before vs. after.
+2. Camera distance/focal length/max distance/displacement slider changes
+   persist immediately (before any explicit Save) and again survive a full
+   save/restore round trip - both the oracle's `camera`/`mesh_displacement`
+   and the sliders' own `aria-valuenow`.
+3. Dark mode (fixture starts `true`) survives a save/restore round trip.
+4. Depth model (Mode tab) and inpainting model (Configuration tab)
+   selections both survive a save/restore round trip.
+5. External-server connection test (Automatic1111) highlights success when
+   the fake `make_models_request` probe succeeds; asserts the neutral state
+   beforehand too.
+6. glTF export with the displacement slider set to a positive value produces
+   a subdivided (`501x501`-vertex) mesh instead of a flat 4-vertex quad.
+7. glTF export with DOF enabled switches every material from `BLEND` to
+   `MASK` alpha mode (`alphaCutoff=0.5`); the same project's `dof: false`
+   export is `BLEND` for comparison.
+8. Upscale Textures then glTF export embeds the upscaled (`FakeUpscaler`'s
+   exact 2x) image dimensions, not the original slice size.
+9. Clicking a slice's download icon downloads bytes byte-for-byte identical
+   to the on-disk slice PNG (`/__e2e__/artifact/...`).
+
+Discovered while writing scenario 2: `UiDriver.setSlider` (`drivers/dash.ts`)
+had two real, previously-latent bugs of its own, both fixed as part of this
+slice since every prior scenario that used it only ever set a slider to `0`
+or used a step-1 slider — see "Known quirks" for the real Dash 500 the second
+one avoids re-triggering:
+- It trusted the slider handle's `aria-valuestep` attribute to compute a
+  press count, but rc-slider does not reliably render that attribute (e.g.
+  the displacement slider's real `step=5`, `components.py:1436`) - a
+  press-and-re-read loop replaces the pre-computed count.
+- It pressed `Home` before stepping, unconditionally resetting to each
+  slider's own minimum (`0` for every camera/displacement slider) even when
+  only that one slider's value needed to change - now steps directly from
+  the slider's current value instead, which also happens to be required to
+  avoid the WEB-30 crash below.
+
 ---
 
 ## Upload/Depth/Slices
@@ -184,43 +230,43 @@ characterizing these rows.
 | ID | Function (file:line) | Trigger(s) | Effect | Backend service | E2E coverage | Svelte |
 | --- | --- | --- | --- | --- | --- | --- |
 | WEB-36 | `restore_inpainting` webui.py:1514 | Input `STORE_RESTORE_STATE.data` | Sets `STORE_INPAINTING=True` to re-run CMP-07 after a restore | inline (trigger only) | 2–11 | [ ] |
-| WEB-37 | `remember_camera_parameters` (2nd def, restore variant) webui.py:1527 | Input `STORE_RESTORE_STATE.data` | Populates camera-distance/focal-length/max-distance/displacement sliders from `state.camera`/`state.mesh_displacement` | inline (AppState read) | 2–11 (asserted in 10) | [ ] |
-| WEB-38 | `restore_dark_mode` webui.py:1547 | Input `STORE_RESTORE_STATE.data` | Sets `BTN_DARK_MODE.n_clicks` parity to reflect `state.dark_mode`, indirectly re-running WEB-01's class toggle | inline (AppState read) | 2–11 (asserted in 10) | [ ] |
+| WEB-37 | `remember_camera_parameters` (2nd def, restore variant) webui.py:1527 | Input `STORE_RESTORE_STATE.data` | Populates camera-distance/focal-length/max-distance/displacement sliders from `state.camera`/`state.mesh_displacement` | inline (AppState read) | 2–11 (asserted in 10); camera/displacement round trip also pinned by `project-export.spec.ts` and `ProjectService.restore_legacy_state`/`update_settings` (`test_project_services.py`, `test_api_project_export.py`) | [ ] |
+| WEB-38 | `restore_dark_mode` webui.py:1547 | Input `STORE_RESTORE_STATE.data` | Sets `BTN_DARK_MODE.n_clicks` parity to reflect `state.dark_mode`, indirectly re-running WEB-01's class toggle | inline (AppState read) | 2–11 (asserted in 10); dark-mode round trip also pinned by `project-export.spec.ts` and `ProjectService`/`test_api_project_export.py` | [ ] |
 | WEB-39 | `restore_api_key` webui.py:1561 | Input `STORE_RESTORE_STATE.data` | Restores `INPUT_API_KEY.value` from `state.api_key` | inline (AppState read) | 2–11 | [ ] |
 | WEB-40 | `restore_workflow` webui.py:1579 | Input `STORE_RESTORE_STATE.data` | Re-uploads a saved ComfyUI workflow file's bytes as a data URL if one exists on disk | inline (AppState read) | 2–11 | [ ] |
-| WEB-41 | `restore_models` webui.py:1597 | Input `STORE_RESTORE_STATE.data` | Restores depth/inpainting model dropdown selections | inline (AppState read) | 2–11 (asserted in 10) | [ ] |
+| WEB-41 | `restore_models` webui.py:1597 | Input `STORE_RESTORE_STATE.data` | Restores depth/inpainting model dropdown selections | inline (AppState read) | 2–11 (asserted in 10); depth/inpainting model round trip also pinned by `project-export.spec.ts` (note: `ProjectView.settings.depthModel`/the restored dropdown, not the unrelated top-level `ProjectView.depthModel` field - see ARCHITECTURE.md) | [ ] |
 | WEB-42 | `update_external_server_address` webui.py:1617 | Input `STORE_RESTORE_STATE.data` | Restores `INPUT_EXTERNAL_SERVER.value` | inline (AppState read) | 2–11 | [ ] |
 | WEB-43 | `update_model_viewer` webui.py:1631 | Input `STORE_RESTORE_STATE.data` | Rebuilds the glTF `<iframe>` `srcDoc` from any previously exported model file | inline (AppState read) | 2–11 | [ ] |
 | WEB-44 | `restore_state_slices` webui.py:1648 | Input `STORE_RESTORE_STATE.data` | Triggers WEB-21 if the restored project has slices | inline (trigger only) | 2–11 | [ ] |
 | WEB-45 | `restore_state_depthmap` webui.py:1665 | Input `STORE_RESTORE_STATE.data` | Triggers WEB-11 to redraw the depth map | inline (trigger only) | 2–11 | [ ] |
-| WEB-46 | `restore_state` webui.py:1681 | Input `UPLOAD_STATE.contents` | Decodes uploaded project JSON via `AppState.from_json` + `fill_from_files`, seeds the process-global cache, serves the restored input image, sets `STORE_RESTORE_STATE` to fan out to WEB-36..45 | inline (`AppState.from_json`/`fill_from_files`) | 2–11 | [ ] |
-| WEB-47 | `save_state` webui.py:1710 | Input `BTN_SAVE_STATE.n_clicks` | Calls `AppState.to_file` (full save: image slices, depth map, input image) | inline (`AppState.to_file`) | none (no scenario exercises the Save button — the suite only restores from a server-seeded fixture) | [ ] |
+| WEB-46 | `restore_state` webui.py:1681 | Input `UPLOAD_STATE.contents` | Decodes uploaded project JSON via `AppState.from_json` + `fill_from_files`, seeds the process-global cache, serves the restored input image, sets `STORE_RESTORE_STATE` to fan out to WEB-36..45 | `ProjectService.restore_legacy_state` (`project_services.py`) now also backs `POST /api/v1/projects/restore` itself (`api/projects.py`'s route delegates instead of duplicating the containment/validation logic) | 2–11; `test_project_services.py`, `test_api_restore.py`, `test_api_project_export.py` | [ ] |
+| WEB-47 | `save_state` webui.py:1710 | Input `BTN_SAVE_STATE.n_clicks` | Calls `AppState.to_file` (full save: image slices, depth map, input image) | `ProjectService.save_project` (`project_services.py`) | `project-export.spec.ts` ("save state then restore round trips...") exercises the Save button for the first time; also `test_project_services.py`, `POST .../projects/{id}/save`/`GET .../state-file`, `test_api_project_export.py` | [ ] |
 
 ## Configuration
 
 | ID | Function (file:line) | Trigger(s) | Effect | Backend service | E2E coverage | Svelte |
 | --- | --- | --- | --- | --- | --- | --- |
-| WEB-29 | `remember_depth_model` webui.py:1247 | Input `DROPDOWN_DEPTH_MODEL.value` | Persists `state.depth_model_name` if changed, JSON-only save (contains a harmless duplicated `if` check) | inline (AppState) | none | [ ] |
-| WEB-30 | `remember_camera_parameters` (1st def, persist variant) webui.py:1272 | Input camera-distance/focal-length/max-distance/displacement sliders | Persists `state.camera`/`state.mesh_displacement` if changed, JSON-only save — **same function name as WEB-37**, see Known quirks | inline (AppState) | 11 (displacement slider set before export) | [ ] |
-| WEB-31 | `remember_inpaint_model` webui.py:1301 | Input `DROPDOWN_INPAINT_MODEL.value` | Calls `InpaintingService.update_model`; clears `CTR_INPAINTING_DISPLAY` only when the model actually changed (not on `InpaintingUnchanged`) | InpaintingService | none (also exercised over HTTP by `PUT .../inpainting/settings`'s `model` field, including the candidate-clearing behavior, `test_api_inpainting.py`, PR 5) | [ ] |
+| WEB-29 | `remember_depth_model` webui.py:1247 | Input `DROPDOWN_DEPTH_MODEL.value` | Persists `state.depth_model_name` if changed, JSON-only save (contains a harmless duplicated `if` check) | `ProjectService.update_settings` (`project_services.py`, `depth_model` field) | `project-export.spec.ts` ("depth and inpainting model selections persist..."); `test_project_services.py`, `PUT .../projects/{id}/settings`, `test_api_project_export.py` | [ ] |
+| WEB-30 | `remember_camera_parameters` (1st def, persist variant) webui.py:1272 | Input camera-distance/focal-length/max-distance/displacement sliders | Persists `state.camera`/`state.mesh_displacement` if changed, JSON-only save — **same function name as WEB-37**, see Known quirks (including a newly-discovered real 500 crash, not merely the name collision) | `ProjectService.update_settings` (`project_services.py`, `camera`/`meshDisplacement` fields; does not reproduce the swapped-constructor crash - see Known quirks and ARCHITECTURE.md) | 11 (displacement slider set before export); `project-export.spec.ts` ("camera and displacement slider changes persist..."); `test_project_services.py`, `PUT .../projects/{id}/settings`, `test_api_project_export.py` | [ ] |
+| WEB-31 | `remember_inpaint_model` webui.py:1301 | Input `DROPDOWN_INPAINT_MODEL.value` | Calls `InpaintingService.update_model`; clears `CTR_INPAINTING_DISPLAY` only when the model actually changed (not on `InpaintingUnchanged`) | InpaintingService | none (also exercised over HTTP by `PUT .../inpainting/settings`'s `model` field, including the candidate-clearing behavior, `test_api_inpainting.py`, PR 5); model round trip also pinned by `project-export.spec.ts` via `ProjectView.settings.depthModel`/the restored dropdown - see WEB-41 | [ ] |
 | CMP-08 | `validate_workflow` components.py:955 | Input `UPLOAD_COMFYUI_WORKFLOW.contents` | Validates a dropped ComfyUI workflow JSON via `patch_inpainting_workflow`; persists it to `state.workflow_path()` if valid | inline (`patch_inpainting_workflow` + AppState) | none | [ ] |
 | CMP-09 | `toggle_blur_slider` components.py:1000 | Input `DROPDOWN_INPAINT_MODEL.value` | Disables the guidance/blur slider for `stabilityai` (no mask-blur support) | inline | none | [ ] |
 | CMP-10 | `toggle_automatic_config` components.py:1012 | Input `DROPDOWN_INPAINT_MODEL.value` | Shows/hides the Automatic1111/ComfyUI server config and ComfyUI workflow-upload panels | inline | none | [ ] |
 | CMP-11 | `reset_external_server_address` components.py:1029 | Input `INPUT_EXTERNAL_SERVER.value` | Persists `state.server_address`; clears the success/failure highlight class | inline (AppState) | none | [ ] |
-| CMP-12 | `test_external_connection` components.py:1054 | Input `BTN_EXTERNAL_TEST_CONNECTION.n_clicks` | Probes Automatic1111 (`make_models_request`) or ComfyUI (`get_history`) and highlights success/failure | inline (provider probe) | none | [ ] |
+| CMP-12 | `test_external_connection` components.py:1054 | Input `BTN_EXTERNAL_TEST_CONNECTION.n_clicks` | Probes Automatic1111 (`make_models_request`) or ComfyUI (`get_history`) and highlights success/failure | `configuration_services.probe_server` | `project-export.spec.ts` ("external server connection test highlights success..."); `test_configuration_services.py`, `POST /api/v1/config/probe-server`, `test_api_project_export.py` | [ ] |
 | CMP-13 | `toggle_stabilityai_config` components.py:1084 | Input `DROPDOWN_INPAINT_MODEL.value` | Shows/hides the API-key panel for StabilityAI and `falai-*` models | inline | none | [ ] |
 | CMP-14 | `reset_external_api_key` components.py:1098 | Input `INPUT_API_KEY.value` | Persists `state.api_key`; clears success/failure highlight | inline (AppState) | none | [ ] |
-| CMP-15 | `test_api_key` components.py:1123 | Input `BTN_VALIDATE_API_KEY.n_clicks` | Validates a StabilityAI or fal.ai key against the live provider; highlights success/failure | inline (provider probe) | none | [ ] |
+| CMP-15 | `test_api_key` components.py:1123 | Input `BTN_VALIDATE_API_KEY.n_clicks` | Validates a StabilityAI or fal.ai key against the live provider; highlights success/failure | `configuration_services.validate_api_key` | none in the browser suite (no scenario checks the API-key highlight - only the server-connection probe, per this slice's scope); `test_configuration_services.py`, `POST /api/v1/config/validate-key`, `test_api_project_export.py` | [ ] |
 
 ## Export/Render
 
 | ID | Function (file:line) | Trigger(s) | Effect | Backend service | E2E coverage | Svelte |
 | --- | --- | --- | --- | --- | --- | --- |
-| WEB-27 | `upscale_texture` webui.py:1203 | Input `BTN_UPSCALE_TEXTURES.n_clicks`; `running=` disables button | Builds an inpainting pipeline via `create_inpainting_pipeline`, calls `state.upscale_slices()` | inline (`AppState.upscale_slices` + legacy `create_inpainting_pipeline`) | none (handoff-listed gap: upscaled export) | [ ] |
-| WEB-28 | `gltf_export` webui.py:1229 | Input `BTN_GLTF_EXPORT.n_clicks` (`#gltf-export`); `running=` disables button | Calls module-level `export_state_as_gltf()` (webui.py:1346, not itself a callback — generates per-slice depth maps if displacement>0, prefers upscaled slice files, calls `segmentation.export_gltf`), sends the `.gltf` file for download | inline (`export_state_as_gltf` helper → `segmentation.export_gltf`) | 11 | [ ] |
-| WEB-32 | `gltf_create` webui.py:1328 | Input `BTN_GLTF_CREATE.n_clicks`; `running=` disables button | Same `export_state_as_gltf()` helper as WEB-28 (duplicated call site, see Known quirks) but renders the in-page `<iframe>` model viewer instead of downloading | inline (`export_state_as_gltf` helper) | none | [ ] |
-| WEB-33 | `download_image` webui.py:1403 | Input `{slice-info,ALL}.n_clicks` | Sends the raw slice PNG file for download | inline (`dcc.send_file`) | none | [ ] |
-| WEB-35 | `export_animation` webui.py:1481 | Input `BTN_EXPORT_ANIMATION.n_clicks` (`#animation-export`); `running=` disables button | Calls `segmentation.render_image_sequence`, writing `rendered_image_%03d.png` **server-side only** — no `dcc.Download` fires despite `ANIMATION_OUTPUT` existing | inline (`segmentation.render_image_sequence`) | 11 | [ ] |
+| WEB-27 | `upscale_texture` webui.py:1203 | Input `BTN_UPSCALE_TEXTURES.n_clicks`; `running=` disables button | Builds an inpainting pipeline via `create_inpainting_pipeline`, calls `state.upscale_slices()` | `ExportService.upscale_textures` (`export_services.py`) | `project-export.spec.ts` ("upscale textures then glTF export embeds the upscaled (2x) images") closes the handoff-listed gap; `test_export_services.py`, `POST .../export/upscale`, `test_api_project_export.py` | [ ] |
+| WEB-28 | `gltf_export` webui.py:1229 | Input `BTN_GLTF_EXPORT.n_clicks` (`#gltf-export`); `running=` disables button | Calls module-level `export_state_as_gltf()` (webui.py:1346, not itself a callback — generates per-slice depth maps if displacement>0, prefers upscaled slice files, calls `segmentation.export_gltf`), sends the `.gltf` file for download | `ExportService.export_gltf` (`export_services.py`) - the *one* implementation both WEB-28 and WEB-32's duplicated call sites now map to, see ARCHITECTURE.md | 11; displacement>0 (subdivided mesh) and DOF (MASK alpha mode) also pinned by `project-export.spec.ts`; `test_export_services.py`, `POST`/`GET .../export/gltf`, `test_api_project_export.py` | [ ] |
+| WEB-32 | `gltf_create` webui.py:1328 | Input `BTN_GLTF_CREATE.n_clicks`; `running=` disables button | Same `export_state_as_gltf()` helper as WEB-28 (duplicated call site, see Known quirks) but renders the in-page `<iframe>` model viewer instead of downloading | `ExportService.export_gltf` (`export_services.py`) - same service as WEB-28; the API has one `POST .../export/gltf` job + `GET .../export/gltf` download, no separate "create for viewer" route (`ProjectView.exports.gltf` already exposes the download URL) | none (no scenario clicks the in-page viewer button specifically - see WEB-28 for the shared underlying export coverage) | [ ] |
+| WEB-33 | `download_image` webui.py:1403 | Input `{slice-info,ALL}.n_clicks` | Sends the raw slice PNG file for download | `ExportService.slice_download_path` (`export_services.py`) | `project-export.spec.ts` ("clicking a slice download icon downloads the exact raw slice PNG") closes the handoff-listed gap; `test_export_services.py`, `GET .../slices/{index}/download`, `test_api_project_export.py` | [ ] |
+| WEB-35 | `export_animation` webui.py:1481 | Input `BTN_EXPORT_ANIMATION.n_clicks` (`#animation-export`); `running=` disables button | Calls `segmentation.render_image_sequence`, writing `rendered_image_%03d.png` **server-side only** — no `dcc.Download` fires despite `ANIMATION_OUTPUT` existing | `ExportService.render_animation` (`export_services.py`) | 11; `test_export_services.py`, `POST .../export/animation` (still no download field in the response, matching Dash exactly), `test_api_project_export.py` | [ ] |
 
 ## Navigation/Layout
 
@@ -285,6 +331,25 @@ characterizing these rows.
   later name lookup — but any future code that imports
   `webui.remember_camera_parameters` will only ever get the second (restore)
   definition. Rename one for the Svelte-era service/API layer.
+- **WEB-30's `remember_camera_parameters` (persist variant, webui.py:1272-1290)
+  can 500 a real, reachable Dash request, not just misfire its own
+  unchanged-value check.** It builds `Camera(camera_distance, focal_length,
+  max_distance)` positionally against a constructor whose actual signature is
+  `Camera.__init__(self, distance, max_distance, focal_length, ...)` - the
+  live *max-distance* slider value lands in the constructor's `focal_length`
+  parameter, whose setter rejects non-positive numbers. Dragging (or
+  keyboard-`Home`-ing) the max-distance slider `(0..1000)` down to exactly
+  `0` therefore raises `ValueError: focal_length must be a positive number`
+  inside the callback and Dash returns `500`. Camera distance and focal
+  length transiting `0` are unaffected (their bound parameters only require
+  `>= 0`). Discovered while writing `e2e/project-export.spec.ts`'s camera/
+  displacement persistence scenario; `e2e/drivers/dash.ts`'s `setSlider` no
+  longer resets to `Home` before stepping (it steps directly from the
+  slider's current value instead) specifically to avoid retriggering this for
+  every future scenario that sets more than one camera slider in the same
+  test. Not fixed (Dash is frozen) and not reproduced by
+  `project_services.ProjectService.update_settings`, which assigns each
+  field directly with no positional `Camera(...)` construction at all.
 - **`make_label_container_callback` (components.py:1519) is dead code.** It is
   defined but never invoked from `webui.py`; its only consumer,
   `make_configuration_container` (components.py:1172), is used only from

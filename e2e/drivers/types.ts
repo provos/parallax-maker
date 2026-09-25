@@ -131,9 +131,41 @@ export interface UiDriver {
   setSlider(name: SliderName, value: number): Promise<void>;
   expectDepthModel(label: string): Promise<void>;
   expectInpaintingModel(label: string): Promise<void>;
+  /** Selects a depth-module option by its visible label (e.g. "MiDaS", "DINOv2"). */
+  selectDepthModel(label: string): Promise<void>;
+  /** Selects an inpainting-model option by its visible label (e.g. "Automatic1111"). */
+  selectInpaintingModel(label: string): Promise<void>;
+  /** Fills the Automatic1111/ComfyUI server-address field and commits the value. */
+  setExternalServer(address: string): Promise<void>;
+  /** Clicks "Test Connection" for the currently selected inpainting model. */
+  testExternalConnection(): Promise<void>;
+  /** Asserts the server-address field's success/failure/neutral highlight. */
+  expectExternalConnectionStatus(status: 'success' | 'failure' | 'none'): Promise<void>;
+  /** Fills the StabilityAI/fal.ai API-key field and commits the value. */
+  setApiKey(key: string): Promise<void>;
+  /** Clicks "Test API Key" for the currently selected inpainting model. */
+  validateApiKey(): Promise<void>;
+  /** Asserts the API-key field's success/failure/neutral highlight. */
+  expectApiKeyStatus(status: 'success' | 'failure' | 'none'): Promise<void>;
+
+  // Project lifecycle
+  /** Clicks "Save State" (writes the project to disk; no browser download). */
+  saveState(): Promise<void>;
+  /**
+   * Restores the given previously-saved project JSON bytes back into the UI
+   * (e.g. from `fetchArtifact(page, projectId, 'appstate.json')` after
+   * `saveState()`), for a save -> restore round trip against the same project.
+   */
+  restoreStateFromBytes(buffer: Buffer): Promise<void>;
 
   // Export
   /** Clicks glTF export and returns the resulting browser download. */
   exportGltf(): Promise<Download>;
   exportAnimation(): Promise<void>;
+  /** Toggles the "Support Depth of Field Effect" export checkbox to `enabled`. */
+  setDofEnabled(enabled: boolean): Promise<void>;
+  /** Clicks "Upscale Textures" and waits for the resulting log line. */
+  upscaleTextures(): Promise<void>;
+  /** Clicks a slice thumbnail's download icon and returns the resulting browser download. */
+  downloadSlice(index: number): Promise<Download>;
 }

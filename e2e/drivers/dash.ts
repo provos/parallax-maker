@@ -336,13 +336,34 @@ export class DashDriver implements UiDriver {
     await slider.focus();
     const min = Number(await slider.getAttribute('aria-valuemin'));
     const max = Number(await slider.getAttribute('aria-valuemax'));
-    const step = Number(await slider.getAttribute('aria-valuestep')) || 1;
-    if (value < min || value > max || (value - min) % step !== 0) {
-      throw new Error(`Value ${value} is not valid for ${id} (${min}..${max}, step ${step})`);
+    if (value < min || value > max) {
+      throw new Error(`Value ${value} is out of range for ${id} (${min}..${max})`);
     }
-    await slider.press('Home');
-    for (let current = min; current < value; current += step) {
-      await slider.press('ArrowRight');
+    // Step directly from whatever the slider's current value is toward
+    // `value`, one arrow key at a time, re-reading the committed value after
+    // each press instead of pre-computing a press count from a possibly-wrong
+    // `aria-valuestep` (rc-slider's real keyboard step - e.g. the
+    // displacement slider's step=5, components.py's make_configuration_div -
+    // is not reliably reflected by that attribute). Deliberately does *not*
+    // press "Home" first: several camera sliders live under the same
+    // `remember_camera_parameters` (WEB-30) callback, whose own
+    // `Camera(camera_distance, focal_length, max_distance)` call passes
+    // arguments in the *wrong* order for `Camera.__init__`'s actual
+    // `(distance, max_distance, focal_length, ...)` signature - the live
+    // max-distance slider value lands in the strictly-positive `focal_length`
+    // constructor parameter. Resetting any camera slider to "Home" (0) while
+    // the others still hold their real values would transiently 500 that
+    // callback; stepping straight from the current value avoids ever
+    // crossing 0 unless the caller's own target is 0.
+    const initial = Number(await slider.getAttribute('aria-valuenow'));
+    const key = value >= initial ? 'ArrowRight' : 'ArrowLeft';
+    for (let guard = 0; guard < 1000; guard += 1) {
+      const current = Number(await slider.getAttribute('aria-valuenow'));
+      if (current === value) break;
+      if ((key === 'ArrowRight' && current > value) || (key === 'ArrowLeft' && current < value)) {
+        throw new Error(`Overshot ${id}: stepped past ${value} to ${current}`);
+      }
+      await slider.press(key);
     }
     await expect(slider).toHaveAttribute('aria-valuenow', String(value));
   }
@@ -355,6 +376,82 @@ export class DashDriver implements UiDriver {
     await expect(this.page.locator('#inpainting-model-dropdown')).toContainText(label);
   }
 
+  private async selectDropdownOption(dropdownId: string, label: string): Promise<void> {
+    const dropdown = this.page.locator(`#${dropdownId}`);
+    await dropdown.click();
+    const option = this.page.getByText(label, { exact: true }).last();
+    await expect(option).toBeVisible();
+    await option.click();
+  }
+
+  async selectDepthModel(label: string): Promise<void> {
+    await this.selectDropdownOption('depth-model-dropdown', label);
+  }
+
+  async selectInpaintingModel(label: string): Promise<void> {
+    await this.selectDropdownOption('inpainting-model-dropdown', label);
+  }
+
+  async setExternalServer(address: string): Promise<void> {
+    const input = this.page.locator('#external-server-address');
+    await input.fill(address);
+    // debounce=True: the value only commits (and reset_external_server_address
+    // fires) on blur/Enter, not on every keystroke.
+    await input.press('Tab');
+  }
+
+  async testExternalConnection(): Promise<void> {
+    await this.page.locator('#external-test-connection-button').click();
+  }
+
+  private async expectHighlightStatus(
+    locator: Locator,
+    status: 'success' | 'failure' | 'none',
+  ): Promise<void> {
+    if (status === 'success') {
+      await expect(locator).toHaveClass(/color-is-selected-light/);
+    } else if (status === 'failure') {
+      await expect(locator).toHaveClass(/failure-color/);
+    } else {
+      await expect(locator).not.toHaveClass(/color-is-selected-light|failure-color/);
+    }
+  }
+
+  async expectExternalConnectionStatus(status: 'success' | 'failure' | 'none'): Promise<void> {
+    await this.expectHighlightStatus(this.page.locator('#external-server-address'), status);
+  }
+
+  async setApiKey(key: string): Promise<void> {
+    const input = this.page.locator('#api-key');
+    await input.fill(key);
+    // debounce=True: same commit-on-blur behavior as the server-address field.
+    await input.press('Tab');
+  }
+
+  async validateApiKey(): Promise<void> {
+    await this.page.locator('#validate-api-key').click();
+  }
+
+  async expectApiKeyStatus(status: 'success' | 'failure' | 'none'): Promise<void> {
+    await this.expectHighlightStatus(this.page.locator('#api-key'), status);
+  }
+
+  // Project lifecycle
+
+  async saveState(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#save-state'));
+  }
+
+  async restoreStateFromBytes(buffer: Buffer): Promise<void> {
+    await this.page.locator('#upload-state input[type=file]').setInputFiles({
+      name: 'appstate.json',
+      mimeType: 'application/json',
+      buffer,
+    });
+    await waitForImage(this.mainImage());
+    await waitForImage(this.depthImage());
+  }
+
   // Export
 
   async exportGltf(): Promise<Download> {
@@ -365,5 +462,23 @@ export class DashDriver implements UiDriver {
 
   async exportAnimation(): Promise<void> {
     await this.page.locator('#animation-export').click();
+  }
+
+  async setDofEnabled(enabled: boolean): Promise<void> {
+    const checkbox = this.page.locator('#toggle-dof-support input[type=checkbox]');
+    if ((await checkbox.isChecked()) !== enabled) {
+      await checkbox.click();
+    }
+    await expect(checkbox).toBeChecked({ checked: enabled });
+  }
+
+  async upscaleTextures(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#upscale-textures'));
+  }
+
+  async downloadSlice(index: number): Promise<Download> {
+    const downloadPromise = this.page.waitForEvent('download');
+    await this.page.locator('button[id*=\'"type":"slice-info"\']').nth(index).click();
+    return downloadPromise;
   }
 }

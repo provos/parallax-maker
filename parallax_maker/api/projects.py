@@ -9,7 +9,6 @@ asset serving) and building the public ``ProjectView`` projection.
 from __future__ import annotations
 
 import io
-import json
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING, Iterator
@@ -20,6 +19,11 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
 from ..controller import AppState, CompositeMode
+from ..project_services import (
+    InvalidProjectFile,
+    ProjectDirectoryNotFound,
+    RestoreLegacyState,
+)
 from ..workflow_services import (
     ConfigureThresholds,
     GenerateDepth,
@@ -221,6 +225,36 @@ def _build_project_view(
     if state.depth_estimation_model is not None:
         depth_model = state.depth_estimation_model.model_name
 
+    settings = schemas.ProjectSettingsView(
+        dark_mode=state.dark_mode,
+        camera=schemas.CameraSettingsView(
+            distance=state.camera.camera_distance,
+            focal_length=state.camera.focal_length,
+            max_distance=state.camera.max_distance,
+        ),
+        mesh_displacement=state.mesh_displacement,
+        depth_model=state.depth_model_name or "",
+    )
+
+    # Not served through the generic /assets/{assetId} route: the client needs
+    # a real download (Content-Disposition attachment named "scene.gltf"),
+    # which api/export.py's dedicated GET .../export/gltf route provides.
+    gltf_path = Path(project_id) / AppState.MODEL_FILE
+    exports = schemas.ProjectExportsView(
+        gltf=(
+            schemas.AssetRef(
+                url=f"/api/v1/projects/{project_id}/export/gltf"
+                f"?v={file_version(gltf_path)}"
+            )
+            if gltf_path.exists()
+            else None
+        ),
+        upscaled=any(
+            Path(state.upscaled_filename(index)).exists()
+            for index in range(len(state.image_slices))
+        ),
+    )
+
     return schemas.ProjectView(
         id=project_id,
         revision=revision,
@@ -237,6 +271,8 @@ def _build_project_view(
         segmentation=segmentation,
         inpainting=_build_inpainting_view(record, state),
         busy=busy,
+        settings=settings,
+        exports=exports,
     )
 
 
@@ -369,29 +405,19 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
 
         try:
             raw = file_storage.read().decode("utf-8")
-            payload = json.loads(raw)
-        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        except UnicodeDecodeError as exc:
             raise InvalidRequest(f"state file is not valid JSON: {exc}") from None
 
-        filename = payload.get("filename") if isinstance(payload, dict) else None
-        if (
-            not isinstance(filename, str)
-            or Path(filename).name != filename
-            or not filename.startswith("appstate-")
-        ):
-            raise InvalidRequest("filename must be a single appstate-* directory name")
-
-        project_dir = Path.cwd() / filename
-        if not project_dir.is_dir():
-            raise NotFound(f"no such project directory: {filename}")
-
         try:
-            state = AppState.from_json(raw)
-            state.fill_from_files(state.filename)
-        except (OSError, KeyError, TypeError, ValueError, AssertionError) as exc:
-            raise InvalidRequest(f"could not restore state: {exc}") from None
+            result = runtime.project_service.restore_legacy_state(
+                RestoreLegacyState(raw_json=raw)
+            )
+        except ProjectDirectoryNotFound as exc:
+            raise NotFound(str(exc)) from None
+        except InvalidProjectFile as exc:
+            raise InvalidRequest(str(exc)) from None
+        state = result.state
 
-        AppState.cache[state.filename] = state
         record = runtime.projects.ensure(state.filename)
         record.bump_input_version()
         record.set_display_image(None)

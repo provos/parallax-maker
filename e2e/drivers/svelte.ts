@@ -421,6 +421,48 @@ export class SvelteDriver implements UiDriver {
     throw new Error('SvelteDriver: expectInpaintingModel not implemented yet');
   }
 
+  async selectDepthModel(_label: string): Promise<void> {
+    throw new Error('SvelteDriver: selectDepthModel not implemented yet');
+  }
+
+  async selectInpaintingModel(_label: string): Promise<void> {
+    throw new Error('SvelteDriver: selectInpaintingModel not implemented yet');
+  }
+
+  async setExternalServer(_address: string): Promise<void> {
+    throw new Error('SvelteDriver: setExternalServer not implemented yet');
+  }
+
+  async testExternalConnection(): Promise<void> {
+    throw new Error('SvelteDriver: testExternalConnection not implemented yet');
+  }
+
+  async expectExternalConnectionStatus(_status: 'success' | 'failure' | 'none'): Promise<void> {
+    throw new Error('SvelteDriver: expectExternalConnectionStatus not implemented yet');
+  }
+
+  async setApiKey(_key: string): Promise<void> {
+    throw new Error('SvelteDriver: setApiKey not implemented yet');
+  }
+
+  async validateApiKey(): Promise<void> {
+    throw new Error('SvelteDriver: validateApiKey not implemented yet');
+  }
+
+  async expectApiKeyStatus(_status: 'success' | 'failure' | 'none'): Promise<void> {
+    throw new Error('SvelteDriver: expectApiKeyStatus not implemented yet');
+  }
+
+  // Project lifecycle
+
+  async saveState(): Promise<void> {
+    throw new Error('SvelteDriver: saveState not implemented yet');
+  }
+
+  async restoreStateFromBytes(_buffer: Buffer): Promise<void> {
+    throw new Error('SvelteDriver: restoreStateFromBytes not implemented yet');
+  }
+
   // Export
 
   async exportGltf(): Promise<Download> {
@@ -429,5 +471,17 @@ export class SvelteDriver implements UiDriver {
 
   async exportAnimation(): Promise<void> {
     throw new Error('SvelteDriver: exportAnimation not implemented yet');
+  }
+
+  async setDofEnabled(_enabled: boolean): Promise<void> {
+    throw new Error('SvelteDriver: setDofEnabled not implemented yet');
+  }
+
+  async upscaleTextures(): Promise<void> {
+    throw new Error('SvelteDriver: upscaleTextures not implemented yet');
+  }
+
+  async downloadSlice(_index: number): Promise<Download> {
+    throw new Error('SvelteDriver: downloadSlice not implemented yet');
   }
 }
