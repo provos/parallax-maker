@@ -32,6 +32,55 @@ def rotation_quaternion_y(y_rot_degrees):
     return quaternion.tolist()
 
 
+#: Grid resolution for pitched (trapezoidal) cards without displacement: the
+#: image-to-card mapping is projective, so a textured quad needs a grid to
+#: keep the texture registered (exact at vertices, sub-pixel in between).
+PITCHED_CARD_SUBDIVISIONS = 64
+
+
+def quaternion_from_matrix(matrix):
+    """Unit quaternion (x, y, z, w) for a 3x3 rotation matrix."""
+    m = np.asarray(matrix, dtype=np.float64)
+    trace = m[0, 0] + m[1, 1] + m[2, 2]
+    if trace > 0:
+        s = 2.0 * np.sqrt(trace + 1.0)
+        w, x = 0.25 * s, (m[2, 1] - m[1, 2]) / s
+        y, z = (m[0, 2] - m[2, 0]) / s, (m[1, 0] - m[0, 1]) / s
+    elif m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
+        s = 2.0 * np.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2])
+        w, x = (m[2, 1] - m[1, 2]) / s, 0.25 * s
+        y, z = (m[0, 1] + m[1, 0]) / s, (m[0, 2] + m[2, 0]) / s
+    elif m[1, 1] > m[2, 2]:
+        s = 2.0 * np.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2])
+        w, x = (m[0, 2] - m[2, 0]) / s, (m[0, 1] + m[1, 0]) / s
+        y, z = 0.25 * s, (m[1, 2] + m[2, 1]) / s
+    else:
+        s = 2.0 * np.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1])
+        w, x = (m[1, 0] - m[0, 1]) / s, (m[0, 2] + m[2, 0]) / s
+        y, z = (m[1, 2] + m[2, 1]) / s, 0.25 * s
+    quaternion = np.array([x, y, z, w])
+    return (quaternion / np.linalg.norm(quaternion)).tolist()
+
+
+# The scene's world frame (x right, y down, z forward; see camera.py) maps to
+# glTF (y up) by a 180 degree turn about z; a glTF camera looks down its local
+# -z with +y up, i.e. an OpenCV camera frame flipped in y and z.
+_WORLD_TO_GLTF = np.diag([-1.0, -1.0, 1.0])
+_GLTF_CAMERA_TO_CV_CAMERA = np.diag([1.0, -1.0, -1.0])
+
+
+def camera_node_rotation(cam):
+    """glTF camera-node rotation for ``cam``'s orientation (its pitch).
+
+    With no pitch this is the 180 degree turn about y the exporter has always
+    used (the camera looks down +z towards the cards).
+    """
+    rotation = (
+        _WORLD_TO_GLTF @ cam.rotation_camera_to_world() @ _GLTF_CAMERA_TO_CV_CAMERA
+    )
+    return quaternion_from_matrix(rotation)
+
+
 def create_camera(
     gltf_obj,
     focal_length,
@@ -166,7 +215,7 @@ def triangle_indices_from_grid(vertices):
 
 
 def displace_vertices(
-    vertices, depth_map, displacement_scale=10.0, camera_distance=None
+    vertices, depth_map, displacement_scale=10.0, camera_distance=None, uvs=None
 ):
     """
     Displaces the vertices of a plane based on a depth map.
@@ -180,6 +229,9 @@ def displace_vertices(
             given, each vertex moves along its camera ray instead of straight
             along z, so it still projects to the same image point (and keeps
             lining up with its texture and the other cards).
+        uvs (numpy.ndarray, optional): Per-vertex texture coordinates to sample
+            the depth map at; required for non-rectangular (pitched) cards.
+            Defaults to the vertices' normalized x/y extent.
 
     Returns:
         numpy.ndarray: The displaced vertices.
@@ -187,15 +239,18 @@ def displace_vertices(
     # Get the dimensions of the depth map
     depth_map_width, depth_map_height = depth_map.shape
 
-    # Calculate the texture coordinates for the vertices
-    tex_coords = vertices[:, :2].copy()
-    tex_coords[:, 1] = -tex_coords[:, 1]  # flip Y-axis
+    if uvs is not None:
+        tex_coords = np.asarray(uvs, dtype=np.float64)
+    else:
+        # Calculate the texture coordinates for the vertices
+        tex_coords = vertices[:, :2].copy()
+        tex_coords[:, 1] = -tex_coords[:, 1]  # flip Y-axis
 
-    # normalize the texture coordinates to [0, 1]
-    tex_min_x, tex_min_y = tex_coords.min(axis=0)
-    tex_max_x, tex_max_y = tex_coords.max(axis=0)
-    tex_coords -= [tex_min_x, tex_min_y]
-    tex_coords /= [tex_max_x - tex_min_x, tex_max_y - tex_min_y]
+        # normalize the texture coordinates to [0, 1]
+        tex_min_x, tex_min_y = tex_coords.min(axis=0)
+        tex_max_x, tex_max_y = tex_coords.max(axis=0)
+        tex_coords -= [tex_min_x, tex_min_y]
+        tex_coords /= [tex_max_x - tex_min_x, tex_max_y - tex_min_y]
 
     # Calculate the pixel coordinates for the texture coordinates
     pixel_coords = (tex_coords * [depth_map_height - 1, depth_map_width - 1]).astype(
@@ -222,6 +277,23 @@ def displace_vertices(
     return vertices
 
 
+def card_grid(cam, z, image_width, image_height, subdivisions):
+    """Vertex grid (card-local: plane at z=0) and UVs for the card at depth ``z``.
+
+    Row-major (subdivisions + 1)^2 grid over the image; every vertex is where
+    the reference camera's ray through its image point meets the card plane,
+    and its UV is that image point.
+    """
+    us = np.linspace(0, image_width, subdivisions + 1)
+    vs = np.linspace(0, image_height, subdivisions + 1)
+    grid_u, grid_v = np.meshgrid(us, vs)
+    points = np.stack([grid_u.ravel(), grid_v.ravel()], axis=1)
+    vertices = cam.backproject_to_depth(points, z, image_width, image_height)
+    vertices[:, 2] -= z
+    uvs = (points / [image_width, image_height]).astype(np.float32)
+    return vertices, uvs
+
+
 def create_card(
     gltf_obj,
     i,
@@ -230,6 +302,7 @@ def create_card(
     depth_map=None,
     displacement_scale=0.0,
     camera_distance=None,
+    uvs=None,
 ):
     """
     Creates a card (plane) in the glTF object with the specified parameters.
@@ -243,6 +316,10 @@ def create_card(
         displacement_scale (float, optional): The scale of the displacement. Defaults to 0.0.
         camera_distance (float, optional): Distance from the camera to the card
             plane; displacement then follows camera rays (see displace_vertices).
+        uvs (numpy.ndarray, optional): When given, ``corners_3d`` is already a
+            full (n+1) x (n+1) row-major vertex grid and ``uvs`` its texture
+            coordinates (used for pitched cards, whose texture mapping is
+            projective); no further subdivision happens.
 
     Returns:
         int: The index of the created mesh.
@@ -253,25 +330,36 @@ def create_card(
     vertices = np.array(corners_3d, dtype=np.float32)
     vertices[:, 1] = -vertices[:, 1]
 
-    # reorder the vertices of the 4 point plane
-    tl = vertices[0]
-    tr = vertices[1]
-    bl = vertices[3]
-    br = vertices[2]
+    if uvs is not None:
+        tex_coords = np.array(uvs, dtype=np.float32)
+        if displacement_scale > 0.0 and depth_map is not None:
+            vertices = displace_vertices(
+                vertices,
+                depth_map,
+                displacement_scale=displacement_scale,
+                camera_distance=camera_distance,
+                uvs=tex_coords,
+            )
+    else:
+        # reorder the vertices of the 4 point plane
+        tl = vertices[0]
+        tr = vertices[1]
+        bl = vertices[3]
+        br = vertices[2]
 
-    vertices = np.array([tl, tr, bl, br], dtype=np.float32)
+        vertices = np.array([tl, tr, bl, br], dtype=np.float32)
 
-    tex_coords = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
+        tex_coords = np.array([[0, 0], [1, 0], [0, 1], [1, 1]], dtype=np.float32)
 
-    if displacement_scale > 0.0 and depth_map is not None:
-        vertices = subdivide_geometry(vertices, subdivisions, 3)
-        vertices = displace_vertices(
-            vertices,
-            depth_map,
-            displacement_scale=displacement_scale,
-            camera_distance=camera_distance,
-        )
-        tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)
+        if displacement_scale > 0.0 and depth_map is not None:
+            vertices = subdivide_geometry(vertices, subdivisions, 3)
+            vertices = displace_vertices(
+                vertices,
+                depth_map,
+                displacement_scale=displacement_scale,
+                camera_distance=camera_distance,
+            )
+            tex_coords = subdivide_geometry(tex_coords, subdivisions, 2)
 
     indices = triangle_indices_from_grid(vertices)
 
@@ -389,7 +477,7 @@ def export_gltf(
         focal_length,
         aspect_ratio,
         [0, 0, -camera_distance],
-        rotation_quaternion_y(180),
+        camera_node_rotation(cam),
         sensor_width=cam.sensor_width,
     )
     # Add the camera node to the scene
@@ -405,6 +493,7 @@ def export_gltf(
         # Translaton hack so that we can put the depth on the node
         z_transform = float(corners_3d[0][2])
         corners_3d[:, 2] -= z_transform
+        uvs = None
 
         depth_map = None
         if len(depth_paths) > i:
@@ -417,6 +506,19 @@ def export_gltf(
             depth_map = np.array(depth_map)
             depth_map = depth_map.astype(np.float32) / 255.0
 
+        if cam.pitch != 0:
+            # A pitched card is a trapezoid whose texture mapping is
+            # projective: build it as a grid of back-projected image points,
+            # each with its exact image position as UV.
+            displaced = displacement_scale > 0.0 and depth_map is not None
+            corners_3d, uvs = card_grid(
+                cam,
+                z_transform,
+                image_width,
+                image_height,
+                subdivisions if displaced else PITCHED_CARD_SUBDIVISIONS,
+            )
+
         mesh = create_card(
             gltf_obj,
             i,
@@ -425,6 +527,7 @@ def export_gltf(
             depth_map,
             displacement_scale=displacement_scale,
             camera_distance=z_transform + camera_distance,
+            uvs=uvs,
         )
         gltf_obj.meshes.append(mesh)
 

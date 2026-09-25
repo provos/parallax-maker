@@ -147,15 +147,27 @@ def create_slice_from_mask(image, mask, num_expand=50):
     return masked_image
 
 
-def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_position):
+def render_view(
+    image_slices,
+    camera_matrix,
+    card_corners_3d_list,
+    camera_position,
+    camera_rotation=None,
+):
     """
     Render the current view of the camera.
+
+    Each card's corners are the reference camera's image corners, so warping
+    the slice image onto the corners' projections in the current view is
+    exact for the (planar) card.
 
     Args:
         image_slices (list): A list of image slices.
         camera_matrix (numpy.ndarray): The camera matrix.
         card_corners_3d_list (list): A list of 3D card corners.
         camera_position (numpy.ndarray): The current camera position.
+        camera_rotation (numpy.ndarray, optional): World-to-camera rotation
+            (``Camera.rotation_world_to_camera()``); identity when omitted.
 
     Returns:
         numpy.ndarray: The rendered image.
@@ -167,14 +179,21 @@ def render_view(image_slices, camera_matrix, card_corners_3d_list, camera_positi
     )
     rendered_image[:, :, 3] = 1
 
+    rotation = (
+        np.eye(3)
+        if camera_rotation is None
+        else np.asarray(camera_rotation, np.float64)
+    )
+    rvec, _ = cv2.Rodrigues(rotation)
+    tvec = -rotation @ np.asarray(camera_position, np.float64).reshape(3, 1)
+
     for i, slice_image in enumerate(image_slices):
-        # Transform the card corners based on the camera position
-        rvec = np.zeros((3, 1), dtype=np.float32)  # rotation vector
-        tvec = -camera_position.reshape(3, 1)
         card_corners_2d, _ = cv2.projectPoints(
             card_corners_3d_list[i], rvec, tvec, camera_matrix, None
         )
-        card_corners_2d = np.int32(card_corners_2d.reshape(-1, 2))
+        # Sub-pixel corners: rounding would shift and scale every card by up
+        # to a pixel, so even the reference view would not reproduce the image.
+        card_corners_2d = np.float32(card_corners_2d.reshape(-1, 2))
 
         # Warp the image slice based on the card corners
         cur_image = slice_image.image
@@ -260,6 +279,7 @@ def render_image_sequence(
     push_distance=100,
     num_frames=100,
     progress_callback=None,
+    camera_rotation=None,
 ):
     """
     Renders a sequence of images with varying camera positions.
@@ -285,7 +305,11 @@ def render_image_sequence(
 
         # Render the view
         rendered_image = render_view(
-            image_slices, camera_matrix, card_corners_3d_list, camera_position
+            image_slices,
+            camera_matrix,
+            card_corners_3d_list,
+            camera_position,
+            camera_rotation=camera_rotation,
         )
 
         image_name = f"rendered_image_{i:03d}.png"

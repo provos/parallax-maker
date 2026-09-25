@@ -93,6 +93,7 @@ class UpdateSettings:
     camera_distance: float | None = None
     focal_length: float | None = None
     max_distance: float | None = None
+    pitch: float | None = None
     mesh_displacement: float | None = None
     dark_mode: bool | None = None
 
@@ -199,6 +200,9 @@ class ProjectService:
             and camera.max_distance != command.max_distance
         ):
             camera.max_distance = command.max_distance
+            changed = True
+        if command.pitch is not None and camera.pitch != command.pitch:
+            camera.pitch = command.pitch
             changed = True
         if (
             command.mesh_displacement is not None

@@ -16,6 +16,8 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 from pydantic.json_schema import models_json_schema
 
+from ..camera import MAX_PITCH_DEGREES
+
 
 class ApiModel(BaseModel):
     """Base class wiring up the camelCase wire format for every public model."""
@@ -110,6 +112,8 @@ class CameraSettingsView(ApiModel):
     distance: float
     focal_length: float
     max_distance: float
+    #: Upward tilt in degrees (negative looks down); see ``Camera.pitch``.
+    pitch: float = 0.0
 
 
 class ProjectSettingsView(ApiModel):
@@ -298,6 +302,10 @@ class CameraSettingsRequest(ApiModel):
     distance: float = Field(ge=0.0)
     focal_length: float = Field(gt=0.0)
     max_distance: float = Field(ge=0.0)
+    #: Optional (older clients omit it): upward tilt in degrees.
+    pitch: float | None = Field(
+        default=None, ge=-MAX_PITCH_DEGREES, le=MAX_PITCH_DEGREES
+    )
 
 
 class ProjectSettingsRequest(ApiModel):

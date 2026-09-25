@@ -231,6 +231,7 @@ def _build_project_view(
             distance=state.camera.camera_distance,
             focal_length=state.camera.focal_length,
             max_distance=state.camera.max_distance,
+            pitch=state.camera.pitch,
         ),
         mesh_displacement=state.mesh_displacement,
         depth_model=state.depth_model_name or "",

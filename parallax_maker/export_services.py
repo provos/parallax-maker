@@ -227,6 +227,7 @@ class ExportService:
             camera_position,
             push_distance=camera_distance * command.push_distance_factor,
             num_frames=command.num_frames,
+            camera_rotation=state.camera.rotation_world_to_camera(),
         )
 
         return RenderedAnimationResult(
