@@ -109,6 +109,16 @@ describe('ExportTab', () => {
     });
   });
 
+  it('focal length slider cannot reach 0 (the API requires focalLength > 0)', () => {
+    projectStore.applyView(makeView());
+    render(ExportTab);
+
+    const focal = screen.getByTestId('focal-length');
+    expect(focal).toHaveAttribute('min', '1');
+    fireEvent.input(focal, { target: { value: '0' } });
+    expect(focal).toHaveValue('1');
+  });
+
   it('toggles the DOF checkbox locally without persisting anything', async () => {
     projectStore.applyView(makeView());
     render(ExportTab);

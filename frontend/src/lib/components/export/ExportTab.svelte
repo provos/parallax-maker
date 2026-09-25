@@ -234,7 +234,7 @@
       <input
         id="focal-length"
         type="range"
-        min="0"
+        min="1"
         max="500"
         step="1"
         data-testid="focal-length"
