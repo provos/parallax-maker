@@ -9,6 +9,7 @@ import base64
 import numpy as np
 import pygltflib as gltf
 from PIL import Image
+from scipy.spatial.transform import Rotation
 
 from .scene import ground_layers
 
@@ -48,26 +49,7 @@ GROUND_SUBDIVISIONS = 256
 
 def quaternion_from_matrix(matrix):
     """Unit quaternion (x, y, z, w) for a 3x3 rotation matrix."""
-    m = np.asarray(matrix, dtype=np.float64)
-    trace = m[0, 0] + m[1, 1] + m[2, 2]
-    if trace > 0:
-        s = 2.0 * np.sqrt(trace + 1.0)
-        w, x = 0.25 * s, (m[2, 1] - m[1, 2]) / s
-        y, z = (m[0, 2] - m[2, 0]) / s, (m[1, 0] - m[0, 1]) / s
-    elif m[0, 0] > m[1, 1] and m[0, 0] > m[2, 2]:
-        s = 2.0 * np.sqrt(1.0 + m[0, 0] - m[1, 1] - m[2, 2])
-        w, x = (m[2, 1] - m[1, 2]) / s, 0.25 * s
-        y, z = (m[0, 1] + m[1, 0]) / s, (m[0, 2] + m[2, 0]) / s
-    elif m[1, 1] > m[2, 2]:
-        s = 2.0 * np.sqrt(1.0 + m[1, 1] - m[0, 0] - m[2, 2])
-        w, x = (m[0, 2] - m[2, 0]) / s, (m[0, 1] + m[1, 0]) / s
-        y, z = 0.25 * s, (m[1, 2] + m[2, 1]) / s
-    else:
-        s = 2.0 * np.sqrt(1.0 + m[2, 2] - m[0, 0] - m[1, 1])
-        w, x = (m[1, 0] - m[0, 1]) / s, (m[0, 2] + m[2, 0]) / s
-        y, z = (m[1, 2] + m[2, 1]) / s, 0.25 * s
-    quaternion = np.array([x, y, z, w])
-    return (quaternion / np.linalg.norm(quaternion)).tolist()
+    return Rotation.from_matrix(np.asarray(matrix, dtype=np.float64)).as_quat().tolist()
 
 
 # The scene's world frame (x right, y down, z forward; see camera.py) maps to
