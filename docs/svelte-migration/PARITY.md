@@ -44,6 +44,54 @@ Numbers below refer to `e2e/parallax-maker.spec.ts`, in file order:
 Scenarios 2–11 all start from `restoreFixtureState()`; only scenario 1 starts
 from `uploadInputImage()`. Scenarios 1–11 all call `clickMainTab()` at least once.
 
+### `e2e/slice-editing.spec.ts` legend ("SE-N")
+
+All 15 scenarios start from `restoreFixtureState()` (three slices at depths
+`[85, 170, 255]`, thresholds `[0, 85, 170, 255]`, 320x240 input). "SE-N" in
+the tables above refers to this list, in file order:
+
+1. Create slice from an instance-segmentation mask: appended, selected,
+   depth taken from the click, alpha matches the mask (inside > 200, outside
+   exactly 0).
+2. Create slice with no mask: empty/transparent, appended at depth 127,
+   deterministic index 1.
+3. Delete the selected slice: count/order/depths of the remainder, selection
+   cleared, main image reverts to the raw input image.
+4. Delete with nothing selected: logged no-op, slice count unchanged.
+5. Add mask then remove mask on the selected slice: alpha in/out of the mask
+   region, filename version bumps to `_v2`/`_v3`, undo restores `_v1`. Also
+   pins that Add's own mask does not survive the operation (see Known
+   quirks) and that a fresh click is needed before Remove does anything.
+6. Add/remove mask with no selection or no mask: logged no-ops, no version
+   bump.
+7. Copy without a mask is a logged no-op; copy with a selected slice + mask,
+   then paste: alpha becomes opaque under the mask and is unchanged outside
+   it, filename bumps to `_v2`.
+8. Paste with no slice selected (mask copied from the full image while
+   nothing is selected): logged no-op.
+9. Set slice depth: reordering an *unselected* slice clears the selection
+   even when a *different* slice is the one selected; a non-reordering edit
+   leaves the selection alone. (Clicking a *selected* slice's own depth
+   badge is not exercised — see Known quirks.)
+10. Upload a matching-aspect-ratio replacement image onto a slice thumbnail:
+    no resize, version bump, exact pixel/alpha match, thumbnail hash changes.
+11. Upload a mismatched-aspect-ratio replacement image: pins the literal
+    (non-interpolated) log message and the resulting collapsed dimensions —
+    see Known quirks.
+12. Invert with no mask creates an all-zero mask first; inverting a real
+    mask flips every oracle sample and its nonzero count exactly
+    (`total - before`).
+13. Feather: interior stays at the original maximum (255), nonzero count
+    strictly grows, and the tight bounding box does not shrink on any side —
+    proof of an intermediate-valued blurred edge without depending on exact
+    kernel output.
+14. Checkerboard toggles `use_checkerboard` and no-ops the main image without
+    a selection; with a selection it recomposes, and toggling back reproduces
+    the exact same image hash.
+15. Balance: `test.fail()`-pinned — the Dash button currently 500s (see Known
+    quirks); the fixed `balance_slices_depths()` behavior itself is proven by
+    `test_controller.py::TestBalanceSlicesDepths`, not by this scenario.
+
 ---
 
 ## Upload/Depth/Slices
@@ -71,19 +119,31 @@ from `uploadInputImage()`. Scenarios 1–11 all call `clickMainTab()` at least o
 
 ## Slice editing
 
+Backend logic for every row below (except WEB-22, a pure UI reveal, and
+WEB-24, which already used `InpaintingService`) is now extracted into
+`SliceEditingService` (`parallax_maker/slice_editing_services.py`,
+characterized by `test_slice_editing_services.py`) and exposed over HTTP by
+`parallax_maker/api/slice_editing.py` (`test_api_slice_editing.py`). Dash
+itself is unchanged and still runs its own inline `AppState` mutations; the
+"Backend service" column reflects what the service/API layer now uses, not
+a Dash rewire. See the "SE-N" legend below `e2e/parallax-maker.spec.ts`'s
+own legend for what each new `e2e/slice-editing.spec.ts` scenario pins down,
+and "Known quirks" for several surprising discoveries made while
+characterizing these rows.
+
 | ID | Function (file:line) | Trigger(s) | Effect | Backend service | E2E coverage | Svelte |
 | --- | --- | --- | --- | --- | --- | --- |
-| WEB-12 | `delete_slice_request` webui.py:623 | Input `BTN_DELETE_SLICE.n_clicks` | Deletes `state.selected_slice`; JSON-only save; re-renders main image | inline (AppState) | none | [ ] |
-| WEB-13 | `copy_to_clipboard` webui.py:654 | Input `BTN_COPY_SLICE.n_clicks` | Copies composed slice (or full image) + current mask into `state.clipboard_image` (in-memory only, not persisted) | inline (AppState) | none | [ ] |
-| WEB-14 | `paste_clipboard_request` webui.py:688 | Input `BTN_PASTE_SLICE.n_clicks` | Blends clipboard image into selected slice **in place** (mutates slice array directly), bumps version, JSON-only save | inline (AppState) | none | [ ] |
-| WEB-15 | `remove_mask_slice_request` webui.py:726 | Input `BTN_REMOVE_SLICE.n_clicks` | Subtracts current mask from selected slice's alpha in place, bumps version, JSON-only save | inline (AppState) | none | [ ] |
-| WEB-16 | `add_mask_slice_request` webui.py:766 | Input `BTN_ADD_SLICE.n_clicks`; `running=` disables button | Creates a masked crop of `state.imgData` and blends it into the selected slice in place, bumps version, JSON-only save | inline (AppState) | none | [ ] |
-| WEB-18 | `create_single_slice_request` webui.py:832 | Input `BTN_CREATE_SLICE.n_clicks`; `running=` disables button | Creates a brand-new `ImageSlice` from the current mask (or an empty transparent slice if no mask), appends and selects it, saves image + JSON | inline (AppState) | none | [ ] |
-| WEB-19 | `balance_slices_request` webui.py:875 | Input `BTN_BALANCE_SLICE.n_clicks` | Calls `AppState.balance_slices_depths()`, JSON-only save | inline (AppState) | **none — see Known quirks: this crashes** | [ ] |
-| WEB-22 | `display_depth_input` webui.py:1037 | Input `{slice-depth-display,MATCH}.n_clicks` | Un-hides the numeric depth `<input>` on a slice thumbnail | inline | none | [ ] |
-| WEB-23 | `record_depth_input` webui.py:1053 | Input `{slice-depth-input,ALL}.value`/`.n_submit` | Calls `state.change_slice_depth`, possibly reorders/deselects, JSON-only save | inline (AppState) | none | [ ] |
-| WEB-24 | `undo_slice` webui.py:1083 | Input `{slice-undo-backwards/forwards,ALL}.n_clicks` | Calls `InpaintingService.move_slice_version` (FORWARD/BACKWARD) to step a slice's saved image-version history; triggers WEB-21 re-render | InpaintingService | 6, 9 | [ ] |
-| WEB-34 | `slice_upload` webui.py:1428 | Input `{UPLOAD_SLICE,ALL}.contents` (per-thumbnail drag/drop) | Decodes dropped image, fixes aspect ratio, writes a new slice version, JSON-only save, and re-composes `state.imgData` from all slices | inline (AppState) | none | [ ] |
+| WEB-12 | `delete_slice_request` webui.py:623 | Input `BTN_DELETE_SLICE.n_clicks` | Deletes `state.selected_slice`; JSON-only save; re-renders main image | SliceEditingService (`delete_slice`) | SE-3, SE-4 (also `DELETE .../slices/{index}`, `test_api_slice_editing.py`) | [ ] |
+| WEB-13 | `copy_to_clipboard` webui.py:654 | Input `BTN_COPY_SLICE.n_clicks` | Copies composed slice (or full image) + current mask into `state.clipboard_image` (in-memory only, not persisted) | SliceEditingService (`copy_to_clipboard`) | SE-7 (also `POST .../clipboard/copy`, `test_api_slice_editing.py`) | [ ] |
+| WEB-14 | `paste_clipboard_request` webui.py:688 | Input `BTN_PASTE_SLICE.n_clicks` | Blends clipboard image into selected slice **in place** (mutates slice array directly), bumps version, JSON-only save | SliceEditingService (`paste_clipboard`) | SE-7, SE-8 (also `POST .../clipboard/paste`, `test_api_slice_editing.py`) | [ ] |
+| WEB-15 | `remove_mask_slice_request` webui.py:726 | Input `BTN_REMOVE_SLICE.n_clicks` | Subtracts current mask from selected slice's alpha in place, bumps version, JSON-only save | SliceEditingService (`remove_mask_from_slice`) | SE-5, SE-6 (also `POST .../slices/{index}/remove-mask`, `test_api_slice_editing.py`) | [ ] |
+| WEB-16 | `add_mask_slice_request` webui.py:766 | Input `BTN_ADD_SLICE.n_clicks`; `running=` disables button | Creates a masked crop of `state.imgData` and blends it into the selected slice in place, bumps version, JSON-only save | SliceEditingService (`add_mask_to_slice`) | SE-5, SE-6 (also `POST .../slices/{index}/add-mask`, `test_api_slice_editing.py`) | [ ] |
+| WEB-18 | `create_single_slice_request` webui.py:832 | Input `BTN_CREATE_SLICE.n_clicks`; `running=` disables button | Creates a brand-new `ImageSlice` from the current mask (or an empty transparent slice if no mask), appends and selects it, saves image + JSON | SliceEditingService (`create_slice`) | SE-1, SE-2 (also `POST .../slices/create`, `test_api_slice_editing.py`) | [ ] |
+| WEB-19 | `balance_slices_request` webui.py:875 | Input `BTN_BALANCE_SLICE.n_clicks` | Calls `AppState.balance_slices_depths()`, JSON-only save | SliceEditingService (`balance_slices`) | SE-15 pins the *current, broken* Dash behavior (`test.fail()`); the fixed method itself is proven by `test_controller.py::TestBalanceSlicesDepths` and `POST .../slices/balance`, `test_api_slice_editing.py` — see Known quirks | [ ] |
+| WEB-22 | `display_depth_input` webui.py:1037 | Input `{slice-depth-display,MATCH}.n_clicks` | Un-hides the numeric depth `<input>` on a slice thumbnail | inline | SE-9 (indirectly, via `setSliceDepth`); see Known quirks for a real hit-testing limitation this row has when its slice is selected | [ ] |
+| WEB-23 | `record_depth_input` webui.py:1053 | Input `{slice-depth-input,ALL}.value`/`.n_submit` | Calls `state.change_slice_depth`, possibly reorders/deselects, JSON-only save; also flips `STORE_INPAINTING`, which always clears `state.selected_inpainting` (CMP-07) regardless of whether the edited slice was selected | SliceEditingService (`set_slice_depth`) | SE-9 (also `PUT .../slices/{index}/depth`, `test_api_slice_editing.py`) | [ ] |
+| WEB-24 | `undo_slice` webui.py:1083 | Input `{slice-undo-backwards/forwards,ALL}.n_clicks` | Calls `InpaintingService.move_slice_version` (FORWARD/BACKWARD) to step a slice's saved image-version history; triggers WEB-21 re-render | InpaintingService | 6, 9, SE-5 (also `POST .../slices/{index}/undo`/`redo`, `test_api_slice_editing.py`, new in this PR) | [ ] |
+| WEB-34 | `slice_upload` webui.py:1428 | Input `{UPLOAD_SLICE,ALL}.contents` (per-thumbnail drag/drop) | Decodes dropped image, fixes aspect ratio, writes a new slice version, JSON-only save, and re-composes `state.imgData` from all slices | SliceEditingService (`replace_slice_image`) | SE-10, SE-11 (also `PUT .../slices/{index}/image`, `test_api_slice_editing.py`); see Known quirks for two real bugs this row pins as-is | [ ] |
 
 ## Mask tools
 
@@ -92,9 +152,9 @@ from `uploadInputImage()`. Scenarios 1–11 all call `clickMainTab()` at least o
 | WEB-11 | `update_depth_map_callback` webui.py:591 | Input `STORE_TRIGGER_UPDATE_DEPTHMAP.data` | Encodes `state.depthMapData` as a PNG `<img>` for `#depthmap-image` | inline (AppState) | 1, 10 | [ ] |
 | WEB-21 | `update_slices` webui.py:913 | Input `STORE_UPDATE_SLICE.data` | Rebuilds the slice-thumbnail strip (undo/redo carets, depth badges, upload targets); re-renders the composed main image for the selected slice and clears `slice_pixel`/`slice_mask` | inline (AppState) | 1, 6, 9, 10 (the selected-slice display/clear half is also exercised over HTTP by `POST .../slices`, `test_api_jobs.py`/`test_api_mutations.py`, PR 3) | [ ] |
 | WEB-26 | `display_slice` webui.py:1150 | Input `{slice,ALL}.n_clicks`, `{slice-overlay,ALL}.n_clicks` | Selects/deselects a slice, composes checkerboard/grayscale preview, loads its saved prompts, calls `InpaintingService.clear_selection` | InpaintingService (selection) + inline (AppState) | 5, 6, 7, 8, 9, 10 (also exercised over HTTP by `PUT .../selection`, `test_api_segmentation.py`, PR 3 — prompt loading stays a Svelte-side concern, since `ProjectView.slices[i]` already carries the prompts) | [x] Svelte: `SegmentationTab.svelte`'s thumbnail click (`onSliceClick`) + `workflow.selectSlice` (`PUT .../selection`, sending `slice: null` to deselect instead of Dash's click-to-toggle); selection and the composed-slice segmentation source are asserted on both UIs by e2e scenario 5 (prompt loading into the Inpainting tab is not yet ported) |
-| CMP-19 | `invert_mask` components.py:1615 | Input `SEG_INVERT_MASK.n_clicks` ("Invert") | Inverts `state.slice_mask` (creating an all-zero mask first if none exists) and re-renders masked preview | inline (AppState) | none (handoff-listed gap) | [ ] |
-| CMP-20 | `blur_mask` components.py:1639 | Input `SEG_FEATHER_MASK.n_clicks` ("Feather") | `cv2.blur`s `state.slice_mask` by a fixed 10px kernel and re-renders masked preview | inline (AppState) | none (handoff-listed gap) | [ ] |
-| CMP-23 | `toggle_checkerboard` components.py:1706 | Input `SEG_TOGGLE_CHECKERBOARD.n_clicks` | Toggles `state.use_checkerboard`, re-composes the selected slice preview in the new mode | inline (AppState) | none | [ ] |
+| CMP-19 | `invert_mask` components.py:1615 | Input `SEG_INVERT_MASK.n_clicks` ("Invert") | Inverts `state.slice_mask` (creating an all-zero mask first if none exists) and re-renders masked preview | SliceEditingService (`invert_mask`) | SE-12 (also `POST .../mask/invert`, `test_api_slice_editing.py`) | [ ] |
+| CMP-20 | `blur_mask` components.py:1639 | Input `SEG_FEATHER_MASK.n_clicks` ("Feather") | `cv2.blur`s `state.slice_mask` by a fixed 10px kernel and re-renders masked preview | SliceEditingService (`feather_mask`) | SE-13 (also `POST .../mask/feather`, `test_api_slice_editing.py`) | [ ] |
+| CMP-23 | `toggle_checkerboard` components.py:1706 | Input `SEG_TOGGLE_CHECKERBOARD.n_clicks` | Toggles `state.use_checkerboard`, re-composes the selected slice preview in the new mode | SliceEditingService (`set_checkerboard`) | SE-14 (also `PUT .../display`, `test_api_slice_editing.py`) | [ ] |
 
 ## Canvas/Inpainting
 
@@ -192,15 +252,29 @@ from `uploadInputImage()`. Scenarios 1–11 all call `clickMainTab()` at least o
 
 ## Known quirks to preserve or fix deliberately
 
-- **`AppState.balance_slices_depths` is broken.** `parallax_maker/controller.py:249`
-  reads `for i in len(self.image_slices):` — `len(...)` returns an `int`, which is
-  not iterable, so calling this method (via WEB-19 `balance_slices_request`,
-  webui.py:875, the "Balance" button) raises `TypeError` any time
-  `state.image_depths` is non-empty. It also divides by `len(...) - 1`
-  (controller.py:246), which will `ZeroDivisionError` for a single slice. No
-  e2e test exercises the Balance button, so this has shipped silently. Fix the
-  loop (`for i in range(len(...))`) and add explicit 0/1/N-slice tests before
-  porting.
+- **`AppState.balance_slices_depths` was broken; now fixed (intentional
+  behavior change).** `parallax_maker/controller.py:249` used to read
+  `for i in len(self.image_slices):` — `len(...)` returns an `int`, which is
+  not iterable — and divided by `len(...) - 1` (`ZeroDivisionError` for one
+  slice). Fixed to: zero slices is a no-op; one slice is set to depth 0; two
+  or more slices are spread evenly with `int(i * 255 / (count - 1))` in
+  existing list order. Covered directly by
+  `test_controller.py::TestBalanceSlicesDepths` (0/1/2/5-slice cases) and by
+  `SliceEditingService.balance_slices` (`test_slice_editing_services.py`,
+  `test_api_slice_editing.py::test_balance_evenly_redistributes_depths`).
+- **The "Balance" button is *still* completely unreachable through the live
+  Dash UI — a separate, pre-existing bug, discovered while adding e2e
+  coverage for the fix above.** `webui.py:883`'s `balance_slices_request`
+  reads `state.image_depths`, an attribute `AppState` has never defined
+  (only `image_slices`); every click raises
+  `AttributeError: 'AppState' object has no attribute 'image_depths'` and
+  500s *before* `balance_slices_depths()` is ever called — independent of
+  and not fixed by the controller.py change above, since `webui.py` is
+  frozen and out of scope for this extraction. `e2e/slice-editing.spec.ts`'s
+  SE-15 pins this exact current (broken) behavior with `test.fail()` rather
+  than asserting the unreachable "fixed" one; `SliceEditingService.
+  balance_slices` and its `POST /api/v1/projects/{id}/slices/balance` route
+  implement the correct, intended behavior for the API/Svelte side instead.
 - **Two functions are both named `remember_camera_parameters`.** WEB-30
   (webui.py:1272, `Input` = the four camera/displacement sliders, *persists*
   `state.camera`/`state.mesh_displacement`) and WEB-37 (webui.py:1527, `Input`
@@ -259,10 +333,53 @@ from `uploadInputImage()`. Scenarios 1–11 all call `clickMainTab()` at least o
   webui.py:706/787, `state.image_slices[...].image[:, :, 3] = final_mask` at
   webui.py:745) rather than going through the same copy-on-write
   version/service pattern `InpaintingService` uses for paint/fill/enhance.
-  These "mask tool" and "slice editing" mutations are exactly the ones the
-  handoff calls out as **not yet extracted into a service** — treat them as
-  the next characterization/extraction target, not as something to port
-  as-is into a Svelte-driven API surface.
+  **Now extracted** into `SliceEditingService` (`parallax_maker/
+  slice_editing_services.py`), which reproduces this same in-place mutation
+  style on purpose (it mirrors `ImageSlice.new_version()`'s own semantics),
+  not a copy-on-write rewrite; Dash's own callbacks are unchanged and still
+  perform the mutation inline themselves.
+- **A slice's own mask does not survive the mutation that used it — a
+  surprising, real chained side effect discovered while characterizing
+  WEB-16/WEB-18 on Dash.** WEB-16 `add_mask_slice_request` (and WEB-18
+  `create_single_slice_request`, WEB-14 `paste_clipboard_request`, WEB-19
+  `balance_slices_request`, WEB-23 `record_depth_input`) only ever sets
+  `STORE_UPDATE_SLICE.data = True`; they never touch `IMAGE.src` or
+  `slice_mask` themselves. That store write chains into WEB-21
+  `update_slices` (webui.py:913), which — *whenever a slice remains
+  selected* — recomposes the preview **and unconditionally clears
+  `state.slice_pixel`/`slice_pixel_depth`/`slice_mask`**
+  (webui.py:1024-1026) as a side effect of that re-render. Concretely: click
+  Add, and the mask you just used is gone by the time the button's own
+  network round trip finishes — Remove immediately afterward is a silent
+  no-op ("No mask selected") until a fresh mask is generated.
+  `e2e/slice-editing.spec.ts`'s SE-5 pins this exactly (asserts
+  `slice_mask.present === false` right after Add, then re-clicks before
+  Remove). `SliceEditingService` reproduces the *effective* chain as a
+  single command via the shared `refresh_selection_preview()` helper (also
+  used by the API's new undo/redo routes, which trigger the identical chain)
+  so a Svelte/API caller sees one atomic result instead of Dash's two-step
+  callback dance.
+- **A selected slice's own depth badge cannot be clicked through normal
+  hit-testing — a real Dash UI limitation, also discovered while
+  characterizing WEB-22/WEB-23.** The depth-number display
+  (`{"type":"depth-display","index":i}`) and its `.overlay` highlight
+  sibling (`{"type":"slicer-overlay","index":i}`) are both
+  absolutely-positioned children of the same `position: relative` thumbnail
+  container (components.py, `update_slices`); `.overlay` (`tailwind.css:179`,
+  `absolute inset-0`) has no explicit `z-index` but comes later in DOM
+  order, so once a slice is selected its overlay paints on top and swallows
+  clicks meant for the depth badge underneath. `e2e/slice-editing.spec.ts`'s
+  SE-9 works around this by editing a *different*, unselected slice's depth
+  instead (which is also how it discovered the next quirk); a Svelte
+  redesign should give the depth editor its own non-overlapping hit target.
+- **`record_depth_input` clears `state.selected_inpainting` unconditionally
+  on every call, not only when the edited slice was selected.** WEB-23 also
+  sets `STORE_INPAINTING.data = True`, which chains into CMP-07
+  `react_selected_slice_change` → `InpaintingService.clear_selection()`
+  regardless of which slice's depth changed or whether it reordered.
+  Changing an unrelated slice's depth silently drops the current inpainting
+  candidate selection. Pinned by
+  `test_slice_editing_services.py::test_set_slice_depth_always_clears_inpainting_selection`.
 - **`export_state_as_gltf` (webui.py:1346) is not a callback** — it's a plain
   helper called from both WEB-28 `gltf_export` and WEB-32 `gltf_create`
   (webui.py:1235, 1334), each independently regenerating per-slice depth maps
@@ -286,3 +403,34 @@ from `uploadInputImage()`. Scenarios 1–11 all call `clickMainTab()` at least o
   checks it — matching the handoff's note that "the checkbox controls the
   bounding-box preview" as a distinct, currently-unexercised code path from
   mask generation itself (which always passes `crop=True` regardless).
+- **`slice_upload`'s "fixing aspect ratio" log message is not an f-string**
+  (webui.py:1451-1453): `logs.append("Fixing aspect ratio from
+  {image.size[0] / image.size[1]} to {aspect_ratio}")` is missing the `f`
+  prefix, so Dash literally logs that placeholder text verbatim, never the
+  actual numbers. `e2e/slice-editing.spec.ts`'s SE-11 pins the exact literal
+  string Dash produces today. `SliceEditingService.replace_slice_image`
+  returns `source_aspect_ratio`/`target_aspect_ratio` on its result instead,
+  so an adapter that wants a correctly-interpolated message can build one
+  without reproducing the bug (which only affects a log string).
+- **`slice_upload`'s mismatched-aspect-ratio resize is a real, more
+  consequential bug**, also pinned as-is per this task's instructions:
+  `image = image.resize((int(aspect_ratio * image.size[1]), image.size[1]))`
+  (webui.py:1454) resizes to the *uploaded* image's own height, not the
+  existing slice canvas's — it does not fit/crop the upload into the slice's
+  dimensions at all. A small, wrong-aspect-ratio upload can collapse a slice
+  to a tiny fraction of the canvas (e.g. a 2x1 upload against a 320x240
+  slice collapses to 1x1; `e2e/slice-editing.spec.ts`'s SE-11 and
+  `test_slice_editing_services.py::test_replace_slice_image_mismatched_aspect_collapses_dimensions`
+  pin this). Worse, `slice_upload` then unconditionally recomposes
+  `state.imgData` by `blend_with_alpha`-ing every slice together starting
+  from `image_slices[0]` (webui.py:1461-1464): if the *first* slice (or any
+  slice not shape-broadcastable against the collapsed one, e.g. not reduced
+  to a literal 1x1) was the one resized, that recompose loop raises a raw
+  NumPy `ValueError` and the request 500s.
+  `test_slice_editing_services.py::test_replace_slice_image_mismatched_aspect_can_crash_the_recompose`
+  reproduces this exact crash; SE-11's own upload happens to collapse to a
+  broadcastable 1x1, which is why it doesn't 500 in the browser suite. This
+  was not fixed (per this task's "reproduce Dash semantics exactly, bugs and
+  all" instruction for extraction), only characterized; it is a strong
+  candidate for a deliberate behavior fix (fit/crop into the canvas instead)
+  before this endpoint is used from a real Svelte upload control.

@@ -40,6 +40,16 @@ def _state_directory(filename: str | None) -> Path:
     return Path.cwd() / filename
 
 
+def _slice_version(image_slice) -> int:
+    """Mirror ``api.projects._slice_version``: parse the ``_vN`` filename suffix."""
+
+    stem = Path(image_slice.filename).stem
+    last = stem.split("_")[-1]
+    if last.startswith("v") and last[1:].isdigit():
+        return int(last[1:])
+    return 1
+
+
 def _mask_metadata(mask: np.ndarray | None) -> dict:
     if mask is None:
         return {
@@ -183,6 +193,9 @@ def _register_routes(app, fixture_root: Path) -> None:
                 ],
                 "segmentation_input": segmentation_input,
                 "selected_mask_file": _mask_metadata(selected_mask),
+                "clipboard_present": state.clipboard_image is not None,
+                "use_checkerboard": state.use_checkerboard,
+                "slice_versions": [_slice_version(item) for item in state.image_slices],
                 "dark_mode": state.dark_mode,
                 "camera": {
                     "distance": state.camera.camera_distance,

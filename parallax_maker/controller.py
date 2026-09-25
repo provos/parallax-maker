@@ -241,12 +241,28 @@ class AppState:
         self.slice_pixel_depth = None
 
     def balance_slices_depths(self):
-        """Equally distribute the depths of the image slices."""
-        depths = [
-            int(i * 255 / (len(self.image_slices) - 1))
-            for i in range(len(self.image_slices))
-        ]
-        for i in len(self.image_slices):
+        """Equally distribute the depths of the image slices, preserving order.
+
+        This was previously broken: ``for i in len(self.image_slices)`` raises
+        ``TypeError`` (``len(...)`` is an int, not iterable) any time there are
+        slices, and ``len(self.image_slices) - 1`` divides by zero for exactly
+        one slice. Fixed behavior, intentionally chosen here:
+
+        - Zero slices: no-op (nothing to balance).
+        - One slice: its depth is set to 0 (the nearest plane), since there is
+          no second point to interpolate against.
+        - Two or more slices: depths are spread evenly across the full
+          0..255 range with ``int(i * 255 / (count - 1))`` for ``i`` in
+          slice-list order, so the first slice lands on 0 and the last on 255.
+        """
+        count = len(self.image_slices)
+        if count == 0:
+            return
+        if count == 1:
+            self.image_slices[0].depth = 0
+            return
+        depths = [int(i * 255 / (count - 1)) for i in range(count)]
+        for i in range(count):
             self.image_slices[i].depth = depths[i]
 
     def depth_slice_from_pixel(self, pixel_x, pixel_y):

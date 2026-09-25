@@ -96,6 +96,35 @@ export interface UiDriver {
   undoButton(index: number): Locator;
   redoButton(index: number): Locator;
 
+  // Slice editing / mask tools
+  /** Creates a slice from the current mask (or an empty slice with none). */
+  createSlice(): Promise<void>;
+  /** Deletes the currently selected slice. */
+  deleteSlice(): Promise<void>;
+  /** Adds the current mask to the selected slice's alpha, in place. */
+  addMaskToSlice(): Promise<void>;
+  /** Removes the current mask from the selected slice's alpha, in place. */
+  removeMaskFromSlice(): Promise<void>;
+  /** Copies the composed selected slice (or full image) plus current mask to the clipboard. */
+  copySlice(): Promise<void>;
+  /** Blends the clipboard image into the selected slice, in place. */
+  pasteSlice(): Promise<void>;
+  /** Evenly redistributes slice depths. */
+  balanceSlices(): Promise<void>;
+  /** Sets the depth of the slice currently at `index` via its numeric input. */
+  setSliceDepth(index: number, depth: number): Promise<void>;
+  /** Drops a replacement image onto slice `index`'s thumbnail, creating a new version. */
+  uploadSliceImage(
+    index: number,
+    file: { name: string; mimeType: string; buffer: Buffer },
+  ): Promise<void>;
+  /** Inverts the current mask (creating an all-zero mask first if none exists). */
+  invertMask(): Promise<void>;
+  /** Feathers (blurs) the current mask by a fixed kernel. */
+  featherMask(): Promise<void>;
+  /** Toggles the checkerboard vs. grayscale background for the selected-slice preview. */
+  toggleCheckerboard(): Promise<void>;
+
   // Project / configuration
   expectDarkTheme(): Promise<void>;
   expectSliderValue(name: SliderName, value: number): Promise<void>;

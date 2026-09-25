@@ -26,6 +26,7 @@ export type E2EState = {
   positive_prompts: string[];
   negative_prompts: string[];
   slice_filenames: string[];
+  slice_depths: number[];
   thresholds: number[];
   slice_count: number;
   mesh_displacement: number;
@@ -36,6 +37,9 @@ export type E2EState = {
   points_selected: Array<{ point: [number, number]; negative: boolean }>;
   segmentation_input: { calls: number; source: string } | null;
   selected_mask_file: E2EMaskStats;
+  clipboard_present: boolean;
+  use_checkerboard: boolean;
+  slice_versions: number[];
   [key: string]: unknown;
 };
 

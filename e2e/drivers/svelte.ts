@@ -280,6 +280,59 @@ export class SvelteDriver implements UiDriver {
     throw new Error('SvelteDriver: redoButton not implemented yet');
   }
 
+  // Slice editing / mask tools
+
+  async createSlice(): Promise<void> {
+    throw new Error('SvelteDriver: createSlice not implemented yet');
+  }
+
+  async deleteSlice(): Promise<void> {
+    throw new Error('SvelteDriver: deleteSlice not implemented yet');
+  }
+
+  async addMaskToSlice(): Promise<void> {
+    throw new Error('SvelteDriver: addMaskToSlice not implemented yet');
+  }
+
+  async removeMaskFromSlice(): Promise<void> {
+    throw new Error('SvelteDriver: removeMaskFromSlice not implemented yet');
+  }
+
+  async copySlice(): Promise<void> {
+    throw new Error('SvelteDriver: copySlice not implemented yet');
+  }
+
+  async pasteSlice(): Promise<void> {
+    throw new Error('SvelteDriver: pasteSlice not implemented yet');
+  }
+
+  async balanceSlices(): Promise<void> {
+    throw new Error('SvelteDriver: balanceSlices not implemented yet');
+  }
+
+  async setSliceDepth(_index: number, _depth: number): Promise<void> {
+    throw new Error('SvelteDriver: setSliceDepth not implemented yet');
+  }
+
+  async uploadSliceImage(
+    _index: number,
+    _file: { name: string; mimeType: string; buffer: Buffer },
+  ): Promise<void> {
+    throw new Error('SvelteDriver: uploadSliceImage not implemented yet');
+  }
+
+  async invertMask(): Promise<void> {
+    throw new Error('SvelteDriver: invertMask not implemented yet');
+  }
+
+  async featherMask(): Promise<void> {
+    throw new Error('SvelteDriver: featherMask not implemented yet');
+  }
+
+  async toggleCheckerboard(): Promise<void> {
+    throw new Error('SvelteDriver: toggleCheckerboard not implemented yet');
+  }
+
   // Project / configuration
 
   async expectDarkTheme(): Promise<void> {

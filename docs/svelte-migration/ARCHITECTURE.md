@@ -151,6 +151,47 @@ Asset IDs are logical (`input`, `depth`, `slice-{i}`, `slice-{i}-thumb`, later
 `mask-{i}`, `candidate-{gen}-{k}`), resolved server-side; raw paths are never
 accepted. `/next/` must not reuse the legacy unrestricted `/{SRV_DIR}/<path>` route.
 
+### Slice editing and mask-tool endpoints
+
+Reproduce the "Slice editing" and "Mask tools" rows of `PARITY.md` (Dash's
+`webui.py`/`components.py` inline `AppState` mutations, plus the
+`update_slices` chain's selection/mask-clearing side effect) over HTTP; see
+`SliceEditingService` in `slice_editing_services.py` for the underlying
+command/result types and `parallax_maker/api/slice_editing.py` for the
+routes below. None of these call a slow model/provider, so - like the
+selection/multi-point routes above - every one runs synchronously under the
+same project-lock `_mutation_guard` rather than as a background job.
+
+| Method & path | Body | Result |
+| --- | --- | --- |
+| `POST /api/v1/projects/{id}/slices/create` | `{}` | `200 ProjectView & {changed: true}` (sync); `create_slice` - a new slice from the current mask (or an empty transparent one with none), appended, selected, and saved (JSON + the new slice's own image). |
+| `DELETE /api/v1/projects/{id}/slices/{index}` | – | `200 ProjectView & {changed: true}` (sync); `delete_slice` - out-of-range `index` is `400 invalid_request`; the selection is always cleared. |
+| `POST /api/v1/projects/{id}/slices/{index}/add-mask` | `{}` | `200 ProjectView & {changed: true}` (sync); `add_mask_to_slice`. `index` must equal the project's current `selectedSlice` (`400 invalid_request` otherwise, since the service itself has no index parameter - it always operates on the selection, exactly like Dash). |
+| `POST /api/v1/projects/{id}/slices/{index}/remove-mask` | `{}` | Same shape and `index`-must-match-selection rule as add-mask, calling `remove_mask_from_slice`. |
+| `POST /api/v1/projects/{id}/clipboard/copy` | `{}` | `200 ProjectView & {changed: true}` (sync); `copy_to_clipboard` - requires a mask (`409 not_ready` otherwise); no save, no display change (matches Dash exactly: `copy_to_clipboard` has no `STORE_UPDATE_SLICE` output). |
+| `POST /api/v1/projects/{id}/clipboard/paste` | `{}` | `200 ProjectView & {changed: true}` (sync); `paste_clipboard` - requires both a populated clipboard and a selected slice (`409 not_ready` otherwise); the clipboard survives the paste. |
+| `POST /api/v1/projects/{id}/slices/balance` | `{}` | `200 ProjectView & {changed}` (sync); `balance_slices` - `changed: false` (not an error) with zero slices, matching `WorkflowUnchanged`'s pattern. Implements the *fixed*, intended behavior; the equivalent Dash button is currently unreachable (500s) due to an unrelated, pre-existing `webui.py` bug - see PARITY.md "Known quirks". |
+| `PUT /api/v1/projects/{id}/slices/{index}/depth` | `{depth}` | `200 ProjectView & {changed: true}` (sync); `set_slice_depth` - reordering clears the selection even when a *different* slice was selected, and always clears the inpainting candidate selection too (both are real Dash side effects; see "Known quirks"). Out-of-range `index` is `400 invalid_request`. |
+| `PUT /api/v1/projects/{id}/slices/{index}/image` | multipart `image` | `200 ProjectView & {changed: true}` (sync); `replace_slice_image` - a mismatched-aspect-ratio upload is resized exactly like Dash's real (buggy) `slice_upload`, which can collapse the slice's dimensions and, in some slice-shape combinations, make the subsequent input-image recompose crash (`500`) - see "Known quirks". Missing/invalid multipart `image` is `400 invalid_request`. |
+| `POST /api/v1/projects/{id}/mask/invert` | `{}` | `200 ProjectView & {changed: true}` (sync); `invert_mask` - creates an all-zero mask first if none exists, then inverts it. No save (matches Dash). |
+| `POST /api/v1/projects/{id}/mask/feather` | `{}` | `200 ProjectView & {changed: true}` (sync); `feather_mask` - requires an existing mask (`409 not_ready` otherwise); fixed 10px `cv2.blur` kernel, matching `blur_mask`. No save. |
+| `PUT /api/v1/projects/{id}/display` | `{useCheckerboard}` | `200 ProjectView & {changed: true}` (sync); `set_checkerboard` - recomposes the `main` asset only when a slice is selected, otherwise leaves it untouched (matches `toggle_checkerboard`'s `no_update`). No save. |
+| `POST /api/v1/projects/{id}/slices/{index}/undo` | – | `200 ProjectView & {changed: true}` (sync); wraps the existing `InpaintingService.move_slice_version` (`SliceVersionDirection.BACKWARD`), then applies the same post-mutation preview/selection refresh (`slice_editing_services.refresh_selection_preview`) as every other route above, since Dash's `undo_slice` also only sets `STORE_UPDATE_SLICE=True`. No earlier version is `409 not_ready`; out-of-range `index` is `400 invalid_request`. |
+| `POST /api/v1/projects/{id}/slices/{index}/redo` | – | Same as undo, with `SliceVersionDirection.FORWARD`. |
+
+`SliceEditingServiceError` subclasses map to: `InvalidSliceIndex` →
+`400 invalid_request`; `SliceEditingNotReady` (no image/selection/mask/
+clipboard) → `409 not_ready`. `SliceEditingUnchanged` (only `balance_slices`
+with zero slices) is handled by its route, not this error mapping, exactly
+like `WorkflowUnchanged`. Every route's `preview_image` (or `None`, meaning
+"leave the display asset alone") is applied to the project's `main` asset the
+same way `update_selection`/the depth job already do, and every mutation
+bumps the project revision.
+
+`ProjectView` gained one field for this slice: `clipboard: boolean`
+(`state.clipboard_image is not None`), read by the frontend to enable/disable
+"Paste".
+
 ### Concurrency
 
 - Every mutating request takes the project lock; if a job holds it the request
