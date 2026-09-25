@@ -345,6 +345,7 @@ def test_api_rejects_a_ground_plane_without_a_visible_ground(client):
     )
     assert response.status_code == 409
     assert response.get_json()["error"]["code"] == "not_ready"
+    assert "horizon" in response.get_json()["error"]["message"]
 
     # With a ground plane marked, a pitch that hides the ground is rejected.
     client.put(

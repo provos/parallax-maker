@@ -473,8 +473,9 @@ class SliceEditingService:
             try:
                 state.camera.ground_height(width, height)
             except ValueError as error:
+                # The camera's own reason names the fix (pitch or ground_near).
                 raise SliceEditingNotReady(
-                    f"no ground in view: {error}; lower the camera pitch"
+                    f"cannot use this slice as the ground plane: {error}"
                 ) from None
 
         changed = target.is_ground_plane != command.is_ground
