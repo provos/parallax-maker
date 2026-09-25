@@ -214,6 +214,40 @@ body {
   transition: width 0.2s ease;
 }
 
+/* Compact tool buttons used in the tool rows under the image. */
+.tool-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+  border: none;
+  border-radius: var(--radius-md);
+  padding: var(--space-2);
+  font: inherit;
+  cursor: pointer;
+}
+
+.tool-btn-icon {
+  padding-left: var(--space-3);
+  padding-right: var(--space-3);
+}
+
+.tool-btn:hover:not(:disabled) {
+  background-color: var(--color-accent-hover);
+}
+
+.tool-btn:disabled {
+  background-color: var(--color-disabled-bg);
+  color: var(--color-disabled-text);
+  cursor: default;
+}
+
+.tool-btn-selected:not(:disabled) {
+  background-color: var(--color-success);
+  color: var(--color-success-text);
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

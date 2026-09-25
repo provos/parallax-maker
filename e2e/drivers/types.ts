@@ -32,6 +32,7 @@ export type Workflow =
 export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Export' | 'Configuration';
 export type SegmentationMode = 'Depth Map' | 'Instance Segmentation';
 export type Modifier = 'Alt' | 'Control' | 'Meta' | 'Shift';
+export type CameraDirection = 'up' | 'down' | 'left' | 'right' | 'in' | 'out' | 'reset';
 export type SliderName =
   | 'num-slices'
   | 'camera-distance'
@@ -151,6 +152,10 @@ export interface UiDriver {
   featherMask(): Promise<void>;
   /** Toggles the checkerboard vs. grayscale background for the selected-slice preview. */
   toggleCheckerboard(): Promise<void>;
+
+  // Parallax camera
+  /** Moves the preview camera one step and waits until the new view is logged. */
+  navigateCamera(direction: CameraDirection): Promise<void>;
 
   // Project / configuration
   expectDarkTheme(): Promise<void>;

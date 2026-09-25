@@ -300,7 +300,7 @@ characterizing these rows.
 | ID | Function (file:line) | Trigger(s) | Effect | Backend service | E2E coverage | Svelte |
 | --- | --- | --- | --- | --- | --- | --- |
 | WEB-02 | `update_logs` webui.py:301 | Input `LOGS_DATA.data` | Renders the last 3 log entries into `#log` | inline | 3, 4, 5, 6, 9 (scenarios that assert `#log` text) | [ ] |
-| WEB-03 | `update_progress` webui.py:315 | Input `PROGRESS_INTERVAL.n_intervals` (polled every 500ms) | Renders `current_progress`/`total_progress` (module globals updated by `progress_callback`) as a progress-bar width; disables the interval once done | inline (module-global state) | none (handoff notes this polling defeats reliable `networkidle` waits; no test asserts bar width) | [ ] |
+| WEB-03 | `update_progress` webui.py:315 | Input `PROGRESS_INTERVAL.n_intervals` (polled every 500ms) | Renders `current_progress`/`total_progress` (module globals updated by `progress_callback`) as a progress-bar width; disables the interval once done | inline (module-global state) | none (handoff notes this polling defeats reliable `networkidle` waits; no test asserts bar width) | [x] Svelte: job progress comes from `GET /jobs/{id}` polling; `shell/ActivityIndicator.svelte` shows the running job (label, percent, header progress bar) on every tab, indeterminate until the job reports progress. Inpainting reports per-candidate and per-denoising-step progress (`InpaintingModel.step_callback`). Unit-tested in `ActivityIndicator.test.ts` and `test_inpainting_services.py` |
 
 ---
 

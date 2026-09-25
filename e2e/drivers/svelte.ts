@@ -2,6 +2,7 @@ import { expect, type Download, type Locator, type Page } from '@playwright/test
 import { waitForImage } from '../helpers/image';
 import { fetchFixture, readE2EState } from '../helpers/oracle';
 import type {
+  CameraDirection,
   MainTab,
   Modifier,
   SegmentationMode,
@@ -494,6 +495,12 @@ export class SvelteDriver implements UiDriver {
     if (current !== value) {
       throw new Error(`Could not step ${name} to ${value}; stuck at ${current}`);
     }
+  }
+
+  async navigateCamera(direction: CameraDirection): Promise<void> {
+    const before = await this.log().innerText();
+    await this.page.getByTestId(`camera-${direction}`).click();
+    await expect.poll(async () => (await this.log().innerText()) !== before).toBe(true);
   }
 
   async expectDepthModel(label: string): Promise<void> {
