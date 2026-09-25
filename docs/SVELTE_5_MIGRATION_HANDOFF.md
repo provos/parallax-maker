@@ -404,10 +404,9 @@ Final state:
   `*_services.py`'s own tests or `test_api_*.py`, so nothing needed porting.
   `dash`/`dash_extensions` were dropped from `pyproject.toml` and
   `requirements.txt` (both now list `flask`/`pydantic` explicitly, which Dash
-  previously pulled in transitively); `poetry.lock` still lists `dash` and is
-  stale (CI never used Poetry, and Poetry was not available in the cutover
-  environment to regenerate it - regenerate it with `poetry lock` if Poetry
-  is used going forward, or delete it).
+  previously pulled in transitively). The stale, never-used `poetry.lock`
+  was deleted; pip with `pyproject.toml`/`requirements.txt` is the only
+  supported toolchain.
 - **`gltf_cli.py`**: no longer imports `export_state_as_gltf` from `webui`;
   it now builds an `ExportService` (`export_services.py`) with a small
   `_PreloadedStateRepository` adapter so the CLI's own `-i`/`-o` semantics
@@ -463,22 +462,20 @@ output, since a heavy multi-stage build (torch, diffusers, etc.) is
 environment/time-dependent in a way this static document shouldn't assert a
 permanent result for.
 
-Remaining optional follow-ups (explicitly out of scope for this cutover):
+Real-model smoke test (run locally against the real server, no paid APIs):
 
-- A bounded **real-model smoke test** (real depth/segmentation/inpainting
-  models, not the deterministic e2e fakes) was not run here - it needs
-  execution resources/credentials this environment was not authorized to
-  spend, per this document's own "Completion gate" above.
-- A **visual/UX redesign** was deliberately deferred throughout the
-  migration (see "Decisions" in `docs/svelte-migration/ARCHITECTURE.md`);
-  the Svelte UI intentionally kept Dash's look and feel via shared CSS
-  tokens. Now that Dash is gone, a redesign is unconstrained by parity.
-- `controller.py` still defines a few now-fully-dead Dash-only serving
-  methods (`AppState.serve_main_image`/`serve_input_image`/
-  `serve_model_file`, all unused by the API, which serves assets through
-  `api/assets.py` instead) that were left in place during this cutover as a
-  lower-risk choice, out of caution about touching a large, heavily-tested
-  module beyond this PR's explicit scope; removing them is a small, safe
-  follow-up.
-- `poetry.lock` is stale (see above); regenerate or remove it if Poetry
-  becomes part of the actual toolchain.
+- DINOv2 depth -> slices -> depth click -> glTF export -> animation, through
+  both the HTTP API and the Svelte UI in a browser.
+- MiDaS and ZoeDepth: these failed to load under `timm` 0.6.12 on Python
+  3.11+ (a pre-existing bug CI never saw, since it uses fakes on 3.10);
+  pinning `timm==0.6.13` fixed both.
+- SAM (single click and multi-point with a negative point) and SD-XL
+  inpainting (`diffusers/stable-diffusion-xl-1.0-inpainting-0.1`): generate
+  returned 3 candidates, apply created a new slice version that changed the
+  masked region, and undo restored the previous version.
+
+Remaining optional follow-up: a **visual/UX redesign** was deliberately
+deferred throughout the migration (see "Decisions" in
+`docs/svelte-migration/ARCHITECTURE.md`); the Svelte UI intentionally kept
+Dash's look and feel via shared CSS tokens in `frontend/src/app.css`. Now
+that Dash is gone, a redesign is unconstrained by parity.

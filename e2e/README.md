@@ -27,7 +27,7 @@ python -m parallax_maker.e2e_server --host 127.0.0.1 --port 8050
 The harness can target another interpreter, command, or already-running server:
 
 ```sh
-E2E_SERVER_COMMAND='poetry run python -m parallax_maker.e2e_server --host 127.0.0.1 --port 8050' npm run test:e2e
+E2E_SERVER_COMMAND='.venv/bin/python -m parallax_maker.e2e_server --host 127.0.0.1 --port 8050' npm run test:e2e
 E2E_BASE_URL='http://127.0.0.1:9000' E2E_SKIP_SERVER=1 npm run test:e2e
 ```
 

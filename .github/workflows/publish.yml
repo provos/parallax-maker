@@ -25,6 +25,19 @@ jobs:
       with:
         python-version: '3.10'
     
+    - name: Set up Node.js 24
+      uses: actions/setup-node@v4
+      with:
+        node-version: "24"
+        cache: npm
+        cache-dependency-path: frontend/package-lock.json
+
+    - name: Build the Svelte frontend
+      # The sdist and wheel ship the prebuilt app from parallax_maker/static/app.
+      run: |
+        npm --prefix frontend ci
+        npm run build:frontend
+
     - name: Install build dependencies
       run: |
         python -m pip install --upgrade pip
@@ -32,6 +45,17 @@ jobs:
     
     - name: Build package
       run: python -m build
+
+    - name: Verify the sdist and wheel ship the built frontend
+      run: |
+        python - <<'PY'
+        import glob, tarfile, zipfile
+        whl = zipfile.ZipFile(glob.glob("dist/parallax_maker-*.whl")[0]).namelist()
+        assert "parallax_maker/static/app/index.html" in whl, "wheel: index.html missing"
+        sdist = tarfile.open(glob.glob("dist/parallax_maker-*.tar.gz")[0]).getnames()
+        assert any(n.endswith("parallax_maker/static/app/index.html") for n in sdist), "sdist: index.html missing"
+        print("ok")
+        PY
     
     - name: Check distribution
       run: twine check dist/*
