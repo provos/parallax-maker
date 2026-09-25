@@ -44,6 +44,7 @@ export type {
   SegmentationPoint,
   SegmentationView,
   SelectionRequest,
+  SceneProfileView,
   SliceView,
   Status as JobStatus,
   ValidateKeyRequest,

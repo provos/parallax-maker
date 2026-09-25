@@ -288,6 +288,42 @@ export async function navigateCamera(direction: api.CameraDirection): Promise<vo
   await runSliceMutation('navigate', (id) => api.navigateCamera(id, direction));
 }
 
+/**
+ * Marks the selected slice as the scene's ground plane, or unmarks it (at
+ * most one slice is the ground). A logged no-op without a selection.
+ */
+export async function toggleGroundPlane(): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  const selected = view.slices.find((s) => s.index === view.selectedSlice);
+  if (!selected) {
+    logStore.pushClient('No slice selected', 'info');
+    return;
+  }
+  await runSliceMutation('slice-editing', (id) =>
+    api.setGroundPlane(id, selected.index, !selected.isGround),
+  );
+}
+
+/** Horizon on the ground mask's top edge; ground under the nearest card's foot. */
+export async function fitGround(): Promise<void> {
+  await runSliceMutation('settings', (id) => api.fitGround(id));
+}
+
+/** Moves the horizon to image row `row` (the server derives the camera pitch). */
+export async function setHorizonRow(row: number): Promise<void> {
+  const camera = projectStore.view?.settings.camera;
+  if (!camera) return;
+  await updateSettings({
+    camera: {
+      distance: camera.distance,
+      focalLength: camera.focalLength,
+      maxDistance: camera.maxDistance,
+      horizonRow: row,
+    },
+  });
+}
+
 /** Creates a slice from the current mask, or an empty slice if there is none. */
 export async function createSlice(): Promise<void> {
   await runSliceMutation('slice-editing', (id) => api.createSlice(id));

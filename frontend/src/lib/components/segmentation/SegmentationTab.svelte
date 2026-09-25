@@ -28,6 +28,13 @@
     { label: 'Paste', testId: 'paste-slice', onClick: () => void workflow.pasteSlice() },
   ];
 
+  // Ground plane: the selected slice becomes (or stops being) the horizontal
+  // ground; Fit places the horizon and ground from the scene.
+  const selectedIsGround = $derived(
+    projectStore.view?.slices.find((s) => s.index === projectStore.view?.selectedSlice)?.isGround ?? false,
+  );
+  const hasGround = $derived(projectStore.view?.slices.some((s) => s.isGround) ?? false);
+
   // -- Per-slice depth editing: click the badge to reveal a numeric input,
   // Enter or blur commits it (webui.py's WEB-22/WEB-23: `display_depth_input`
   // un-hides the input, `record_depth_input` commits on Enter). Unlike Dash,
@@ -199,6 +206,28 @@
             {action.label}
           </button>
         {/each}
+        <button
+          type="button"
+          class="btn"
+          class:btn-selected={selectedIsGround}
+          data-testid="ground-toggle"
+          title="Make the selected slice the horizontal ground plane"
+          aria-pressed={selectedIsGround}
+          disabled={isBusy() || !projectStore.view || projectStore.view.selectedSlice === null}
+          onclick={() => void workflow.toggleGroundPlane()}
+        >
+          Ground
+        </button>
+        <button
+          type="button"
+          class="btn"
+          data-testid="ground-fit"
+          title="Put the horizon on the ground's top edge and the ground under the nearest object"
+          disabled={isBusy() || !hasGround}
+          onclick={() => void workflow.fitGround()}
+        >
+          Fit ground
+        </button>
       </div>
     </div>
   </div>
@@ -247,6 +276,9 @@
           </button>
         {/if}
         <img data-testid="slice-thumbnail" alt={`image_slice_${slice.index}`} src={slice.thumbnail.url} />
+        {#if slice.isGround}
+          <span class="ground-badge" data-testid="ground-badge">Ground</span>
+        {/if}
         <input
           type="file"
           accept="image/*"
@@ -395,6 +427,19 @@
     width: 3.5rem;
     font-size: 1.25rem;
     text-align: center;
+  }
+
+  .ground-badge {
+    position: absolute;
+    z-index: 1;
+    top: var(--space-1);
+    left: var(--space-1);
+    padding: 0 var(--space-2);
+    border-radius: var(--radius-md);
+    font-size: 0.75rem;
+    background-color: var(--color-success);
+    color: var(--color-success-text);
+    pointer-events: none;
   }
 
   .slice-label {

@@ -15,8 +15,10 @@ from typing import TYPE_CHECKING
 
 from flask import Blueprint, Response, jsonify, request
 
+from ..camera import MAX_PITCH_DEGREES, Camera
 from ..project_services import SaveProject, UpdateSettings
 from . import schemas
+from .errors import InvalidRequest
 from .projects import (
     _build_project_view,
     _load_state,
@@ -61,6 +63,7 @@ def register_project_lifecycle_routes(blueprint: Blueprint, runtime: "Runtime") 
         state = _load_state(project_id)
         payload = _parse_json_body(request, schemas.ProjectSettingsRequest)
         record = runtime.projects.ensure(project_id)
+        pitch = _requested_pitch(state, payload.camera)
 
         changed = False
         with _mutation_guard(record):
@@ -81,7 +84,7 @@ def register_project_lifecycle_routes(blueprint: Blueprint, runtime: "Runtime") 
                         if payload.camera is not None
                         else None
                     ),
-                    pitch=payload.camera.pitch if payload.camera is not None else None,
+                    pitch=pitch,
                     ground_near=(
                         payload.camera.ground_near
                         if payload.camera is not None
@@ -98,3 +101,22 @@ def register_project_lifecycle_routes(blueprint: Blueprint, runtime: "Runtime") 
 
         view = _build_project_view(runtime, project_id, state)
         return _mutation_response(view, changed)
+
+
+def _requested_pitch(state, camera) -> float | None:
+    """``camera.pitch``, or the pitch that puts the horizon on
+    ``camera.horizonRow`` (with the requested focal length)."""
+    if camera is None:
+        return None
+    if camera.horizon_row is None:
+        return camera.pitch
+    if state.imgData is None:
+        raise InvalidRequest("horizonRow needs an input image")
+    width, height = state.imgData.size
+    lens = Camera(
+        focal_length=camera.focal_length, sensor_width=state.camera.sensor_width
+    )
+    pitch = lens.pitch_for_horizon(camera.horizon_row, width, height)
+    if abs(pitch) > MAX_PITCH_DEGREES:
+        raise InvalidRequest("that horizon row needs a pitch beyond ±60 degrees")
+    return pitch

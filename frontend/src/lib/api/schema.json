@@ -101,6 +101,18 @@
           "default": null,
           "title": "Groundnear"
         },
+        "horizonRow": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Horizonrow"
+        },
         "maxDistance": {
           "minimum": 0.0,
           "title": "Maxdistance",
@@ -727,6 +739,71 @@
       "title": "ProbeServerRequest",
       "type": "object"
     },
+    "ProfileCardView": {
+      "additionalProperties": false,
+      "properties": {
+        "bottom": {
+          "title": "Bottom",
+          "type": "number"
+        },
+        "index": {
+          "title": "Index",
+          "type": "integer"
+        },
+        "top": {
+          "title": "Top",
+          "type": "number"
+        },
+        "z": {
+          "title": "Z",
+          "type": "number"
+        }
+      },
+      "required": [
+        "index",
+        "z",
+        "top",
+        "bottom"
+      ],
+      "title": "ProfileCardView",
+      "type": "object"
+    },
+    "ProfileGroundView": {
+      "additionalProperties": false,
+      "properties": {
+        "backdropTop": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Backdroptop"
+        },
+        "farZ": {
+          "title": "Farz",
+          "type": "number"
+        },
+        "height": {
+          "title": "Height",
+          "type": "number"
+        },
+        "nearZ": {
+          "title": "Nearz",
+          "type": "number"
+        }
+      },
+      "required": [
+        "height",
+        "nearZ",
+        "farZ"
+      ],
+      "title": "ProfileGroundView",
+      "type": "object"
+    },
     "ProjectAssets": {
       "additionalProperties": false,
       "properties": {
@@ -932,6 +1009,17 @@
           "title": "Revision",
           "type": "integer"
         },
+        "sceneProfile": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SceneProfileView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "segmentation": {
           "$ref": "#/$defs/SegmentationView"
         },
@@ -984,6 +1072,50 @@
         "exports"
       ],
       "title": "ProjectView",
+      "type": "object"
+    },
+    "SceneProfileView": {
+      "additionalProperties": false,
+      "description": "The scene seen from the side, for the UI's side view.\n\nWorld units, camera at ``(y=0, z=cameraZ)``; y points *down* (a card's\n``top`` is its smaller y). See ``ground_services.scene_profile``.",
+      "properties": {
+        "cameraZ": {
+          "title": "Cameraz",
+          "type": "number"
+        },
+        "cards": {
+          "items": {
+            "$ref": "#/$defs/ProfileCardView"
+          },
+          "title": "Cards",
+          "type": "array"
+        },
+        "ground": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ProfileGroundView"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "halfFov": {
+          "title": "Halffov",
+          "type": "number"
+        },
+        "pitch": {
+          "title": "Pitch",
+          "type": "number"
+        }
+      },
+      "required": [
+        "cameraZ",
+        "pitch",
+        "halfFov",
+        "cards"
+      ],
+      "title": "SceneProfileView",
       "type": "object"
     },
     "SegmentationClickRequest": {

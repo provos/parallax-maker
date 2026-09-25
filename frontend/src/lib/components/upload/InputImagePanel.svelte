@@ -8,6 +8,7 @@
   import MaskCanvas from '../canvas/MaskCanvas.svelte';
   import PreviewOverlay from '../canvas/PreviewOverlay.svelte';
   import MaskToolbar from '../canvas/MaskToolbar.svelte';
+  import HorizonOverlay from '../canvas/HorizonOverlay.svelte';
   import type { CameraDirection } from '../../api/client';
 
   let fileInput: HTMLInputElement | undefined;
@@ -258,6 +259,9 @@
     { direction: 'in', symbol: '\u2295', label: 'Move camera forward' },
   ];
 
+  // The draggable horizon line (sets the camera pitch) is shown on demand.
+  let showHorizon = $state(false);
+
   function navigate(direction: CameraDirection): void {
     if (!canNavigate || isBusy()) return;
     void workflow.navigateCamera(direction);
@@ -370,6 +374,9 @@
       />
       <MaskCanvas />
       <PreviewOverlay />
+      {#if showHorizon}
+        <HorizonOverlay />
+      {/if}
     </div>
     </div>
     <input
@@ -438,6 +445,18 @@
           {button.symbol}
         </button>
       {/each}
+      <button
+        type="button"
+        class="tool-btn"
+        class:tool-btn-selected={showHorizon}
+        data-testid="horizon-toggle"
+        aria-pressed={showHorizon}
+        title="Show the horizon line; drag it to set the camera pitch"
+        disabled={!hasInputImage}
+        onclick={() => (showHorizon = !showHorizon)}
+      >
+        Horizon
+      </button>
     </div>
   </div>
 

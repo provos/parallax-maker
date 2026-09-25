@@ -104,7 +104,7 @@ describe('ExportTab', () => {
     );
     const call = fetchMock.mock.calls.find(([reqUrl]) => String(reqUrl) === `/api/v1/projects/${projectId}/settings`);
     expect(JSON.parse(call![1]!.body as string)).toEqual({
-      camera: { distance: 200, maxDistance: 140, focalLength: 475 },
+      camera: { distance: 200, maxDistance: 140, focalLength: 475, groundNear: 0 },
       meshDisplacement: 15,
     });
   });
@@ -206,5 +206,64 @@ describe('ExportTab', () => {
       ),
     );
     expect(triggerDownload).not.toHaveBeenCalled();
+  });
+
+  describe('ground plane panel', () => {
+    const groundView = () =>
+      makeView({
+        slices: [
+          { index: 0, depth: 0, isGround: false } as never,
+          { index: 1, depth: 60, isGround: true } as never,
+        ],
+        settings: {
+          darkMode: false,
+          camera: { distance: 100, focalLength: 26, maxDistance: 500, pitch: 9.84, groundNear: 78, horizonRow: 516 },
+          meshDisplacement: 0,
+          depthModel: 'dinov2',
+        },
+        sceneProfile: {
+          cameraZ: -100,
+          pitch: 9.84,
+          halfFov: 20,
+          cards: [{ index: 0, z: 500, top: -300, bottom: 150 }],
+          ground: { height: 60, nearZ: 78, farZ: 500, backdropTop: 40 },
+        },
+      });
+
+    it('shows the horizon, pitch and a side view of cards and ground', () => {
+      projectStore.applyView(groundView());
+      render(ExportTab);
+      expect(screen.getByTestId('horizon-readout')).toHaveTextContent('Horizon at row 516, camera pitch 9.8°');
+      expect(screen.getByTestId('ground-distance')).toHaveValue('78');
+      expect(screen.getByTestId('ground-distance')).toBeEnabled();
+      expect(screen.getAllByTestId('side-view-card')).toHaveLength(1);
+      expect(screen.getByTestId('side-view-ground')).toBeInTheDocument();
+    });
+
+    it('commits the ground distance with the camera settings', async () => {
+      projectStore.applyView(groundView());
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects/appstate-test/settings') return jsonResponse(200, { ...groundView(), changed: true });
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      render(ExportTab);
+
+      const slider = screen.getByTestId('ground-distance');
+      await fireEvent.input(slider, { target: { value: '120' } });
+      await fireEvent.change(slider);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+      expect(body.camera).toEqual({ distance: 100, maxDistance: 500, focalLength: 26, groundNear: 120 });
+    });
+
+    it('disables the ground distance without a ground slice', () => {
+      projectStore.applyView(makeView());
+      render(ExportTab);
+      expect(screen.getByTestId('ground-distance')).toBeDisabled();
+    });
   });
 });

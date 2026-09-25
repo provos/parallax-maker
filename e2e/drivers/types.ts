@@ -39,7 +39,8 @@ export type SliderName =
   | 'max-distance'
   | 'focal-length'
   | 'displacement'
-  | 'number-of-frames';
+  | 'number-of-frames'
+  | 'ground-distance';
 
 export interface UiDriver {
   readonly target: UiTarget;
@@ -152,6 +153,16 @@ export interface UiDriver {
   featherMask(): Promise<void>;
   /** Toggles the checkerboard vs. grayscale background for the selected-slice preview. */
   toggleCheckerboard(): Promise<void>;
+
+  // Ground plane
+  /** Makes the selected slice the ground plane (or unmarks it) and waits for the change. */
+  toggleGroundPlane(): Promise<void>;
+  /** Whether the slice at `index` is shown as the ground plane. */
+  expectGroundSlice(index: number, isGround: boolean): Promise<void>;
+  /** Fits the horizon and ground distance to the scene and waits for the log line. */
+  fitGround(): Promise<void>;
+  /** Drags the horizon line to source-image row `row` and waits until it is committed. */
+  dragHorizonTo(row: number): Promise<void>;
 
   // Parallax camera
   /** Moves the preview camera one step and waits until the new view is logged. */

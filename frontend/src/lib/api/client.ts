@@ -387,6 +387,29 @@ export function featherMask(id: string, signal?: AbortSignal): Promise<MutationR
   });
 }
 
+/** PUT /api/v1/projects/{id}/slices/{index}/ground */
+export function setGroundPlane(
+  id: string,
+  index: number,
+  isGround: boolean,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${index}/ground`,
+    'PUT',
+    { isGround },
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/ground/fit */
+export function fitGround(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/ground/fit`, {
+    method: 'POST',
+    signal,
+  });
+}
+
 /** Camera move for the parallax preview; `reset` returns to the default position. */
 export type CameraDirection = CameraNavigateRequest['direction'];
 

@@ -183,6 +183,11 @@ body {
   cursor: default;
 }
 
+.btn-selected:not(:disabled) {
+  background-color: var(--color-success);
+  color: var(--color-success-text);
+}
+
 .field-label {
   display: block;
   margin-bottom: var(--space-1);

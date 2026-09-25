@@ -14,6 +14,7 @@
   import { triggerDownload } from '../../download';
   import HelpTooltip from '../shared/HelpTooltip.svelte';
   import { EXPORT_HELP_TEXTS } from '../../helpTexts';
+  import SceneSideView from './SceneSideView.svelte';
 
   const view = $derived(projectStore.view);
 
@@ -26,8 +27,20 @@
   // `updateSettings`'s doc comment); this always commits all four fields in
   // one `PUT .../settings`, matching Dash's own single `remember_camera_
   // parameters` callback, which reads all four sliders on any one's change.
-  type CameraDraft = { distance: number; maxDistance: number; focalLength: number; displacement: number };
-  const DEFAULT_CAMERA: CameraDraft = { distance: 100, maxDistance: 200, focalLength: 100, displacement: 0 };
+  type CameraDraft = {
+    distance: number;
+    maxDistance: number;
+    focalLength: number;
+    displacement: number;
+    groundNear: number;
+  };
+  const DEFAULT_CAMERA: CameraDraft = {
+    distance: 100,
+    maxDistance: 200,
+    focalLength: 100,
+    displacement: 0,
+    groundNear: 0,
+  };
 
   let draft = $state<CameraDraft>({ ...DEFAULT_CAMERA });
 
@@ -61,8 +74,11 @@
       maxDistance: settings.camera.maxDistance,
       focalLength: settings.camera.focalLength,
       displacement: settings.meshDisplacement,
+      groundNear: settings.camera.groundNear ?? 0,
     };
   });
+
+  const hasGround = $derived(view?.slices.some((s) => s.isGround) ?? false);
 
   function onCameraInput(field: keyof CameraDraft, event: Event): void {
     const value = Number((event.currentTarget as HTMLInputElement).value);
@@ -76,7 +92,12 @@
       while (commitPending) {
         commitPending = false;
         await workflow.updateSettings({
-          camera: { distance: draft.distance, maxDistance: draft.maxDistance, focalLength: draft.focalLength },
+          camera: {
+            distance: draft.distance,
+            maxDistance: draft.maxDistance,
+            focalLength: draft.focalLength,
+            groundNear: draft.groundNear,
+          },
           meshDisplacement: draft.displacement,
         });
       }
@@ -269,6 +290,37 @@
     </div>
   </div>
 
+  <div class="panel ground-panel" data-testid="ground-panel">
+    <span class="panel-label">Ground Plane</span>
+    <div class="field">
+      <label class="field-label" for="ground-distance">Ground Distance</label>
+      <input
+        id="ground-distance"
+        type="range"
+        min="0"
+        max={Math.max(0, draft.maxDistance - 1)}
+        step="1"
+        data-testid="ground-distance"
+        value={draft.groundNear}
+        disabled={!view || !hasGround}
+        oninput={(event) => onCameraInput('groundNear', event)}
+        onchange={commitCamera}
+      />
+      <span class="slider-value">{Math.round(draft.groundNear)}</span>
+    </div>
+    <p class="ground-readout" data-testid="horizon-readout">
+      {#if view?.settings.camera.horizonRow !== null && view?.settings.camera.horizonRow !== undefined}
+        Horizon at row {Math.round(view.settings.camera.horizonRow)}, camera pitch
+        {(view.settings.camera.pitch ?? 0).toFixed(1)}°
+      {:else}
+        No image loaded
+      {/if}
+    </p>
+    {#if view?.sceneProfile}
+      <SceneSideView profile={view.sceneProfile} />
+    {/if}
+  </div>
+
   <div class="panel animation-panel">
     <button
       type="button"
@@ -345,5 +397,11 @@
   .slider-value {
     font-size: 0.75rem;
     color: var(--color-text-muted);
+  }
+
+  .ground-readout {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin: 0 0 var(--space-2);
   }
 </style>
