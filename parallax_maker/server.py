@@ -1,55 +1,57 @@
-"""Compose the frozen Dash UI, the JSON API, and the built Svelte app.
+"""The production application: the JSON API plus the built Svelte app.
 
-``create_server`` mounts a :class:`~parallax_maker.runtime.Runtime` onto the
-existing Dash/Flask app: the API blueprint is registered at ``/api/v1`` and
-the built Svelte bundle (when present) is served at ``/next/``. ``main`` keeps
-the same CLI surface as :func:`parallax_maker.webui.main` so it can replace
-the ``parallax-maker`` console script at cutover without changing scripts or
-docs that invoke it.
+``create_server`` builds a plain :class:`flask.Flask` app (no Dash import
+anywhere in this module or anything it imports) that registers the API
+blueprint at ``/api/v1`` and serves the built Svelte single-page app at ``/``
+(``index.html`` plus an SPA fallback for extensionless routes; hashed Vite
+assets get long-lived cache headers). ``main`` is the ``parallax-maker``
+console-script entry point.
+
+During the migration the Svelte app was served at ``/next/`` alongside the
+still-running Dash UI at ``/`` (see ``docs/svelte-migration/ARCHITECTURE.md``).
+At cutover Svelte moved to ``/`` and Dash was removed entirely; a permanent
+redirect from ``/next/...`` to ``/...`` is kept so old bookmarks still work.
 """
 
 from __future__ import annotations
 
 import argparse
-import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
 
-from flask import Flask, Response, send_from_directory
+from flask import Flask, Response, redirect, send_from_directory
 from werkzeug import serving
 
 from .api import create_api_blueprint
 from .runtime import Runtime, create_runtime
 
-if TYPE_CHECKING:  # pragma: no cover - import-cycle avoidance only
-    import dash
-
-#: Where the built Svelte app is expected; see docs/svelte-migration/ARCHITECTURE.md.
-STATIC_NEXT_DIR = Path(__file__).resolve().parent / "static" / "next"
+#: Where the built Svelte app is expected; see docs/svelte-migration/ARCHITECTURE.md
+#: and the "Migration complete" section of docs/SVELTE_5_MIGRATION_HANDOFF.md.
+STATIC_APP_DIR = Path(__file__).resolve().parent / "static" / "app"
 
 _NOT_BUILT_MESSAGE = (
     "The Svelte frontend has not been built. Run `npm run build:frontend` to "
-    "populate parallax_maker/static/next/, then restart the server."
+    "populate parallax_maker/static/app/, then restart the server."
 )
+
+#: Long-lived cache header for content-hashed Vite assets (immutable filenames);
+#: index.html itself is served without this header so a new deploy is picked up.
+_ASSET_CACHE_CONTROL = "public, max-age=31536000, immutable"
 
 
 @dataclass
 class Server:
-    """The composed application: the frozen Dash app plus everything mounted on it."""
+    """The composed application: the Flask app plus everything mounted on it."""
 
-    app: "dash.Dash"
-
-    @property
-    def flask(self) -> Flask:
-        return self.app.server
+    app: Flask
 
 
-def _register_next_static(flask_app: Flask, static_dir: Path = STATIC_NEXT_DIR) -> None:
-    """Serve the built Svelte app at ``/next/`` with an SPA fallback.
+def _register_static_app(flask_app: Flask, static_dir: Path = STATIC_APP_DIR) -> None:
+    """Serve the built Svelte app at ``/`` with an SPA fallback.
 
-    Unlike the legacy ``/{AppState.SRV_DIR}/<path:filename>`` route, this only
-    ever serves files that live inside ``static_dir``.
+    Only ever serves files that live inside ``static_dir`` (path containment
+    checked below); there is no equivalent of the legacy Dash
+    ``/{AppState.SRV_DIR}/<path:filename>`` unrestricted file route.
     """
 
     index_file = static_dir / "index.html"
@@ -57,9 +59,23 @@ def _register_next_static(flask_app: Flask, static_dir: Path = STATIC_NEXT_DIR) 
     def _not_built() -> Response:
         return Response(_NOT_BUILT_MESSAGE, status=404, mimetype="text/plain")
 
+    def _send_index() -> Response:
+        response = send_from_directory(static_dir, "index.html")
+        response.headers["Cache-Control"] = "no-cache"
+        return response
+
     @flask_app.route("/next/")
     @flask_app.route("/next/<path:subpath>")
-    def serve_next(subpath: str = "") -> Response:
+    def redirect_legacy_next(subpath: str = "") -> Response:
+        # Permanent redirect for anything that bookmarked the migration-era
+        # /next/ URL; the Svelte app now lives at the site root. Leading
+        # slashes/backslashes are stripped so `/next//evil.com` can never
+        # become a protocol-relative (off-site) redirect target.
+        return redirect("/" + subpath.lstrip("/\\"), code=308)
+
+    @flask_app.route("/")
+    @flask_app.route("/<path:subpath>")
+    def serve_app(subpath: str = "") -> Response:
         if not index_file.exists():
             return _not_built()
 
@@ -70,7 +86,10 @@ def _register_next_static(flask_app: Flask, static_dir: Path = STATIC_NEXT_DIR) 
                 candidate == static_resolved or static_resolved in candidate.parents
             )
             if is_contained and candidate.is_file():
-                return send_from_directory(static_dir, subpath)
+                response = send_from_directory(static_dir, subpath)
+                if Path(subpath).suffix:
+                    response.headers["Cache-Control"] = _ASSET_CACHE_CONTROL
+                return response
             if Path(subpath).suffix:
                 # A real asset request (has a file extension) that doesn't
                 # exist is a genuine 404, not an SPA route.
@@ -78,26 +97,32 @@ def _register_next_static(flask_app: Flask, static_dir: Path = STATIC_NEXT_DIR) 
 
         # SPA fallback: unknown paths without a file extension resolve to
         # index.html so client-side routing can take over.
-        return send_from_directory(static_dir, "index.html")
+        return _send_index()
 
 
 def create_server(runtime: Runtime) -> Server:
-    """Mount the API and the built Svelte app onto the frozen Dash app.
+    """Build the plain Flask app: the API blueprint plus the built Svelte app."""
 
-    Dash itself is not touched: this only registers the API blueprint and the
-    ``/next/`` static route on the underlying Flask ``app.server``.
-    """
-
-    from . import webui  # the frozen reference UI; imported here, never edited
-
+    flask_app = Flask(__name__)
     blueprint = create_api_blueprint(runtime)
-    webui.app.server.register_blueprint(blueprint, url_prefix="/api/v1")
-    _register_next_static(webui.app.server)
-    return Server(app=webui.app)
+    flask_app.register_blueprint(blueprint, url_prefix="/api/v1")
+    _register_static_app(flask_app)
+    return Server(app=flask_app)
 
 
 def main() -> None:
-    """Entry point mirroring :func:`parallax_maker.webui.main`'s CLI surface."""
+    """``parallax-maker`` console-script entry point.
+
+    Runs single-process by design: the in-memory ``ProjectRegistry``/
+    ``JobManager`` (see ``runtime.py``) and the legacy process-global
+    ``AppState.cache`` are not shared across worker processes, so a
+    multi-process/multi-worker deployment would silently lose project locks,
+    job bookkeeping and cached state. Scaling beyond one process would need an
+    external registry/job queue first (see ARCHITECTURE.md's concurrency
+    notes); this is an explicit, documented limitation, not an oversight.
+    """
+
+    import os
 
     from .depth import DepthEstimationModel
     from .inpainting import InpaintingModel
@@ -143,7 +168,7 @@ def main() -> None:
 
     server = create_server(create_runtime())
     print(f"Starting Parallax Maker on http://{args.host}:{args.port}")
-    server.app.run_server(host=args.host, port=args.port, debug=args.debug)
+    server.app.run(host=args.host, port=args.port, debug=args.debug)
 
 
 if __name__ == "__main__":

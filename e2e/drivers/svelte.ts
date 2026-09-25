@@ -34,7 +34,7 @@ export class SvelteDriver implements UiDriver {
   // Navigation
 
   async goto(): Promise<void> {
-    await this.page.goto('/next/', { waitUntil: 'domcontentloaded' });
+    await this.page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(this.page.getByRole('heading', { name: 'Parallax Maker' })).toBeVisible();
   }
 
@@ -299,6 +299,16 @@ export class SvelteDriver implements UiDriver {
     await this.page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.55, { steps: 10 });
     await this.page.mouse.up();
     await expect(this.log()).toContainText(/Saved mask for slice/);
+  }
+
+  async maskCanvasPainted(): Promise<boolean> {
+    return this.page.getByTestId('mask-canvas').evaluate((canvas: HTMLCanvasElement) => {
+      const ctx = canvas.getContext('2d');
+      if (!ctx || canvas.width === 0 || canvas.height === 0) return false;
+      const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      for (let i = 3; i < data.length; i += 4) if (data[i] > 0) return true;
+      return false;
+    });
   }
 
   async expectGenerateEnabled(): Promise<void> {

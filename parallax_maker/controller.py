@@ -5,7 +5,6 @@ import threading
 import json
 import random
 import string
-import time
 from typing import List
 from PIL import Image
 from io import BytesIO
@@ -69,11 +68,9 @@ class AppState:
         "_camera",
         "_mesh_displacement",
     )
-    SRV_DIR = "tmp-images"
     STATE_FILE = "appstate.json"
     IMAGE_FILE = "input_image.png"
     DEPTH_MAP_FILE = "depth_map.png"
-    MAIN_IMAGE = "main_image.bmp"
     MODEL_FILE = "model.gltf"
     WORKFLOW = "workflow.json"
 
@@ -289,24 +286,6 @@ class AppState:
 
         self.create_tints()
 
-    def serve_model_file(self):
-        """Serves the gltf model file."""
-        model_path = Path(self.SRV_DIR) / Path(self.filename) / self.MODEL_FILE
-        unique_id = int(time.time())
-        return f"/{str(model_path)}?v={unique_id}"
-
-    def serve_slice_image(self, slice_index):
-        """Serves the image slice with the specified index."""
-        assert slice_index >= 0 and slice_index < len(self.image_slices)
-        image_path = self.checkerboard_filename(slice_index)
-        if not image_path.exists():
-            image = self.slice_image_composed(
-                slice_index, mode=CompositeMode.CHECKERBOARD
-            )
-            image.save(image_path)
-        image_path = Path(self.SRV_DIR) / image_path
-        return f"/{str(image_path)}"
-
     def slice_image_composed(
         self, slice_index, mode: CompositeMode = CompositeMode.NONE
     ):
@@ -332,35 +311,6 @@ class AppState:
             slice_image, composite, slice_image.getchannel("A")
         )
         return full_image
-
-    def serve_slice_image_composed(self, slice_index, mode: CompositeMode):
-        """Serves the slice image composed over the gray main image."""
-        full_image = self.slice_image_composed(slice_index, mode=mode)
-        return self.serve_main_image(full_image)
-
-    def serve_input_image(self):
-        """Serves the input image from the state directory."""
-        filename = Path(self.filename) / self.IMAGE_FILE
-        if not filename.exists():
-            if not Path(self.filename).exists():
-                Path(self.filename).mkdir()
-            self.imgData.save(filename, compress_level=1)
-        filename = Path(self.SRV_DIR) / filename
-        unique_id = int(time.time())
-        return f"/{str(filename)}?v={unique_id}"
-
-    def serve_main_image(self, image):
-        """Serves the image using a temporary directory."""
-        if not isinstance(image, Image.Image):
-            image = Image.fromarray(image)
-        output_dir = Path(self.filename)
-        if not output_dir.exists():
-            output_dir.mkdir()
-        save_path = Path(self.filename) / self.MAIN_IMAGE
-        image.save(save_path)
-        image_path = Path(self.SRV_DIR) / save_path
-        unique_id = int(time.time())
-        return f"/{str(image_path)}?v={unique_id}"
 
     def workflow_path(self):
         """Returns the workflow path."""

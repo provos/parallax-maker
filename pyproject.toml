@@ -5,13 +5,13 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "parallax-maker"
 version = "1.0.3"
-description = "A workflow for turning images into 2.5D animations with depth-based segmentation and inpainting"
+description = "A workflow for turning images into 2.5D animations with depth-based segmentation and inpainting, with a Svelte 5 web UI backed by a Flask HTTP API"
 authors = [
     {name = "Niels Provos", email = "niels@provos.org"}
 ]
 readme = "README.md"
 license = "AGPL-3.0-or-later"
-keywords = ["computer-vision", "depth-estimation", "image-segmentation", "3d-animation", "gltf", "dash", "stable-diffusion"]
+keywords = ["computer-vision", "depth-estimation", "image-segmentation", "3d-animation", "gltf", "svelte", "stable-diffusion"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers", 
@@ -28,15 +28,14 @@ classifiers = [
 ]
 requires-python = ">=3.10,<3.14"
 dependencies = [
-    "dash==2.17.0",
-    "dash_extensions==1.0.14",
+    "flask>=3.0",
     "numpy==1.26.4",
     "Pillow>=11.3.0",
     "pygltflib==1.16.2",
     "torch (>=2.8.0,<3.0.0)",
     "torchvision (>=0.23.0,<0.24.0)",
     "opencv-python>=4.9.0",
-    "timm==0.6.12",
+    "timm==0.6.13",
     "diffusers[torch] (>=0.34.0,<0.35.0)",
     "transformers (>=4.53.0,<5.0.0)",
     "orjson>=3.10.1",
@@ -67,7 +66,7 @@ Repository = "https://github.com/provos/parallax-maker"
 Issues = "https://github.com/provos/parallax-maker/issues"
 
 [project.scripts]
-parallax-maker = "parallax_maker.webui:main"
+parallax-maker = "parallax_maker.server:main"
 parallax-gltf-cli = "parallax_maker.gltf_cli:main"
 
 [tool.setuptools]
@@ -78,13 +77,8 @@ include = ["parallax_maker*"]
 
 [tool.setuptools.package-data]
 parallax_maker = [
-    "assets/css/*",
-    "assets/scripts/*",
     "example/**/*",
-    "static/next/**/*",
-    "*.js",
-    "*.css",
-    "*.json",
+    "static/app/**/*",
 ]
 
 [tool.black]

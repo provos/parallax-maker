@@ -227,9 +227,8 @@ class _FakeUpscaler:
     """Deterministic 2x nearest-neighbour upscaler (mirrors
     ``e2e_support.fakes.FakeUpscaler``, reimplemented here since
     ``create_fake_runtime()`` does not patch ``controller.Upscaler`` - only
-    ``e2e_support.fakes.install_fakes()`` does, and that also imports/
-    reconfigures the whole Dash ``webui`` module, which this lightweight API
-    test doesn't want)."""
+    ``e2e_support.fakes.install_fakes()`` does, which this lightweight API
+    test doesn't want to invoke just for this one class)."""
 
     def __init__(self, model_name="swin2sr", external_model=None) -> None:
         del model_name, external_model
@@ -388,10 +387,10 @@ def test_slice_download_rejects_an_out_of_range_index(client) -> None:
 # automatic1111/comfyui/stabilityai/falai module attributes at call time
 # (see that module's docstring). The `client`/`runtime` fixtures build a fake
 # Runtime (create_fake_runtime()) but deliberately do not call
-# e2e_support.fakes.install_fakes() (that also imports and reconfigures the
-# whole Dash `webui` module, which these lightweight API tests don't need),
-# so each probe test patches only the one provider entry point it exercises -
-# offline determinism without a real network dependency, mirroring what
+# e2e_support.fakes.install_fakes() (these lightweight API tests don't need
+# every provider patched, just the one each test exercises), so each probe
+# test patches only the one provider entry point it exercises - offline
+# determinism without a real network dependency, mirroring what
 # install_fakes() does for the browser suite.
 
 

@@ -52,7 +52,7 @@
   // mask fetch (Load, or the auto-load below) can recognize it is stale and
   // avoid painting onto the wrong slice's canvas.
   let loadToken = 0;
-  let lastSelected: number | null | undefined = undefined;
+  let lastLoadedKey: string | null | undefined = undefined;
 
   const interactiveNow = $derived(uiStore.mainTab === 'Inpainting');
 
@@ -83,17 +83,22 @@
     }
   });
 
-  // Explicit canvas lifecycle for slice-selection changes: flush any pending
-  // save for the *previous* slice before doing anything else, then load the
-  // newly-selected slice's own saved mask (or clear, if it has none). A
-  // `loadToken` guards against a stale async load finishing after another
-  // transition has already started.
+  // Explicit canvas lifecycle for slice-selection and slice-version changes:
+  // flush any pending save first, then load the selected slice's own saved
+  // mask (or clear, if it has none). A new version (Apply, Erase, Undo, Redo,
+  // mask add/remove, paste) carries its own mask - usually none after Apply -
+  // so the canvas must follow it or it would show a stroke the backend no
+  // longer has. Saving a stroke changes only the mask URL, not the version,
+  // so painting never reloads the canvas under the user. A `loadToken`
+  // guards against a stale async load finishing after another transition
+  // has already started.
   $effect(() => {
     const view = projectStore.view;
     const index = view?.selectedSlice ?? null;
-    if (index === lastSelected) return;
-    lastSelected = index;
     const slice = index !== null ? view?.slices.find((s) => s.index === index) : undefined;
+    const key = index === null ? null : `${index}:${slice?.version ?? ''}`;
+    if (key === lastLoadedKey) return;
+    lastLoadedKey = key;
     const maskUrl = slice?.mask?.url ?? null;
     const token = ++loadToken;
 

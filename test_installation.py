@@ -98,7 +98,7 @@ def main():
             return False
 
         # Test CLI commands
-        help_cmd = f"{python_exe} -c \"import sys; sys.argv=['parallax-maker', '--help']; from parallax_maker.webui import main; main()\""
+        help_cmd = f"{python_exe} -c \"import sys; sys.argv=['parallax-maker', '--help']; from parallax_maker.server import main; main()\""
         if not run_command(help_cmd, "Testing parallax-maker --help"):
             return False
 

@@ -12,8 +12,6 @@ from PIL import Image, ImageDraw
 from pathlib import Path
 import hashlib
 
-from . import constants as C
-
 
 def timeit(func):
     @wraps(func)
@@ -212,29 +210,6 @@ def apply_color_tint(img, color, alpha):
     return Image.blend(img.convert("RGB"), overlay, alpha)
 
 
-def find_pixel_from_click(img_data, x, y, width, height):
-    """Find the pixel coordinates in the image from the click coordinates."""
-    img_width, img_height = img_data.size
-    x_ratio = img_width / width
-    y_ratio = img_height / height
-    return int(x * x_ratio), int(y * y_ratio)
-
-
-def find_pixel_from_event(state, e, rect_data):
-    clientX = e["clientX"]
-    clientY = e["clientY"]
-
-    rectTop = rect_data["top"]
-    rectLeft = rect_data["left"]
-    rectWidth = rect_data["width"]
-    rectHeight = rect_data["height"]
-
-    x = clientX - rectLeft
-    y = clientY - rectTop
-
-    return find_pixel_from_click(state.imgData, x, y, rectWidth, rectHeight)
-
-
 def feather_mask(mask, num_expand=50):
     """
     Expand and feather a mask.
@@ -357,99 +332,6 @@ def draw_circle(
     right = center[0] + radius
     bottom = center[1] + radius
     draw.ellipse([left, top, right, bottom], fill=fill_color, outline=outline_color)
-
-
-def get_gltf_iframe(gltf_uri):
-    return f"""
-    <html>
-    <head>
-        <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/3.4.0/model-viewer.min.js"></script>
-        <style>
-            body, html {{
-                margin: 0;
-                padding: 0;
-                width: 100%;
-                height: 100%;
-            }}
-            model-viewer {{
-                width: 100%;
-                height: 100%;
-            }}
-        </style>
-    </head>
-    <body>
-    <model-viewer
-        id="{C.IFRAME_MODEL_VIEWER}"
-        src="{gltf_uri}"
-        alt="glTF Scene"
-        ar
-        autoRotate
-        camera-target="0m 0m 0m"
-        camera-orbit="3.106650330236851rad 1.5658376358588284rad 50m"
-        field-of-view="8"
-        min-camera-orbit='auto auto 1%'
-        max-camera-orbit='auto auto 100%'
-        min-field-of-view='1deg'
-        max-field-of-view='60deg'
-        camera-controls touch-action="pan-y"
-        style="width: 100%; height: 100vh;"
-    ></model-viewer>
-    </body>
-    </html>
-    """
-
-
-def get_no_gltf_available():
-    return """
-    <html>
-    <head>
-        <style>
-            body, html {
-                margin: 0;
-                padding: 0;
-                width: 100%;
-                height: 100%;
-                display: flex;
-                justify-content: center;
-                align-items: center;
-            }
-            h1 {
-                font-family: sans-serif;
-                font-size: 24px;
-                color: #333;
-            }
-        </style>
-    </head>
-    <body>
-        <h1>No glTF file available.</h1>
-    </body>
-    </html>
-    """
-
-
-def highlight_selected_element(
-    classnames, index, highlight_class="color-is-selected-light"
-):
-    """
-    Highlights the selected element in a list of classnames by adding a highlight class.
-
-    Args:
-        classnames (list): List of classnames.
-        index (int): Index of the element to be highlighted.
-        highlight_class (str, optional): The highlight class to be added. Defaults to 'color-is-selected-light'.
-
-    Returns:
-        list: A new list of classnames with the selected element highlighted.
-    """
-    new_classnames = []
-    selected_background = f" {highlight_class}"
-    for i, classname in enumerate(classnames):
-        classname = classname.replace(selected_background, "")
-        if i == index:
-            classname += selected_background
-
-        new_classnames.append(classname)
-    return new_classnames
 
 
 def create_checkerboard(height, width, size):

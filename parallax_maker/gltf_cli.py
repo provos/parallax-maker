@@ -10,9 +10,28 @@ from PIL import Image
 
 from .controller import AppState
 from .depth import DepthEstimationModel
+from .export_services import ExportGltf, ExportService
 from .segmentation import generate_depth_map
 from .utils import postprocess_depth_map
-from .webui import export_state_as_gltf
+
+
+class _PreloadedStateRepository:
+    """Adapt an already-loaded :class:`AppState` to ``ExportService``'s
+    repository protocol.
+
+    ``ExportService.export_gltf`` derives its output path from the command's
+    ``state_id`` (``Path(state_id) / AppState.MODEL_FILE``) rather than from
+    the loaded state's own ``filename``, so the CLI's ``--output_path`` is
+    passed as the command's ``state_id`` and this repository simply returns
+    the state already loaded from ``--state_file`` regardless of that id.
+    """
+
+    def __init__(self, state: AppState) -> None:
+        self._state = state
+
+    def load(self, state_id: str) -> AppState:
+        del state_id
+        return self._state
 
 
 def compute_depth_map_for_slices(state: AppState, postprocess: bool = True):
@@ -88,15 +107,19 @@ def main():
     if args.depth:
         compute_depth_map_for_slices(state)
 
-    gltf_path = export_state_as_gltf(
-        state,
-        args.output_path,
-        state.camera,
-        displacement_scale=args.scale,
-        inline_images=not args.no_inline,
-        support_dof=True,
+    export_service = ExportService(
+        state_repository=_PreloadedStateRepository(state),
+        depth_model_factory=DepthEstimationModel,
     )
-    print(f"Exported glTF to {gltf_path}")
+    result = export_service.export_gltf(
+        ExportGltf(
+            state_id=args.output_path,
+            displacement_scale=args.scale,
+            support_dof=True,
+            inline_images=not args.no_inline,
+        )
+    )
+    print(f"Exported glTF to {result.gltf_path}")
 
 
 if __name__ == "__main__":

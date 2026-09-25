@@ -371,3 +371,111 @@ the project/state/asset API contract that will let the
 already-extracted upload/depth/slices workflow become the first Svelte vertical
 slice. Keep each PR independently runnable and reviewable; report actual test
 results, intentional behavior changes and remaining gaps at each handoff.
+
+## Migration complete
+
+The cutover landed: every inventoried workflow reached parity (see
+`docs/svelte-migration/PARITY.md`, kept as the historical per-callback
+record), the shared `e2e/*.spec.ts` scenarios pass on the Svelte UI, and Dash
+has been removed entirely from the codebase and its dependencies.
+
+Final state:
+
+- **Server**: `parallax_maker/server.py`'s `create_server(runtime)` builds a
+  plain Flask app - no Dash import anywhere - registering the `/api/v1`
+  blueprint and serving the built Svelte app (`parallax_maker/static/app/`,
+  renamed from the migration-era `static/next/`) at `/`, with a permanent
+  redirect from the old `/next/...` bookmarked path. `main()` is the
+  `parallax-maker` console-script entry point; it runs single-process by
+  design (the in-memory `ProjectRegistry`/`JobManager` and `AppState.cache`
+  are not shared across worker processes - see `server.py`'s own docstring).
+- **Removed**: `webui.py`, `components.py`, `clientside.py`,
+  `parallax_maker/assets/` (Dash CSS/JS), Dash-only helpers in `utils.py`
+  (`find_pixel_from_click`/`find_pixel_from_event`, `get_gltf_iframe`,
+  `get_no_gltf_available`, `highlight_selected_element`), the root Tailwind
+  v3 files (`tailwind.css`, `tailwind.config.js`, `postcss.config.js`) and
+  their npm scripts, `constants.py` (every constant in it was a Dash element
+  ID), and every Dash-adapter test module (`test_webui.py`,
+  `test_components.py`, `test_workflow_adapters.py`,
+  `test_segmentation_adapters.py`, `test_segmentation_component_adapters.py`,
+  `test_inpainting_component_adapters.py`,
+  `test_inpainting_webui_adapters.py`, `test_constants.py`). None of these
+  covered algorithm/service behavior not already covered by
+  `*_services.py`'s own tests or `test_api_*.py`, so nothing needed porting.
+  `dash`/`dash_extensions` were dropped from `pyproject.toml` and
+  `requirements.txt` (both now list `flask`/`pydantic` explicitly, which Dash
+  previously pulled in transitively). The stale, never-used `poetry.lock`
+  was deleted; pip with `pyproject.toml`/`requirements.txt` is the only
+  supported toolchain.
+- **`gltf_cli.py`**: no longer imports `export_state_as_gltf` from `webui`;
+  it now builds an `ExportService` (`export_services.py`) with a small
+  `_PreloadedStateRepository` adapter so the CLI's own `-i`/`-o` semantics
+  (load an arbitrary on-disk project, write the scene to an arbitrary output
+  directory) map onto that service's `state_id`-keyed contract. Covered by
+  the new `test_gltf_cli.py`.
+- **`e2e_server.py`/`e2e_support/fakes.py`**: `install_fakes()` no longer
+  imports or patches `webui`/`components` at all; every fake is now a direct
+  module-attribute patch on the provider/model modules the API and services
+  actually resolve at call time (`automatic1111`, `comfyui`, `stabilityai`,
+  `falai`, `controller`, `inpainting`), most of which
+  `configuration_services.py` was already documented to expect. `/__e2e__/*`
+  routes are registered directly on the plain Flask app (`@app.get(...)`
+  instead of the old `@app.server.get(...)`).
+- **`e2e/`**: `DashDriver` (`drivers/dash.ts`) and the `dash` Playwright
+  project are gone; `SvelteDriver.goto()` now navigates to `/` instead of
+  `/next/`. The `UiDriver` abstraction and its frontend-neutral scenario
+  files are unchanged in shape. The `test.fail(ui.target === 'dash', ...)`
+  gates for historical Dash-only bugs (no drag-to-pan, no zoom reset, the
+  mismatched-aspect slice-upload collapse, the broken Balance button) were
+  removed along with their Dash-specific comments; the underlying
+  assertions were kept as ordinary passing checks against Svelte.
+- **Docker**: multi-stage build - a Node stage (`npm ci` + `vite build` in
+  `frontend/`) followed by a Python stage that copies the built
+  `parallax_maker/static/app/` into place before `pip install .`, so the
+  wheel's package-data step picks it up; `CMD` runs
+  `parallax-maker --host 0.0.0.0 --port 8050` (the old image's `CMD ["python",
+  "/app/webui.py"]` had already been broken by the earlier move to the
+  `parallax_maker` package before this PR).
+- **CI** (`.github/workflows/python-app.yml`): unchanged pytest/flake8/
+  frontend-check/test/build steps, now followed by installing the built wheel
+  into the job's own environment (`pip install --force-reinstall --no-deps`)
+  and running `scripts/smoke_installed.sh` against it before the Playwright
+  (`svelte`-only) step.
+- **Packaging**: the build output directory (and therefore
+  `[tool.setuptools.package-data]`, `.gitignore`, `frontend/vite.config.ts`'s
+  `base`/`outDir`) was renamed from `static/next` to `static/app` as part of
+  cutover, matching its new role as *the* UI rather than a migration-era
+  side-by-side preview.
+
+Verified before this note was written: 377 Python tests pass (see
+`test_gltf_cli.py`, new), `flake8 --select=E9,F63,F7,F82` is clean,
+`npm run check:frontend`/`test:frontend`/`build:frontend` all pass (140
+frontend unit tests), `npm run check:e2e` type-checks cleanly, and the full
+Playwright suite (`svelte` project, 38 scenarios) passed three consecutive
+runs. `scripts/smoke_installed.sh` passed against both an editable install
+and a real built wheel installed into a fresh location. `python -m pip wheel
+. --no-deps` produces a wheel containing
+`parallax_maker/static/app/index.html` and its hashed `assets/`. A full
+`docker build .` and a Node-only `docker build --target frontend-build .`
+were both exercised locally; see this PR's own final report for their actual
+output, since a heavy multi-stage build (torch, diffusers, etc.) is
+environment/time-dependent in a way this static document shouldn't assert a
+permanent result for.
+
+Real-model smoke test (run locally against the real server, no paid APIs):
+
+- DINOv2 depth -> slices -> depth click -> glTF export -> animation, through
+  both the HTTP API and the Svelte UI in a browser.
+- MiDaS and ZoeDepth: these failed to load under `timm` 0.6.12 on Python
+  3.11+ (a pre-existing bug CI never saw, since it uses fakes on 3.10);
+  pinning `timm==0.6.13` fixed both.
+- SAM (single click and multi-point with a negative point) and SD-XL
+  inpainting (`diffusers/stable-diffusion-xl-1.0-inpainting-0.1`): generate
+  returned 3 candidates, apply created a new slice version that changed the
+  masked region, and undo restored the previous version.
+
+Remaining optional follow-up: a **visual/UX redesign** was deliberately
+deferred throughout the migration (see "Decisions" in
+`docs/svelte-migration/ARCHITECTURE.md`); the Svelte UI intentionally kept
+Dash's look and feel via shared CSS tokens in `frontend/src/app.css`. Now
+that Dash is gone, a redesign is unconstrained by parity.

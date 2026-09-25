@@ -137,12 +137,12 @@ test('add mask and remove mask mutate the slice alpha in place with versioning a
   expect((await sourceImagePixel(page, v2Src, ...inside))[3]).toBeGreaterThan(200);
   expect((await sourceImagePixel(page, v2Src, ...outside))[3]).toBe(beforeOutsideAlpha);
 
-  // Surprising but real: Add's own STORE_UPDATE_SLICE=True output triggers
-  // Dash's update_slices (webui.py:913), which -- because a slice is still
-  // selected -- unconditionally clears state.slice_mask/slice_pixel(_depth)
-  // as a side effect of re-rendering the preview (webui.py:1024-1026). The
-  // mask used to create it does not survive the operation, so chaining
-  // Remove straight after Add would silently no-op with today's Dash UI.
+  // Surprising but real: because a slice is still selected, Add's own
+  // selection-preview refresh (refresh_selection_preview, shared by every
+  // slice-editing/mask-tool route - see ARCHITECTURE.md) unconditionally
+  // clears the current mask/pixel(_depth) as a side effect of re-rendering
+  // the preview. The mask used to create it does not survive the operation,
+  // so chaining Remove straight after Add would silently no-op.
   expect((await readE2EState(page, projectId)).slice_mask.present).toBe(false);
 
   // Regenerate an equivalent mask (the click is deterministic) before Remove.
@@ -255,15 +255,10 @@ test('setting a slice depth reorders slices and clears selection whenever any sl
   const projectId = await ui.restoreFixtureState();
   await ui.openTab('Segmentation');
 
-  // Note: a slice's own depth-number badge is covered by its ".overlay" once
-  // selected (both are absolutely-positioned siblings and the overlay paints
-  // on top), so it cannot be clicked through normal hit-testing while that
-  // slice is selected -- a real, reproducible Dash UI limitation. This test
-  // instead edits a *different*, unselected slice's depth, which both sides
-  // of record_depth_input's "if index != new_index: state.selected_slice =
-  // None" (webui.py:1066-1068) allow: the clause clears the selection
-  // unconditionally on any reorder, not only when the selected slice itself
-  // is the one that moved.
+  // This test edits a *different*, unselected slice's depth.
+  // SliceEditingService.set_slice_depth clears the selection unconditionally
+  // whenever any slice reorders, not only when the selected slice itself is
+  // the one that moved.
   await ui.selectSlice(projectId, 1); // depth 170, filename image_slice_1.png
 
   // Change the (unselected) first slice's depth so it reorders past the
@@ -276,7 +271,7 @@ test('setting a slice depth reorders slices and clears selection whenever any sl
     'image_slice_0.png',
     'image_slice_2.png',
   ]);
-  // The edited slice's index changed (0 -> 1); Dash clears the selection even
+  // The edited slice's index changed (0 -> 1); the selection is cleared even
   // though the *selected* slice (image_slice_1.png) never moved.
   expect(state.selected_slice).toBeNull();
 
@@ -324,14 +319,9 @@ test('uploading a matching-aspect image replaces the slice content and bumps its
 
 test('uploading a mismatched-aspect image resizes it to the slice canvas', async ({ page, ui }) => {
   requireWorkflow(ui, 'slice-editing');
-  // Dash's slice_upload resizes a mismatched-aspect upload to the *uploaded*
-  // image's height (webui.py:1454), collapsing this 2x1 upload to a 1x1 slice.
-  // The correct behavior -- implemented by SliceEditingService and therefore
-  // the Svelte UI -- resizes it to the slice canvas. See PARITY.md "Known quirks".
-  test.fail(
-    ui.target === 'dash',
-    'Dash collapses a mismatched-aspect slice upload to 1x1 (webui.py:1454).',
-  );
+  // SliceEditingService resizes a mismatched-aspect upload to the slice
+  // canvas rather than collapsing it to a near-1px slice; see PARITY.md
+  // "Known quirks" for the historical Dash-only bug this fixes.
 
   const projectId = await ui.restoreFixtureState();
   await ui.openTab('Segmentation');
@@ -448,8 +438,8 @@ test('checkerboard toggles the selected-slice preview and no-ops without a selec
   const hashBeforeAnySelection = await imageHash(ui.mainImage());
   await ui.toggleCheckerboard();
   expect((await readE2EState(page, projectId)).use_checkerboard).toBe(true);
-  // No slice is selected, so the main image is left untouched (Dash's
-  // toggle_checkerboard only recomposes when state.selected_slice is set).
+  // No slice is selected, so the main image is left untouched (only
+  // recomposed when a slice is selected).
   expect(await imageHash(ui.mainImage())).toBe(hashBeforeAnySelection);
 
   await ui.selectSlice(projectId, 1);
@@ -467,25 +457,15 @@ test('checkerboard toggles the selected-slice preview and no-ops without a selec
 
 // --- Balance slice depths (controller.py bug fix) ------------------------------------
 //
-// AppState.balance_slices_depths() itself is fixed in parallax_maker/controller.py
+// AppState.balance_slices_depths() is fixed in parallax_maker/controller.py
 // (see parallax_maker/test_controller.py::TestBalanceSlicesDepths for direct,
-// thorough characterization: 0/1/2/5-slice cases). But the Dash "Balance"
-// button cannot actually reach that method today: webui.py:883's
-// `balance_slices_request` reads `state.image_depths`, an attribute AppState
-// has never defined (only `image_slices`). This is a separate, pre-existing
-// bug in the frozen webui.py, independent of and not fixed by the
-// controller.py change, so every click raises AttributeError -> HTTP 500
-// before `balance_slices_depths()` ever runs. The scenario asserts the
-// correct outcome and is an expected failure on Dash only.
+// thorough characterization: 0/1/2/5-slice cases). See PARITY.md "Known
+// quirks" for the historical Dash-only bug (webui.py:883 read a nonexistent
+// `state.image_depths` attribute) that used to make the Balance button 500
+// before ever reaching that method.
 
 test('balance evenly distributes slice depths', async ({ page, ui }) => {
   requireWorkflow(ui, 'slice-editing');
-  test.fail(
-    ui.target === 'dash',
-    'webui.py:883 reads state.image_depths, which AppState never defines; every ' +
-      'Balance click 500s before reaching the (now-fixed) AppState.balance_slices_depths(). ' +
-      'Dash is frozen; see PARITY.md "Known quirks".',
-  );
 
   const projectId = await ui.restoreFixtureState();
   await ui.openTab('Segmentation');
