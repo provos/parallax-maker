@@ -20,7 +20,9 @@ export type JobKind =
   | 'segmentation'
   | 'multi-point'
   | 'slice-editing'
-  | 'mask-tools';
+  | 'mask-tools'
+  | 'inpainting'
+  | 'inpainting-mutate';
 
 function createJobStore() {
   let active = $state<JobKind | null>(null);

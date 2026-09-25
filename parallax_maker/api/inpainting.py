@@ -465,6 +465,13 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
                 )
                 changed = True
             if changed:
+                # Like Dash's select_inpainting_image: the main image previews
+                # the selected candidate, and the slice composite otherwise.
+                selected = state.selected_inpainting
+                if selected is not None:
+                    record.set_display_image(candidates.images[selected])
+                elif candidates.slice_index < len(state.image_slices):
+                    _refresh_display_image(record, state, candidates.slice_index)
                 record.bump_revision()
 
         view = _build_project_view(runtime, project_id, state)

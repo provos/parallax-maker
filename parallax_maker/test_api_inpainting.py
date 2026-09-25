@@ -477,6 +477,31 @@ def test_select_candidate_toggles_off_and_stale_generation_is_409(client) -> Non
     assert stale.get_json()["error"]["code"] == "stale_revision"
 
 
+def test_selected_candidate_is_previewed_in_the_main_image(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    selected_view = _select_slice(client, project_id, 1)
+    slice_preview = np.asarray(_asset(client, selected_view["mainImage"]["url"]))
+    _save_mask(client, project_id, 1)
+    job = _generate(client, project_id, 1, "paint")
+    candidates = job["project"]["inpainting"]["candidates"]
+
+    selected = client.put(
+        f"/api/v1/projects/{project_id}/inpainting/selection",
+        json={"generationId": candidates["generationId"], "candidate": 1},
+    ).get_json()
+    main = np.asarray(_asset(client, selected["mainImage"]["url"]))
+    candidate = np.asarray(_asset(client, candidates["images"][1]["url"]))
+    assert np.array_equal(main, candidate)
+
+    cleared = client.put(
+        f"/api/v1/projects/{project_id}/inpainting/selection",
+        json={"generationId": candidates["generationId"], "candidate": 1},
+    ).get_json()
+    assert cleared["inpainting"]["selectedCandidate"] is None
+    assert np.array_equal(np.asarray(_asset(client, cleared["mainImage"]["url"])), slice_preview)
+
+
 def test_select_candidate_out_of_range_is_400(client) -> None:
     view = _restore_fixture(client)
     project_id = view["id"]

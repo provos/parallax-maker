@@ -4,7 +4,12 @@
  * `generated.ts` is stale. Only aliases for client-side naming live here.
  */
 
-import type { Mode as GeneratedSegmentationMode } from './generated';
+// Note: json-schema-to-typescript names positional type aliases by
+// definition order, not by field name, so which generated alias ("Mode",
+// "Mode1", ...) corresponds to which model can shift on regeneration; always
+// re-check `generated.ts` after `npm run gen:api-types` rather than assuming
+// these numbers stay stable.
+import type { Mode as GeneratedInpaintingMode, Mode1 as GeneratedSegmentationMode } from './generated';
 
 export type {
   AssetRef,
@@ -12,6 +17,13 @@ export type {
   ErrorBody as ApiErrorBody,
   HealthView as HealthResponse,
   ImageSize,
+  InpaintingApplyRequest,
+  InpaintingCandidatesView,
+  InpaintingGenerateRequest,
+  InpaintingPromptsRequest,
+  InpaintingSelectionRequest,
+  InpaintingSettingsRequest,
+  InpaintingView,
   JobView as Job,
   LogEntryView as LogEntry,
   LogsView as LogsPage,
@@ -25,6 +37,9 @@ export type {
   SliceView,
   Status as JobStatus,
 } from './generated';
+
+/** Matches `InpaintingGenerateRequest.mode` ("paint" | "fill" | "enhance"). */
+export type InpaintingGenerateMode = GeneratedInpaintingMode;
 
 /**
  * Matches `SegmentationClickRequest.mode` ("depth" | "instance").

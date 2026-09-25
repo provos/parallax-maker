@@ -27,6 +27,17 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
     slices: [],
     selectedSlice: null,
     segmentation: { multiPointMode: false, queuedPoints: [], hasMask: false },
+    inpainting: {
+      model: 'diffusers/stable-diffusion-xl-1.0-inpainting-0.1',
+      strength: 0.8,
+      guidanceScale: 7.5,
+      padding: 50,
+      blur: 50,
+      externalServer: 'localhost:7860',
+      hasWorkflow: false,
+      candidates: null,
+      selectedCandidate: null,
+    },
     busy: null,
     ...overrides,
   };

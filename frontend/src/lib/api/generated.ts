@@ -15,6 +15,32 @@ export type Ok = boolean;
 export type Version = string;
 export type Height = number;
 export type Width = number;
+export type Generationid = string;
+export type Generationid1 = string;
+export type Images = AssetRef[];
+export type Sliceindex = number;
+export type Mode = "paint" | "fill" | "enhance";
+export type Negativeprompt = string;
+export type Positiveprompt = string;
+export type Negativeprompt1 = string;
+export type Positiveprompt1 = string;
+export type Candidate = number | null;
+export type Generationid2 = string;
+export type Apikey = string | null;
+export type Blur = number | null;
+export type Externalserver = string | null;
+export type Guidancescale = number | null;
+export type Model1 = string | null;
+export type Padding = number | null;
+export type Strength = number | null;
+export type Blur1 = number;
+export type Externalserver1 = string;
+export type Guidancescale1 = number;
+export type Hasworkflow = boolean;
+export type Model2 = string;
+export type Padding1 = number;
+export type Selectedcandidate = number | null;
+export type Strength1 = number;
 export type Error = string | null;
 export type Id = string;
 export type Kind1 = string;
@@ -37,8 +63,8 @@ export type Canredo = boolean;
 export type Canundo = boolean;
 export type Depth = number;
 export type Index = number;
-export type Negativeprompt = string;
-export type Positiveprompt = string;
+export type Negativeprompt2 = string;
+export type Positiveprompt2 = string;
 export type Version1 = number;
 export type Slices = SliceView[];
 export type Thresholds = number[];
@@ -51,7 +77,7 @@ export type Entries = LogEntryView[];
 export type Next = number;
 export type Enabled = boolean;
 export type Ctrlkey = boolean;
-export type Mode = "depth" | "instance";
+export type Mode1 = "depth" | "instance";
 export type Shiftkey = boolean;
 export type X1 = number;
 export type Y1 = number;
@@ -121,6 +147,106 @@ export interface ImageSize {
   width: Width;
 }
 /**
+ * Body of ``POST .../slices/{index}/inpainting/apply``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingApplyRequest".
+ */
+export interface InpaintingApplyRequest {
+  generationId: Generationid;
+}
+/**
+ * One server-held candidate generation; see the "Candidates" section of
+ * ``docs/svelte-migration/ARCHITECTURE.md``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingCandidatesView".
+ */
+export interface InpaintingCandidatesView {
+  generationId: Generationid1;
+  images: Images;
+  sliceIndex: Sliceindex;
+}
+/**
+ * Body of ``POST .../slices/{index}/inpainting/generate``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingGenerateRequest".
+ */
+export interface InpaintingGenerateRequest {
+  mode: Mode;
+  negativePrompt?: Negativeprompt;
+  positivePrompt?: Positiveprompt;
+}
+/**
+ * Body of ``PUT .../slices/{index}/prompts``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingPromptsRequest".
+ */
+export interface InpaintingPromptsRequest {
+  negativePrompt?: Negativeprompt1;
+  positivePrompt?: Positiveprompt1;
+}
+/**
+ * Body of ``PUT /projects/{id}/inpainting/selection``.
+ *
+ * ``candidate=None`` clears the selection; selecting the same index again
+ * toggles it off (``InpaintingService.select_candidate``'s own contract).
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingSelectionRequest".
+ */
+export interface InpaintingSelectionRequest {
+  candidate: Candidate;
+  generationId: Generationid2;
+}
+/**
+ * Body of ``PUT /projects/{id}/inpainting/settings``.
+ *
+ * Every field is optional so a client can update just one setting; only
+ * fields actually present in the request body are applied (see
+ * ``model_fields_set``/``exclude_unset``). ``model`` is the only field
+ * ``InpaintingService.update_model`` itself understands - the rest become
+ * project-level defaults consumed by the next
+ * ``POST .../inpainting/generate`` (see the "Candidates" section of
+ * ``docs/svelte-migration/ARCHITECTURE.md``); ``externalServer``/``apiKey``
+ * are additionally written onto ``AppState`` the same way Dash's own
+ * settings panel does. ``apiKey`` is write-only: it is never echoed back.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingSettingsRequest".
+ */
+export interface InpaintingSettingsRequest {
+  apiKey?: Apikey;
+  blur?: Blur;
+  externalServer?: Externalserver;
+  guidanceScale?: Guidancescale;
+  model?: Model1;
+  padding?: Padding;
+  strength?: Strength;
+}
+/**
+ * Inpainting model/parameter settings and the current candidate set.
+ *
+ * Never carries ``apiKey`` or any other credential; see
+ * ``runtime.InpaintingSettings``/``api/inpainting.py``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "InpaintingView".
+ */
+export interface InpaintingView {
+  blur: Blur1;
+  candidates?: InpaintingCandidatesView | null;
+  externalServer: Externalserver1;
+  guidanceScale: Guidancescale1;
+  hasWorkflow: Hasworkflow;
+  model: Model2;
+  padding: Padding1;
+  selectedCandidate?: Selectedcandidate;
+  strength: Strength1;
+}
+/**
  * The ``{job}`` envelope returned by ``202`` job-creation responses.
  *
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -154,6 +280,7 @@ export interface ProjectView {
   depthModel: Depthmodel;
   id: Id1;
   image?: ImageSize | null;
+  inpainting: InpaintingView;
   mainImage?: AssetRef | null;
   numSlices: Numslices;
   revision: Revision;
@@ -205,8 +332,9 @@ export interface SliceView {
   depth: Depth;
   image: AssetRef;
   index: Index;
-  negativePrompt: Negativeprompt;
-  positivePrompt: Positiveprompt;
+  mask?: AssetRef | null;
+  negativePrompt: Negativeprompt2;
+  positivePrompt: Positiveprompt2;
   thumbnail: AssetRef;
   version: Version1;
 }
@@ -247,7 +375,7 @@ export interface MultiPointRequest {
  */
 export interface SegmentationClickRequest {
   ctrlKey: Ctrlkey;
-  mode: Mode;
+  mode: Mode1;
   shiftKey: Shiftkey;
   x: X1;
   y: Y1;
