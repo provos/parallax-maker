@@ -53,6 +53,7 @@
     class:dragging
     role="button"
     tabindex="0"
+    aria-label="Upload input image"
     data-testid="input-image-panel"
     onclick={pickFile}
     onkeydown={onKeydown}

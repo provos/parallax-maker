@@ -137,7 +137,7 @@ export class SvelteDriver implements UiDriver {
     if (count === 0) return null;
     const name = await active.first().textContent();
     const trimmed = name?.trim();
-    const known: MainTab[] = ['Segmentation', 'Inpainting', 'Export', 'Configuration'];
+    const known: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'];
     return (known.find((tab) => tab === trimmed) as MainTab | undefined) ?? null;
   }
 

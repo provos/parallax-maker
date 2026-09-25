@@ -51,6 +51,18 @@ describe('App', () => {
     expect(screen.getByTestId('app-footer')).toHaveTextContent('2024 Niels Provos');
   });
 
+  it('the theme toggle switches the root dark class used by the theme tokens', async () => {
+    render(App);
+    const root = document.documentElement;
+    const initiallyDark = root.classList.contains('dark');
+
+    await fireEvent.click(screen.getByTestId('theme-toggle'));
+    await waitFor(() => expect(root.classList.contains('dark')).toBe(!initiallyDark));
+
+    await fireEvent.click(screen.getByTestId('theme-toggle'));
+    await waitFor(() => expect(root.classList.contains('dark')).toBe(initiallyDark));
+  });
+
   it('uploading an image creates a project, starts a depth job, and renders both images', async () => {
     const projectId = 'appstate-e2e-test';
 

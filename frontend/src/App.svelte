@@ -5,6 +5,11 @@
   import LogPanel from './lib/components/shell/LogPanel.svelte';
   import ViewerTabs from './lib/components/upload/ViewerTabs.svelte';
   import MainTabs from './lib/components/shell/MainTabs.svelte';
+
+  // Theme tokens in app.css switch on `:root.dark`.
+  $effect(() => {
+    document.documentElement.classList.toggle('dark', uiStore.theme === 'dark');
+  });
 </script>
 
 <div id="app-container" class="app-root" class:dark={uiStore.theme === 'dark'}>
