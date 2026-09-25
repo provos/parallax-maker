@@ -111,6 +111,17 @@ class Camera:
         fl_px = self.focal_length_px(image_width)
         return float(np.degrees(np.arctan((row - image_height / 2) / fl_px)))
 
+    def pitch_fits(self, image_width, image_height, pitch=None, focal_length=None):
+        """Whether every image row's ray still points forward (towards the
+        card planes) at ``pitch``/``focal_length`` (defaults: the current
+        values): the pitch plus half the vertical field of view must stay
+        below 90 degrees."""
+        pitch = self._pitch if pitch is None else pitch
+        focal_length = self._focal_length if focal_length is None else focal_length
+        fl_px = image_width * focal_length / self._sensor_width
+        half_fov = np.degrees(np.arctan((image_height / 2) / fl_px))
+        return abs(pitch) + half_fov < 89.0
+
     def backproject_to_depth(self, points, z, image_width, image_height):
         """World points where the reference camera's rays through image
         ``points`` (N x 2, pixels) meet the vertical plane at depth ``z``."""

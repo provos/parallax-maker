@@ -208,6 +208,18 @@ def test_camera_pitch_is_optional_persisted_and_validated(client) -> None:
     assert too_steep.status_code == 400
     assert too_steep.get_json()["error"]["code"] == "invalid_request"
 
+    # Within +-60 but too steep for a very wide lens: a client error, and
+    # nothing is changed.
+    wide_and_steep = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={"camera": {**camera, "focalLength": 5.0, "pitch": 60.0}},
+    )
+    assert wide_and_steep.status_code == 400
+    assert wide_and_steep.get_json()["error"]["code"] == "invalid_request"
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["settings"]["camera"]["pitch"] == 9.5
+    assert current["settings"]["camera"]["focalLength"] == 60.0
+
 
 # --- Export: glTF (displacement / DOF / upscaled) -------------------------------
 

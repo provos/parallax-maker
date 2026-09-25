@@ -36,6 +36,11 @@ class ProjectDirectoryNotFound(ProjectServiceError):
     """``filename`` is well-formed but no such project directory exists."""
 
 
+class InvalidSettings(ProjectServiceError):
+    """The requested settings are individually valid but not together
+    (e.g. a pitch too steep for the focal length's field of view)."""
+
+
 class ProjectStateRepository(Protocol):
     def load(self, state_id: str) -> AppState: ...
 
@@ -170,6 +175,7 @@ class ProjectService:
     def update_settings(self, command: UpdateSettings) -> UpdatedSettingsResult:
         state = self._states.load(command.state_id)
         changed = False
+        self._validate_camera(state, command)
 
         if (
             command.depth_model is not None
@@ -215,3 +221,20 @@ class ProjectService:
             self._states.save(command.state_id, state, self.JSON_ONLY)
 
         return UpdatedSettingsResult(state_id=command.state_id, changed=changed)
+
+    @staticmethod
+    def _validate_camera(state: AppState, command: UpdateSettings) -> None:
+        """Rejects a pitch/focal-length combination whose image rays would no
+        longer reach the card planes, before anything is changed."""
+        if command.pitch is None and command.focal_length is None:
+            return
+        if state.imgData is None:
+            return
+        width, height = state.imgData.size
+        if not state.camera.pitch_fits(
+            width, height, pitch=command.pitch, focal_length=command.focal_length
+        ):
+            raise InvalidSettings(
+                "camera pitch is too steep for this focal length: part of the "
+                "image would look past vertical"
+            )

@@ -32,6 +32,14 @@ def test_pitch_is_validated(bad):
         Camera(pitch=bad)
 
 
+def test_pitch_fits_the_field_of_view():
+    assert Camera(focal_length=50, pitch=30).pitch_fits(W, H)
+    # A very wide lens leaves little room: the top rows would look past vertical.
+    assert not Camera(focal_length=5).pitch_fits(W, H, pitch=60.0)
+    with pytest.raises(ValueError):
+        Camera(focal_length=5, pitch=60).backproject_to_depth([[0, 0]], 10.0, W, H)
+
+
 def test_horizon_row_and_pitch_are_inverse():
     cam = Camera(focal_length=35)
     assert cam.horizon_row(W, H) == pytest.approx(H / 2)
