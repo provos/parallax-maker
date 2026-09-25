@@ -96,14 +96,6 @@ def test_modifiers_to_polarity(ctrl_key, expected) -> None:
     assert modifiers_to_polarity(ctrl_key) is expected
 
 
-def test_modifiers_to_polarity_ignores_shift() -> None:
-    # Polarity is driven by Ctrl alone; Shift has no bearing on it.
-    assert modifiers_to_polarity(True) is PointPolarity.NEGATIVE
-
-
-# --- Scenario 2: replace/union/subtract/replace exact mask regions ----------
-
-
 def test_instance_click_modifiers_replace_union_subtract_replace(client) -> None:
     view = _restore_fixture(client)
     project_id = view["id"]
@@ -557,3 +549,11 @@ def test_asset_urls_change_only_with_their_content(client) -> None:
     assert {k: v for k, v in after.items() if k != "main"} == {
         k: v for k, v in before.items() if k != "main"
     }
+
+
+def test_resetting_an_input_display_keeps_the_main_url(client) -> None:
+    view = upload_fixture_image(client)
+    project_id = view["id"]
+    depth = client.post(f"/api/v1/projects/{project_id}/depth", json={"model": "midas"})
+    finished = poll_job(client, depth.get_json()["job"]["id"])["project"]
+    assert finished["mainImage"]["url"] == view["mainImage"]["url"]

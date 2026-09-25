@@ -118,6 +118,8 @@ class ProjectRecord:
         """Set the in-memory display image (``None`` means "show the input")."""
 
         with self._main_asset_lock:
+            if image is None and self.display_image is None:
+                return  # already showing the input; keep the URL stable
             self.display_image = image
             self.display_version += 1
             self._main_asset_cache = None
