@@ -18,7 +18,9 @@ export type JobKind =
   | 'restore'
   | 'selection'
   | 'segmentation'
-  | 'multi-point';
+  | 'multi-point'
+  | 'slice-editing'
+  | 'mask-tools';
 
 function createJobStore() {
   let active = $state<JobKind | null>(null);

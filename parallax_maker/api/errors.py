@@ -18,6 +18,7 @@ from ..segmentation_services import (
     SegmentationModelFailed,
     SegmentationServiceError,
 )
+from ..slice_editing_services import InvalidSliceIndex, SliceEditingServiceError
 from ..workflow_services import WorkflowNotReady
 
 logger = logging.getLogger(__name__)
@@ -119,6 +120,19 @@ def register_error_handlers(blueprint) -> None:
 
     @blueprint.errorhandler(InpaintingServiceError)
     def _handle_inpainting_error(err: InpaintingServiceError):
+        return error_response(409, "not_ready", str(err))
+
+    @blueprint.errorhandler(InvalidSliceIndex)
+    def _handle_invalid_slice_index(err: InvalidSliceIndex):
+        # More specific than SliceEditingServiceError below: an out-of-range
+        # or malformed index is a client input error, not a readiness problem.
+        return error_response(400, "invalid_request", str(err))
+
+    @blueprint.errorhandler(SliceEditingServiceError)
+    def _handle_slice_editing_error(err: SliceEditingServiceError):
+        # Covers SliceEditingNotReady (no image/selection/mask/clipboard).
+        # SliceEditingUnchanged is handled by the route itself, like
+        # WorkflowUnchanged, so it never reaches here as an error.
         return error_response(409, "not_ready", str(err))
 
     @blueprint.errorhandler(404)

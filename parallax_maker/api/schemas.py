@@ -87,6 +87,7 @@ class ProjectView(ApiModel):
     assets: ProjectAssets
     main_image: AssetRef | None = None
     use_checkerboard: bool = False
+    clipboard: bool = False
     depth_model: str
     num_slices: int
     thresholds: list[int]
@@ -162,6 +163,14 @@ class MultiPointRequest(ApiModel):
     enabled: bool
 
 
+class SetSliceDepthRequest(ApiModel):
+    depth: float
+
+
+class SetCheckerboardRequest(ApiModel):
+    use_checkerboard: bool
+
+
 class HealthView(ApiModel):
     ok: bool
     version: str
@@ -194,6 +203,8 @@ def public_models() -> list[type[BaseModel]]:
         SelectionRequest,
         SegmentationClickRequest,
         MultiPointRequest,
+        SetSliceDepthRequest,
+        SetCheckerboardRequest,
     ]
 
 

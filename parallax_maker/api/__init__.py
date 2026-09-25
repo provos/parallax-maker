@@ -17,6 +17,7 @@ from . import schemas
 from .errors import NotFound, register_error_handlers
 from .projects import register_project_routes
 from .segmentation import register_segmentation_routes
+from .slice_editing import register_slice_editing_routes
 
 if TYPE_CHECKING:  # pragma: no cover - import-cycle avoidance only
     from ..runtime import Runtime
@@ -36,6 +37,7 @@ def create_api_blueprint(runtime: Runtime) -> Blueprint:
     register_error_handlers(blueprint)
     register_project_routes(blueprint, runtime)
     register_segmentation_routes(blueprint, runtime)
+    register_slice_editing_routes(blueprint, runtime)
 
     @blueprint.get("/health")
     def health():

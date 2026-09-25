@@ -122,6 +122,30 @@
     if (!canCommit) return;
     void workflow.commitMultiPoint();
   }
+
+  // Checkerboard/Invert/Feather are mask tools (components.py's
+  // make_segmentation_tools_container); like the rest of that row they are
+  // only gated on "a project is loaded and nothing else is in flight" -- Dash
+  // never disables these three buttons based on selection/mask state either,
+  // it just no-ops with a log message (see workflow.ts's slice-editing
+  // section, which owns the exact precondition/wording for Invert/Feather).
+  const maskToolsActive = $derived(!!projectStore.view);
+  const checkerboardOn = $derived(projectStore.view?.useCheckerboard ?? false);
+
+  function toggleCheckerboard(): void {
+    if (!maskToolsActive || isBusy()) return;
+    void workflow.toggleCheckerboard();
+  }
+
+  function invertMask(): void {
+    if (!maskToolsActive || isBusy()) return;
+    void workflow.invertMask();
+  }
+
+  function featherMask(): void {
+    if (!maskToolsActive || isBusy()) return;
+    void workflow.featherMask();
+  }
 </script>
 
 <div class="input-image-outer panel">
@@ -163,23 +187,39 @@
 
   <!-- Tool row under the Input Image panel, same order as Dash's
        make_segmentation_tools_container: checkerboard, Invert, Feather,
-       Multi, Commit. Checkerboard/Invert/Feather are mask tools that land
-       in a later PR, so they stay disabled here. -->
+       Multi, Commit. -->
   <div class="tool-row">
     <button
       type="button"
       class="tool-btn tool-btn-icon"
+      class:tool-btn-selected={checkerboardOn}
       data-testid="toggle-checkerboard"
       aria-label="Toggle checkerboard background"
-      title="Not available yet"
-      disabled
+      aria-pressed={checkerboardOn}
+      title="Toggle checkerboard background"
+      disabled={!maskToolsActive || isBusy()}
+      onclick={toggleCheckerboard}
     >
       &#x25A6;
     </button>
-    <button type="button" class="tool-btn" data-testid="invert-mask" title="Not available yet" disabled>
+    <button
+      type="button"
+      class="tool-btn"
+      data-testid="invert-mask"
+      title="Invert the current mask"
+      disabled={!maskToolsActive || isBusy()}
+      onclick={invertMask}
+    >
       Invert
     </button>
-    <button type="button" class="tool-btn" data-testid="feather-mask" title="Not available yet" disabled>
+    <button
+      type="button"
+      class="tool-btn"
+      data-testid="feather-mask"
+      title="Feather the current mask"
+      disabled={!maskToolsActive || isBusy()}
+      onclick={featherMask}
+    >
       Feather
     </button>
     <button

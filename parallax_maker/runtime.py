@@ -28,6 +28,7 @@ from .inpainting import InpaintingModel
 from .inpainting_services import InpaintingService
 from .instance import SegmentationModel
 from .segmentation_services import SegmentationService
+from .slice_editing_services import SliceEditingService
 from .upscaler import Upscaler
 from .workflow_services import WorkflowService
 
@@ -258,6 +259,9 @@ class Runtime:
     workflow_service: WorkflowService
     segmentation_service: SegmentationService
     inpainting_service: InpaintingService
+    slice_editing_service: SliceEditingService = field(
+        default_factory=SliceEditingService
+    )
     projects: ProjectRegistry = field(default_factory=ProjectRegistry)
     jobs: JobManager = field(default_factory=JobManager)
     progress_reporter: ProgressReporter = field(default_factory=ProgressReporter)

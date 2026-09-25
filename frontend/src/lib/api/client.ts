@@ -258,6 +258,168 @@ export function setMultiPointMode(
   );
 }
 
+// --- Slice editing / mask tools --------------------------------------------
+//
+// Every route below runs synchronously (no job id) and returns the updated
+// `ProjectView` plus a `changed` flag, per the architecture doc's "Slice
+// editing and mask-tool endpoints" table. None of these send a JSON body
+// except `setSliceDepth`/`setCheckerboard` (the backend routes never call
+// `_parse_json_body` for the others), so the rest issue a bare POST/DELETE.
+
+type MutationResult = ProjectView & { changed: boolean };
+
+/** POST /api/v1/projects/{id}/slices/create */
+export function createSlice(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/slices/create`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/** DELETE /api/v1/projects/{id}/slices/{index} */
+export function deleteSlice(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}`,
+    { method: 'DELETE', signal },
+  );
+}
+
+/** POST /api/v1/projects/{id}/slices/{index}/add-mask */
+export function addMaskToSlice(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/add-mask`,
+    { method: 'POST', signal },
+  );
+}
+
+/** POST /api/v1/projects/{id}/slices/{index}/remove-mask */
+export function removeMaskFromSlice(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/remove-mask`,
+    { method: 'POST', signal },
+  );
+}
+
+/** POST /api/v1/projects/{id}/clipboard/copy */
+export function copyToClipboard(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/clipboard/copy`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/** POST /api/v1/projects/{id}/clipboard/paste */
+export function pasteClipboard(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/clipboard/paste`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/** POST /api/v1/projects/{id}/slices/balance */
+export function balanceSlices(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/slices/balance`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/** PUT /api/v1/projects/{id}/slices/{index}/depth */
+export function setSliceDepth(
+  id: string,
+  index: number,
+  depth: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/depth`,
+    'PUT',
+    { depth },
+    signal,
+  );
+}
+
+/** PUT /api/v1/projects/{id}/slices/{index}/image (multipart `image`) */
+export function replaceSliceImage(
+  id: string,
+  index: number,
+  file: File | Blob,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  const form = new FormData();
+  form.append('image', file);
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/image`,
+    { method: 'PUT', body: form, signal },
+  );
+}
+
+/** POST /api/v1/projects/{id}/mask/invert */
+export function invertMask(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/mask/invert`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/** POST /api/v1/projects/{id}/mask/feather */
+export function featherMask(id: string, signal?: AbortSignal): Promise<MutationResult> {
+  return request<MutationResult>(`/projects/${encodeURIComponent(id)}/mask/feather`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/** PUT /api/v1/projects/{id}/display */
+export function setCheckerboard(
+  id: string,
+  useCheckerboard: boolean,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/display`,
+    'PUT',
+    { useCheckerboard },
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/slices/{index}/undo */
+export function undoSlice(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/undo`,
+    { method: 'POST', signal },
+  );
+}
+
+/** POST /api/v1/projects/{id}/slices/{index}/redo */
+export function redoSlice(
+  id: string,
+  index: number,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return request<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/redo`,
+    { method: 'POST', signal },
+  );
+}
+
 export type PollJobOptions = {
   /** Polling interval in milliseconds. Defaults to 250ms per the architecture doc. */
   intervalMs?: number;

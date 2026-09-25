@@ -177,6 +177,7 @@ def _build_project_view(
         assets=assets,
         main_image=main_image,
         use_checkerboard=state.use_checkerboard,
+        clipboard=state.clipboard_image is not None,
         depth_model=depth_model,
         num_slices=state.num_slices,
         thresholds=list(state.imgThresholds or []),

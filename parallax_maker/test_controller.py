@@ -588,6 +588,7 @@ class TestApplyMask(unittest.TestCase):
         self.assertIsInstance(result, Image.Image)
         self.assertEqual(result.size, self.state.imgData.size)
 
+
     def test_apply_mask_with_none_image(self):
         image = None
         mask = Image.new("L", (100, 100))
@@ -614,6 +615,64 @@ class TestApplyMask(unittest.TestCase):
         self.assertNotEqual(self.state.grayscale_tinted, None)
         self.assertIsInstance(result, Image.Image)
         self.assertEqual(result.size, self.state.imgData.size)
+
+
+class TestBalanceSlicesDepths(unittest.TestCase):
+    """Covers the previously-broken loop/division-by-zero in balance_slices_depths.
+
+    See PARITY.md "Known quirks" for the original bug
+    (``for i in len(self.image_slices)`` and ``len(...) - 1`` for one slice)
+    and the intentional 0/1/N-slice behavior fixed here.
+    """
+
+    def setUp(self) -> None:
+        self.state = AppState()
+        self.state.filename = "test"
+
+    @staticmethod
+    def _make_slice(depth):
+        image = np.ones((4, 4, 4), np.uint8)
+        return ImageSlice(image, depth)
+
+    def test_zero_slices_is_a_no_op(self):
+        self.state.image_slices = []
+
+        self.state.balance_slices_depths()
+
+        self.assertEqual(self.state.image_slices, [])
+
+    def test_single_slice_is_set_to_depth_zero(self):
+        self.state.image_slices = [self._make_slice(123)]
+
+        self.state.balance_slices_depths()
+
+        self.assertEqual(self.state.image_slices[0].depth, 0)
+
+    def test_two_slices_span_the_full_range(self):
+        self.state.image_slices = [self._make_slice(10), self._make_slice(200)]
+
+        self.state.balance_slices_depths()
+
+        self.assertEqual(
+            [s.depth for s in self.state.image_slices],
+            [0, 255],
+        )
+
+    def test_five_slices_are_evenly_distributed_in_order(self):
+        self.state.image_slices = [
+            self._make_slice(depth) for depth in (5, 40, 90, 150, 250)
+        ]
+
+        self.state.balance_slices_depths()
+
+        self.assertEqual(
+            [s.depth for s in self.state.image_slices],
+            [int(i * 255 / 4) for i in range(5)],
+        )
+        self.assertEqual(
+            [s.depth for s in self.state.image_slices],
+            [0, 63, 127, 191, 255],
+        )
 
 
 if __name__ == "__main__":

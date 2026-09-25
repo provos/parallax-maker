@@ -231,6 +231,94 @@ export class DashDriver implements UiDriver {
     return this.page.locator('[title="Redo last change"]').nth(index);
   }
 
+  // Slice editing / mask tools
+
+  /**
+   * Clicks `locator` and waits until the log's text differs from its value
+   * beforehand. Every slice-editing/mask-tool callback appends exactly one
+   * log line on every path (success and every logged no-op alike), so this
+   * generically proves the click was processed without baking in which
+   * specific outcome (success vs. a particular no-op reason) occurred -
+   * scenarios assert the resulting text themselves.
+   */
+  private async clickAndWaitForLogChange(locator: Locator): Promise<void> {
+    const before = await this.log().innerText();
+    await locator.click();
+    await expect.poll(() => this.log().innerText()).not.toBe(before);
+  }
+
+  async createSlice(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#create-slice-button'));
+  }
+
+  async deleteSlice(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#delete-slice-button'));
+  }
+
+  async addMaskToSlice(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#add-to-slice-button'));
+  }
+
+  async removeMaskFromSlice(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#remove-from-slice-button'));
+  }
+
+  async copySlice(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#copy-button'));
+  }
+
+  async pasteSlice(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#paste-button'));
+  }
+
+  async balanceSlices(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#balance-slice-button'));
+  }
+
+  async setSliceDepth(index: number, depth: number): Promise<void> {
+    const display = this.page.locator('div[id*=\'"type":"depth-display"\']').nth(index);
+    await expect(display).toBeVisible();
+    await display.click();
+    const input = this.page.locator('input[id*=\'"type":"depth-input"\']').nth(index);
+    await expect(input).not.toHaveClass(/hidden/);
+    await input.fill(String(depth));
+    await input.press('Enter');
+    // The whole thumbnail strip is rebuilt (and may reorder) once the new depth
+    // is committed; wait for a depth badge to show the committed value anywhere
+    // in the (possibly reordered) strip rather than trusting `index` to still
+    // point at the same slice.
+    await expect(
+      this.page.locator('div[id*=\'"type":"depth-display"\']').filter({ hasText: new RegExp(`^${depth}$`) }),
+    ).not.toHaveCount(0);
+  }
+
+  async uploadSliceImage(
+    index: number,
+    file: { name: string; mimeType: string; buffer: Buffer },
+  ): Promise<void> {
+    const before = await this.log().innerText();
+    const input = this.page
+      .locator('div[id*=\'"type":"slice-upload"\'] input[type=file]')
+      .nth(index);
+    await input.setInputFiles(file);
+    await expect.poll(() => this.log().innerText()).not.toBe(before);
+  }
+
+  async invertMask(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#invert-mask'));
+  }
+
+  async featherMask(): Promise<void> {
+    await this.clickAndWaitForLogChange(this.page.locator('#feather-mask'));
+  }
+
+  async toggleCheckerboard(): Promise<void> {
+    const button = this.page.locator('#toggle-checkerboard');
+    const wasSelected = (await button.getAttribute('class'))?.includes('color-is-selected') ?? false;
+    await button.click();
+    await expect(button).toHaveClass(wasSelected ? /color-not-selected/ : /color-is-selected/);
+  }
+
   // Project / configuration
 
   async expectDarkTheme(): Promise<void> {

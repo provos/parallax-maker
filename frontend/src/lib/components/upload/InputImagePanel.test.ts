@@ -243,4 +243,73 @@ describe('InputImagePanel', () => {
       expect(screen.getByTestId('multi-commit')).toBeDisabled();
     });
   });
+
+  describe('Checkerboard/Invert/Feather mask tools', () => {
+    it('disables all three without a project', () => {
+      render(InputImagePanel);
+      expect(screen.getByTestId('toggle-checkerboard')).toBeDisabled();
+      expect(screen.getByTestId('invert-mask')).toBeDisabled();
+      expect(screen.getByTestId('feather-mask')).toBeDisabled();
+    });
+
+    it('enables all three with a project loaded', () => {
+      projectStore.applyView(makeView());
+      render(InputImagePanel);
+      expect(screen.getByTestId('toggle-checkerboard')).toBeEnabled();
+      expect(screen.getByTestId('invert-mask')).toBeEnabled();
+      expect(screen.getByTestId('feather-mask')).toBeEnabled();
+    });
+
+    it('reflects useCheckerboard as aria-pressed', () => {
+      projectStore.applyView(makeView({ useCheckerboard: true }));
+      render(InputImagePanel);
+      expect(screen.getByTestId('toggle-checkerboard')).toHaveAttribute('aria-pressed', 'true');
+    });
+
+    it('toggle-checkerboard PUTs the inverse of the current flag', async () => {
+      projectStore.applyView(makeView({ useCheckerboard: false }));
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, { ...makeView({ revision: 2, useCheckerboard: true }), changed: true }),
+      );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      await fireEvent.click(screen.getByTestId('toggle-checkerboard'));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(url).toBe('/api/v1/projects/appstate-test/display');
+      expect(JSON.parse(init.body as string)).toEqual({ useCheckerboard: true });
+    });
+
+    it('invert-mask POSTs .../mask/invert', async () => {
+      projectStore.applyView(makeView());
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...makeView({ revision: 2 }), changed: true }));
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      await fireEvent.click(screen.getByTestId('invert-mask'));
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/projects/appstate-test/mask/invert');
+    });
+
+    it('feather-mask logs a no-op without calling the API when there is no mask', async () => {
+      projectStore.applyView(
+        makeView({ segmentation: { multiPointMode: false, queuedPoints: [], hasMask: false } }),
+      );
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      await fireEvent.click(screen.getByTestId('feather-mask'));
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      expect(logStore.entries.at(-1)?.message).toBe('No mask to feather');
+    });
+  });
 });
