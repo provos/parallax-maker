@@ -49,14 +49,55 @@ current callback renders numbered PNG files server-side and logs completion but
 does not populate `download-animation`. Change this assertion when that product
 behavior is fixed.
 
-## Selector contract for a future Svelte UI
+## Driver layout
 
-Most selectors use visible labels, button text, or existing stable IDs. A Svelte
-replacement should preserve accessible names for the user-facing contract. The
-framework-specific selectors are centralized in `helpers/app.ts`; treat that file
-as the current Dash UI adapter. A Svelte adapter should also implement the same
-test-only fixture/state API so the behavioral scenario files stay unchanged. The
-few image-workflow elements that would benefit from explicit test IDs are:
+The scenario file, `parallax-maker.spec.ts`, is frontend-neutral: it only calls
+methods on a `UiDriver` (see `drivers/types.ts`) and two helper modules, never
+a CSS selector, Dash ID, or `/__e2e__` URL directly:
+
+- `drivers/types.ts` defines the `UiDriver` interface — the frontend-neutral
+  vocabulary of actions ("click this pixel", "open this tab", "select this
+  slice") that every frontend implements the same way.
+- `drivers/dash.ts` (`DashDriver`) is the current, and so far only, adapter.
+  It holds every Dash-specific selector and gesture (`#image`, `#log`,
+  slider IDs, the checkerboard candidate classes, etc.) so the rest of the
+  suite never needs to know about them.
+- `helpers/image.ts` has frontend-neutral pixel utilities (`imagePixel`,
+  `imageHash`, `imageContainsRGB`, ...) that work against any `Locator` an
+  `img` element, regardless of which driver produced it.
+- `helpers/oracle.ts` talks to the test-only backend oracle
+  (`/__e2e__/state`, `/__e2e__/artifact(s)`, `/__e2e__/fixture/*`) through
+  `page.request` only. It is shared unchanged across frontends because the
+  oracle and artifact endpoints are keyed by project ID (the `appstate-*`
+  directory name returned by `UiDriver.restoreFixtureState()`), not by UI.
+
+A future Svelte adapter implements `UiDriver` in `drivers/svelte.ts` with its
+own selectors and accessible names, and the test-only fixture/state API stays
+the same, so `parallax-maker.spec.ts` does not change.
+
+### Selecting a frontend: `uiTarget`
+
+Which driver the `ui` fixture provides is controlled by the Playwright test
+option `uiTarget` (`'dash'` today; `'svelte'` is recognized by the type but
+not implemented yet and throws a clear error if selected). It defaults to
+`'dash'` and is set per Playwright project in `playwright.config.ts`:
+
+```ts
+projects: [
+  { name: 'dash', use: { uiTarget: 'dash' } },
+],
+```
+
+Each scenario declares which `Workflow` groups it exercises via
+`requireWorkflow(ui, workflow)`, which skips the test when the active driver's
+`supports(workflow)` returns false. `DashDriver.supports()` currently returns
+`true` for every workflow; a partially-implemented Svelte driver can return
+`false` for the workflows it hasn't built yet so those scenarios skip instead
+of failing.
+
+Most selectors inside `DashDriver` use visible labels, button text, or stable
+IDs. The few image-workflow elements that would benefit from explicit test IDs
+in a future Svelte UI are:
 
 - `input-image`, `paint-canvas`, and `preview-canvas`;
 - `depth-map-image`;

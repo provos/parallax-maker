@@ -1,4 +1,6 @@
 import { test as base, expect, type ConsoleMessage, type Page } from '@playwright/test';
+import { DashDriver } from './drivers/dash';
+import type { UiDriver, UiTarget, Workflow } from './drivers/types';
 
 type BrowserDiagnostics = {
   consoleErrors: string[];
@@ -24,7 +26,30 @@ function consoleText(message: ConsoleMessage): string {
   return `${message.type()}: ${message.text()}`;
 }
 
-export const test = base.extend<{ diagnostics: BrowserDiagnostics }>({
+type Fixtures = {
+  diagnostics: BrowserDiagnostics;
+  ui: UiDriver;
+};
+
+type Options = {
+  /** Which frontend the `ui` fixture drives. Set per-project in playwright.config.ts. */
+  uiTarget: UiTarget;
+};
+
+export const test = base.extend<Fixtures & Options>({
+  uiTarget: ['dash', { option: true }],
+
+  ui: async ({ page, uiTarget }, use) => {
+    if (uiTarget === 'dash') {
+      await use(new DashDriver(page));
+      return;
+    }
+    if (uiTarget === 'svelte') {
+      throw new Error('Svelte driver not implemented yet');
+    }
+    throw new Error(`Unknown uiTarget: ${String(uiTarget)}`);
+  },
+
   diagnostics: [async ({ page, baseURL }, use, testInfo) => {
     const diagnostics: BrowserDiagnostics = {
       consoleErrors: [],
@@ -79,6 +104,7 @@ export const test = base.extend<{ diagnostics: BrowserDiagnostics }>({
 });
 
 export { expect };
+export type { UiTarget, Workflow };
 
 export async function disableAnimations(page: Page): Promise<void> {
   await page.addStyleTag({
@@ -90,4 +116,9 @@ export async function disableAnimations(page: Page): Promise<void> {
       }
     `,
   });
+}
+
+/** Skips the current test when `ui` does not yet implement `workflow`. */
+export function requireWorkflow(ui: UiDriver, workflow: Workflow): void {
+  test.skip(!ui.supports(workflow), `${ui.target} driver does not support the "${workflow}" workflow yet`);
 }

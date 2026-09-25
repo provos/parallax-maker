@@ -46,6 +46,8 @@ jobs:
       run: |
         npm ci
         npx playwright install --with-deps chromium
+    - name: Type-check browser tests
+      run: npm run check:e2e
     - name: Test browser workflows
       run: npm run test:e2e
     - name: Upload browser-test diagnostics
