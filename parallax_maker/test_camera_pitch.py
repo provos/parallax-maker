@@ -9,6 +9,7 @@ import pytest
 
 from .camera import MAX_PITCH_DEGREES, Camera
 from .gltf import camera_node_rotation
+from .scene import project
 from .segmentation import render_view
 from .slice import ImageSlice
 
@@ -63,22 +64,6 @@ def test_unpitched_cards_are_the_frame_filling_rectangles():
     np.testing.assert_allclose(card, expected, rtol=1e-5)
 
 
-def _project(cam, points, position=None):
-    """Pinhole projection through ``cam``'s orientation at ``position``."""
-    position = cam.reference_position() if position is None else position
-    in_camera = (
-        np.asarray(points, np.float64) - position
-    ) @ cam.rotation_world_to_camera().T
-    fl_px = cam.focal_length_px(W)
-    return np.stack(
-        [
-            fl_px * in_camera[:, 0] / in_camera[:, 2] + W / 2,
-            fl_px * in_camera[:, 1] / in_camera[:, 2] + H / 2,
-        ],
-        axis=1,
-    )
-
-
 @pytest.mark.parametrize("pitch", [-12.0, 10.0, 25.0])
 def test_pitched_cards_are_vertical_and_project_onto_the_image_corners(pitch):
     cam = Camera(distance=100, max_distance=500, focal_length=50, pitch=pitch)
@@ -87,7 +72,9 @@ def test_pitched_cards_are_vertical_and_project_onto_the_image_corners(pitch):
         # Vertical: every corner lies on the same plane z = const.
         assert np.ptp(card[:, 2]) == pytest.approx(0, abs=1e-3)
         np.testing.assert_allclose(
-            _project(cam, card), [[0, 0], [W, 0], [W, H], [0, H]], atol=1e-2
+            project(card, cam, cam.reference_position(), W, H),
+            [[0, 0], [W, 0], [W, H], [0, H]],
+            atol=1e-2,
         )
 
 
