@@ -25,6 +25,7 @@ class Camera:
         "_focal_length",
         "_sensor_width",
         "_pitch",
+        "_ground_near",
     )
 
     def __init__(
@@ -34,6 +35,7 @@ class Camera:
         focal_length=100,
         sensor_width=35.0,
         pitch=0.0,
+        ground_near=0.0,
     ):
         """
         Initializes a Camera object.
@@ -46,6 +48,8 @@ class Camera:
             focal_length (float): The focal length of the camera.
             sensor_width (float, optional): The width of the camera sensor. Defaults to 35.0.
             pitch (float, optional): Upward tilt in degrees (negative looks down). Defaults to 0.
+            ground_near (float, optional): Card depth (z) at which a ground plane
+                meets the bottom edge of the image; sets the camera height. Defaults to 0.
 
         Returns:
             None
@@ -56,6 +60,7 @@ class Camera:
         self.focal_length = focal_length
         self.sensor_width = sensor_width
         self.pitch = pitch
+        self.ground_near = ground_near
 
     def focal_length_px(self, image_width):
         """
@@ -122,9 +127,8 @@ class Camera:
         half_fov = np.degrees(np.arctan((image_height / 2) / fl_px))
         return abs(pitch) + half_fov < 89.0
 
-    def backproject_to_depth(self, points, z, image_width, image_height):
-        """World points where the reference camera's rays through image
-        ``points`` (N x 2, pixels) meet the vertical plane at depth ``z``."""
+    def ray_directions(self, points, image_width, image_height):
+        """World directions of the rays through image ``points`` (N x 2, pixels)."""
         points = np.asarray(points, dtype=np.float64).reshape(-1, 2)
         fl_px = self.focal_length_px(image_width)
         directions = np.stack(
@@ -135,12 +139,49 @@ class Camera:
             ],
             axis=1,
         )
-        directions = directions @ self.rotation_camera_to_world().T
+        return directions @ self.rotation_camera_to_world().T
+
+    def backproject_to_plane(self, points, normal, offset, image_width, image_height):
+        """World points where the reference camera's rays through image
+        ``points`` meet the plane ``normal . X = offset``."""
+        directions = self.ray_directions(points, image_width, image_height)
         origin = self.reference_position().astype(np.float64)
-        if (directions[:, 2] <= 0).any():
-            raise ValueError("pitch too steep: image rays do not reach the card plane")
-        t = (z - origin[2]) / directions[:, 2]
+        normal = np.asarray(normal, dtype=np.float64)
+        denominator = directions @ normal
+        with np.errstate(divide="ignore", invalid="ignore"):
+            t = (offset - origin @ normal) / denominator
+        if not np.all(np.isfinite(t)) or (t <= 0).any():
+            raise ValueError("image rays do not reach the plane in front of the camera")
         return (origin + t[:, None] * directions).astype(np.float32)
+
+    def backproject_to_depth(self, points, z, image_width, image_height):
+        """World points where the reference camera's rays through image
+        ``points`` (N x 2, pixels) meet the vertical plane at depth ``z``."""
+        try:
+            return self.backproject_to_plane(
+                points, (0.0, 0.0, 1.0), z, image_width, image_height
+            )
+        except ValueError:
+            raise ValueError(
+                "pitch too steep: image rays do not reach the card plane"
+            ) from None
+
+    def ground_height(self, image_width, image_height):
+        """Camera height above the ground (world +y is down): the ground is
+        the horizontal plane that the bottom image row's center ray meets at
+        depth ``ground_near``. Raises ValueError when that row is at or above
+        the horizon (no ground in view)."""
+        if self.horizon_row(image_width, image_height) >= image_height - 1:
+            raise ValueError("the horizon is at or below the bottom of the image")
+        if self._ground_near >= self._max_distance:
+            raise ValueError("the ground must start closer than the max distance")
+        bottom = self.backproject_to_depth(
+            [[image_width / 2, image_height]],
+            self._ground_near,
+            image_width,
+            image_height,
+        )[0]
+        return float(bottom[1] - self.reference_position()[1])
 
     def to_json(self):
         return {
@@ -149,6 +190,7 @@ class Camera:
             "max_distance": self._max_distance,
             "focal_length": self._focal_length,
             "pitch": self._pitch,
+            "ground_near": self._ground_near,
         }
 
     @staticmethod
@@ -164,6 +206,8 @@ class Camera:
             camera.focal_length = data["focal_length"]
         if "pitch" in data:
             camera.pitch = data["pitch"]
+        if "ground_near" in data:
+            camera.ground_near = data["ground_near"]
 
         return camera
 
@@ -185,6 +229,7 @@ class Camera:
             and self.max_distance == other.max_distance
             and self.focal_length == other.focal_length
             and self.pitch == other.pitch
+            and self.ground_near == other.ground_near
         )
 
     @property
@@ -254,3 +299,13 @@ class Camera:
                 f"pitch must be a number of degrees within ±{MAX_PITCH_DEGREES}"
             )
         self._pitch = float(value)
+
+    @property
+    def ground_near(self):
+        return self._ground_near
+
+    @ground_near.setter
+    def ground_near(self, value):
+        if not isinstance(value, (float, int)) or value < 0:
+            raise ValueError("ground_near must be a non-negative number")
+        self._ground_near = float(value)

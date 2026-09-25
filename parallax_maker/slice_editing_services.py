@@ -189,6 +189,23 @@ class SetSliceDepth:
 
 
 @dataclass(frozen=True)
+class SetGroundPlane:
+    """Marks (or unmarks) a slice as the scene's horizontal ground plane."""
+
+    state_id: str
+    slice_index: int
+    is_ground: bool
+
+
+@dataclass(frozen=True)
+class SetGroundPlaneResult:
+    state_id: str
+    slice_index: int
+    is_ground: bool
+    changed: bool
+
+
+@dataclass(frozen=True)
 class SetSliceDepthResult:
     state_id: str
     slice_index: int
@@ -439,6 +456,41 @@ class SliceEditingService:
             new_index=new_index,
             reordered=reordered,
             preview_image=preview,
+        )
+
+    def set_ground_plane(self, command: SetGroundPlane) -> SetGroundPlaneResult:
+        """At most one slice is the ground: marking one unmarks any other.
+
+        Marking requires a ground in view (the horizon above the image's
+        bottom edge, see ``Camera.ground_height``).
+        """
+        state = self._states.load(command.state_id)
+        index = self._slice_index(state, command.slice_index)
+        target = state.image_slices[index]
+
+        if command.is_ground:
+            width, height = state.imgData.size
+            try:
+                state.camera.ground_height(width, height)
+            except ValueError as error:
+                # The camera's own reason names the fix (pitch or ground_near).
+                raise SliceEditingNotReady(
+                    f"cannot use this slice as the ground plane: {error}"
+                ) from None
+
+        changed = target.is_ground_plane != command.is_ground
+        for i, image_slice in enumerate(state.image_slices):
+            want = command.is_ground and i == index
+            if image_slice.is_ground_plane != want:
+                image_slice.is_ground_plane = want
+                changed = True
+        if changed:
+            self._states.save(command.state_id, state, self.JSON_ONLY)
+        return SetGroundPlaneResult(
+            state_id=command.state_id,
+            slice_index=index,
+            is_ground=command.is_ground,
+            changed=changed,
         )
 
     def replace_slice_image(self, command: ReplaceSliceImage) -> ReplacedSliceImageResult:

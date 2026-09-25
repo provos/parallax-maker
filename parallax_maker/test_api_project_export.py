@@ -15,6 +15,7 @@ import json
 from pathlib import Path
 from uuid import uuid4
 
+import pytest
 from PIL import Image
 
 from ._api_test_helpers import poll_job
@@ -122,6 +123,9 @@ def test_update_settings_persists_depth_model_camera_and_dark_mode(client) -> No
     assert response.status_code == 200
     body = response.get_json()
     assert body["changed"] is True
+    camera_view = body["settings"]["camera"]
+    assert camera_view.pop("groundNear") == 0.0
+    assert camera_view.pop("horizonRow") == pytest.approx(body["image"]["height"] / 2)
     assert body["settings"] == {
         "depthModel": "midas",
         "camera": {
@@ -150,6 +154,8 @@ def test_update_settings_persists_depth_model_camera_and_dark_mode(client) -> No
         data={"state": (io.BytesIO(raw), "appstate.json")},
         content_type="multipart/form-data",
     ).get_json()
+    restored["settings"]["camera"].pop("groundNear")
+    restored["settings"]["camera"].pop("horizonRow")
     assert restored["settings"]["camera"] == {
         "distance": 200.0,
         "focalLength": 300.0,

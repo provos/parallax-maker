@@ -280,6 +280,7 @@ def render_image_sequence(
     num_frames=100,
     progress_callback=None,
     camera_rotation=None,
+    render=None,
 ):
     """
     Renders a sequence of images with varying camera positions.
@@ -304,13 +305,16 @@ def render_image_sequence(
         camera_position[2] += float(push_distance) / num_frames
 
         # Render the view
-        rendered_image = render_view(
-            image_slices,
-            camera_matrix,
-            card_corners_3d_list,
-            camera_position,
-            camera_rotation=camera_rotation,
-        )
+        if render is not None:
+            rendered_image = render(camera_position)
+        else:
+            rendered_image = render_view(
+                image_slices,
+                camera_matrix,
+                card_corners_3d_list,
+                camera_position,
+                camera_rotation=camera_rotation,
+            )
 
         image_name = f"rendered_image_{i:03d}.png"
         output_image_path = output_path / image_name
