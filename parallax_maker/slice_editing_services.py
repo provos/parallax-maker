@@ -499,6 +499,8 @@ class SliceEditingService:
         source = self._require_image(state)
         mask = self._require_mask(state)
         amount = self._nonnegative_integer(command.amount, "feather amount")
+        if amount == 0:
+            raise SliceEditingNotReady("the feather amount must be positive")
 
         state.slice_mask = cv2.blur(mask, (amount, amount))
         preview = state.apply_mask(source, state.slice_mask)

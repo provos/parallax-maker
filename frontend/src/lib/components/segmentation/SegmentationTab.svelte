@@ -44,9 +44,11 @@
   function commitDepth(index: number): void {
     if (editingDepthIndex !== index) return;
     editingDepthIndex = null;
-    const value = Number(depthDraft);
-    if (!Number.isFinite(value)) return;
-    void workflow.setSliceDepth(index, value);
+    // Dash's record_depth_input uses int(value): blank or non-integer input
+    // does not commit (an empty string must not become depth 0).
+    const draft = depthDraft.trim();
+    if (!/^-?\d+$/.test(draft)) return;
+    void workflow.setSliceDepth(index, Number.parseInt(draft, 10));
   }
 
   function onDepthInputKeydown(index: number, event: KeyboardEvent): void {

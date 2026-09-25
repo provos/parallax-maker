@@ -241,6 +241,21 @@ describe('SegmentationTab', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
+    it.each(['', '  ', '12.5', 'abc'])('does not commit a blank or non-integer depth (%j)', async (draft) => {
+      projectStore.applyView(makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)] }));
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(SegmentationTab);
+      await fireEvent.click(screen.getAllByTestId('slice-depth-display')[0]);
+      const input = screen.getByTestId('slice-depth-input') as HTMLInputElement;
+      await fireEvent.input(input, { target: { value: draft } });
+      await fireEvent.keyDown(input, { key: 'Enter' });
+      await fireEvent.blur(input);
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
     it('clicking a depth badge does not also (de)select its slice', async () => {
       const view = makeView({ slices: [makeSlice(0, 85)], selectedSlice: null });
       projectStore.applyView(view);

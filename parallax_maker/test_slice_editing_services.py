@@ -474,6 +474,15 @@ def test_feather_mask_requires_a_mask(tmp_path: Path) -> None:
         service.feather_mask(FeatherMask(state_id="s"))
 
 
+def test_feather_mask_rejects_a_zero_amount(tmp_path: Path) -> None:
+    state = make_state(tmp_path)
+    state.slice_mask = np.zeros((10, 20), dtype=np.uint8)
+    service, _ = make_service(state)
+
+    with pytest.raises(SliceEditingNotReady):
+        service.feather_mask(FeatherMask(state_id="s", amount=0))
+
+
 def test_feather_mask_blurs_the_edge_while_keeping_the_interior_opaque(
     tmp_path: Path,
 ) -> None:
