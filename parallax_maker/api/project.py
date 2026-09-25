@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 from flask import Blueprint, Response, jsonify, request
 
 from ..camera import MAX_PITCH_DEGREES, Camera
+from ..controller import AppState
 from ..project_services import SaveProject, UpdateSettings
 from . import schemas
 from .errors import InvalidRequest
@@ -103,7 +104,9 @@ def register_project_lifecycle_routes(blueprint: Blueprint, runtime: "Runtime") 
         return _mutation_response(view, changed)
 
 
-def _requested_pitch(state, camera) -> float | None:
+def _requested_pitch(
+    state: AppState, camera: schemas.CameraSettingsRequest | None
+) -> float | None:
     """``camera.pitch``, or the pitch that puts the horizon on
     ``camera.horizonRow`` (with the requested focal length)."""
     if camera is None:

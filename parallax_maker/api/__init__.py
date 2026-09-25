@@ -15,10 +15,10 @@ from flask import Blueprint, jsonify
 
 from . import schemas
 from .camera import register_camera_routes
-from .ground import register_ground_routes
 from .configuration import register_configuration_routes
 from .errors import NotFound, register_error_handlers
 from .export import register_export_routes
+from .ground import register_ground_routes
 from .inpainting import register_inpainting_routes
 from .project import register_project_lifecycle_routes
 from .projects import register_project_routes
