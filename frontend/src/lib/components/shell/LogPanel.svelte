@@ -15,8 +15,11 @@
     padding: var(--space-2);
   }
 
+  /* Exactly the three most recent entries (logStore.last3), no spare
+     height: every pixel here is taken from the image area. */
   .log-panel {
-    height: 6rem;
+    height: calc(3 * 1.4 * 0.875rem);
+    box-sizing: content-box;
     overflow-y: auto;
   }
 

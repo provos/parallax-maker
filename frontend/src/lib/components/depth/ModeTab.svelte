@@ -114,15 +114,25 @@
 </div>
 
 <style>
-  .depth-box {
-    min-height: 15rem;
+  /* Fills the tab panel's height; the depth box takes what the controls
+     below leave over, and the depth map is contain-fitted inside it. */
+  .mode-tab {
     display: flex;
-    align-items: center;
-    justify-content: center;
+    flex-direction: column;
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+
+  .depth-box {
+    position: relative;
+    flex: 1 1 0;
+    min-height: 8rem;
     overflow: hidden;
   }
 
   .depth-box img {
+    position: absolute;
+    inset: 0;
     width: 100%;
     height: 100%;
     object-fit: contain;
