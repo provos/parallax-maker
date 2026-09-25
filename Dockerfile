@@ -12,7 +12,8 @@ COPY frontend/ ./
 RUN npm run build
 
 # --- Stage 2: the Python application, with the built frontend included -----
-FROM --platform=$BUILDPLATFORM python:3.10-slim
+# Built for the target platform (only the Node stage above is platform-neutral).
+FROM python:3.10-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends git ffmpeg \
     && rm -rf /var/lib/apt/lists/*

@@ -68,8 +68,10 @@ def _register_static_app(flask_app: Flask, static_dir: Path = STATIC_APP_DIR) ->
     @flask_app.route("/next/<path:subpath>")
     def redirect_legacy_next(subpath: str = "") -> Response:
         # Permanent redirect for anything that bookmarked the migration-era
-        # /next/ URL; the Svelte app now lives at the site root.
-        return redirect(f"/{subpath}", code=308)
+        # /next/ URL; the Svelte app now lives at the site root. Leading
+        # slashes/backslashes are stripped so `/next//evil.com` can never
+        # become a protocol-relative (off-site) redirect target.
+        return redirect("/" + subpath.lstrip("/\\"), code=308)
 
     @flask_app.route("/")
     @flask_app.route("/<path:subpath>")
