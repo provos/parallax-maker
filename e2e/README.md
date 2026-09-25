@@ -1,19 +1,22 @@
 # Browser characterization tests
 
-These Playwright tests exercise the real Dash UI, callbacks, persistence, canvas,
-image composition, and exporters. The test-only server replaces only expensive
-model inference with deterministic images and masks.
+These Playwright tests exercise the real Svelte UI, the HTTP API, persistence,
+canvas, image composition, and exporters. The test-only server replaces only
+expensive model inference with deterministic images and masks.
 
 Run the suite with:
 
 ```sh
 npm ci
+npm --prefix frontend ci
 npx playwright install chromium
 npm run test:e2e
 ```
 
 Run the command from the repository root; the server process deliberately uses
 the caller's working directory so Python package and virtualenv paths resolve.
+`pretest:e2e` builds the Svelte frontend first (`npm run build:frontend`) so
+the server has something to serve at `/`.
 
 The default server command is:
 
@@ -41,68 +44,64 @@ The scenarios cover:
 - point segmentation, including positive and negative points;
 - a real canvas stroke, mask persistence, three exact checkerboard candidates,
   candidate selection, apply, and undo;
+- slice editing (create/delete/copy/paste/add-mask/remove-mask/balance/depth
+  reorder/replace-image) and mask tools (invert/feather/checkerboard);
+- project lifecycle, configuration and export/render (camera, displacement,
+  dark mode, model selection, connection/API-key probes, glTF/animation/
+  upscale/download);
 - restoration of images, slices, prompts, camera controls, model, and theme;
-- downloaded glTF structure and the current server-side animation behavior.
+- downloaded glTF structure and the current server-side animation behavior;
+- zoom/pan/reset of the main image and queued multi-point markers.
 
 The animation test intentionally asserts that no browser download occurs. The
-current callback renders numbered PNG files server-side and logs completion but
-does not populate `download-animation`. Change this assertion when that product
-behavior is fixed.
+current implementation renders numbered PNG files server-side and logs
+completion but never triggers a browser download. Change this assertion when
+that product behavior is fixed.
 
 ## Driver layout
 
-The scenario file, `parallax-maker.spec.ts`, is frontend-neutral: it only calls
-methods on a `UiDriver` (see `drivers/types.ts`) and two helper modules, never
-a CSS selector, Dash ID, or `/__e2e__` URL directly:
+The scenario files (`parallax-maker.spec.ts`, `slice-editing.spec.ts`,
+`project-export.spec.ts`, `ux-parity.spec.ts`) are frontend-neutral: they only
+call methods on a `UiDriver` (see `drivers/types.ts`) and two helper modules,
+never a CSS selector or `/__e2e__` URL directly:
 
 - `drivers/types.ts` defines the `UiDriver` interface — the frontend-neutral
   vocabulary of actions ("click this pixel", "open this tab", "select this
-  slice") that every frontend implements the same way.
-- `drivers/dash.ts` (`DashDriver`) is the current, and so far only, adapter.
-  It holds every Dash-specific selector and gesture (`#image`, `#log`,
-  slider IDs, the checkerboard candidate classes, etc.) so the rest of the
-  suite never needs to know about them.
-- `helpers/image.ts` has frontend-neutral pixel utilities (`imagePixel`,
-  `imageHash`, `imageContainsRGB`, ...) that work against any `Locator` an
-  `img` element, regardless of which driver produced it.
+  slice") the frontend implements.
+- `drivers/svelte.ts` (`SvelteDriver`) is the adapter, and implements every
+  workflow. It holds every Svelte selector and gesture (`data-testid`
+  attributes, slider steps, the checkerboard candidate classes, etc.) so the
+  rest of the suite never needs to know about them.
+- `helpers/image.ts` has pixel utilities (`imagePixel`, `imageHash`,
+  `imageContainsRGB`, ...) that work against any `Locator` for an `img`
+  element.
 - `helpers/oracle.ts` talks to the test-only backend oracle
   (`/__e2e__/state`, `/__e2e__/artifact(s)`, `/__e2e__/fixture/*`) through
-  `page.request` only. It is shared unchanged across frontends because the
-  oracle and artifact endpoints are keyed by project ID (the `appstate-*`
-  directory name returned by `UiDriver.restoreFixtureState()`), not by UI.
-
-A future Svelte adapter implements `UiDriver` in `drivers/svelte.ts` with its
-own selectors and accessible names, and the test-only fixture/state API stays
-the same, so `parallax-maker.spec.ts` does not change.
+  `page.request` only, keyed by project ID (the `appstate-*` directory name
+  returned by `UiDriver.restoreFixtureState()`).
 
 ### Selecting a frontend: `uiTarget`
 
 Which driver the `ui` fixture provides is controlled by the Playwright test
-option `uiTarget` (`'dash'` today; `'svelte'` is recognized by the type but
-not implemented yet and throws a clear error if selected). It defaults to
-`'dash'` and is set per Playwright project in `playwright.config.ts`:
+option `uiTarget` (only `'svelte'` is implemented; the type keeps this explicit
+rather than hard-coding a single driver everywhere). It defaults to `'svelte'`
+and is set per Playwright project in `playwright.config.ts`:
 
 ```ts
 projects: [
-  { name: 'dash', use: { uiTarget: 'dash' } },
+  { name: 'svelte', use: { uiTarget: 'svelte' } },
 ],
 ```
 
 Each scenario declares which `Workflow` groups it exercises via
 `requireWorkflow(ui, workflow)`, which skips the test when the active driver's
-`supports(workflow)` returns false. `DashDriver.supports()` currently returns
-`true` for every workflow; a partially-implemented Svelte driver can return
-`false` for the workflows it hasn't built yet so those scenarios skip instead
+`supports(workflow)` returns false. `SvelteDriver.supports()` always returns
+`true`, since every workflow has been migrated (see
+`docs/svelte-migration/PARITY.md`); the check is kept so a future
+partially-implemented driver (e.g. while building a redesign) can return
+`false` for workflows it hasn't built yet, and those scenarios skip instead
 of failing.
 
-Most selectors inside `DashDriver` use visible labels, button text, or stable
-IDs. The few image-workflow elements that would benefit from explicit test IDs
-in a future Svelte UI are:
-
-- `input-image`, `paint-canvas`, and `preview-canvas`;
-- `depth-map-image`;
-- `slice-image-{index}` and `slice-overlay-{index}`;
-- `inpainting-candidate-{index}`;
-- `slice-undo-{index}` and `slice-redo-{index}`.
-
-Do not add test IDs to every control; semantic roles and labels are preferred.
+Most selectors inside `SvelteDriver` use `data-testid` attributes, visible
+labels, or accessible roles. Do not add test IDs to every control; semantic
+roles and labels are preferred where they are stable enough.

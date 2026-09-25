@@ -6,9 +6,14 @@
 - Python 3.10, 3.11, or 3.12
 - pip (for package management)
 
+## Prerequisites (additional, for building the web UI)
+- Node.js 20+ and npm (only needed to build the bundled Svelte frontend; a
+  pip install of a released package/wheel already includes a prebuilt copy)
+
 ## Installation Methods
 
-Create a new environment with Python 3.10+ and install the project in development mode:
+Create a new environment with Python 3.10+, install the project in
+development mode, and build the Svelte frontend it serves:
 
 ```bash
 # Create and activate a virtual environment
@@ -18,6 +23,11 @@ source .venv/bin/activate  # On macOS/Linux
 
 # Install the project and dependencies
 pip install -e .
+
+# Build the Svelte frontend into parallax_maker/static/app/ (skip this if
+# you installed from a released wheel, which already ships a built copy)
+npm --prefix frontend ci
+npm run build:frontend
 ```
 
 ## Running the Application
@@ -28,17 +38,62 @@ After installation, you can start the application using the entry point:
 parallax-maker
 
 # Or run the module directly
-python -m parallax_maker.webui
+python -m parallax_maker.server
 ```
 
-You can then reach the web ui via [http://127.0.0.1:8050/](http://127.0.0.1:8050/). Be prepared that the first time, any new functionality is used, the corresponding models need to be downloaded first. This can take a few minutes based on your connection speed. If you want to prefetch the default models, you can start the application with:
+You can then reach the web UI via [http://127.0.0.1:8050/](http://127.0.0.1:8050/). Be prepared that the first time, any new functionality is used, the corresponding models need to be downloaded first. This can take a few minutes based on your connection speed. If you want to prefetch the default models, you can start the application with:
 
 ```bash
 parallax-maker --prefetch-models=default
 ```
 
-> [!NOTE]
-> If you want to make changes to the styles, you need to set up `node` and run `npm run build` to rebuild the tailwind css file. This requires installing `tailwindcss` via `npm install -D tailwindcss`.
+`parallax-maker` runs as a single process: it serves the JSON API (under
+`/api/v1`) and the built Svelte app (everything else) from one Flask server,
+using an in-memory per-project registry and job queue that is not shared
+across worker processes.
+
+## Development workflow
+
+For frontend development with hot reload, run the Python backend and the
+Vite dev server side by side. Vite proxies `/api` and `/__e2e__` requests to
+the backend (see `frontend/vite.config.ts`), so the browser only ever talks
+to one origin:
+
+```bash
+# Terminal 1: the backend (serves /api/v1; the /static/app UI it also
+# serves is irrelevant here since Vite serves its own dev copy instead)
+parallax-maker --port 8050
+
+# Terminal 2: the frontend dev server with hot module reload
+npm --prefix frontend run dev
+```
+
+Then open the URL Vite prints (typically http://localhost:5173/).
+
+Useful commands while working on the frontend:
+
+```bash
+npm run check:frontend   # svelte-check + tsc
+npm run test:frontend    # Vitest unit tests
+npm run build:frontend   # production build into parallax_maker/static/app/
+```
+
+Useful commands while working on the backend:
+
+```bash
+pytest                              # Python unit/service/API tests
+flake8 . --max-line-length=127      # lint
+black .                             # format
+```
+
+Browser end-to-end tests (Playwright, driving the real Svelte UI against a
+deterministic fake-model backend) live in `e2e/`; see `e2e/README.md` for
+details:
+
+```bash
+npx playwright install chromium
+npm run test:e2e
+```
 
 # Parallax-Maker
 
@@ -92,7 +147,16 @@ The tool also supports generating a glTF2.0 scene file that an be easily importe
 
 ![Web UI](https://raw.githubusercontent.com/provos/parallax-maker/main/example/webui.jpg)
 
-A Dash based Web UI provides a browser assisted workflow to generated slices from images, inpaint the slices and then export them as a glTF scene to Blender or Unreal Engine. The resulting glTF scene can also be visualized within the app or manipulated via a command line tool and the state file saved by the app.
+A Svelte 5 based Web UI (backed by a Flask/HTTP API) provides a browser assisted workflow to generate slices from images, inpaint the slices and then export them as a glTF scene to Blender or Unreal Engine. The resulting glTF scene can also be visualized within the app or manipulated via a command line tool and the state file saved by the app.
+
+The UI is organized into workflow tabs: **Mode** (upload an image, pick a
+depth model, adjust thresholds), **Segmentation** (depth/instance-point
+selection, slice creation and editing, mask tools), **Inpainting** (paint a
+mask, generate/fill/enhance candidates, apply or erase), **Export** (camera
+and displacement settings, glTF/animation export, texture upscaling) and
+**Configuration** (depth/inpainting model selection, external server/API-key
+setup). A 2D/3D viewer toggle previews the input image or the exported glTF
+scene in-browser.
 
 ![Web UI 3D Example](https://raw.githubusercontent.com/provos/parallax-maker/main/example/webui_3d.jpg)
 

@@ -4,17 +4,19 @@ import type { Download, Locator } from '@playwright/test';
  * Frontend-neutral UI operations used by the shared behavioral scenarios.
  *
  * Scenarios express *what* the user does and observe results through images,
- * the log and the test-only backend oracle (`/__e2e__/state`). Each frontend
- * (Dash today, Svelte during the migration) implements this interface with its
- * own selectors and gestures. Drivers must use real clicks and pointer events
- * with normal hit testing; no forced clicks or synthetic event dispatch.
+ * the log and the test-only backend oracle (`/__e2e__/state`). The Svelte
+ * frontend implements this interface (`drivers/svelte.ts`) with its own
+ * selectors and gestures; the interface stayed frontend-neutral throughout
+ * the Dash-to-Svelte migration so the historical Dash driver could implement
+ * it too. Drivers must use real clicks and pointer events with normal hit
+ * testing; no forced clicks or synthetic event dispatch.
  *
  * Project identity: `restoreFixtureState` returns the project ID, which is the
- * `appstate-*` directory name for every frontend so the backend oracle and
- * artifact endpoints stay shared.
+ * `appstate-*` directory name, so the backend oracle and artifact endpoints
+ * stay shared.
  */
 
-export type UiTarget = 'dash' | 'svelte';
+export type UiTarget = 'svelte';
 
 /** Workflow groups; a scenario is skipped on a driver that does not support it yet. */
 export type Workflow =
@@ -75,26 +77,17 @@ export interface UiDriver {
   clickImagePixel(x: number, y: number, modifiers?: Modifier[]): Promise<void>;
   /**
    * Zooms in once on the main image/canvas via a real wheel gesture over
-   * its center, mirroring Dash's only zoom mechanism (utility.js's
-   * `handleWheel`/JS-03: mouse wheel, no buttons). See
-   * DashDriver.zoomIn's own doc comment for what "zoom in" resolves to on
-   * that UI specifically.
+   * its center (mouse wheel, no buttons).
    */
   zoomIn(): Promise<void>;
   /**
    * Pans the main image/canvas by a real drag gesture of `(dx, dy)` CSS
-   * pixels. Dash has no drag-to-pan of its own at all (only the CSS
-   * wheel-zoom above; see docs/svelte-migration/PARITY.md's Navigation/
-   * Layout section for why the near-identically-named `NAV_*` buttons are
-   * not this) -- DashDriver's implementation performs the gesture and
-   * documents that it is a real, expected no-op there.
+   * pixels.
    */
   panBy(dx: number, dy: number): Promise<void>;
   /**
-   * Resets zoom/pan back to the default view. Svelte has an explicit Reset
-   * button for this (state/viewport.svelte.ts); Dash has none, so
-   * DashDriver's implementation is a documented best-effort (repeated
-   * zoom-out) rather than an exact reset.
+   * Resets zoom/pan back to the default view via the explicit Reset button
+   * (state/viewport.svelte.ts).
    */
   resetZoom(): Promise<void>;
   /** Selects a slice by thumbnail click and waits until the backend reports it selected. */
@@ -104,11 +97,8 @@ export interface UiDriver {
   commitMultiPoint(): Promise<void>;
   /**
    * Asserts that a queued-point marker of the right color (green for a
-   * plain/Shift point, red for a Ctrl/negative one -- Dash's CLI-05
-   * `visualize_point`) is currently visible for each of `points`, in order.
-   * DashDriver samples the preview canvas's own pixels (Dash draws these
-   * directly onto `#preview-canvas`, not as DOM nodes); SvelteDriver reads
-   * `PreviewOverlay.svelte`'s marker elements instead.
+   * plain/Shift point, red for a Ctrl/negative one) is currently visible for
+   * each of `points`, in order (`PreviewOverlay.svelte`'s marker elements).
    */
   expectQueuedPointMarkers(points: Array<{ x: number; y: number; negative: boolean }>): Promise<void>;
 

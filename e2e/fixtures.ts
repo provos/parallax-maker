@@ -1,5 +1,4 @@
 import { test as base, expect, type ConsoleMessage, type Page } from '@playwright/test';
-import { DashDriver } from './drivers/dash';
 import { SvelteDriver } from './drivers/svelte';
 import type { UiDriver, UiTarget, Workflow } from './drivers/types';
 
@@ -38,13 +37,9 @@ type Options = {
 };
 
 export const test = base.extend<Fixtures & Options>({
-  uiTarget: ['dash', { option: true }],
+  uiTarget: ['svelte', { option: true }],
 
   ui: async ({ page, uiTarget }, use) => {
-    if (uiTarget === 'dash') {
-      await use(new DashDriver(page));
-      return;
-    }
     if (uiTarget === 'svelte') {
       await use(new SvelteDriver(page));
       return;

@@ -163,7 +163,7 @@ playwright-report/
 appstate-*/
 
 # Svelte frontend build output (built by `npm run build:frontend`).
-parallax_maker/static/next/
+parallax_maker/static/app/
 
 # The generic `lib/` rule above (Python packaging convention) would otherwise
 # also match frontend/src/lib/, which is real Svelte source, not a build

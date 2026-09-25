@@ -34,7 +34,7 @@ export class SvelteDriver implements UiDriver {
   // Navigation
 
   async goto(): Promise<void> {
-    await this.page.goto('/next/', { waitUntil: 'domcontentloaded' });
+    await this.page.goto('/', { waitUntil: 'domcontentloaded' });
     await expect(this.page.getByRole('heading', { name: 'Parallax Maker' })).toBeVisible();
   }
 

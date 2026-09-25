@@ -5,11 +5,10 @@ import { fetchArtifact, listArtifacts, readE2EState } from './helpers/oracle';
 
 /**
  * Characterizes project lifecycle, configuration and export/render behavior
- * on the frozen Dash reference UI (see docs/svelte-migration/PARITY.md's
- * "Project lifecycle", "Configuration" and "Export/Render" sections), before
- * it is extracted into framework-neutral services/API routes. Every scenario
- * starts from `restoreFixtureState()` (three slices at depths [85, 170, 255],
- * thresholds [0, 85, 170, 255], 320x240 input, dark_mode=true, camera
+ * (see docs/svelte-migration/PARITY.md's "Project lifecycle", "Configuration"
+ * and "Export/Render" sections). Every scenario starts from
+ * `restoreFixtureState()` (three slices at depths [85, 170, 255], thresholds
+ * [0, 85, 170, 255], 320x240 input, dark_mode=true, camera
  * distance/focalLength/maxDistance=125/475/140, mesh_displacement=15 - see
  * `parallax_maker/e2e_support/fixtures.py`).
  */

@@ -8,7 +8,6 @@ using the production implementations.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from itertools import count
 from typing import Any
 
 import numpy as np
@@ -265,52 +264,34 @@ def _blocked_network(*args, **kwargs):
     raise RuntimeError("External network access is disabled by the E2E test server")
 
 
-def _offline_gltf_iframe(gltf_uri: str) -> str:
-    return (
-        "<html><body><p id='e2e-gltf-viewer' "
-        f"data-model-uri='{gltf_uri}'>glTF created</p></body></html>"
-    )
+def install_fakes() -> None:
+    """Install process-local fakes for deterministic, offline browser tests.
 
-
-def install_fakes():
-    """Install process-local fakes and return the already configured Dash module."""
+    Patches only the model/provider module boundaries the API and its
+    services actually resolve at call time (see ``configuration_services.py``'s
+    own docstring on why it imports ``automatic1111``/``comfyui``/
+    ``stabilityai``/``falai`` as modules rather than importing their
+    functions/classes directly): everything else - mask handling, compositing,
+    versioning, exports, filesystem persistence, and the API/service layer
+    itself - stays real. There is no Dash module to patch any more; the
+    Svelte app has no external CDN scripts to disable either (its 3D viewer
+    is an ordinary bundled npm dependency, not a runtime-loaded script).
+    """
 
     import requests.sessions
 
     from parallax_maker import automatic1111, comfyui, controller, falai, inpainting
-    from parallax_maker import stabilityai, webui
-    from parallax_maker import components
+    from parallax_maker import stabilityai
 
-    # Classes captured as module globals by callback functions.
-    webui.DepthEstimationModel = FakeDepthEstimationModel
-    webui.workflow_service = webui.WorkflowService(
-        depth_model_factory=FakeDepthEstimationModel,
-        progress_reporter=webui.progress_callback,
-        slice_expand=webui.EXPAND_MASK,
-    )
-    webui.SegmentationModel = FakeSegmentationModel
-    webui.InpaintingModel = FakeInpaintingModel
     controller.Upscaler = FakeUpscaler
     controller.StabilityAI = FakeExternalProvider
     controller.FalAI = FakeExternalProvider
 
-    # Production URLs use whole-second timestamps. Several legitimate callbacks
-    # can complete inside one second, leaving React with an unchanged ``src`` and
-    # a stale image. Give the test process a monotonic query value so each real
-    # file write is observable without sleeps.
-    original_serve_main_image = controller.AppState.serve_main_image
-    original_slice_image_composed = controller.AppState.slice_image_composed
-    image_versions = count()
-
-    def serve_main_image_with_unique_url(state, image):
-        url = original_serve_main_image(state, image)
-        path = url.split("?", maxsplit=1)[0]
-        return f"{path}?e2e-v={next(image_versions)}"
-
-    controller.AppState.serve_main_image = serve_main_image_with_unique_url
-
     # Fresh fixture slices are pixel-identical to the source image, so tag the
-    # composed object to make the selected-slice inference branch observable.
+    # composed object to make the selected-slice inference branch observable
+    # (read back by /__e2e__/state's segmentation_input).
+    original_slice_image_composed = controller.AppState.slice_image_composed
+
     def slice_image_composed_with_source(
         state, slice_index, mode=controller.CompositeMode.NONE
     ):
@@ -320,34 +301,23 @@ def install_fakes():
 
     controller.AppState.slice_image_composed = slice_image_composed_with_source
 
-    # The production factory resolves this module global when a callback invokes it.
+    # create_inpainting_pipeline (used by ExportService.upscale_textures)
+    # resolves InpaintingModel/StabilityAI/FalAI as inpainting.py's own
+    # module globals.
     inpainting.InpaintingModel = FakeInpaintingModel
     inpainting.StabilityAI = FakeExternalProvider
     inpainting.FalAI = FakeExternalProvider
     stabilityai.StabilityAI = FakeExternalProvider
     falai.FalAI = FakeExternalProvider
 
-    # Configuration probes are deterministic too.
-    components.StabilityAI = FakeExternalProvider
-    components.make_models_request = lambda server_address: ["e2e-model"]
-    components.get_history = lambda server_address, prompt_id: {"e2e": "ready"}
-    automatic1111.make_models_request = components.make_models_request
     # configuration_services.py's default probes call the automatic1111/comfyui
-    # module functions directly (not components.*), so both must be patched for
-    # the new configuration API's probe-server route to stay deterministic/offline.
-    comfyui.get_history = components.get_history
+    # module functions directly, so patching those modules' own attributes is
+    # enough to make the configuration API's probe-server/validate-key routes
+    # deterministic/offline.
+    automatic1111.make_models_request = lambda server_address: ["e2e-model"]
+    comfyui.get_history = lambda server_address, prompt_id: {"e2e": "ready"}
     automatic1111.make_img2img_request = _blocked_network
     comfyui.inpainting_comfyui = _blocked_network
     inpainting.inpainting_comfyui = _blocked_network
 
-    # Browser tests run offline.  The normal application retains both scripts.
-    webui.app.config.external_scripts = []
-    webui.get_gltf_iframe = _offline_gltf_iframe
-    # Font Awesome normally gives icon-only controls their glyph dimensions.
-    # Preserve clickable geometry offline without changing production assets.
-    webui.app.index_string = webui.app.index_string.replace(
-        "</head>",
-        "<style>.fa-solid,.fas{min-width:1rem;min-height:1rem}</style></head>",
-    )
     requests.sessions.Session.request = _blocked_network
-    return webui

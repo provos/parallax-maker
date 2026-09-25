@@ -25,9 +25,12 @@ python -m keyring set https://test.pypi.org/legacy/ your-username
 rm -rf dist/ build/ *.egg-info
 ```
 
-2. Build Tailwind CSS assets (if changed):
+2. Build the Svelte frontend (required - the wheel packages
+   `parallax_maker/static/app/**/*`, which is only populated by this build;
+   see `[tool.setuptools.package-data]` in `pyproject.toml`):
 ```bash
-npm run build
+npm --prefix frontend ci
+npm run build:frontend
 ```
 
 3. Build the wheel and source distribution:
@@ -56,6 +59,13 @@ pip install dist/parallax_maker-*.whl
 ```bash
 parallax-maker --help
 parallax-gltf-cli --help
+```
+
+4. Verify the installed package actually serves the built UI end to end
+   (starts the server, checks `/api/v1/health`, `/`, and a hashed frontend
+   asset - see `scripts/smoke_installed.sh`):
+```bash
+bash scripts/smoke_installed.sh
 ```
 
 ## Publishing to PyPI
@@ -126,5 +136,5 @@ jobs:
 ## Notes
 
 - The package name is `parallax-maker` (with hyphen) but the Python module is `parallax_maker` (with underscore)
-- Entry points are configured for both the web UI (`parallax-maker`) and CLI tool (`parallax-gltf-cli`)
-- All assets (CSS, JS) are included via `MANIFEST.in`
+- Entry points are configured for both the web UI (`parallax-maker`, backed by a plain Flask app serving the JSON API and the built Svelte frontend) and CLI tool (`parallax-gltf-cli`)
+- The built Svelte frontend (`parallax_maker/static/app/**/*`) is included via `[tool.setuptools.package-data]` in `pyproject.toml`; `MANIFEST.in` covers the sdist. Building it (step 2 above) is required before every wheel/sdist build - a source checkout without it will produce a package whose `/` route 404s until `npm run build:frontend` is run.

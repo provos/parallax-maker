@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Parallax Maker is a Python-based computer vision and AI tool that converts 2D images into 2.5D animations using depth estimation, segmentation, and inpainting. It features a web UI built with Dash and exports to glTF for 3D applications.
+Parallax Maker is a Python-based computer vision and AI tool that converts 2D images into 2.5D animations using depth estimation, segmentation, and inpainting. It features a Svelte 5 web UI backed by a Flask/HTTP API and exports to glTF for 3D applications.
 
 ## Development Commands
 
@@ -17,21 +17,27 @@ source .venv/bin/activate
 # Install in development mode
 pip install -e .[dev]
 
-# Install TailwindCSS dependencies (only if modifying styles)
-npm install -D tailwindcss
+# Install and build the Svelte frontend (required before the server has
+# anything to serve at "/"; a released wheel already ships a prebuilt copy)
+npm --prefix frontend ci
+npm run build:frontend
 ```
 
 ### Running the Application
 ```bash
-# Start the web UI
+# Start the web UI (serves the JSON API at /api/v1 and the built Svelte app at /)
 parallax-maker
 
 # Or run the module directly
-python -m parallax_maker.webui
+python -m parallax_maker.server
 
 # Prefetch models to avoid download delays
 parallax-maker --prefetch-models=default
 ```
+
+`parallax-maker` runs single-process by design: the in-memory per-project
+registry and job manager (`parallax_maker/runtime.py`) are not shared across
+worker processes.
 
 ### Development Workflow
 ```bash
@@ -47,11 +53,19 @@ black .
 # Type checking
 mypy parallax_maker
 
-# Build TailwindCSS (when modifying styles)
-npm run build
+# Frontend: type-check, unit test, build
+npm run check:frontend
+npm run test:frontend
+npm run build:frontend
 
-# Watch TailwindCSS changes during development
-npm run watch
+# Frontend dev server with hot reload (proxies /api and /__e2e__ to the
+# backend; run `parallax-maker` in another terminal first)
+npm --prefix frontend run dev
+
+# Browser end-to-end tests (Playwright, driving the real Svelte UI against a
+# deterministic fake-model backend; see e2e/README.md)
+npx playwright install chromium
+npm run test:e2e
 ```
 
 ### Running Individual Tests
@@ -67,34 +81,46 @@ pytest parallax_maker/test_filename.py::test_function_name
 
 ### Core Components
 
-1. **Web UI (webui.py)**: Main Dash application that orchestrates the workflow
-   - Handles image loading, depth generation, segmentation, inpainting, and export
-   - State management via AppState class
-
-2. **Depth Estimation (depth.py)**: Supports multiple models
+1. **API (`parallax_maker/api/`)**: Flask blueprint implementing the `/api/v1`
+   HTTP contract (see `docs/svelte-migration/ARCHITECTURE.md`) - projects,
+   segmentation, slice editing, inpainting, project lifecycle, export,
+   configuration, and background jobs (`api/jobs.py`)
+2. **Server (`server.py`)**: `create_server(runtime)` builds the plain Flask
+   app (API blueprint + the built Svelte app served from `static/app/`);
+   `main()` is the `parallax-maker` console-script entry point
+3. **Runtime (`runtime.py`)**: composition root - model/pipeline factories,
+   the framework-neutral workflow/segmentation/inpainting/slice-editing/
+   export/project services built from those factories, the per-project
+   registry (locks, revisions, log ring buffers) and the job manager
+4. **Frontend (`frontend/`)**: Svelte 5 + TypeScript + Vite source; built into
+   `parallax_maker/static/app/` (packaged with the wheel)
+5. **Depth Estimation (depth.py)**: Supports multiple models
    - MiDaS, DINOv2, ZoeDepth for depth map generation
    - Configurable model selection and parameters
-
-3. **Segmentation (segmentation.py)**: Interactive image segmentation
+6. **Segmentation (segmentation.py)**: Interactive image segmentation
    - Segment Anything Model (SAM) with point-based selection
    - Manual card creation and depth manipulation
-
-4. **Inpainting (inpainting.py)**: Multiple backends for mask inpainting
+7. **Inpainting (inpainting.py)**: Multiple backends for mask inpainting
    - Local: Stable Diffusion XL, SD3 Medium
    - Remote: Automatic1111 (automatic1111.py), ComfyUI (comfyui.py)
    - API: StabilityAI
-
-5. **3D Export (gltf.py)**: glTF 2.0 scene generation
+8. **3D Export (gltf.py, export_services.py)**: glTF 2.0 scene generation
    - Creates depth-based card arrangements
    - Supports depth displacement for realistic geometry
    - Command-line tool: parallax-gltf-cli
 
 ### Key Design Patterns
 
-- **AppState**: Central state management for the entire workflow
-- **Component Registry**: UI components registered in components.py
-- **Model Management**: Lazy loading of AI models to optimize memory
-- **Callback Architecture**: Dash callbacks handle all UI interactions
+- **AppState** (`controller.py`): Central state management for the entire workflow
+- **Services** (`*_services.py`): framework-neutral command/result objects
+  (`WorkflowService`, `SegmentationService`, `InpaintingService`,
+  `SliceEditingService`, `ProjectService`, `ExportService`) that the API
+  routes adapt to HTTP; these have no Flask/HTTP dependency of their own
+- **Model Management**: Lazy loading of AI models to optimize memory, via
+  injectable factories (`Runtime.*_factory`)
+- **Jobs** (`api/jobs.py`): slow operations (depth generation, segmentation
+  inference, inpainting generation, export/upscale/animation) run as
+  background jobs on a single worker thread, polled via `GET /api/v1/jobs/{id}`
 
 ### Data Flow
 
@@ -106,13 +132,15 @@ pytest parallax_maker/test_filename.py::test_function_name
 ### File Organization
 
 - `parallax_maker/`: Main package directory
-  - `assets/`: CSS and JavaScript files
-  - `components.py`: All Dash UI components
-  - `controller.py`: Main workflow orchestration
-  - `constants.py`: Configuration and defaults
+  - `api/`: HTTP API blueprint and routes
+  - `static/app/`: built Svelte frontend (generated by `npm run build:frontend`; not checked in)
+  - `controller.py`: Main workflow orchestration (`AppState`)
   - Model-specific files: depth.py, segmentation.py, inpainting.py
   - Integration files: automatic1111.py, comfyui.py
-  - Export: gltf.py, gltf_cli.py
+  - Export: gltf.py, gltf_cli.py, export_services.py
+  - `server.py`: production entry point; `e2e_server.py`/`e2e_support/`: deterministic test-only server
+- `frontend/`: Svelte 5 + TypeScript + Vite source
+- `e2e/`: frontend-neutral Playwright browser tests, driven through `UiDriver` (`e2e/drivers/svelte.ts`)
 
 ### State Persistence
 
@@ -125,15 +153,15 @@ pytest parallax_maker/test_filename.py::test_function_name
 - First-time model downloads can take several minutes
 - GPU recommended for reasonable performance
 - Memory usage scales with image size and model complexity
-- TailwindCSS compilation required only when modifying styles
+- The Svelte frontend must be built (`npm run build:frontend`) before `/`
+  serves anything other than a 404 with a "not built" message
 - SD3 Medium requires latest diffusers from GitHub
 
-## Svelte 5 migration (in progress)
+## Svelte 5 migration (complete)
 
-The Dash UI is being replaced by a Svelte 5 frontend. Dash is frozen as the
-behavioral reference; do not add new Dash adapters. Read, in order:
-`docs/SVELTE_5_MIGRATION_HANDOFF.md` (background and plan),
-`docs/svelte-migration/ARCHITECTURE.md` (target design and API contract), and
-`docs/svelte-migration/PARITY.md` (per-callback checklist and progress).
-Browser scenarios in `e2e/` are frontend-neutral and run through a `UiDriver`
-(`e2e/drivers/`); keep new scenarios free of framework-specific selectors.
+The Dash UI has been fully replaced by the Svelte 5 frontend; Dash and all
+its adapter code/tests have been removed. `docs/SVELTE_5_MIGRATION_HANDOFF.md`
+and `docs/svelte-migration/ARCHITECTURE.md`/`PARITY.md` are kept as the
+historical record of that migration (source map, API contract design,
+per-callback parity checklist) - useful background when working in `api/`,
+`*_services.py`, or `frontend/`, but no longer a live plan.

@@ -115,7 +115,7 @@ def _read_mask_file(state) -> np.ndarray | None:
 
 
 def _register_routes(app, fixture_root: Path) -> None:
-    @app.server.get("/__e2e__/ready")
+    @app.get("/__e2e__/ready")
     def e2e_ready():
         return jsonify(
             {
@@ -126,14 +126,14 @@ def _register_routes(app, fixture_root: Path) -> None:
             }
         )
 
-    @app.server.get("/__e2e__/fixture/input.png")
+    @app.get("/__e2e__/fixture/input.png")
     def e2e_input_fixture():
         output = io.BytesIO()
         create_input_image().save(output, format="PNG")
         output.seek(0)
         return send_file(output, mimetype="image/png", download_name="e2e-input.png")
 
-    @app.server.get("/__e2e__/fixture/state.json")
+    @app.get("/__e2e__/fixture/state.json")
     def e2e_state_fixture():
         # Every request gets a clean state directory and an independent cache key.
         # This is intentionally a state-creating test route, not a production API.
@@ -145,7 +145,7 @@ def _register_routes(app, fixture_root: Path) -> None:
             download_name="e2e-state.json",
         )
 
-    @app.server.get("/__e2e__/state")
+    @app.get("/__e2e__/state")
     def e2e_state():
         """Expose compact state metadata for assertions, never production data."""
 
@@ -206,7 +206,7 @@ def _register_routes(app, fixture_root: Path) -> None:
             }
         )
 
-    @app.server.get("/__e2e__/artifacts")
+    @app.get("/__e2e__/artifacts")
     def e2e_artifacts():
         """List generated files so exports can be verified outside the temp cwd."""
 
@@ -220,7 +220,7 @@ def _register_routes(app, fixture_root: Path) -> None:
         ]
         return jsonify({"filename": state_dir.name, "files": files})
 
-    @app.server.get("/__e2e__/artifact/<filename>/<path:artifact>")
+    @app.get("/__e2e__/artifact/<filename>/<path:artifact>")
     def e2e_artifact(filename: str, artifact: str):
         """Download one generated artifact, including rendered animation frames."""
 
@@ -244,14 +244,15 @@ def main() -> None:
     with tempfile.TemporaryDirectory(prefix="parallax-maker-e2e-") as work_dir:
         os.chdir(work_dir)
         install_fakes()
-        # Dash and the API are served from the same process and share the
-        # same fakes: install_fakes() patches the frozen Dash callbacks, and
-        # create_fake_runtime() builds the equivalent fake Runtime for the API.
+        # install_fakes() patches the model/provider module boundaries the
+        # API and its services resolve at call time; create_fake_runtime()
+        # builds the equivalent fake Runtime the API is composed from, so the
+        # same deterministic substitutes back every request in this process.
         server = create_server(create_fake_runtime())
         fixture_root = Path(work_dir)
         _register_routes(server.app, fixture_root)
         print(f"E2E_READY http://{args.host}:{args.port}/__e2e__/ready", flush=True)
-        server.app.run_server(
+        server.app.run(
             host=args.host,
             port=args.port,
             debug=False,

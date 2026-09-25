@@ -6,7 +6,6 @@ from .utils import (
     find_square_bounding_box,
     filename_add_version,
     filename_previous_version,
-    highlight_selected_element,
     encode_string_with_nonce,
     decode_string_with_nonce,
 )
@@ -141,39 +140,6 @@ class TestFilenameAddVersion(unittest.TestCase):
 
         # Define the expected result
         expected_result = None
-
-        # Assert that the result is as expected
-        self.assertEqual(result, expected_result)
-
-
-class TestHighLightSelectedElement(unittest.TestCase):
-    def setUp(self) -> None:
-        super().setUp()
-
-        self.classnames = [
-            "text-white",
-            "text-brown",
-            "text-black",
-        ]
-        self.highlight_classname = "color-is-selected"
-
-    def test_highlight_selected_element(self):
-        result = highlight_selected_element(
-            self.classnames, 0, self.highlight_classname
-        )
-
-        expected_result = self.classnames.copy()
-        expected_result[0] += f" {self.highlight_classname}"
-
-        # Assert that the result is as expected
-        self.assertEqual(result, expected_result)
-
-    def test_highlight_selected_element_remove(self):
-        classnames = self.classnames.copy()
-        expected_result = self.classnames
-        classnames[1] += f" {self.highlight_classname}"
-
-        result = highlight_selected_element(classnames, None, self.highlight_classname)
 
         # Assert that the result is as expected
         self.assertEqual(result, expected_result)

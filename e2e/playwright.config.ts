@@ -44,10 +44,6 @@ export default defineConfig<{ uiTarget: UiTarget }>({
   use,
   projects: [
     {
-      name: 'dash',
-      use: { uiTarget: 'dash' },
-    },
-    {
       name: 'svelte',
       use: { uiTarget: 'svelte' },
     },

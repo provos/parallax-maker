@@ -1,8 +1,13 @@
 # Svelte migration: target architecture and API contract
 
-Status: design for PR 1–2. Plan and background are in
-[`../SVELTE_5_MIGRATION_HANDOFF.md`](../SVELTE_5_MIGRATION_HANDOFF.md);
-progress is tracked in [`PARITY.md`](PARITY.md).
+Status: design for PR 1–2, since implemented and cut over - Dash is removed
+and this design is now the live architecture (`parallax_maker/server.py`,
+`parallax_maker/api/`, `frontend/`). It is kept here as background for that
+code, not as a forward-looking plan; see the "Migration complete" section of
+[`../SVELTE_5_MIGRATION_HANDOFF.md`](../SVELTE_5_MIGRATION_HANDOFF.md) for
+what changed at cutover (`static/next/` → `static/app/`, Svelte moved from
+`/next/` to `/`, etc.) and [`PARITY.md`](PARITY.md) for the historical
+per-callback checklist.
 
 ## Decisions (2026-09-24)
 

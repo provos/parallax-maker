@@ -2,14 +2,16 @@ import { defineConfig } from 'vitest/config';
 import { svelte } from '@sveltejs/vite-plugin-svelte';
 import tailwindcss from '@tailwindcss/vite';
 
-// The Dash Flask server (parallax_maker/server.py) serves this build under
-// /next/ and proxies the API + e2e test-only endpoints during development.
-// See docs/svelte-migration/ARCHITECTURE.md ("Frontend layout", HTTP contract).
+// The Flask server (parallax_maker/server.py) serves this build at the
+// application root (/) and proxies the API + e2e test-only endpoints during
+// development. See docs/svelte-migration/ARCHITECTURE.md ("Frontend layout",
+// HTTP contract) and the "Migration complete" section of
+// docs/SVELTE_5_MIGRATION_HANDOFF.md.
 export default defineConfig({
-  base: '/next/',
+  base: '/',
   plugins: [svelte(), tailwindcss()],
   build: {
-    outDir: '../parallax_maker/static/next',
+    outDir: '../parallax_maker/static/app',
     emptyOutDir: true,
   },
   server: {

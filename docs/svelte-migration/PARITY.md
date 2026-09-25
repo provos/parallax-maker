@@ -1,6 +1,14 @@
 # Dash → Svelte parity checklist
 
-This document tracks parity between the existing Dash UI and the Svelte 5
+> **Historical record.** Dash reached full parity and was removed from the
+> codebase in the cutover PR (`webui.py`, `components.py`, `clientside.py`,
+> `parallax_maker/assets/`, and their adapter tests are gone; see the
+> "Migration complete" section of `../SVELTE_5_MIGRATION_HANDOFF.md`). This
+> document is kept as-is - including its "Dash" language and file:line
+> references to the now-deleted modules - as the record of what was checked
+> and how, not as a description of the current codebase.
+
+This document tracks parity between the (now-removed) Dash UI and the Svelte 5
 replacement, one row per Dash callback / clientside callback / browser event
 handler discovered in `parallax_maker/webui.py`, `parallax_maker/components.py`,
 `parallax_maker/clientside.py`, and `parallax_maker/assets/scripts/utility.js`.

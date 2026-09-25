@@ -62,10 +62,20 @@ jobs:
         python - <<'PY'
         import glob, zipfile
         names = zipfile.ZipFile(glob.glob("dist/parallax_maker-*.whl")[0]).namelist()
-        assert "parallax_maker/static/next/index.html" in names, "index.html missing"
-        assert any(n.startswith("parallax_maker/static/next/assets/") for n in names), "assets missing"
-        print("wheel ships", sum(n.startswith("parallax_maker/static/next/") for n in names), "frontend files")
+        assert "parallax_maker/static/app/index.html" in names, "index.html missing"
+        assert any(n.startswith("parallax_maker/static/app/assets/") for n in names), "assets missing"
+        print("wheel ships", sum(n.startswith("parallax_maker/static/app/") for n in names), "frontend files")
         PY
+    - name: Install the built wheel into this environment
+      run: |
+        # --no-deps: dependencies are already installed from the editable
+        # install above; this only swaps in the real (non-editable) package
+        # so the console script and package data come from the wheel itself,
+        # not the source checkout.
+        python -m pip install --force-reinstall --no-deps dist/parallax_maker-*.whl
+    - name: Smoke test the installed package
+      run: |
+        bash scripts/smoke_installed.sh 8119
     - name: Type-check browser tests
       run: npm run check:e2e
     - name: Test browser workflows
