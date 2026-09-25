@@ -6,9 +6,9 @@
  */
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { Page } from '@playwright/test';
 import { expect, requireWorkflow, test } from './fixtures';
 import type { MainTab } from './drivers/types';
+import { pageOverflow, setViewport } from './helpers/layout';
 
 const TABS: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'];
 const IMAGES = [
@@ -21,13 +21,6 @@ const VIEWPORTS = [
   { width: 768, height: 1024 },
 ];
 
-async function pageOverflow(page: Page): Promise<{ vertical: number; horizontal: number }> {
-  return page.evaluate(() => {
-    const root = document.scrollingElement ?? document.documentElement;
-    return { vertical: root.scrollHeight - window.innerHeight, horizontal: root.scrollWidth - window.innerWidth };
-  });
-}
-
 for (const image of IMAGES) {
   for (const viewport of VIEWPORTS) {
     test(`a ${image.name} image fits a ${viewport.width}x${viewport.height} window on every tab without page scrolling`, async ({
@@ -35,12 +28,13 @@ for (const image of IMAGES) {
       ui,
     }) => {
       requireWorkflow(ui, 'upload-depth-slices');
-      await page.setViewportSize(viewport);
+      await setViewport(page, viewport);
       await ui.goto();
       await ui.uploadImageFile({
         name: `${image.name}.png`,
         mimeType: 'image/png',
-        buffer: readFileSync(resolve(__dirname, '..', image.file)),
+        // Paths are relative to the repo root, where `npm run test:e2e` runs.
+        buffer: readFileSync(resolve(process.cwd(), image.file)),
       });
 
       for (const tab of TABS) {
