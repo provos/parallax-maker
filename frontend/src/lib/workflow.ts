@@ -280,6 +280,14 @@ async function runSliceMutation(
   }
 }
 
+/**
+ * Moves the preview camera over the slice cards and shows the re-rendered
+ * parallax view (Dash's `navigate_image` buttons). Deselects any slice.
+ */
+export async function navigateCamera(direction: api.CameraDirection): Promise<void> {
+  await runSliceMutation('navigate', (id) => api.navigateCamera(id, direction));
+}
+
 /** Creates a slice from the current mask, or an empty slice if there is none. */
 export async function createSlice(): Promise<void> {
   await runSliceMutation('slice-editing', (id) => api.createSlice(id));

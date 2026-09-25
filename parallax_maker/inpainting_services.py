@@ -217,6 +217,8 @@ class GenerateInpaintingCandidates:
     guidance_scale: float
     padding: int
     blur: int
+    #: Optional fraction-done reporter (0..1) for the whole generation.
+    progress: Callable[[float], None] | None = None
 
 
 @dataclass(frozen=True)
@@ -413,13 +415,16 @@ class InpaintingService:
         self._states.save(command.state_id, state, self.JSON_ONLY)
 
         pipeline = self._resolve_pipeline(state, command)
+        report = command.progress
         try:
             if mode in (InpaintingMode.PAINT, InpaintingMode.FILL):
                 mask = self._generation_mask(state, index, image, mode)
                 patched = self._patcher(image.copy(), mask.copy())
-                candidates = tuple(
-                    self._generated_image(
-                        pipeline.inpaint(
+                count = 3
+                generated = []
+                for k in range(count):
+                    with _step_progress(pipeline, report, k, count):
+                        result = pipeline.inpaint(
                             positive,
                             negative,
                             patched.copy(),
@@ -429,16 +434,19 @@ class InpaintingService:
                             blur_radius=command.blur,
                             padding=command.padding,
                             crop=True,
-                        ),
-                        image.shape,
-                    )
-                    for _ in range(3)
-                )
+                        )
+                    generated.append(self._generated_image(result, image.shape))
+                candidates = tuple(generated)
             else:
-                candidates = tuple(
-                    self._enhance(state, image.copy(), positive, negative)
-                    for _ in range(2)
-                )
+                count = 2
+                generated = []
+                for k in range(count):
+                    generated.append(
+                        self._enhance(state, image.copy(), positive, negative)
+                    )
+                    if report is not None:
+                        report((k + 1) / count)
+                candidates = tuple(generated)
         except InpaintingServiceError:
             raise
         except Exception as error:
@@ -776,3 +784,45 @@ class InpaintingService:
                 "the inpainting candidate must match the selected slice"
             )
         return candidate
+
+
+class _step_progress:
+    """Reports candidate ``k`` of ``count`` as a slice of overall progress.
+
+    While active, forwards the pipeline's per-step callback (local diffusers
+    models only; see ``InpaintingModel.step_callback``) as a fraction within
+    this candidate's slice, and reports the candidate as done on exit.
+    Pipelines without step reporting simply advance once per candidate.
+    """
+
+    def __init__(self, pipeline, report, k: int, count: int) -> None:
+        self._pipeline = pipeline
+        self._report = report
+        self._k = k
+        self._count = count
+        self._previous = None
+
+    def __enter__(self):
+        if self._report is None:
+            return self
+        report, k, count = self._report, self._k, self._count
+
+        def on_step(step: int, total: int) -> None:
+            report((k + min(step, total) / max(total, 1)) / count)
+
+        self._previous = getattr(self._pipeline, "step_callback", None)
+        try:
+            self._pipeline.step_callback = on_step
+        except AttributeError:
+            pass
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> None:
+        if self._report is None:
+            return
+        try:
+            self._pipeline.step_callback = self._previous
+        except AttributeError:
+            pass
+        if exc_type is None:
+            self._report((self._k + 1) / self._count)

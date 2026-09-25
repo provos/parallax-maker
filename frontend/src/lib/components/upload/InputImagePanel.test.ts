@@ -5,7 +5,8 @@ import { projectStore } from '../../state/project.svelte';
 import { jobStore } from '../../state/jobs.svelte';
 import { logStore } from '../../state/logs.svelte';
 import { uiStore } from '../../state/ui.svelte';
-import type { ProjectView } from '../../api/types';
+import type { ProjectView, SliceView } from '../../api/types';
+import { maskToolsStore } from '../../state/maskTools.svelte';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -328,6 +329,79 @@ describe('InputImagePanel', () => {
 
       expect(fetchMock).not.toHaveBeenCalled();
       expect(logStore.entries.at(-1)?.message).toBe('No mask to feather');
+    });
+  });
+
+  describe('camera navigation', () => {
+    const slice = { index: 0, depth: 0 } as unknown as SliceView;
+
+    it('is disabled until there are slices to navigate', () => {
+      projectStore.applyView(makeView());
+      render(InputImagePanel);
+      expect(screen.getByTestId('camera-up')).toBeDisabled();
+      expect(screen.getByTestId('camera-reset')).toBeDisabled();
+    });
+
+    it('posts the clicked direction and shows the re-rendered view', async () => {
+      projectStore.applyView(makeView({ slices: [slice] }));
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects/appstate-test/camera/navigate') {
+          return jsonResponse(200, { ...makeView({ slices: [slice], mainImage: { url: '/main?v=2' } }), changed: true });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      render(InputImagePanel);
+
+      await fireEvent.click(screen.getByTestId('camera-left'));
+
+      await waitFor(() => expect(screen.getByTestId('main-image')).toHaveAttribute('src', '/main?v=2'));
+      const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/camera/navigate'));
+      expect(call![1]).toMatchObject({ method: 'POST' });
+      expect(JSON.parse(call![1]!.body as string)).toEqual({ direction: 'left' });
+    });
+  });
+
+  describe('canvas tools', () => {
+    afterEach(() => maskToolsStore.reset());
+
+    it('sit in the tool row below the image, only on the Inpainting tab', () => {
+      projectStore.applyView(makeView());
+      render(InputImagePanel);
+      expect(screen.queryByTestId('canvas-tools')).not.toBeInTheDocument();
+
+      uiStore.setMainTab('Inpainting');
+      return waitFor(() => {
+        const tools = screen.getByTestId('canvas-tools');
+        // Outside the zoomed image box, next to the other tool buttons.
+        expect(tools.closest('.image-stack')).toBeNull();
+        expect(tools.parentElement).toContainElement(screen.getByTestId('invert-mask'));
+      });
+    });
+
+    it('drive the shared brush state and the canvas actions', async () => {
+      projectStore.applyView(makeView());
+      uiStore.setMainTab('Inpainting');
+      const clear = vi.fn(async () => {});
+      const load = vi.fn(async () => {});
+      render(InputImagePanel);
+      // The real MaskCanvas has bound its own actions; rebind test doubles.
+      maskToolsStore.bindCanvas({ clear, load });
+
+      await fireEvent.input(screen.getByTestId('brush-size'), { target: { value: '25' } });
+      expect(maskToolsStore.brushWidth).toBe(25);
+      await fireEvent.click(screen.getByTestId('canvas-erase-mode'));
+      expect(maskToolsStore.erasing).toBe(true);
+      expect(screen.getByTestId('canvas-erase-mode')).toHaveAttribute('aria-pressed', 'true');
+      // The eraser keeps its own width.
+      expect(maskToolsStore.brushWidth).toBe(60);
+
+      await fireEvent.click(screen.getByTestId('canvas-clear'));
+      await fireEvent.click(screen.getByTestId('canvas-load'));
+      expect(clear).toHaveBeenCalledOnce();
+      expect(load).toHaveBeenCalledOnce();
     });
   });
 });

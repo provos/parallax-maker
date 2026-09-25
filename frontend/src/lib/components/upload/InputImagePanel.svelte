@@ -7,6 +7,8 @@
   import * as workflow from '../../workflow';
   import MaskCanvas from '../canvas/MaskCanvas.svelte';
   import PreviewOverlay from '../canvas/PreviewOverlay.svelte';
+  import MaskToolbar from '../canvas/MaskToolbar.svelte';
+  import type { CameraDirection } from '../../api/client';
 
   let fileInput: HTMLInputElement | undefined;
   let dragging = $state(false);
@@ -243,6 +245,24 @@
     viewportStore.reset();
   }
 
+  // -- Camera navigation (Dash's CMP-26 `navigate_image`): moves the preview
+  // camera over the slice cards and shows the server-rendered parallax view.
+  const canNavigate = $derived((projectStore.view?.slices.length ?? 0) > 0);
+  const CAMERA_BUTTONS: { direction: CameraDirection; symbol: string; label: string }[] = [
+    { direction: 'out', symbol: '\u2296', label: 'Move camera back' },
+    { direction: 'up', symbol: '\u2191', label: 'Move camera up' },
+    { direction: 'left', symbol: '\u2190', label: 'Move camera left' },
+    { direction: 'reset', symbol: '\u25CF', label: 'Reset camera position' },
+    { direction: 'right', symbol: '\u2192', label: 'Move camera right' },
+    { direction: 'down', symbol: '\u2193', label: 'Move camera down' },
+    { direction: 'in', symbol: '\u2295', label: 'Move camera forward' },
+  ];
+
+  function navigate(direction: CameraDirection): void {
+    if (!canNavigate || isBusy()) return;
+    void workflow.navigateCamera(direction);
+  }
+
   const segmentation = $derived(projectStore.view?.segmentation);
   // Multi/Commit are only meaningful in Instance Segmentation mode with a
   // project loaded, matching Dash's toggle_segmentation_buttons.
@@ -401,6 +421,24 @@
       &plus;
     </button>
     <span class="zoom-level" data-testid="zoom-level">{Math.round(viewportStore.scale * 100)}%</span>
+
+    <!-- Parallax preview camera (Dash's navigation buttons, CMP-26). -->
+    <div class="camera-nav" role="group" aria-label="Parallax camera" data-testid="camera-nav">
+      <span class="group-label" aria-hidden="true">Camera</span>
+      {#each CAMERA_BUTTONS as button (button.direction)}
+        <button
+          type="button"
+          class="tool-btn tool-btn-icon"
+          data-testid={`camera-${button.direction}`}
+          aria-label={button.label}
+          title={button.label}
+          disabled={!canNavigate || isBusy()}
+          onclick={() => navigate(button.direction)}
+        >
+          {button.symbol}
+        </button>
+      {/each}
+    </div>
   </div>
 
   <!-- Tool row under the Input Image panel, same order as Dash's
@@ -460,6 +498,11 @@
     >
       Commit
     </button>
+    {#if uiStore.mainTab === 'Inpainting'}
+      <!-- Paint-canvas tools; the canvas is only interactive on this tab. -->
+      <span class="divider" aria-hidden="true"></span>
+      <MaskToolbar />
+    {/if}
   </div>
 </div>
 
@@ -534,49 +577,44 @@
 
   .tool-row {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) 0 0;
   }
 
-  .tool-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--color-accent);
-    color: var(--color-accent-text);
-    border: none;
-    border-radius: var(--radius-md);
-    padding: var(--space-2);
-    font: inherit;
-    cursor: pointer;
-  }
 
-  .tool-btn-icon {
-    padding-left: var(--space-3);
-    padding-right: var(--space-3);
-  }
 
-  .tool-btn:hover:not(:disabled) {
-    background-color: var(--color-accent-hover);
-  }
 
-  .tool-btn:disabled {
-    background-color: var(--color-disabled-bg);
-    color: var(--color-disabled-text);
-    cursor: default;
-  }
 
-  .tool-btn-selected:not(:disabled) {
-    background-color: var(--color-success);
-    color: var(--color-success-text);
-  }
 
   .viewport-controls {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2);
     padding: var(--space-2) 0 0;
+  }
+
+  .camera-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+    margin-left: var(--space-2);
+  }
+
+  .group-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    margin-right: var(--space-1);
+  }
+
+  .divider {
+    align-self: stretch;
+    width: 1px;
+    margin: 0 var(--space-1);
+    background-color: var(--color-border-strong);
   }
 
   .zoom-level {

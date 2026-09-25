@@ -15,6 +15,7 @@ export type {
   AnimationExportRequest,
   AssetRef,
   BusyView,
+  CameraNavigateRequest,
   CameraSettingsRequest,
   CameraSettingsView,
   ErrorBody as ApiErrorBody,

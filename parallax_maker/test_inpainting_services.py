@@ -493,3 +493,83 @@ def test_undo_and_redo_move_slice_versions_and_persist_mapping(tmp_path: Path) -
         service.move_slice_version(
             MoveSliceVersion("state", 0, SliceVersionDirection.FORWARD)
         )
+
+
+class SteppingPipeline(RecordingPipeline):
+    """Reports two denoising steps per candidate, like a diffusers pipeline."""
+
+    def __init__(self, model: str, **kwargs: object) -> None:
+        super().__init__(model, **kwargs)
+        self.step_callback = None
+        self.callbacks_seen: list[object] = []
+
+    def inpaint(self, *args: object, **kwargs: object) -> Image.Image:
+        self.callbacks_seen.append(self.step_callback)
+        if self.step_callback is not None:
+            self.step_callback(1, 2)
+            self.step_callback(2, 2)
+        return super().inpaint(*args, **kwargs)
+
+
+@pytest.mark.parametrize(
+    "pipeline_factory, expected",
+    [
+        (RecordingPipeline, [1 / 3, 2 / 3, 1.0]),
+        (SteppingPipeline, [1 / 6, 1 / 3, 1 / 3, 1 / 2, 2 / 3, 2 / 3, 5 / 6, 1.0, 1.0]),
+    ],
+)
+def test_generation_reports_progress_per_candidate_and_per_step(
+    tmp_path: Path, pipeline_factory, expected
+) -> None:
+    state = make_state(tmp_path)
+    repository = MemoryStateRepository(state)
+    service = InpaintingService(
+        state_repository=repository, pipeline_factory=pipeline_factory
+    )
+    save_mask(service)
+    reported: list[float] = []
+
+    service.generate_candidates(
+        replace(generate_command(InpaintingMode.PAINT), progress=reported.append)
+    )
+
+    assert reported == pytest.approx(expected)
+    pipeline = RecordingPipeline.instances[-1]
+    if isinstance(pipeline, SteppingPipeline):
+        # Installed only for the duration of each candidate, then restored.
+        assert all(callback is not None for callback in pipeline.callbacks_seen)
+        assert pipeline.step_callback is None
+
+
+def test_enhance_reports_progress_per_candidate(tmp_path: Path) -> None:
+    state = make_state(tmp_path)
+    service, _ = make_service(state)
+    reported: list[float] = []
+    with patch.object(
+        AppState,
+        "upscale_image",
+        lambda self, image, prompt, negative_prompt: Image.fromarray(image),
+    ):
+        service.generate_candidates(
+            replace(generate_command(InpaintingMode.ENHANCE), progress=reported.append)
+        )
+    assert reported == pytest.approx([0.5, 1.0])
+
+
+def test_diffusers_step_callback_uses_the_pipelines_real_step_count() -> None:
+    from .inpainting import InpaintingModel
+
+    model = InpaintingModel()
+    assert model._step_callback_kwargs() == {}
+
+    steps: list[tuple[int, int]] = []
+    model.step_callback = lambda step, total: steps.append((step, total))
+    on_step_end = model._step_callback_kwargs()["callback_on_step_end"]
+
+    class Pipe:
+        num_timesteps = 40  # e.g. 50 steps at strength 0.8
+
+    kwargs = {"latents": object()}
+    assert on_step_end(Pipe(), 0, 999, kwargs) is kwargs
+    on_step_end(Pipe(), 39, 1, kwargs)
+    assert steps == [(1, 40), (40, 40)]

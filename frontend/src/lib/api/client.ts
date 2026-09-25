@@ -1,5 +1,6 @@
 import type {
   ApiErrorBody,
+  CameraNavigateRequest,
   HealthResponse,
   InpaintingGenerateMode,
   InpaintingSettingsRequest,
@@ -384,6 +385,23 @@ export function featherMask(id: string, signal?: AbortSignal): Promise<MutationR
     method: 'POST',
     signal,
   });
+}
+
+/** Camera move for the parallax preview; `reset` returns to the default position. */
+export type CameraDirection = CameraNavigateRequest['direction'];
+
+/** POST /api/v1/projects/{id}/camera/navigate */
+export function navigateCamera(
+  id: string,
+  direction: CameraDirection,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/camera/navigate`,
+    'POST',
+    { direction },
+    signal,
+  );
 }
 
 /** PUT /api/v1/projects/{id}/display */

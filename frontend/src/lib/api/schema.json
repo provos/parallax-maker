@@ -50,6 +50,30 @@
       "title": "BusyView",
       "type": "object"
     },
+    "CameraNavigateRequest": {
+      "additionalProperties": false,
+      "description": "Body of ``POST /projects/{id}/camera/navigate``.\n\nMirrors the seven ``NAV_*`` buttons of the removed Dash\n``navigate_image`` callback (see ``camera_services.py``): six unit steps\nplus ``reset``, which snaps the camera back to\n``[0, 0, -camera_distance]``.",
+      "properties": {
+        "direction": {
+          "enum": [
+            "up",
+            "down",
+            "left",
+            "right",
+            "in",
+            "out",
+            "reset"
+          ],
+          "title": "Direction",
+          "type": "string"
+        }
+      },
+      "required": [
+        "direction"
+      ],
+      "title": "CameraNavigateRequest",
+      "type": "object"
+    },
     "CameraSettingsRequest": {
       "additionalProperties": false,
       "description": "The nested ``camera`` object of ``PUT .../settings``; all three fields\nare required together (a client that wants to change one camera value\nsends the whole triple, matching Dash's own sliders, which always submit\ndistance/focal length/max distance together).",

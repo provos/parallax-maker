@@ -30,7 +30,8 @@ export type JobKind =
   | 'animation'
   | 'workflow-upload'
   | 'probe'
-  | 'validate-key';
+  | 'validate-key'
+  | 'navigate';
 
 function createJobStore() {
   let active = $state<JobKind | null>(null);

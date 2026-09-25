@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 from flask import Blueprint, jsonify
 
 from . import schemas
+from .camera import register_camera_routes
 from .configuration import register_configuration_routes
 from .errors import NotFound, register_error_handlers
 from .export import register_export_routes
@@ -42,6 +43,7 @@ def create_api_blueprint(runtime: Runtime) -> Blueprint:
     register_project_routes(blueprint, runtime)
     register_segmentation_routes(blueprint, runtime)
     register_slice_editing_routes(blueprint, runtime)
+    register_camera_routes(blueprint, runtime)
     register_inpainting_routes(blueprint, runtime)
     register_project_lifecycle_routes(blueprint, runtime)
     register_export_routes(blueprint, runtime)

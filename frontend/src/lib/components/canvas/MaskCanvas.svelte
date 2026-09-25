@@ -25,14 +25,17 @@
   import { logStore } from '../../state/logs.svelte';
   import { canvasSaveStore } from '../../state/canvas.svelte';
   import { canvasPreviewStore } from '../../state/canvasPreview.svelte';
+  import { maskToolsStore } from '../../state/maskTools.svelte';
   import * as workflow from '../../workflow';
 
   let canvasEl: HTMLCanvasElement | undefined;
   let ctx2d: CanvasRenderingContext2D | null = null;
 
-  let isErasing = $state(false);
-  let drawWidth = $state(40);
-  let eraseWidth = $state(60);
+  // Tool state lives in maskToolsStore so the toolbar can sit in the tool
+  // rows under the image (MaskToolbar.svelte) instead of inside the zoomed
+  // image box this canvas overlays.
+  const isErasing = $derived(maskToolsStore.erasing);
+  const brushWidth = $derived(maskToolsStore.brushWidth);
 
   let isDrawing = false;
   let strokeDirty = false;
@@ -165,7 +168,7 @@
     if (event.button === 2 && event.altKey) {
       isResizingBrush = true;
       resizeStartClientX = event.clientX;
-      resizeStartWidth = isErasing ? eraseWidth : drawWidth;
+      resizeStartWidth = brushWidth;
       canvasEl?.setPointerCapture?.(event.pointerId);
       return;
     }
@@ -187,7 +190,7 @@
 
     ctx.globalCompositeOperation = isErasing ? 'destination-out' : 'source-over';
     ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
-    ctx.lineWidth = (isErasing ? eraseWidth : drawWidth) * scaleFactor();
+    ctx.lineWidth = brushWidth * scaleFactor();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
 
@@ -201,9 +204,7 @@
 
   /** Clamped exactly like Dash's `adjustBrushSize` (utility.js:139-149): `[5, 100]`, 1 unit per 15px of drag. */
   function adjustBrushSize(deltaX: number): void {
-    const next = Math.max(5, Math.min(100, resizeStartWidth + deltaX / 15));
-    if (isErasing) eraseWidth = next;
-    else drawWidth = next;
+    maskToolsStore.setBrushWidth(resizeStartWidth + deltaX / 15);
   }
 
   function moveStroke(event: PointerEvent): void {
@@ -239,7 +240,7 @@
     canvasPreviewStore.setBrush({
       x: point.x,
       y: point.y,
-      diameter: (isErasing ? eraseWidth : drawWidth) * scaleFactor(),
+      diameter: brushWidth * scaleFactor(),
       erasing: isErasing,
     });
   }
@@ -316,9 +317,11 @@
     await drawMaskImage(slice.mask.url, loadToken);
   }
 
-  function toggleErase(): void {
-    isErasing = !isErasing;
-  }
+  // Clear/Load operate on this canvas's pixels; expose them to the toolbar.
+  $effect(() => {
+    const unbind = maskToolsStore.bindCanvas({ clear: onClear, load: onLoad });
+    return unbind; // unregister on unmount
+  });
 </script>
 
 <canvas
@@ -334,43 +337,6 @@
   oncontextmenu={(event) => event.preventDefault()}
 ></canvas>
 
-{#if interactiveNow}
-  <div class="canvas-tools" data-testid="canvas-tools">
-    <button type="button" class="tool-btn" data-testid="canvas-clear" disabled={isBusy()} onclick={onClear}>
-      Clear
-    </button>
-    <button
-      type="button"
-      class="tool-btn"
-      class:tool-btn-selected={isErasing}
-      data-testid="canvas-erase-mode"
-      aria-pressed={isErasing}
-      disabled={isBusy()}
-      onclick={toggleErase}
-    >
-      Erase
-    </button>
-    <button type="button" class="tool-btn" data-testid="canvas-load" disabled={isBusy()} onclick={onLoad}>
-      Load
-    </button>
-    <label class="brush-size">
-      Brush
-      <input
-        type="range"
-        min="5"
-        max="100"
-        step="1"
-        data-testid="brush-size"
-        value={isErasing ? eraseWidth : drawWidth}
-        oninput={(event) => {
-          const value = Number((event.currentTarget as HTMLInputElement).value);
-          if (isErasing) eraseWidth = value;
-          else drawWidth = value;
-        }}
-      />
-    </label>
-  </div>
-{/if}
 
 <style>
   .mask-canvas {
@@ -387,48 +353,5 @@
   .mask-canvas.interactive {
     pointer-events: auto;
     cursor: crosshair;
-  }
-
-  .canvas-tools {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0 0;
-  }
-
-  .tool-btn {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    background-color: var(--color-accent);
-    color: var(--color-accent-text);
-    border: none;
-    border-radius: var(--radius-md);
-    padding: var(--space-2);
-    font: inherit;
-    cursor: pointer;
-  }
-
-  .tool-btn:hover:not(:disabled) {
-    background-color: var(--color-accent-hover);
-  }
-
-  .tool-btn:disabled {
-    background-color: var(--color-disabled-bg);
-    color: var(--color-disabled-text);
-    cursor: default;
-  }
-
-  .tool-btn-selected:not(:disabled) {
-    background-color: var(--color-success);
-    color: var(--color-success-text);
-  }
-
-  .brush-size {
-    display: flex;
-    align-items: center;
-    gap: var(--space-1);
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
   }
 </style>

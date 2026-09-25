@@ -1,6 +1,7 @@
 <script lang="ts">
   import { uiStore } from '../../state/ui.svelte';
   import * as workflow from '../../workflow';
+  import ActivityIndicator from './ActivityIndicator.svelte';
 </script>
 
 <header class="app-header">
@@ -17,11 +18,14 @@
     </button>
   </div>
   <h1 data-testid="app-title">Parallax Maker</h1>
-  <div class="header-side" aria-hidden="true"></div>
+  <div class="header-side header-side-right">
+    <ActivityIndicator />
+  </div>
 </header>
 
 <style>
   .app-header {
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -30,10 +34,22 @@
     padding: var(--space-4);
   }
 
+  /* Equal-width sides keep the title centered. */
   .header-side {
-    width: 7rem;
+    width: 16rem;
+    min-width: 0;
     display: flex;
     align-items: center;
+  }
+
+  .header-side-right {
+    justify-content: flex-end;
+  }
+
+  @media (max-width: 900px) {
+    .header-side {
+      width: 10rem;
+    }
   }
 
   h1 {
