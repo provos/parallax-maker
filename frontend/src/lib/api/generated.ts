@@ -9,6 +9,7 @@ export type Frames = number;
 export type Url = string;
 export type Jobid = string;
 export type Kind = string;
+export type Direction = "up" | "down" | "left" | "right" | "in" | "out" | "reset";
 export type Distance = number;
 export type Focallength = number;
 export type Maxdistance = number;
@@ -137,6 +138,20 @@ export interface AssetRef {
 export interface BusyView {
   jobId: Jobid;
   kind: Kind;
+}
+/**
+ * Body of ``POST /projects/{id}/camera/navigate``.
+ *
+ * Mirrors the seven ``NAV_*`` buttons of the removed Dash
+ * ``navigate_image`` callback (see ``camera_services.py``): six unit steps
+ * plus ``reset``, which snaps the camera back to
+ * ``[0, 0, -camera_distance]``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "CameraNavigateRequest".
+ */
+export interface CameraNavigateRequest {
+  direction: Direction;
 }
 /**
  * The nested ``camera`` object of ``PUT .../settings``; all three fields

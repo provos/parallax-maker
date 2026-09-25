@@ -315,6 +315,18 @@ class ProjectSettingsRequest(ApiModel):
     dark_mode: bool | None = None
 
 
+class CameraNavigateRequest(ApiModel):
+    """Body of ``POST /projects/{id}/camera/navigate``.
+
+    Mirrors the seven ``NAV_*`` buttons of the removed Dash
+    ``navigate_image`` callback (see ``camera_services.py``): six unit steps
+    plus ``reset``, which snaps the camera back to
+    ``[0, 0, -camera_distance]``.
+    """
+
+    direction: Literal["up", "down", "left", "right", "in", "out", "reset"]
+
+
 class GltfExportRequest(ApiModel):
     """Body of ``POST /projects/{id}/export/gltf``."""
 
@@ -390,6 +402,7 @@ def public_models() -> list[type[BaseModel]]:
         InpaintingGenerateRequest,
         InpaintingSelectionRequest,
         InpaintingApplyRequest,
+        CameraNavigateRequest,
         ProjectSettingsRequest,
         GltfExportRequest,
         AnimationExportRequest,
