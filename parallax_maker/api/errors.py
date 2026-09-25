@@ -12,11 +12,13 @@ import logging
 
 from flask import jsonify
 
+from ..export_services import ExportServiceError, InvalidSliceIndex as InvalidExportIndex
 from ..inpainting_services import (
     InpaintingModelFailed,
     InpaintingServiceError,
     InvalidInpaintingCandidate,
 )
+from ..project_services import ProjectServiceError
 from ..segmentation_services import (
     InvalidSegmentationPoint,
     SegmentationModelFailed,
@@ -152,6 +154,25 @@ def register_error_handlers(blueprint) -> None:
         # SliceEditingUnchanged is handled by the route itself, like
         # WorkflowUnchanged, so it never reaches here as an error.
         return error_response(409, "not_ready", str(err))
+
+    @blueprint.errorhandler(InvalidExportIndex)
+    def _handle_invalid_export_index(err: InvalidExportIndex):
+        # api/export.py's own routes already convert this to InvalidRequest
+        # themselves (an out-of-range slice index is validated before any
+        # ExportService call), so this only guards a future direct caller.
+        return error_response(400, "invalid_request", str(err))
+
+    @blueprint.errorhandler(ExportServiceError)
+    def _handle_export_error(err: ExportServiceError):
+        # Covers ExportNotReady (no slices to export/upscale/render).
+        return error_response(409, "not_ready", str(err))
+
+    @blueprint.errorhandler(ProjectServiceError)
+    def _handle_project_error(err: ProjectServiceError):
+        # Covers InvalidProjectFile/ProjectDirectoryNotFound; api/projects.py's
+        # own restore route already maps these to 400/404 itself, so this only
+        # guards a future direct caller of ProjectService.
+        return error_response(400, "invalid_request", str(err))
 
     @blueprint.errorhandler(404)
     def _handle_flask_404(err):

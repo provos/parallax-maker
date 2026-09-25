@@ -106,6 +106,38 @@ class InpaintingView(ApiModel):
     selected_candidate: int | None = None
 
 
+class CameraSettingsView(ApiModel):
+    distance: float
+    focal_length: float
+    max_distance: float
+
+
+class ProjectSettingsView(ApiModel):
+    """Persisted project-lifecycle/configuration settings (``PUT .../settings``).
+
+    ``depth_model`` here is ``AppState.depth_model_name`` - the *persisted*
+    depth-model dropdown selection (``remember_depth_model``'s own value) -
+    which is a different concept from ``ProjectView.depth_model`` above
+    (``state.depth_estimation_model.model_name``, the model instance actually
+    used for the last depth generation; not restored from JSON, see
+    ``test_api_restore.py``). Both are kept: the top-level field's existing
+    contract is unchanged, and this one is what "configuration persistence"
+    (PARITY.md's WEB-29/WEB-30/WEB-38 rows) needs to expose.
+    """
+
+    dark_mode: bool
+    camera: CameraSettingsView
+    mesh_displacement: float
+    depth_model: str
+
+
+class ProjectExportsView(ApiModel):
+    """Content-versioned export availability (PARITY.md "Export/Render")."""
+
+    gltf: AssetRef | None = None
+    upscaled: bool = False
+
+
 class ProjectView(ApiModel):
     """Public projection of ``AppState``; never serialize PIL/NumPy/credentials."""
 
@@ -124,6 +156,8 @@ class ProjectView(ApiModel):
     segmentation: SegmentationView
     inpainting: InpaintingView
     busy: BusyView | None = None
+    settings: ProjectSettingsView
+    exports: ProjectExportsView
 
 
 class ErrorDetail(ApiModel):
@@ -255,6 +289,68 @@ class InpaintingApplyRequest(ApiModel):
     generation_id: str
 
 
+class CameraSettingsRequest(ApiModel):
+    """The nested ``camera`` object of ``PUT .../settings``; all three fields
+    are required together (a client that wants to change one camera value
+    sends the whole triple, matching Dash's own sliders, which always submit
+    distance/focal length/max distance together)."""
+
+    distance: float = Field(ge=0.0)
+    focal_length: float = Field(gt=0.0)
+    max_distance: float = Field(ge=0.0)
+
+
+class ProjectSettingsRequest(ApiModel):
+    """Body of ``PUT /projects/{id}/settings``.
+
+    Every top-level field is optional so a client can update just one
+    setting; a field is only applied (and only counted toward ``changed``)
+    when both present *and* different from the project's current value - see
+    ``project_services.UpdateSettings``.
+    """
+
+    depth_model: str | None = None
+    camera: CameraSettingsRequest | None = None
+    mesh_displacement: float | None = Field(default=None, ge=0.0)
+    dark_mode: bool | None = None
+
+
+class GltfExportRequest(ApiModel):
+    """Body of ``POST /projects/{id}/export/gltf``."""
+
+    dof: bool = False
+
+
+class AnimationExportRequest(ApiModel):
+    """Body of ``POST /projects/{id}/export/animation``."""
+
+    frames: int = Field(gt=0)
+
+
+class ProbeServerRequest(ApiModel):
+    """Body of ``POST /api/v1/config/probe-server``."""
+
+    model: str
+    server_address: str
+
+
+class ValidateKeyRequest(ApiModel):
+    """Body of ``POST /api/v1/config/validate-key``. ``api_key`` is
+    write-only: it is used for exactly one probe request and never stored or
+    echoed back."""
+
+    model: str
+    api_key: str
+
+
+class ProbeResultView(ApiModel):
+    """Response of both configuration-probe routes; ``message`` mirrors
+    Dash's own log line and never contains the tested credential."""
+
+    ok: bool
+    message: str
+
+
 class HealthView(ApiModel):
     ok: bool
     version: str
@@ -294,6 +390,12 @@ def public_models() -> list[type[BaseModel]]:
         InpaintingGenerateRequest,
         InpaintingSelectionRequest,
         InpaintingApplyRequest,
+        ProjectSettingsRequest,
+        GltfExportRequest,
+        AnimationExportRequest,
+        ProbeServerRequest,
+        ValidateKeyRequest,
+        ProbeResultView,
     ]
 
 

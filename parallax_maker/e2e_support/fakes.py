@@ -332,6 +332,10 @@ def install_fakes():
     components.make_models_request = lambda server_address: ["e2e-model"]
     components.get_history = lambda server_address, prompt_id: {"e2e": "ready"}
     automatic1111.make_models_request = components.make_models_request
+    # configuration_services.py's default probes call the automatic1111/comfyui
+    # module functions directly (not components.*), so both must be patched for
+    # the new configuration API's probe-server route to stay deterministic/offline.
+    comfyui.get_history = components.get_history
     automatic1111.make_img2img_request = _blocked_network
     comfyui.inpainting_comfyui = _blocked_network
     inpainting.inpainting_comfyui = _blocked_network

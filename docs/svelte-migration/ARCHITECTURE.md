@@ -254,6 +254,84 @@ model change (`PUT .../inpainting/settings`) both drop the stored candidate
 set, matching Dash's `react_selected_slice_change`/`remember_inpaint_model`
 clearing `CTR_INPAINTING_DISPLAY`.
 
+### Project lifecycle, export/render and configuration endpoints
+
+Reproduce `webui.py`'s `save_state`/`restore_state`/`remember_depth_model`/
+the *persist* `remember_camera_parameters` (WEB-30)/`toggle_dark_mode`
+(project lifecycle/configuration persistence) and
+`upscale_texture`/`gltf_export`/`gltf_create`/`export_animation`/
+`download_image` (export/render), plus `components.py`'s
+`test_external_connection`/`test_api_key` (configuration probes), over HTTP.
+See `project_services.py` (`ProjectService`), `export_services.py`
+(`ExportService`) and `configuration_services.py`
+(`probe_server`/`validate_api_key`) for the underlying command/result types,
+and `api/project.py`/`api/export.py`/`api/configuration.py` for the routes.
+`ProjectService.restore_legacy_state` also now backs `POST /projects/restore`
+itself (`api/projects.py`'s route delegates to it instead of duplicating the
+containment/validation logic inline, per the "reuse API logic, move it into
+the service" instruction this slice worked under).
+
+`ExportService.export_gltf` is the *one* implementation of the export webui.py
+splits into two independently-duplicated call sites (`gltf_export`'s download
+and `gltf_create`'s in-page-viewer render, both wrapping the same
+`export_state_as_gltf` helper, webui.py:1346 - see PARITY.md "Known quirks"):
+it regenerates a per-slice depth map only when `displacement_scale > 0` and
+none already exists on disk, and prefers an `AppState.upscaled_filename` over
+the original whenever "Upscale Textures" has produced one for that slice.
+
+| Method & path | Body | Result |
+| --- | --- | --- |
+| `POST /api/v1/projects/{id}/save` | – | `200 ProjectView` (sync); `save_project` - a full `AppState.to_file` (image, depth map, every slice, plus the project JSON), matching `save_state`'s own defaults exactly. |
+| `GET /api/v1/projects/{id}/state-file` | – | The exact JSON payload `POST /projects/restore` accepts (`Content-Disposition: attachment; filename="appstate.json"`) - Dash has no equivalent browser download of this file (`save_state` only writes it to disk); served from the project's *current in-memory* state (`state.to_json()`), not the on-disk file, so it reflects unsaved mutations too. |
+| `PUT /api/v1/projects/{id}/settings` | `{depthModel?, camera?: {distance, focalLength, maxDistance}, meshDisplacement?, darkMode?}` | `200 ProjectView & {changed}` (sync); `update_settings` - unifies `remember_depth_model`/the persist `remember_camera_parameters`/`toggle_dark_mode` into one command; each field is only applied (and the project only re-saved, JSON-only) when both provided and different from the project's current value, exactly matching every one of those callbacks' own unchanged-value guard individually. |
+| `POST /api/v1/projects/{id}/export/gltf` | `{dof: bool}` | `202 {job}` (kind `export-gltf`); `export_gltf`, using `displacement_scale = state.mesh_displacement` (whatever `PUT .../settings` last persisted - mirrors the live slider value Dash's own callbacks read at click time). |
+| `GET /api/v1/projects/{id}/export/gltf` | – | The most recent export's `.gltf` file (`Content-Disposition: attachment; filename="scene.gltf"`, inline base64 PNG data URIs, exactly like Dash's `dcc.send_file` download); `404 not_found` before any export has run. `ProjectView.exports.gltf` is this same URL (content-versioned by the file's mtime/size), or `null` when no export exists yet. |
+| `POST /api/v1/projects/{id}/export/upscale` | `{}` | `202 {job}` (kind `upscale`); `upscale_textures` - builds/replaces the shared inpainting pipeline via the existing `create_inpainting_pipeline` helper using the project's current inpainting settings (mirrors `upscale_texture`'s own pipeline-replacement/upscaler-invalidation contract - see the handoff's "Cache reuse" bullet), then calls `AppState.upscale_slices()`. `ProjectView.exports.upscaled` reflects whether any slice has a `*_upscaled.png` file on disk. |
+| `POST /api/v1/projects/{id}/export/animation` | `{frames: int}` | `202 {job}` (kind `animation`); `render_animation` - writes `rendered_image_%03d.png` **server-side only**, logs `Exported {n} frames to animation`; deliberately **no download** (see PARITY.md "Known quirks" - `ANIMATION_OUTPUT` exists in Dash but no `dcc.Download` ever fires). |
+| `GET /api/v1/projects/{id}/slices/{index}/download` | – | The raw slice PNG file (`Content-Disposition: attachment`, filename taken from the slice's own path), byte-for-byte what `dcc.send_file(image_path, ...)` sends in Dash's `download_image`. `400 invalid_request` for an out-of-range index. |
+| `POST /api/v1/config/probe-server` | `{model, serverAddress}` | `200 {ok, message}` (never `5xx`); `probe_server` - Automatic1111 (`make_models_request`) or ComfyUI (`get_history`), mirroring `test_external_connection`'s exact log-line text. Not project-scoped (mirrors Dash's own plain-form-value probe, not `AppState`). |
+| `POST /api/v1/config/validate-key` | `{model, apiKey}` | `200 {ok, message}` (never `5xx`); `validate_api_key` - StabilityAI or fal.ai (`falai-*`), mirroring `test_api_key`'s exact log-line text/format checks. `apiKey` is write-only: used for exactly one probe request, never stored or echoed back by any response. |
+
+`ExportServiceError` subclasses map to: `InvalidSliceIndex` → `400
+invalid_request`; `ExportNotReady` (no slices to export/upscale/render, or a
+non-positive animation frame count) → `409 not_ready` - though every export
+route above already validates what it can synchronously before queuing a job,
+so most of these surface as a failed job's sanitized `error` string instead.
+`ProjectServiceError` subclasses map to `400 invalid_request`, matching
+`api/projects.py`'s own restore-route handling of the same conditions
+(`ProjectDirectoryNotFound` included - a well-formed but non-existent
+`appstate-*` name is still a client input error at the service level; the
+*route* itself maps it to `404 not_found` explicitly, as before).
+
+`ProjectView` gained two fields for this slice: `settings: {darkMode, camera:
+{distance, focalLength, maxDistance}, meshDisplacement, depthModel}` (the
+*persisted* configuration - note `settings.depthModel` is `AppState.
+depth_model_name`, a different field from the existing top-level
+`ProjectView.depthModel`, which is `state.depth_estimation_model.model_name`,
+the model instance actually used for the last depth generation and *not*
+restored from JSON - see `test_api_restore.py`) and `exports: {gltf:
+AssetRef | null, upscaled: bool}`.
+
+Not reproduced: WEB-30's own transient double-swap bug (its unchanged-value
+check constructs `Camera(camera_distance, focal_length, max_distance)`
+against a constructor whose parameter order is actually `(distance,
+max_distance, focal_length, ...)`, so that *comparison-only* object has
+`max_distance`/`focal_length` transposed). This is **not** merely a harmless
+comparison-only artifact, as this document previously (incorrectly) claimed:
+`Camera.focal_length`'s setter rejects non-positive values, so any moment the
+*live* max-distance slider value is `0` - e.g. a real drag through the far
+left of its `0..1000` range, or the keyboard `Home` key - `remember_camera_
+parameters` raises `ValueError: focal_length must be a positive number` and
+the Dash callback **500s**, discovered directly while writing
+`e2e/project-export.spec.ts`'s camera/displacement persistence scenario (its
+`UiDriver.setSlider` had to stop resetting to `Home` before stepping, and
+instead step directly from each slider's current value, specifically to avoid
+ever transiting max-distance through `0` and hitting this crash). Camera
+distance and focal length transiting `0` are unaffected (their bound
+constructor parameters only require `>= 0`). `ProjectService.update_settings`
+does not reproduce the swap at all - it compares/assigns each field directly
+- so this crash is Dash-only and cannot be reached through the API.
+
 ### Concurrency
 
 - Every mutating request takes the project lock; if a job holds it the request

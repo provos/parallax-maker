@@ -5,6 +5,8 @@ import type {
   InpaintingSettingsRequest,
   Job,
   LogsPage,
+  ProbeResultView,
+  ProjectSettingsRequest,
   ProjectView,
   SegmentationMode,
 } from './types';
@@ -572,6 +574,124 @@ export function eraseInpainting(
     `/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/inpainting/erase`,
     { method: 'POST', signal },
   );
+}
+
+// --- Project lifecycle / export / configuration -----------------------------
+//
+// Project lifecycle (save/settings) and configuration-probe routes run
+// synchronously; export/upscale/animation routes are background jobs like
+// depth/slices/segmentation/inpainting-generate above (see ARCHITECTURE.md's
+// "Project lifecycle, export/render and configuration endpoints").
+
+/** POST /api/v1/projects/{id}/save */
+export function saveProject(id: string, signal?: AbortSignal): Promise<ProjectView> {
+  return request<ProjectView>(`/projects/${encodeURIComponent(id)}/save`, {
+    method: 'POST',
+    signal,
+  });
+}
+
+/**
+ * GET /api/v1/projects/{id}/state-file: the exact JSON payload
+ * `POST /projects/restore` accepts, reflecting unsaved mutations too. Used
+ * by e2e's oracle-based round trips; not wired to a UI download (Dash's own
+ * Save State never downloads anything either - see ARCHITECTURE.md).
+ */
+export function getStateFileUrl(id: string): string {
+  return `${API_BASE}/projects/${encodeURIComponent(id)}/state-file`;
+}
+
+/**
+ * PUT /api/v1/projects/{id}/settings. Only fields present on `settings` are
+ * applied (and only when different from the project's current value); see
+ * `ProjectSettingsRequest`.
+ */
+export function updateSettings(
+  id: string,
+  settings: ProjectSettingsRequest,
+  signal?: AbortSignal,
+): Promise<MutationResult> {
+  return requestJson<MutationResult>(
+    `/projects/${encodeURIComponent(id)}/settings`,
+    'PUT',
+    settings,
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/export/gltf -> 202 {job} */
+export function startGltfExport(
+  id: string,
+  dof: boolean,
+  signal?: AbortSignal,
+): Promise<{ job: Job }> {
+  return requestJson<{ job: Job }>(
+    `/projects/${encodeURIComponent(id)}/export/gltf`,
+    'POST',
+    { dof },
+    signal,
+  );
+}
+
+/**
+ * GET /api/v1/projects/{id}/export/gltf: the most recent export's `.gltf`
+ * file, `Content-Disposition: attachment; filename="scene.gltf"`. Returns the
+ * URL itself (not fetched here) so callers can drive a real browser download
+ * via an `<a download>` click.
+ */
+export function getGltfDownloadUrl(id: string): string {
+  return `${API_BASE}/projects/${encodeURIComponent(id)}/export/gltf`;
+}
+
+/** POST /api/v1/projects/{id}/export/upscale -> 202 {job} */
+export function startUpscaleExport(id: string, signal?: AbortSignal): Promise<{ job: Job }> {
+  return requestJson<{ job: Job }>(
+    `/projects/${encodeURIComponent(id)}/export/upscale`,
+    'POST',
+    {},
+    signal,
+  );
+}
+
+/** POST /api/v1/projects/{id}/export/animation -> 202 {job} */
+export function startAnimationExport(
+  id: string,
+  frames: number,
+  signal?: AbortSignal,
+): Promise<{ job: Job }> {
+  return requestJson<{ job: Job }>(
+    `/projects/${encodeURIComponent(id)}/export/animation`,
+    'POST',
+    { frames },
+    signal,
+  );
+}
+
+/**
+ * GET /api/v1/projects/{id}/slices/{index}/download: the raw slice PNG file
+ * itself. Returns the URL (not fetched) so callers can drive a real browser
+ * download via an `<a download>` click, like `getGltfDownloadUrl`.
+ */
+export function getSliceDownloadUrl(id: string, index: number): string {
+  return `${API_BASE}/projects/${encodeURIComponent(id)}/slices/${encodeURIComponent(String(index))}/download`;
+}
+
+/** POST /api/v1/config/probe-server (not project-scoped; never 5xx). */
+export function probeServer(
+  model: string,
+  serverAddress: string,
+  signal?: AbortSignal,
+): Promise<ProbeResultView> {
+  return requestJson<ProbeResultView>('/config/probe-server', 'POST', { model, serverAddress }, signal);
+}
+
+/** POST /api/v1/config/validate-key (not project-scoped; never 5xx; apiKey is write-only). */
+export function validateApiKey(
+  model: string,
+  apiKey: string,
+  signal?: AbortSignal,
+): Promise<ProbeResultView> {
+  return requestJson<ProbeResultView>('/config/validate-key', 'POST', { model, apiKey }, signal);
 }
 
 export type PollJobOptions = {

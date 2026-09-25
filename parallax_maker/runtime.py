@@ -24,9 +24,11 @@ from PIL import Image
 
 from .api.jobs import Job, JobManager
 from .depth import DepthEstimationModel
+from .export_services import ExportService
 from .inpainting import InpaintingModel
 from .inpainting_services import InpaintingService
 from .instance import SegmentationModel
+from .project_services import ProjectService
 from .segmentation_services import SegmentationService
 from .slice_editing_services import SliceEditingService
 from .upscaler import Upscaler
@@ -340,6 +342,8 @@ class Runtime:
     slice_editing_service: SliceEditingService = field(
         default_factory=SliceEditingService
     )
+    project_service: ProjectService = field(default_factory=ProjectService)
+    export_service: ExportService = field(default_factory=ExportService)
     projects: ProjectRegistry = field(default_factory=ProjectRegistry)
     jobs: JobManager = field(default_factory=JobManager)
     progress_reporter: ProgressReporter = field(default_factory=ProgressReporter)
@@ -371,6 +375,10 @@ def build_runtime(
     )
     segmentation_service = SegmentationService(model_factory=segmentation_model_factory)
     inpainting_service = InpaintingService(pipeline_factory=inpainting_model_factory)
+    # export_gltf's per-slice depth-map regeneration must use the same
+    # (possibly fake) depth model factory as depth generation/thresholds, so
+    # e2e_support.fakes.create_fake_runtime() stays fully deterministic.
+    export_service = ExportService(depth_model_factory=depth_model_factory)
 
     return Runtime(
         depth_model_factory=depth_model_factory,
@@ -380,6 +388,7 @@ def build_runtime(
         workflow_service=workflow_service,
         segmentation_service=segmentation_service,
         inpainting_service=inpainting_service,
+        export_service=export_service,
         progress_reporter=progress_reporter,
     )
 

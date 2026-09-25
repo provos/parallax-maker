@@ -2,6 +2,8 @@
   import { projectStore } from '../../state/project.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
+  import * as api from '../../api/client';
+  import { triggerDownload } from '../../download';
 
   type ActionButton = { label: string; testId: string; onClick: () => void };
 
@@ -137,6 +139,17 @@
     const alreadySelected = projectStore.view.selectedSlice === index;
     void workflow.selectSlice(alreadySelected ? null : index);
   }
+
+  // Slice download (webui.py's WEB-33 `download_image`, triggered by
+  // clicking the label the way Dash's `#slice-info` button does): a real
+  // `<a download>` click against the raw-slice-PNG endpoint, not
+  // `window.open` (see ExportTab.svelte's glTF-export comment for why).
+  function onDownloadSlice(index: number, event: Event): void {
+    event.stopPropagation();
+    const view = projectStore.view;
+    if (!view) return;
+    triggerDownload(api.getSliceDownloadUrl(view.id, index), `image_slice_${index}.png`);
+  }
 </script>
 
 <div class="segmentation-tab" data-testid="tab-segmentation">
@@ -252,7 +265,15 @@
           >
             &#x25B8;
           </button>
-          <span>{`image_slice_${slice.index}`}</span>
+          <button
+            type="button"
+            class="slice-info"
+            data-testid="slice-download"
+            title="Download slice image"
+            onclick={(event) => onDownloadSlice(slice.index, event)}
+          >
+            {`image_slice_${slice.index}`}
+          </button>
         </div>
         {#if selected}
           <div class="slice-overlay"></div>
@@ -372,5 +393,16 @@
   .caret:disabled {
     color: var(--color-disabled-text);
     cursor: default;
+  }
+
+  .slice-info {
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: inherit;
+    font-size: inherit;
+    color: inherit;
+    cursor: pointer;
+    text-decoration: underline dotted;
   }
 </style>
