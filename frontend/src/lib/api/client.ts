@@ -28,6 +28,17 @@ export class ApiError extends Error {
   }
 }
 
+/** A background job reached status `failed`; carries the terminal job record. */
+export class JobFailedError extends Error {
+  readonly job: Job;
+
+  constructor(job: Job) {
+    super(job.error ?? 'Job failed');
+    this.name = 'JobFailedError';
+    this.job = job;
+  }
+}
+
 function isApiErrorBody(value: unknown): value is ApiErrorBody {
   if (typeof value !== 'object' || value === null || !('error' in value)) {
     return false;
@@ -197,7 +208,7 @@ export type PollJobOptions = {
  * Poll `GET /api/v1/jobs/{jobId}` until the job reaches a terminal state
  * (`succeeded` or `failed`), per the "Concurrency" section of the
  * architecture doc. Resolves with the terminal job. Rejects with an
- * `ApiError` (or the job's own error, wrapped) if it fails, or with the
+ * `JobFailedError` if the job fails, an `ApiError` if polling itself fails, or with the
  * abort reason if `signal` is aborted.
  */
 export function pollJob(jobId: string, options: PollJobOptions = {}): Promise<Job> {
@@ -231,7 +242,7 @@ export function pollJob(jobId: string, options: PollJobOptions = {}): Promise<Jo
         }
         if (job.status === 'failed') {
           cleanup();
-          reject(new ApiError(200, 'provider_error', job.error ?? 'Job failed'));
+          reject(new JobFailedError(job));
           return;
         }
         setTimeout(tick, intervalMs);

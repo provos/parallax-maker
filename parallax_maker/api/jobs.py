@@ -46,6 +46,43 @@ class Job:
         with self._lock:
             self.progress = max(0.0, min(1.0, value))
 
+    def mark_running(self) -> None:
+        with self._lock:
+            self.status = JobStatus.RUNNING
+
+    def mark_succeeded(self) -> None:
+        with self._lock:
+            self.status = JobStatus.SUCCEEDED
+            self.progress = 1.0
+
+    def mark_failed(self, error: str) -> None:
+        with self._lock:
+            self.status = JobStatus.FAILED
+            self.error = error
+
+    def snapshot(self) -> "JobSnapshot":
+        """A consistent copy of the mutable fields for request threads."""
+
+        with self._lock:
+            return JobSnapshot(
+                id=self.id,
+                kind=self.kind,
+                project_id=self.project_id,
+                status=self.status,
+                progress=self.progress,
+                error=self.error,
+            )
+
+
+@dataclass(frozen=True)
+class JobSnapshot:
+    id: str
+    kind: str
+    project_id: str
+    status: JobStatus
+    progress: float
+    error: str | None
+
 
 #: A job's unit of work; receives the ``Job`` so it can report progress.
 RunFn = Callable[[Job], None]
@@ -91,11 +128,10 @@ class JobManager:
     def _run_forever(self) -> None:
         while True:
             job, run = self._queue.get()
-            job.status = JobStatus.RUNNING
+            job.mark_running()
             try:
                 run(job)
-                job.status = JobStatus.SUCCEEDED
-                job.progress = 1.0
+                job.mark_succeeded()
             except Exception as exc:  # noqa: BLE001 - convert to a sanitized job state
                 logger.exception(
                     "job %s (%s) for project %s failed",
@@ -103,8 +139,7 @@ class JobManager:
                     job.kind,
                     job.project_id,
                 )
-                job.status = JobStatus.FAILED
-                job.error = _sanitize_error(exc)
+                job.mark_failed(_sanitize_error(exc))
             finally:
                 self._queue.task_done()
 

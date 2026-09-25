@@ -25,7 +25,6 @@ The backend serves the API at `/api/v1` and the (test-only) `/__e2e__`
 endpoints. Start it first, from the repository root, on port 8050:
 
 ```sh
-# once parallax_maker/server.py exists (PR 2):
 .venv/bin/python -m parallax_maker.server
 # or, for the deterministic e2e backend:
 .venv/bin/python -m parallax_maker.e2e_server --host 127.0.0.1 --port 8050
@@ -56,14 +55,12 @@ npm run check   # svelte-check + tsc, no emit
 
 ## Generating API types
 
-Once the backend's schema-export module exists
-(`python -m parallax_maker.api.schema_export`), regenerate
-`src/lib/api/generated.ts` from the pydantic JSON Schema with:
+`src/lib/api/generated.ts` is generated from the backend's pydantic models
+(`parallax_maker/api/schemas.py`); `src/lib/api/types.ts` re-exports it
+under client-side names. After changing the schemas, regenerate with:
 
 ```sh
 npm run gen:api-types
 ```
 
-Until then, `src/lib/api/types.ts` is hand-written to match the
-`ProjectView`/`SliceView`/`AssetRef`/`Job`/`LogEntry` shapes documented in
-the architecture doc.
+CI fails if the committed types are stale.

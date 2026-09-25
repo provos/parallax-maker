@@ -154,6 +154,7 @@ def _mutation_response(view: schemas.ProjectView, changed: bool):
 def _job_view(runtime: Runtime, job: Job) -> schemas.JobView:
     from .jobs import JobStatus
 
+    job = job.snapshot()
     project = None
     if job.status in (JobStatus.SUCCEEDED, JobStatus.FAILED):
         try:
@@ -399,7 +400,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
                     GenerateSlices(state_id=project_id)
                 )
                 record.log.append(f"Generated {result.slice_count} image slices")
-            job.progress = 1.0
+            job.set_progress(1.0)
 
         job = _begin_job(runtime, record, project_id, kind="slices", run=run)
         return _job_response(runtime, job)

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, getJob, health, pollJob } from './client';
+import { ApiError, JobFailedError, getJob, health, pollJob } from './client';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -94,7 +94,7 @@ describe('pollJob', () => {
     expect(progressUpdates).toEqual([0, 0.5, 1]);
   });
 
-  it('rejects with an ApiError when the job fails', async () => {
+  it('rejects with a JobFailedError when the job fails', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -102,8 +102,11 @@ describe('pollJob', () => {
       );
     vi.stubGlobal('fetch', fetchMock);
 
-    await expect(pollJob('job-2', { intervalMs: 0 })).rejects.toMatchObject({
+    const failure = pollJob('job-2', { intervalMs: 0 });
+    await expect(failure).rejects.toBeInstanceOf(JobFailedError);
+    await expect(failure).rejects.toMatchObject({
       message: 'boom',
+      job: { id: 'job-2', status: 'failed' },
     });
   });
 
