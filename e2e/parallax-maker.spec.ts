@@ -1,9 +1,6 @@
 import { readFile } from 'node:fs/promises';
-import { test, expect, disableAnimations } from './fixtures';
+import { test, expect, disableAnimations, requireWorkflow } from './fixtures';
 import {
-  clickMainTab,
-  drawCanvasStroke,
-  gotoApp,
   imageContainsRGB,
   imageDimensions,
   imageHash,
@@ -12,27 +9,20 @@ import {
   imageSignature,
   sourceImagePixel,
   sourceImageAlphaPoint,
-  inpaintingImages,
-  restoreFixtureState,
-  readE2EState,
-  selectDashOption,
-  selectSlice,
-  setDashSlider,
-  sliceImages,
-  clickImagePixel,
-  uploadInputImage,
-} from './helpers/app';
+} from './helpers/image';
+import { fetchArtifact, listArtifacts, rawArtifactDataUrl, readE2EState } from './helpers/oracle';
 
-test.beforeEach(async ({ page }) => {
-  await gotoApp(page);
+test.beforeEach(async ({ ui, page }) => {
+  await ui.goto();
   await disableAnimations(page);
 });
 
-test('upload generates deterministic depth and three real slices', async ({ page }) => {
-  await uploadInputImage(page);
+test('upload generates deterministic depth and three real slices', async ({ ui }) => {
+  requireWorkflow(ui, 'upload-depth-slices');
+  await ui.uploadInputImage();
 
-  const input = page.locator('#image');
-  const depth = page.locator('#depthmap-image');
+  const input = ui.mainImage();
+  const depth = ui.depthImage();
   expect(await imageDimensions(input)).toEqual({ width: 320, height: 240 });
   expect(await imageDimensions(depth)).toEqual({ width: 320, height: 240 });
 
@@ -41,11 +31,11 @@ test('upload generates deterministic depth and three real slices', async ({ page
   expect(left).toEqual([2, 2, 2, 255]);
   expect(right).toEqual([252, 252, 252, 255]);
 
-  await expect(page.locator('#thresholds-container [role=slider]')).toHaveCount(2);
-  await clickMainTab(page, 'Segmentation');
-  await page.locator('#generate-slice-button').click();
-  await expect(sliceImages(page)).toHaveCount(3);
-  const slices = await sliceImages(page).all();
+  await expect(ui.thresholdHandles()).toHaveCount(2);
+  await ui.openTab('Segmentation');
+  await ui.generateSlices();
+  await expect(ui.sliceImages()).toHaveCount(3);
+  const slices = await ui.sliceImages().all();
   for (const image of slices) {
     expect(await imageDimensions(image)).toEqual({ width: 320, height: 240 });
   }
@@ -61,65 +51,67 @@ test('upload generates deterministic depth and three real slices', async ({ page
   ]);
 });
 
-test('point mask modifiers replace, union, and subtract exact regions', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await selectDashOption(page, 'mode-selector', 'Instance Segmentation');
-  await clickMainTab(page, 'Segmentation');
+test('point mask modifiers replace, union, and subtract exact regions', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  const projectId = await ui.restoreFixtureState();
+  await ui.setSegmentationMode('Instance Segmentation');
+  await ui.openTab('Segmentation');
 
-  const image = page.locator('#image');
+  const image = ui.mainImage();
   const originalHash = await imageHash(image);
 
-  await clickImagePixel(image, 80, 96);
+  await ui.clickImagePixel(80, 96);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_mask.samples['80,96'])
+    .poll(async () => (await readE2EState(page, projectId)).slice_mask.samples['80,96'])
     .toBe(255);
-  const first = (await readE2EState(page, filename)).slice_mask;
+  const first = (await readE2EState(page, projectId)).slice_mask;
   expect(first.samples).toMatchObject({ '8,8': 0, '80,96': 255, '200,96': 0 });
   expect(first.nonzero).toBeGreaterThan(4_000);
   await expect.poll(() => imageHash(image)).not.toBe(originalHash);
   const firstHash = await imageHash(image);
 
-  await clickImagePixel(image, 200, 96, ['Shift']);
+  await ui.clickImagePixel(200, 96, ['Shift']);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_mask.nonzero)
+    .poll(async () => (await readE2EState(page, projectId)).slice_mask.nonzero)
     .toBe(first.nonzero * 2);
-  const union = (await readE2EState(page, filename)).slice_mask;
+  const union = (await readE2EState(page, projectId)).slice_mask;
   expect(union.samples).toMatchObject({ '8,8': 0, '80,96': 255, '200,96': 255 });
   await expect.poll(() => imageHash(image)).not.toBe(firstHash);
   const unionHash = await imageHash(image);
 
-  await clickImagePixel(image, 80, 96, ['Control']);
+  await ui.clickImagePixel(80, 96, ['Control']);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_mask.samples['80,96'])
+    .poll(async () => (await readE2EState(page, projectId)).slice_mask.samples['80,96'])
     .toBe(0);
-  const subtracted = (await readE2EState(page, filename)).slice_mask;
+  const subtracted = (await readE2EState(page, projectId)).slice_mask;
   expect(subtracted.samples).toMatchObject({ '8,8': 0, '80,96': 0, '200,96': 255 });
   expect(subtracted.nonzero).toBe(first.nonzero);
   await expect.poll(() => imageHash(image)).not.toBe(unionHash);
 
-  await clickImagePixel(image, 80, 96);
+  await ui.clickImagePixel(80, 96);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_mask.samples['200,96'])
+    .poll(async () => (await readE2EState(page, projectId)).slice_mask.samples['200,96'])
     .toBe(0);
-  const replaced = (await readE2EState(page, filename)).slice_mask;
+  const replaced = (await readE2EState(page, projectId)).slice_mask;
   expect(replaced.samples).toMatchObject({ '8,8': 0, '80,96': 255, '200,96': 0 });
   expect(replaced.nonzero).toBe(first.nonzero);
   await expect.poll(() => imageHash(image)).toBe(firstHash);
 });
 
-test('point segmentation honors positive and negative points through the UI', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await selectDashOption(page, 'mode-selector', 'Instance Segmentation');
-  await clickMainTab(page, 'Segmentation');
+test('point segmentation honors positive and negative points through the UI', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  const projectId = await ui.restoreFixtureState();
+  await ui.setSegmentationMode('Instance Segmentation');
+  await ui.openTab('Segmentation');
 
-  const image = page.locator('#image');
+  const image = ui.mainImage();
   const before = await imageSignature(image, [
     [128, 96],
     [8, 8],
   ]);
-  await clickImagePixel(image, 128, 96);
-  await expect(page.locator('#log')).toContainText(/Segment Anything/);
-  const positiveMask = (await readE2EState(page, filename)).slice_mask;
+  await ui.clickImagePixel(128, 96);
+  await expect(ui.log()).toContainText(/Segment Anything/);
+  const positiveMask = (await readE2EState(page, projectId)).slice_mask;
   expect(positiveMask.samples).toMatchObject({ '8,8': 0, '128,96': 255 });
   expect(positiveMask.nonzero).toBeGreaterThan(4_000);
   const afterPositive = await imageSignature(image, [
@@ -130,112 +122,110 @@ test('point segmentation honors positive and negative points through the UI', as
   expect(afterPositive[1]).not.toEqual(before[1]);
   expect(afterPositive[0]).not.toEqual(afterPositive[1]);
   const committedImageHash = await imageHash(image);
-  expect((await readE2EState(page, filename)).segmentation_input).toEqual({
+  expect((await readE2EState(page, projectId)).segmentation_input).toEqual({
     calls: 1,
     source: 'state-image',
   });
 
-  const multiPoint = page.locator('#multi-point');
-  await multiPoint.click();
-  await expect(multiPoint).toHaveClass(/color-is-selected/);
+  await ui.toggleMultiPoint();
+  await ui.expectMultiPointEnabled(true);
   await expect
     .poll(async () => {
-      const state = await readE2EState(page, filename);
+      const state = await readE2EState(page, projectId);
       return { enabled: state.multi_point_mode, points: state.points_selected };
     })
     .toEqual({ enabled: true, points: [] });
 
-  await clickImagePixel(image, 90, 96);
+  await ui.clickImagePixel(90, 96);
   // The current browser-to-image transform scales the rendered click and then
   // truncates it, so these requested positions arrive one pixel lower on each axis.
   await expect
-    .poll(async () => (await readE2EState(page, filename)).points_selected)
+    .poll(async () => (await readE2EState(page, projectId)).points_selected)
     .toEqual([{ point: [89, 95], negative: false }]);
-  expect((await readE2EState(page, filename)).slice_mask).toEqual(positiveMask);
+  expect((await readE2EState(page, projectId)).slice_mask).toEqual(positiveMask);
   expect(await imageHash(image)).toBe(committedImageHash);
 
-  await clickImagePixel(image, 128, 96, ['Control']);
+  await ui.clickImagePixel(128, 96, ['Control']);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).points_selected)
+    .poll(async () => (await readE2EState(page, projectId)).points_selected)
     .toEqual([
       { point: [89, 95], negative: false },
       { point: [127, 95], negative: true },
     ]);
-  expect((await readE2EState(page, filename)).slice_mask).toEqual(positiveMask);
+  expect((await readE2EState(page, projectId)).slice_mask).toEqual(positiveMask);
   expect(await imageHash(image)).toBe(committedImageHash);
 
-  await multiPoint.click();
-  await expect(multiPoint).toHaveClass(/color-not-selected/);
+  await ui.toggleMultiPoint();
+  await ui.expectMultiPointEnabled(false);
   await expect
     .poll(async () => {
-      const state = await readE2EState(page, filename);
+      const state = await readE2EState(page, projectId);
       return { enabled: state.multi_point_mode, points: state.points_selected };
     })
     .toEqual({ enabled: false, points: [] });
-  expect((await readE2EState(page, filename)).slice_mask).toEqual(positiveMask);
+  expect((await readE2EState(page, projectId)).slice_mask).toEqual(positiveMask);
   expect(await imageHash(image)).toBe(committedImageHash);
 
-  await multiPoint.click();
-  await clickImagePixel(image, 90, 96);
-  await clickImagePixel(image, 128, 96, ['Control']);
-  await page.locator('#multi-commit').click();
-  await expect(page.locator('#log')).toContainText(/Committed points/);
+  await ui.toggleMultiPoint();
+  await ui.clickImagePixel(90, 96);
+  await ui.clickImagePixel(128, 96, ['Control']);
+  await ui.commitMultiPoint();
   const afterNegative = await imagePixel(image, 128, 96);
   expect(afterNegative).not.toEqual(afterPositive[0]);
-  const negativeMask = (await readE2EState(page, filename)).slice_mask;
+  const negativeMask = (await readE2EState(page, projectId)).slice_mask;
   expect(negativeMask.samples).toMatchObject({ '8,8': 0, '90,96': 255, '128,96': 0 });
   expect(negativeMask.nonzero).toBeGreaterThan(0);
 });
 
-test('default depth click records its pixel, depth, log, and mask', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await expect(page.locator('#mode-selector')).toContainText('Depth Map');
-  await clickMainTab(page, 'Segmentation');
+test('default depth click records its pixel, depth, log, and mask', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  const projectId = await ui.restoreFixtureState();
+  await ui.expectSegmentationMode('Depth Map');
+  await ui.openTab('Segmentation');
 
-  await clickImagePixel(page.locator('#image'), 16, 16);
+  await ui.clickImagePixel(16, 16);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_pixel)
+    .poll(async () => (await readE2EState(page, projectId)).slice_pixel)
     .not.toBeNull();
-  const state = await readE2EState(page, filename);
+  const state = await readE2EState(page, projectId);
   // Lock in the same rendered-coordinate truncation exercised by real clicks.
   expect(state.slice_pixel).toEqual([15, 15]);
   expect(state.slice_pixel_depth).toBe(1);
   expect(state.slice_mask.samples).toMatchObject({ '16,16': 255, '160,96': 0 });
-  await expect(page.locator('#log')).toContainText(
+  await expect(ui.log()).toContainText(
     'Click event at pixel coordinates (15, 15) at depth 1',
   );
 });
 
-test('selected-slice segmentation sends the composed slice to the model', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await selectDashOption(page, 'mode-selector', 'Instance Segmentation');
-  await clickMainTab(page, 'Segmentation');
-  await selectSlice(page, filename, 1);
+test('selected-slice segmentation sends the composed slice to the model', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  const projectId = await ui.restoreFixtureState();
+  await ui.setSegmentationMode('Instance Segmentation');
+  await ui.openTab('Segmentation');
+  await ui.selectSlice(projectId, 1);
 
-  await clickImagePixel(page.locator('#image'), 128, 96);
-  await expect(page.locator('#log')).toContainText(/Segment Anything/);
+  await ui.clickImagePixel(128, 96);
+  await expect(ui.log()).toContainText(/Segment Anything/);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).segmentation_input)
+    .poll(async () => (await readE2EState(page, projectId)).segmentation_input)
     .toEqual({ calls: 1, source: 'slice:1:NONE' });
-  const state = await readE2EState(page, filename);
+  const state = await readE2EState(page, projectId);
   expect(state.selected_slice).toBe(1);
   expect(state.slice_mask.samples['128,96']).toBe(255);
 });
 
-test('painted mask drives three checkerboard candidates, apply, and undo', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await clickMainTab(page, 'Segmentation');
-  const selectedSlice = await selectSlice(page, filename, 1);
+test('painted mask drives three checkerboard candidates, apply, and undo', async ({ page, ui }) => {
+  requireWorkflow(ui, 'inpainting');
+  requireWorkflow(ui, 'segmentation');
+  const projectId = await ui.restoreFixtureState();
+  await ui.openTab('Segmentation');
+  const selectedSlice = await ui.selectSlice(projectId, 1);
   const originalHash = await imageHash(selectedSlice);
-  const rawSliceResponse = await page.request.get(
-    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
-  );
-  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
-  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
-  await clickMainTab(page, 'Inpainting');
-  await expect(page.locator('#generate-inpainting-button')).toBeEnabled();
-  await drawCanvasStroke(page);
-  const persistedMask = (await readE2EState(page, filename)).selected_mask_file;
+  const rawSliceSrc = await rawArtifactDataUrl(page, projectId, 'image_slice_1.png');
+  await ui.openTab('Inpainting');
+  await ui.expectGenerateEnabled();
+  await ui.drawMaskStroke();
+  const persistedMask = (await readE2EState(page, projectId)).selected_mask_file;
   expect(persistedMask.present).toBe(true);
   expect(persistedMask.nonzero).toBeGreaterThan(0);
   expect(persistedMask.bounds).not.toBeNull();
@@ -243,24 +233,23 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   expect(persistedMask.inside).not.toBeNull();
   expect(persistedMask.outside).not.toBeNull();
 
-  await page.locator('#positive-prompt').fill('deterministic browser test');
-  await page.locator('#negative-prompt').fill('deterministic exclusion');
-  await page.locator('#generate-inpainting-button').click();
-  await expect(inpaintingImages(page)).toHaveCount(3);
+  await ui.fillPrompts('deterministic browser test', 'deterministic exclusion');
+  await ui.generateInpainting();
+  await expect(ui.candidateImages()).toHaveCount(3);
   await expect
     .poll(async () => {
-      const state = await readE2EState(page, filename);
+      const state = await readE2EState(page, projectId);
       return [state.positive_prompts[1], state.negative_prompts[1]];
     })
     .toEqual(['deterministic browser test', 'deterministic exclusion']);
-  await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(0), [0, 255, 255])).toBe(true);
-  await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(0), [255, 0, 255])).toBe(true);
-  await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(1), [255, 128, 0])).toBe(true);
-  await expect.poll(() => imageContainsRGB(inpaintingImages(page).nth(1), [0, 64, 255])).toBe(true);
+  await expect.poll(() => imageContainsRGB(ui.candidateImages().nth(0), [0, 255, 255])).toBe(true);
+  await expect.poll(() => imageContainsRGB(ui.candidateImages().nth(0), [255, 0, 255])).toBe(true);
+  await expect.poll(() => imageContainsRGB(ui.candidateImages().nth(1), [255, 128, 0])).toBe(true);
+  await expect.poll(() => imageContainsRGB(ui.candidateImages().nth(1), [0, 64, 255])).toBe(true);
   const inside = persistedMask.inside!;
   const outside = persistedMask.outside!;
-  const candidateInside = await imagePixel(inpaintingImages(page).nth(1), ...inside);
-  const candidateOutside = await imagePixel(inpaintingImages(page).nth(1), ...outside);
+  const candidateInside = await imagePixel(ui.candidateImages().nth(1), ...inside);
+  const candidateOutside = await imagePixel(ui.candidateImages().nth(1), ...outside);
   const originalOutside = await sourceImagePixel(page, rawSliceSrc, ...outside);
   const candidateRGB = candidateInside.slice(0, 3);
   const distanceFromPalette = ([red, green, blue]: number[]) =>
@@ -276,47 +265,42 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   ).toBeLessThanOrEqual(5);
   expect(candidateOutside).toEqual(originalOutside);
 
-  await inpaintingImages(page).nth(1).click();
-  await expect(inpaintingImages(page).nth(1)).toHaveClass(/color-is-selected-light/);
-  await expect(page.locator('#apply-inpainting-button')).toBeEnabled();
-  await page.locator('#apply-inpainting-button').click();
-  await expect(page.locator('#log')).toContainText(/Inpainting applied to slice 1/);
+  await ui.selectCandidate(1);
+  await ui.applyCandidate();
+  await expect(ui.log()).toContainText(/Inpainting applied to slice 1/);
 
-  await clickMainTab(page, 'Segmentation');
-  const undo = page.locator('[title="Undo last change"]').nth(1);
+  await ui.openTab('Segmentation');
+  const undo = ui.undoButton(1);
   await expect(undo).toBeEnabled();
-  expect(await imageHash(sliceImages(page).nth(1))).not.toBe(originalHash);
+  expect(await imageHash(ui.sliceImages().nth(1))).not.toBe(originalHash);
   await undo.click();
-  await expect.poll(() => imageHash(sliceImages(page).nth(1))).toBe(originalHash);
+  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(originalHash);
 
-  await selectSlice(page, filename, 0);
-  await selectSlice(page, filename, 1);
-  await clickMainTab(page, 'Inpainting');
-  await expect(page.locator('#positive-prompt')).toHaveValue('deterministic browser test');
-  await expect(page.locator('#negative-prompt')).toHaveValue('deterministic exclusion');
+  await ui.selectSlice(projectId, 0);
+  await ui.selectSlice(projectId, 1);
+  await ui.openTab('Inpainting');
+  await ui.expectPrompts('deterministic browser test', 'deterministic exclusion');
 });
 
-test('fill generates three checkerboards weighted toward transparent slice pixels', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await clickMainTab(page, 'Segmentation');
-  await selectSlice(page, filename, 1);
-  const rawSliceResponse = await page.request.get(
-    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
-  );
-  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
-  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
+test('fill generates three checkerboards weighted toward transparent slice pixels', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  requireWorkflow(ui, 'inpainting');
+  const projectId = await ui.restoreFixtureState();
+  await ui.openTab('Segmentation');
+  await ui.selectSlice(projectId, 1);
+  const rawSliceSrc = await rawArtifactDataUrl(page, projectId, 'image_slice_1.png');
   const transparent = await sourceImageAlphaPoint(page, rawSliceSrc, 0);
   const opaque: [number, number] = [160, 120];
 
-  await clickMainTab(page, 'Inpainting');
-  await page.locator('#fill-inpainting-button').click();
-  await expect(inpaintingImages(page)).toHaveCount(3);
-  expect(await imageDimensions(inpaintingImages(page).nth(0))).toEqual({ width: 320, height: 240 });
+  await ui.openTab('Inpainting');
+  await ui.fillInpainting();
+  await expect(ui.candidateImages()).toHaveCount(3);
+  expect(await imageDimensions(ui.candidateImages().nth(0))).toEqual({ width: 320, height: 240 });
 
-  const filledPixel = await imagePixel(inpaintingImages(page).nth(0), ...transparent);
+  const filledPixel = await imagePixel(ui.candidateImages().nth(0), ...transparent);
   const originalOpaque = await sourceImagePixel(page, rawSliceSrc, ...opaque);
   expect(originalOpaque[3]).toBe(255);
-  const candidateOpaque = await imagePixel(inpaintingImages(page).nth(0), ...opaque);
+  const candidateOpaque = await imagePixel(ui.candidateImages().nth(0), ...opaque);
   const distanceFromPalette = ([red, green, blue]: number[]) =>
     Math.max(
       Math.abs(filledPixel[0] - red),
@@ -345,20 +329,18 @@ test('fill generates three checkerboards weighted toward transparent slice pixel
   expect(opaqueDistance).toBeGreaterThan(filledDistance + 50);
 });
 
-test('enhance returns two same-size candidates while preserving slice alpha', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await clickMainTab(page, 'Segmentation');
-  await selectSlice(page, filename, 1);
-  const rawSliceResponse = await page.request.get(
-    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
-  );
-  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
-  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
+test('enhance returns two same-size candidates while preserving slice alpha', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  requireWorkflow(ui, 'inpainting');
+  const projectId = await ui.restoreFixtureState();
+  await ui.openTab('Segmentation');
+  await ui.selectSlice(projectId, 1);
+  const rawSliceSrc = await rawArtifactDataUrl(page, projectId, 'image_slice_1.png');
 
-  await clickMainTab(page, 'Inpainting');
-  await page.locator('#enhance-button').click();
-  await expect(inpaintingImages(page)).toHaveCount(2);
-  for (const candidate of await inpaintingImages(page).all()) {
+  await ui.openTab('Inpainting');
+  await ui.enhance();
+  await expect(ui.candidateImages()).toHaveCount(2);
+  for (const candidate of await ui.candidateImages().all()) {
     expect(await imageDimensions(candidate)).toEqual({ width: 320, height: 240 });
     const transparent: [number, number] = [0, 0];
     const opaqueBorder: [number, number] = [160, 0];
@@ -375,20 +357,18 @@ test('enhance returns two same-size candidates while preserving slice alpha', as
   }
 });
 
-test('erase removes painted alpha and supports undo and redo', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await clickMainTab(page, 'Segmentation');
-  const selectedSlice = await selectSlice(page, filename, 1);
+test('erase removes painted alpha and supports undo and redo', async ({ page, ui }) => {
+  requireWorkflow(ui, 'segmentation');
+  requireWorkflow(ui, 'inpainting');
+  const projectId = await ui.restoreFixtureState();
+  await ui.openTab('Segmentation');
+  const selectedSlice = await ui.selectSlice(projectId, 1);
   const originalHash = await imageHash(selectedSlice);
-  const rawSliceResponse = await page.request.get(
-    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1.png`,
-  );
-  expect(rawSliceResponse.ok(), 'download raw slice 1').toBeTruthy();
-  const rawSliceSrc = `data:image/png;base64,${(await rawSliceResponse.body()).toString('base64')}`;
+  const rawSliceSrc = await rawArtifactDataUrl(page, projectId, 'image_slice_1.png');
 
-  await clickMainTab(page, 'Inpainting');
-  await drawCanvasStroke(page);
-  const mask = (await readE2EState(page, filename)).selected_mask_file;
+  await ui.openTab('Inpainting');
+  await ui.drawMaskStroke();
+  const mask = (await readE2EState(page, projectId)).selected_mask_file;
   expect(mask.inside).not.toBeNull();
   expect(mask.outside).not.toBeNull();
   const inside = mask.inside!;
@@ -396,77 +376,75 @@ test('erase removes painted alpha and supports undo and redo', async ({ page }) 
   const originalInside = await sourceImagePixel(page, rawSliceSrc, ...inside);
   const originalOutside = await sourceImagePixel(page, rawSliceSrc, ...outside);
 
-  await page.locator('#erase-inpainting-button').click();
-  await expect(page.locator('#log')).toContainText(`Inpainting erased for slice 1`);
+  await ui.erase();
+  await expect(ui.log()).toContainText(`Inpainting erased for slice 1`);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_filenames[1])
+    .poll(async () => (await readE2EState(page, projectId)).slice_filenames[1])
     .toBe('image_slice_1_v2.png');
-  const erasedResponse = await page.request.get(
-    `/__e2e__/artifact/${encodeURIComponent(filename)}/image_slice_1_v2.png`,
-  );
-  expect(erasedResponse.ok(), 'download erased slice 1').toBeTruthy();
-  const erasedSrc = `data:image/png;base64,${(await erasedResponse.body()).toString('base64')}`;
+  const erasedSrc = await rawArtifactDataUrl(page, projectId, 'image_slice_1_v2.png');
   expect((await sourceImagePixel(page, erasedSrc, ...inside))[3]).toBe(0);
   expect(await sourceImagePixel(page, erasedSrc, ...outside)).toEqual(originalOutside);
   expect(originalInside[3]).toBeGreaterThan(0);
 
-  await clickMainTab(page, 'Segmentation');
-  const erasedHash = await imageHash(sliceImages(page).nth(1));
+  await ui.openTab('Segmentation');
+  const erasedHash = await imageHash(ui.sliceImages().nth(1));
   expect(erasedHash).not.toBe(originalHash);
-  const undo = page.locator('[title="Undo last change"]').nth(1);
+  const undo = ui.undoButton(1);
   await expect(undo).toBeEnabled();
   await undo.click();
-  await expect.poll(() => imageHash(sliceImages(page).nth(1))).toBe(originalHash);
+  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(originalHash);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_filenames[1])
+    .poll(async () => (await readE2EState(page, projectId)).slice_filenames[1])
     .toBe('image_slice_1.png');
 
-  const redo = page.locator('[title="Redo last change"]').nth(1);
+  const redo = ui.redoButton(1);
   await expect(redo).toBeEnabled();
   await redo.click();
-  await expect.poll(() => imageHash(sliceImages(page).nth(1))).toBe(erasedHash);
+  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(erasedHash);
   await expect
-    .poll(async () => (await readE2EState(page, filename)).slice_filenames[1])
+    .poll(async () => (await readE2EState(page, projectId)).slice_filenames[1])
     .toBe('image_slice_1_v2.png');
 });
 
-test('saved state restores images, controls, prompts, camera, and theme', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
+test('saved state restores images, controls, prompts, camera, and theme', async ({ page, ui }) => {
+  requireWorkflow(ui, 'project-lifecycle');
+  requireWorkflow(ui, 'configuration');
+  requireWorkflow(ui, 'segmentation');
+  requireWorkflow(ui, 'inpainting');
+  const projectId = await ui.restoreFixtureState();
 
-  await expect(page.locator('#app-container')).toHaveClass(/\bdark\b/);
-  expect(await imageHash(page.locator('#image'))).toBe('528b56cf');
-  expect(await imageHash(page.locator('#depthmap-image'))).toBe('c6c301c5');
-  expect(await imagePixel(page.locator('#image'), 30, 30)).toEqual([240, 50, 45, 255]);
-  expect(await imagePixel(page.locator('#image'), 248, 96)).toEqual([35, 210, 90, 255]);
-  expect(await imagePixel(page.locator('#depthmap-image'), 0, 0)).toEqual([0, 0, 0, 255]);
-  expect(await imagePixel(page.locator('#depthmap-image'), 319, 239)).toEqual([255, 255, 255, 255]);
-  await expect(page.locator('#num-slices-slider [role=slider]')).toHaveAttribute('aria-valuenow', '3');
-  await expect(page.locator('#thresholds-container [role=slider]')).toHaveCount(2);
-  await expect(page.locator('#camera-distance-slider [role=slider]')).toHaveAttribute('aria-valuenow', '125');
-  await expect(page.locator('#max-distance-slider [role=slider]')).toHaveAttribute('aria-valuenow', '140');
-  await expect(page.locator('#focal-length-slider [role=slider]')).toHaveAttribute('aria-valuenow', '475');
-  await expect(page.locator('#displacement-slider [role=slider]')).toHaveAttribute('aria-valuenow', '15');
-  expect((await readE2EState(page, filename)).thresholds).toEqual([0, 85, 170, 255]);
+  await ui.expectDarkTheme();
+  expect(await imageHash(ui.mainImage())).toBe('528b56cf');
+  expect(await imageHash(ui.depthImage())).toBe('c6c301c5');
+  expect(await imagePixel(ui.mainImage(), 30, 30)).toEqual([240, 50, 45, 255]);
+  expect(await imagePixel(ui.mainImage(), 248, 96)).toEqual([35, 210, 90, 255]);
+  expect(await imagePixel(ui.depthImage(), 0, 0)).toEqual([0, 0, 0, 255]);
+  expect(await imagePixel(ui.depthImage(), 319, 239)).toEqual([255, 255, 255, 255]);
+  await ui.expectSliderValue('num-slices', 3);
+  await expect(ui.thresholdHandles()).toHaveCount(2);
+  await ui.expectSliderValue('camera-distance', 125);
+  await ui.expectSliderValue('max-distance', 140);
+  await ui.expectSliderValue('focal-length', 475);
+  await ui.expectSliderValue('displacement', 15);
+  expect((await readE2EState(page, projectId)).thresholds).toEqual([0, 85, 170, 255]);
 
-  await clickMainTab(page, 'Segmentation');
-  await selectSlice(page, filename, 1);
-  await clickMainTab(page, 'Inpainting');
-  await expect(page.locator('#positive-prompt')).toHaveValue('fixture foreground 1');
-  await expect(page.locator('#negative-prompt')).toHaveValue('fixture exclusion 1');
+  await ui.openTab('Segmentation');
+  await ui.selectSlice(projectId, 1);
+  await ui.openTab('Inpainting');
+  await ui.expectPrompts('fixture foreground 1', 'fixture exclusion 1');
 
-  await clickMainTab(page, 'Configuration');
-  await expect(page.locator('#depth-model-dropdown')).toContainText('DINOv2');
-  await expect(page.locator('#inpainting-model-dropdown')).toContainText('SD XL 1.0');
+  await ui.openTab('Configuration');
+  await ui.expectDepthModel('DINOv2');
+  await ui.expectInpaintingModel('SD XL 1.0');
 });
 
-test('glTF downloads as a valid scene and animation renders four frames without a download', async ({ page }) => {
-  const filename = await restoreFixtureState(page);
-  await clickMainTab(page, 'Export');
-  await setDashSlider(page, 'displacement-slider', 0);
+test('glTF downloads as a valid scene and animation renders four frames without a download', async ({ page, ui }) => {
+  requireWorkflow(ui, 'export');
+  const projectId = await ui.restoreFixtureState();
+  await ui.openTab('Export');
+  await ui.setSlider('displacement', 0);
 
-  const downloadPromise = page.waitForEvent('download');
-  await page.locator('#gltf-export').click();
-  const download = await downloadPromise;
+  const download = await ui.exportGltf();
   expect(download.suggestedFilename()).toBe('scene.gltf');
   const path = await download.path();
   expect(path).not.toBeNull();
@@ -484,21 +462,17 @@ test('glTF downloads as a valid scene and animation renders four frames without 
   expect(scene.images).toHaveLength(3);
   expect(scene.images?.every((image) => image.uri?.startsWith('data:image/png;base64,'))).toBe(true);
 
-  await setDashSlider(page, 'number-of-frames-slider', 4);
+  await ui.setSlider('number-of-frames', 4);
   const downloads: string[] = [];
   page.on('download', (event) => downloads.push(event.suggestedFilename()));
-  await page.locator('#animation-export').click();
-  await expect(page.locator('#log')).toContainText('Exported 4 frames to animation');
+  await ui.exportAnimation();
+  await expect(ui.log()).toContainText('Exported 4 frames to animation');
   // This locks in the current contract: animation writes server-side frames but the
   // otherwise-present dcc.Download is not populated by the callback.
   expect(downloads).toEqual([]);
 
-  const artifacts = await page.request.get(
-    `/__e2e__/artifacts?filename=${encodeURIComponent(filename)}`,
-  );
-  expect(artifacts.ok()).toBeTruthy();
-  const body = (await artifacts.json()) as { files: Array<{ path: string; size: number }> };
-  const frames = body.files
+  const artifacts = await listArtifacts(page, projectId);
+  const frames = artifacts.files
     .filter((file) => /^rendered_image_\d{3}\.png$/.test(file.path))
     .sort((left, right) => left.path.localeCompare(right.path));
   expect(frames).toEqual([
@@ -510,9 +484,7 @@ test('glTF downloads as a valid scene and animation renders four frames without 
   expect(frames.every((frame) => frame.size > 100)).toBe(true);
   const frameMetadata = await Promise.all(
     frames.map(async (frame) => {
-      const response = await page.request.get(
-        `/__e2e__/artifact/${encodeURIComponent(filename)}/${frame.path}`,
-      );
+      const response = await fetchArtifact(page, projectId, frame.path);
       expect(response.ok(), `download ${frame.path}`).toBeTruthy();
       expect(response.headers()['content-type']).toContain('image/png');
       return imageBufferMetadata(page, await response.body());

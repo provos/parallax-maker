@@ -127,3 +127,13 @@ pytest parallax_maker/test_filename.py::test_function_name
 - Memory usage scales with image size and model complexity
 - TailwindCSS compilation required only when modifying styles
 - SD3 Medium requires latest diffusers from GitHub
+
+## Svelte 5 migration (in progress)
+
+The Dash UI is being replaced by a Svelte 5 frontend. Dash is frozen as the
+behavioral reference; do not add new Dash adapters. Read, in order:
+`docs/SVELTE_5_MIGRATION_HANDOFF.md` (background and plan),
+`docs/svelte-migration/ARCHITECTURE.md` (target design and API contract), and
+`docs/svelte-migration/PARITY.md` (per-callback checklist and progress).
+Browser scenarios in `e2e/` are frontend-neutral and run through a `UiDriver`
+(`e2e/drivers/`); keep new scenarios free of framework-specific selectors.
