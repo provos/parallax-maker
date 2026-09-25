@@ -1,5 +1,6 @@
 import { test as base, expect, type ConsoleMessage, type Page } from '@playwright/test';
 import { DashDriver } from './drivers/dash';
+import { SvelteDriver } from './drivers/svelte';
 import type { UiDriver, UiTarget, Workflow } from './drivers/types';
 
 type BrowserDiagnostics = {
@@ -45,7 +46,8 @@ export const test = base.extend<Fixtures & Options>({
       return;
     }
     if (uiTarget === 'svelte') {
-      throw new Error('Svelte driver not implemented yet');
+      await use(new SvelteDriver(page));
+      return;
     }
     throw new Error(`Unknown uiTarget: ${String(uiTarget)}`);
   },

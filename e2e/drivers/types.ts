@@ -27,7 +27,7 @@ export type Workflow =
   | 'configuration'
   | 'export';
 
-export type MainTab = 'Segmentation' | 'Inpainting' | 'Export' | 'Configuration';
+export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Export' | 'Configuration';
 export type SegmentationMode = 'Depth Map' | 'Instance Segmentation';
 export type Modifier = 'Alt' | 'Control' | 'Meta' | 'Shift';
 export type SliderName =
