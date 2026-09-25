@@ -1,6 +1,7 @@
 <script lang="ts">
   import { uiStore } from './lib/state/ui.svelte';
   import { projectStore } from './lib/state/project.svelte';
+  import { jobStore } from './lib/state/jobs.svelte';
   import Header from './lib/components/shell/Header.svelte';
   import Footer from './lib/components/shell/Footer.svelte';
   import LogPanel from './lib/components/shell/LogPanel.svelte';
@@ -22,7 +23,12 @@
   });
 </script>
 
-<div id="app-container" class="app-root" class:dark={uiStore.theme === 'dark'}>
+<div
+  id="app-container"
+  class="app-root"
+  class:dark={uiStore.theme === 'dark'}
+  class:app-busy={jobStore.active !== null}
+>
   <Header />
 
   <main class="app-main">
@@ -48,6 +54,10 @@
     flex-direction: column;
     background-color: var(--color-bg);
     color: var(--color-text);
+  }
+
+  .app-busy {
+    cursor: progress;
   }
 
   .app-main {

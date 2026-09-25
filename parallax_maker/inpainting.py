@@ -63,6 +63,9 @@ class InpaintingModel:
         self.pipeline = None
         self.server_address = None
         self.workflow_path = None  # use for comfyui
+        # Optional ``(step, total)`` callback for local diffusers pipelines;
+        # set by the caller around a generation to report per-step progress.
+        self.step_callback = None
 
     def __eq__(self, other):
         if not isinstance(other, InpaintingModel):
@@ -425,6 +428,7 @@ class InpaintingModel:
             strength=strength,
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
+            **self._step_callback_kwargs(),
         ).images[0]
 
         return image
@@ -446,8 +450,23 @@ class InpaintingModel:
             strength=strength,
             guidance_scale=guidance_scale,
             num_inference_steps=num_inference_steps,
+            **self._step_callback_kwargs(),
         )
         return result.images[0]
+
+    def _step_callback_kwargs(self):
+        """``callback_on_step_end`` kwargs forwarding steps to ``step_callback``."""
+        report = self.step_callback
+        if report is None:
+            return {}
+
+        def on_step_end(pipe, step, timestep, callback_kwargs):
+            # `num_timesteps` is the real step count after `strength` is applied.
+            total = getattr(pipe, "num_timesteps", None) or 1
+            report(step + 1, total)
+            return callback_kwargs
+
+        return {"callback_on_step_end": on_step_end}
 
     def inpaint_flux(
         self,

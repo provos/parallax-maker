@@ -200,6 +200,10 @@ class FakeInpaintingModel(_load_inpainting_base()):
     ):
         del resize_mask_image, prompt, negative_prompt, strength
         del guidance_scale, num_inference_steps, seed
+        # Report denoising steps like the real diffusers path does.
+        if self.step_callback is not None:
+            for step in range(1, 5):
+                self.step_callback(step, 4)
         variant = self._e2e_call_count % len(INPAINT_PALETTES)
         self._e2e_call_count += 1
         return checkerboard(resize_init_image.size, variant)

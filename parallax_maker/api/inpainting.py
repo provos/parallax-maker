@@ -430,6 +430,9 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
                         guidance_scale=settings.guidance_scale,
                         padding=settings.padding,
                         blur=settings.blur,
+                        # Stop short of 1.0: the job only completes once
+                        # the candidate set is stored below.
+                        progress=lambda fraction: job.set_progress(0.99 * fraction),
                     )
                 )
                 # Only replace the stored candidate set once generation has
