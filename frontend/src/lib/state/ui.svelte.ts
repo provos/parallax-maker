@@ -31,6 +31,14 @@ function createUiStore() {
   // 'success'/'failure' by the corresponding Test Connection/Validate probe.
   let externalConnectionStatus = $state<ProbeStatus>('none');
   let apiKeyStatus = $state<ProbeStatus>('none');
+  // "Crop to region of interest" (components.py's CHECKLIST_REGION_OF_INTEREST,
+  // defaults checked): purely client-side UI state in Dash too, read by both
+  // InpaintingTab.svelte (display only there -- generation always passes
+  // crop=True regardless, see its own comment) and MaskCanvas.svelte (which
+  // sends it as the mask-save request's `cropToRegion` flag, gating whether
+  // the server computes a bounding box for PreviewOverlay.svelte's ROI-box
+  // preview -- Dash's CLI-07/CMP-24).
+  let cropToRoi = $state<boolean>(true);
 
   return {
     get viewerTab(): ViewerTab {
@@ -92,6 +100,13 @@ function createUiStore() {
       apiKeyStatus = status;
     },
 
+    get cropToRoi(): boolean {
+      return cropToRoi;
+    },
+    setCropToRoi(value: boolean): void {
+      cropToRoi = value;
+    },
+
     /** Test-only: restores default values so stores don't leak between tests. */
     reset(): void {
       viewerTab = '2D';
@@ -102,6 +117,7 @@ function createUiStore() {
       pendingNumSlices = DEFAULT_NUM_SLICES;
       externalConnectionStatus = 'none';
       apiKeyStatus = 'none';
+      cropToRoi = true;
     },
   };
 }

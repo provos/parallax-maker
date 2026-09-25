@@ -1,5 +1,6 @@
 <script lang="ts">
   import { uiStore, MAIN_TABS } from '../../state/ui.svelte';
+  import { rovingTabs } from '../../a11y/rovingTabindex';
   import ModeTab from '../depth/ModeTab.svelte';
   import SegmentationTab from '../segmentation/SegmentationTab.svelte';
   import InpaintingTab from '../inpainting/InpaintingTab.svelte';
@@ -8,12 +9,22 @@
 </script>
 
 <div class="main-tabs">
-  <div class="tab-strip" role="tablist" aria-label="Workflow">
+  <!-- Roving tabindex (see lib/a11y/rovingTabindex.ts): only the active tab
+       is in the Tab order; Left/Right/Home/End move focus among the rest,
+       activating as they go. A deliberate accessibility improvement over
+       Dash's plain, keyboard-inert `<label>` tab strip (CMP-18). -->
+  <div
+    class="tab-strip"
+    role="tablist"
+    aria-label="Workflow"
+    use:rovingTabs={(index) => uiStore.setMainTab(MAIN_TABS[index])}
+  >
     {#each MAIN_TABS as tab (tab)}
       <button
         type="button"
         role="tab"
         aria-selected={uiStore.mainTab === tab}
+        tabindex={uiStore.mainTab === tab ? 0 : -1}
         class:active={uiStore.mainTab === tab}
         onclick={() => uiStore.setMainTab(tab)}
       >

@@ -203,6 +203,38 @@ export class SvelteDriver implements UiDriver {
     await image.click({ position, modifiers });
   }
 
+  /**
+   * Zooms in once via a real wheel gesture over the main image's center
+   * (`InputImagePanel.svelte`'s `onWheel`/`state/viewport.svelte.ts`), the
+   * same gesture Dash's own JS-03 `handleWheel` responds to.
+   */
+  async zoomIn(): Promise<void> {
+    const box = await this.page.getByTestId('input-image-panel').boundingBox();
+    if (!box) throw new Error('Input image panel has no bounding box');
+    await this.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await this.page.mouse.wheel(0, -400); // negative deltaY zooms in, same sign Dash checks.
+  }
+
+  /**
+   * Pans by a real middle-mouse drag over the main image
+   * (`InputImagePanel.svelte`'s `onDropZonePointerDown`/`Move`/`Up`), which
+   * always pans regardless of the active tab (see viewport.svelte.ts).
+   */
+  async panBy(dx: number, dy: number): Promise<void> {
+    const box = await this.page.getByTestId('input-image-panel').boundingBox();
+    if (!box) throw new Error('Input image panel has no bounding box');
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await this.page.mouse.move(startX, startY);
+    await this.page.mouse.down({ button: 'middle' });
+    await this.page.mouse.move(startX + dx, startY + dy, { steps: 10 });
+    await this.page.mouse.up({ button: 'middle' });
+  }
+
+  async resetZoom(): Promise<void> {
+    await this.page.getByTestId('zoom-reset').click();
+  }
+
   async selectSlice(projectId: string, index: number): Promise<Locator> {
     const image = this.sliceImages().nth(index);
     await expect(image).toBeVisible();
@@ -228,6 +260,18 @@ export class SvelteDriver implements UiDriver {
   async commitMultiPoint(): Promise<void> {
     await this.page.getByTestId('multi-commit').click();
     await expect(this.log()).toContainText(/Committed points/);
+  }
+
+  async expectQueuedPointMarkers(
+    points: Array<{ x: number; y: number; negative: boolean }>,
+  ): Promise<void> {
+    const markers = this.page.getByTestId('queued-point-marker');
+    await expect(markers).toHaveCount(points.length);
+    for (let i = 0; i < points.length; i += 1) {
+      const marker = markers.nth(i);
+      const isNegative = await marker.evaluate((el) => el.classList.contains('negative'));
+      expect(isNegative, `marker ${i} color`).toBe(points[i].negative);
+    }
   }
 
   // Canvas / inpainting

@@ -13,7 +13,10 @@
   import { jobStore } from '../../state/jobs.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import { canvasSaveStore } from '../../state/canvas.svelte';
+  import { uiStore } from '../../state/ui.svelte';
   import * as workflow from '../../workflow';
+  import HelpTooltip from '../shared/HelpTooltip.svelte';
+  import { INPAINTING_HELP_TEXTS } from '../../helpTexts';
 
   const view = $derived(projectStore.view);
   const selectedSlice = $derived(view?.selectedSlice ?? null);
@@ -63,11 +66,12 @@
     void workflow.updateInpaintingSettings({ guidanceScale: value });
   }
 
-  // "Crop to region of interest" is display-only in Dash too: generation
-  // always passes crop=True regardless of the checkbox (see the migration
-  // handoff's "Inpainting, masks and versions" section), so this is pure
-  // client-side UI state, not sent to the backend.
-  let cropToRoi = $state(true);
+  // "Crop to region of interest" only affects *generation* display-only in
+  // Dash too: generation always passes crop=True regardless of the checkbox
+  // (see the migration handoff's "Inpainting, masks and versions" section).
+  // It also gates MaskCanvas.svelte's ROI-box preview on mask save (Dash's
+  // CLI-07/CMP-24), so it lives in `uiStore` rather than as local state here
+  // so MaskCanvas.svelte can read the same value.
 
   // -- Generate / Fill / Enhance / Erase.
 
@@ -113,6 +117,9 @@
 </script>
 
 <div class="inpainting-tab" data-testid="tab-inpainting">
+  <div class="tab-header">
+    <HelpTooltip label="Inpainting" texts={INPAINTING_HELP_TEXTS} />
+  </div>
   <div class="field">
     <label class="field-label" for="positive-prompt">Positive Prompt</label>
     <textarea
@@ -172,8 +179,8 @@
     <input
       type="checkbox"
       data-testid="crop-to-roi"
-      checked={cropToRoi}
-      onchange={(event) => (cropToRoi = (event.currentTarget as HTMLInputElement).checked)}
+      checked={uiStore.cropToRoi}
+      onchange={(event) => uiStore.setCropToRoi((event.currentTarget as HTMLInputElement).checked)}
     />
     Crop to region of interest
   </label>
@@ -226,6 +233,11 @@
     flex-direction: column;
     gap: var(--space-2);
     padding: var(--space-2);
+  }
+
+  .tab-header {
+    display: flex;
+    justify-content: flex-end;
   }
 
   .field {

@@ -431,15 +431,26 @@ export async function restoreProject(file: File): Promise<void> {
  * (`PUT .../slices/{index}/mask`, sync). Called by MaskCanvas.svelte on
  * pointerup; its result is what `canvasSaveStore` tracks as the "pending
  * save" other actions must await.
+ *
+ * `cropToRegion` mirrors Dash's "Crop to region of interest" checkbox
+ * (`uiStore.cropToRoi`); the returned bounding box (or `null`) is what
+ * MaskCanvas.svelte feeds into `canvasPreviewStore.showRoiBox` for
+ * PreviewOverlay.svelte's ~2s ROI-box preview, matching Dash's CLI-07.
  */
-export async function saveMask(index: number, mask: Blob): Promise<void> {
+export async function saveMask(
+  index: number,
+  mask: Blob,
+  cropToRegion: boolean,
+): Promise<import('./api/client').BoundingBox> {
   const view = projectStore.view;
-  if (!view) return;
+  if (!view) return null;
   try {
-    const result = await api.saveInpaintingMask(view.id, index, mask);
+    const result = await api.saveInpaintingMask(view.id, index, mask, cropToRegion);
     projectStore.applyView(result);
+    return result.boundingBox;
   } catch (err) {
     logStore.pushClient(errorMessage(err));
+    return null;
   } finally {
     await refreshLogs(view.id);
   }

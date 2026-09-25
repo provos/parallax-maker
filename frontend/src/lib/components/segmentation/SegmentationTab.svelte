@@ -4,6 +4,8 @@
   import * as workflow from '../../workflow';
   import * as api from '../../api/client';
   import { triggerDownload } from '../../download';
+  import HelpTooltip from '../shared/HelpTooltip.svelte';
+  import { SEGMENTATION_HELP_TEXTS } from '../../helpTexts';
 
   type ActionButton = { label: string; testId: string; onClick: () => void };
 
@@ -153,23 +155,32 @@
 </script>
 
 <div class="segmentation-tab" data-testid="tab-segmentation">
+  <div class="tab-header">
+    <HelpTooltip label="Segmentation" texts={SEGMENTATION_HELP_TEXTS} />
+  </div>
   <div class="segmentation-grid">
     <div class="thresholds-column">
       <span class="panel-label">Thresholds</span>
       <div class="panel thresholds-box" data-testid="thresholds-container">
         {#each localValues as value, index (index)}
-          <input
-            type="range"
-            min="0"
-            max="255"
-            step="1"
-            data-testid="threshold-handle"
-            aria-label={`Threshold ${index + 1}`}
-            value={value}
-            disabled={isBusy() || !projectStore.view}
-            oninput={(event) => onSliderInput(index, event)}
-            onchange={onSliderChange}
-          />
+          <div class="threshold-row">
+            <input
+              type="range"
+              min="0"
+              max="255"
+              step="1"
+              data-testid="threshold-handle"
+              aria-label={`Threshold ${index + 1}`}
+              value={value}
+              disabled={isBusy() || !projectStore.view}
+              oninput={(event) => onSliderInput(index, event)}
+              onchange={onSliderChange}
+            />
+            <!-- Always-visible current value, matching Dash's
+                 `tooltip={"always_visible": True}` on every threshold slider
+                 (webui.py's `update_thresholds_html`). -->
+            <span class="slider-value" data-testid="threshold-value">{value}</span>
+          </div>
         {/each}
       </div>
     </div>
@@ -284,6 +295,12 @@
 </div>
 
 <style>
+  .tab-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: var(--space-2) var(--space-2) 0;
+  }
+
   .segmentation-grid {
     display: grid;
     grid-template-columns: 3fr 2fr;
@@ -300,6 +317,23 @@
 
   .thresholds-box input[type='range'] {
     width: 100%;
+  }
+
+  .threshold-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+
+  .threshold-row input[type='range'] {
+    flex: 1;
+  }
+
+  .slider-value {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    min-width: 2rem;
+    text-align: right;
   }
 
   .actions-grid {

@@ -214,7 +214,7 @@ mismatch is `409 not_ready`.
 
 | Method & path | Body | Result |
 | --- | --- | --- |
-| `PUT /api/v1/projects/{id}/slices/{index}/mask` | multipart `mask` (canvas PNG, alpha = painted mask) | `200 ProjectView & {changed: true}` (sync); `save_mask` (alpha→L, BICUBIC-resized to source dims); does not save the project JSON. |
+| `PUT /api/v1/projects/{id}/slices/{index}/mask` | multipart `mask` (canvas PNG, alpha = painted mask), optional form field `cropToRegion` (default `true`, Dash's "Crop to region of interest") | `200 ProjectView & {changed: true, boundingBox: [x0, y0, x1, y1] \| null}` (sync); `save_mask` (alpha→L, BICUBIC-resized to source dims); `boundingBox` is the padded square ROI preview box when `cropToRegion` is set; does not save the project JSON. |
 | `DELETE /api/v1/projects/{id}/slices/{index}/mask` | – | `200 ProjectView & {changed}` (sync); `delete_mask`; `changed: false` when no mask existed. |
 | `PUT /api/v1/projects/{id}/slices/{index}/prompts` | `{positivePrompt, negativePrompt}` | `200 ProjectView & {changed}` (sync); `update_prompts`; `changed: false` on `InpaintingUnchanged`. |
 | `PUT /api/v1/projects/{id}/inpainting/settings` | `{model?, strength?, guidanceScale?, padding?, blur?, externalServer?, apiKey?}` | `200 ProjectView & {changed}` (sync); only fields present in the body are applied. `model` calls `update_model` (and drops any stored candidate set on an actual change, mirroring `remember_inpaint_model`); `externalServer`/`apiKey` are additionally written onto `AppState` (JSON-only save) like Dash's own settings panel. The rest become project-level defaults consumed by the next `generate` call. `apiKey` is write-only - never echoed back by any response. |

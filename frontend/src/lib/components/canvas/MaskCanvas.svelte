@@ -24,6 +24,7 @@
   import { isBusy } from '../../state/busy.svelte';
   import { logStore } from '../../state/logs.svelte';
   import { canvasSaveStore } from '../../state/canvas.svelte';
+  import { canvasPreviewStore } from '../../state/canvasPreview.svelte';
   import * as workflow from '../../workflow';
 
   let canvasEl: HTMLCanvasElement | undefined;
@@ -37,6 +38,16 @@
   let strokeDirty = false;
   let lastPoint: { x: number; y: number } | null = null;
 
+  // Alt+Right-drag brush resize (Dash's `startDrawing`/`adjustBrushSize`,
+  // utility.js:126-149): holding Alt while dragging with the *right* mouse
+  // button adjusts the active brush's width instead of painting, by 1 unit
+  // per 15 CSS px of horizontal drag, clamped to [5, 100] -- same formula
+  // and same clamp range as Dash, so a given drag distance resizes the
+  // brush by the same amount on both UIs.
+  let isResizingBrush = false;
+  let resizeStartClientX = 0;
+  let resizeStartWidth = 0;
+
   // Bumped on every slice-selection transition so a slow, now-superseded
   // mask fetch (Load, or the auto-load below) can recognize it is stale and
   // avoid painting onto the wrong slice's canvas.
@@ -44,6 +55,13 @@
   let lastSelected: number | null | undefined = undefined;
 
   const interactiveNow = $derived(uiStore.mainTab === 'Inpainting');
+
+  // The brush preview is only ever meaningful while this tab is actually
+  // interactive; drop it immediately on a tab switch away rather than
+  // leaving a stale circle floating over the (now non-interactive) canvas.
+  $effect(() => {
+    if (!interactiveNow) canvasPreviewStore.clearBrush();
+  });
 
   function getCtx(): CanvasRenderingContext2D | null {
     if (!canvasEl) return null;
@@ -134,6 +152,19 @@
 
   function beginStroke(event: PointerEvent): void {
     if (!interactiveNow || isBusy()) return;
+
+    // Alt+Right-drag brush resize takes precedence over painting, exactly
+    // like Dash's `startDrawing`'s own `if (e.button === 2 && e.altKey)`
+    // early return -- a plain (non-Alt) right-click still paints, matching
+    // Dash's real (unguarded) behavior for that case.
+    if (event.button === 2 && event.altKey) {
+      isResizingBrush = true;
+      resizeStartClientX = event.clientX;
+      resizeStartWidth = isErasing ? eraseWidth : drawWidth;
+      canvasEl?.setPointerCapture?.(event.pointerId);
+      return;
+    }
+
     const view = projectStore.view;
     if (!view || view.selectedSlice === null) return;
     const ctx = getCtx();
@@ -147,6 +178,7 @@
     isDrawing = true;
     strokeDirty = false;
     lastPoint = point;
+    canvasPreviewStore.clearBrush();
 
     ctx.globalCompositeOperation = isErasing ? 'destination-out' : 'source-over';
     ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
@@ -162,17 +194,49 @@
     strokeDirty = true;
   }
 
+  /** Clamped exactly like Dash's `adjustBrushSize` (utility.js:139-149): `[5, 100]`, 1 unit per 15px of drag. */
+  function adjustBrushSize(deltaX: number): void {
+    const next = Math.max(5, Math.min(100, resizeStartWidth + deltaX / 15));
+    if (isErasing) eraseWidth = next;
+    else drawWidth = next;
+  }
+
   function moveStroke(event: PointerEvent): void {
-    if (!isDrawing) return;
-    const ctx = getCtx();
+    if (isResizingBrush) {
+      adjustBrushSize(event.clientX - resizeStartClientX);
+      updateBrushPreview(event);
+      return;
+    }
+    if (isDrawing) {
+      const ctx = getCtx();
+      const point = canvasPoint(event);
+      if (!ctx || !point || !lastPoint) return;
+      ctx.beginPath();
+      ctx.moveTo(lastPoint.x, lastPoint.y);
+      ctx.lineTo(point.x, point.y);
+      ctx.stroke();
+      lastPoint = point;
+      strokeDirty = true;
+      return;
+    }
+    // Idle: show the brush-size preview circle (Dash's JS-01 `previewBrush`).
+    updateBrushPreview(event);
+  }
+
+  /** Live brush-size preview circle that follows the pointer while idle (Dash's JS-01 `previewBrush`). */
+  function updateBrushPreview(event: PointerEvent): void {
+    if (!interactiveNow) {
+      canvasPreviewStore.clearBrush();
+      return;
+    }
     const point = canvasPoint(event);
-    if (!ctx || !point || !lastPoint) return;
-    ctx.beginPath();
-    ctx.moveTo(lastPoint.x, lastPoint.y);
-    ctx.lineTo(point.x, point.y);
-    ctx.stroke();
-    lastPoint = point;
-    strokeDirty = true;
+    if (!point) return;
+    canvasPreviewStore.setBrush({
+      x: point.x,
+      y: point.y,
+      diameter: (isErasing ? eraseWidth : drawWidth) * scaleFactor(),
+      erasing: isErasing,
+    });
   }
 
   function canvasToBlob(canvas: HTMLCanvasElement): Promise<Blob | null> {
@@ -185,12 +249,25 @@
     const index = view.selectedSlice as number;
     const blob = await canvasToBlob(canvasEl);
     if (!blob) return;
-    const savePromise = workflow.saveMask(index, blob);
+    const cropToRegion = uiStore.cropToRoi;
+    const savePromise = workflow.saveMask(index, blob, cropToRegion).then((boundingBox) => {
+      if (boundingBox) canvasPreviewStore.showRoiBox(boundingBox);
+    });
     canvasSaveStore.register(savePromise);
     await savePromise;
   }
 
   async function endStroke(event: PointerEvent): Promise<void> {
+    if (isResizingBrush) {
+      isResizingBrush = false;
+      try {
+        canvasEl?.releasePointerCapture(event.pointerId);
+      } catch {
+        // Pointer capture may already have been released (e.g. pointercancel).
+      }
+      updateBrushPreview(event);
+      return;
+    }
     if (!isDrawing) return;
     isDrawing = false;
     try {
@@ -199,9 +276,14 @@
       // Pointer capture may already have been released (e.g. pointercancel).
     }
     lastPoint = null;
+    updateBrushPreview(event);
     if (!strokeDirty) return;
     strokeDirty = false;
     await saveCurrentCanvas();
+  }
+
+  function onPointerLeave(): void {
+    canvasPreviewStore.clearBrush();
   }
 
   async function onClear(): Promise<void> {
@@ -243,6 +325,7 @@
   onpointermove={moveStroke}
   onpointerup={(event) => void endStroke(event)}
   onpointercancel={(event) => void endStroke(event)}
+  onpointerleave={onPointerLeave}
   oncontextmenu={(event) => event.preventDefault()}
 ></canvas>
 

@@ -123,6 +123,123 @@ export class DashDriver implements UiDriver {
     await expect(this.page.locator('#mode-selector')).toContainText(mode);
   }
 
+  /**
+   * A real wheel gesture over the input-image box (utility.js's
+   * `handleWheel`/JS-03, the only zoom mechanism Dash has -- no buttons, no
+   * drag-to-pan, no reset; see `panBy`/`resetZoom` below and
+   * `frontend/src/lib/state/viewport.svelte.ts`'s own doc comment).
+   *
+   * Confirmed empirically (see docs/svelte-migration/PARITY.md's Known
+   * quirks): the wheel *listener* is only attached lazily, the first time
+   * the mouse enters or presses down on `#canvas` (`setupMainCanvas`, called
+   * from `canvas_draw`'s `mouseenter` case) -- and even once attached, a
+   * wheel event only reaches it while `#canvas` is the topmost element under
+   * the cursor, which is only true while the Inpainting tab is active
+   * (`update_events`/CMP-01 swaps `#image`/`#canvas` z-index per tab). A
+   * caller that wants this to actually zoom must `openTab('Inpainting')`
+   * first; `hover()` here both moves the mouse (lazily registering the
+   * listener if needed) and primes real hit-testing before the wheel tick.
+   */
+  async zoomIn(): Promise<void> {
+    const box = await this.mainImage().boundingBox();
+    if (!box) throw new Error('Main image has no bounding box');
+    // A raw `page.mouse.move` (not `locator.hover`, which requires the
+    // *image* itself to be the topmost element at that point): while the
+    // Inpainting tab is active, `#canvas` is deliberately on top of
+    // `#image` (see this method's own doc comment above), so hovering
+    // "over the image" for a real user means hovering that same screen
+    // position, whichever element real hit-testing currently resolves it
+    // to - exactly what `page.mouse.move` does.
+    await this.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await this.page.mouse.wheel(0, -400); // negative deltaY zooms in, same sign Dash checks.
+  }
+
+  /**
+   * A real left-button drag gesture over the input-image box. Dash has no
+   * drag-to-pan handler at all for `#image`/`#canvas` (utility.js has no
+   * `mousedown`-driven pan of any kind -- only `startDrawing`/`draw`, which
+   * paint on `#canvas` and are gated on `currentSlice`/the Inpainting tab,
+   * and the unrelated `NAV_*` 3D-camera-dolly buttons, see PARITY.md). This
+   * is therefore a real, expected no-op on Dash: the gesture is performed
+   * faithfully, but nothing in Dash responds to it.
+   */
+  async panBy(dx: number, dy: number): Promise<void> {
+    const box = await this.mainImage().boundingBox();
+    if (!box) throw new Error('Main image has no bounding box');
+    const startX = box.x + box.width / 2;
+    const startY = box.y + box.height / 2;
+    await this.page.mouse.move(startX, startY);
+    await this.page.mouse.down();
+    await this.page.mouse.move(startX + dx, startY + dy, { steps: 10 });
+    await this.page.mouse.up();
+  }
+
+  /**
+   * Dash has no reset control for its CSS zoom at all (see `zoomIn`'s doc
+   * comment); this is a documented best-effort substitute (repeated
+   * zoom-out gestures towards JS-03's own 0.125x floor), not an exact reset
+   * to 1x/no-pan the way SvelteDriver's Reset button is.
+   */
+  async resetZoom(): Promise<void> {
+    const box = await this.mainImage().boundingBox();
+    if (!box) throw new Error('Main image has no bounding box');
+    await this.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    for (let i = 0; i < 40; i += 1) {
+      await this.page.mouse.wheel(0, 400);
+    }
+  }
+
+  /**
+   * Samples `#preview-canvas`'s own pixels for Dash's CLI-05
+   * `visualize_point` dots (drawn directly onto the canvas, not as DOM
+   * nodes -- there is nothing to query by position/class the way
+   * SvelteDriver's `queued-point-marker` elements allow). This only checks
+   * that a pixel of each expected color exists *somewhere* on the canvas,
+   * not at an exact position -- replicating utility.js's own
+   * zoom/pan-aware `translateCoordinates` inverse-transform purely to
+   * locate a test pixel would duplicate real app logic in the test suite
+   * itself; the position itself is already proven correct by the
+   * depth-mode click assertions elsewhere in this scenario.
+   */
+  async expectQueuedPointMarkers(
+    points: Array<{ x: number; y: number; negative: boolean }>,
+  ): Promise<void> {
+    const canvas = this.page.locator('#preview-canvas');
+    const sample = async () =>
+      canvas.evaluate((el: HTMLCanvasElement) => {
+        const ctx = el.getContext('2d');
+        if (!ctx || el.width === 0 || el.height === 0) return { green: false, red: false };
+        const { data } = ctx.getImageData(0, 0, el.width, el.height);
+        let green = false;
+        let red = false;
+        for (let i = 0; i < data.length; i += 4) {
+          const [r, g, b, a] = [data[i], data[i + 1], data[i + 2], data[i + 3]];
+          if (a < 200) continue;
+          if (g > 200 && r < 60 && b < 60) green = true;
+          else if (r > 200 && g < 60 && b < 60) red = true;
+        }
+        return { green, red };
+      });
+    const wantsPositive = points.some((p) => !p.negative);
+    const wantsNegative = points.some((p) => p.negative);
+    // CLI-05 `visualize_point` draws each dot from a *clientside* callback
+    // reacting to `STORE_CLICKED_POINT.data`, itself only set after the
+    // click's own server round trip lands - unlike SvelteDriver's DOM-count
+    // assertion (which Playwright's own `toHaveCount` already retries),
+    // there is no single locator to poll here, so this polls the sampled
+    // canvas colors directly instead of a one-shot read.
+    if (wantsPositive) {
+      await expect.poll(async () => (await sample()).green, 'a green (positive) queued-point dot').toBe(
+        true,
+      );
+    }
+    if (wantsNegative) {
+      await expect.poll(async () => (await sample()).red, 'a red (negative) queued-point dot').toBe(
+        true,
+      );
+    }
+  }
+
   async clickImagePixel(x: number, y: number, modifiers: Modifier[] = []): Promise<void> {
     const image = this.mainImage();
     const position = await image.evaluate(

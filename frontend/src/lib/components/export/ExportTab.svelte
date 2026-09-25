@@ -12,6 +12,8 @@
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
   import { triggerDownload } from '../../download';
+  import HelpTooltip from '../shared/HelpTooltip.svelte';
+  import { EXPORT_HELP_TEXTS } from '../../helpTexts';
 
   const view = $derived(projectStore.view);
 
@@ -138,6 +140,9 @@
 </script>
 
 <div class="export-tab" data-testid="tab-export">
+  <div class="tab-header">
+    <HelpTooltip label="Export" texts={EXPORT_HELP_TEXTS} />
+  </div>
   <div class="panel gltf-panel">
     <div class="action-row">
       <button
@@ -307,6 +312,12 @@
 
   .panel {
     padding: var(--space-2);
+  }
+
+  .tab-header {
+    display: flex;
+    justify-content: flex-end;
+    padding: 0 var(--space-2);
   }
 
   .action-row {
