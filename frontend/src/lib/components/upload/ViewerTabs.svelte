@@ -28,10 +28,10 @@
     {/each}
   </div>
 
-  <div class:hidden={uiStore.viewerTab !== '2D'} data-testid="viewer-2d">
+  <div class="viewer-pane" class:hidden={uiStore.viewerTab !== '2D'} data-testid="viewer-2d">
     <InputImagePanel />
   </div>
-  <div class="panel viewer-3d" class:hidden={uiStore.viewerTab !== '3D'} data-testid="viewer-3d">
+  <div class="panel viewer-pane viewer-3d" class:hidden={uiStore.viewerTab !== '3D'} data-testid="viewer-3d">
     <Model3DViewer />
   </div>
 </div>
@@ -40,9 +40,12 @@
   .viewer-column {
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
-  .viewer-3d {
-    min-height: 30rem;
+  /* Each pane takes the column's remaining height (never more). */
+  .viewer-pane {
+    flex: 1 1 0;
+    min-height: 0;
   }
 </style>

@@ -85,6 +85,12 @@ export class SvelteDriver implements UiDriver {
     await waitForImage(this.depthImage());
   }
 
+  async uploadImageFile(file: { name: string; mimeType: string; buffer: Buffer }): Promise<void> {
+    await this.page.getByTestId('upload-image-input').setInputFiles(file);
+    await waitForImage(this.mainImage());
+    await waitForImage(this.depthImage());
+  }
+
   async restoreFixtureState(): Promise<string> {
     const response = await fetchFixture(this.page, 'state.json');
     expect(response.ok(), 'GET /__e2e__/fixture/state.json').toBeTruthy();

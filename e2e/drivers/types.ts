@@ -62,6 +62,8 @@ export interface UiDriver {
   // Upload / depth / slices
   /** Uploads the server fixture input and waits for the image and depth map. */
   uploadInputImage(): Promise<void>;
+  /** Uploads an arbitrary image as the input image and waits for the image and depth map. */
+  uploadImageFile(file: { name: string; mimeType: string; buffer: Buffer }): Promise<void>;
   /**
    * Restores a fresh copy of the fixture project; waits for 3 slices. Returns the project ID.
    * This is baseline test setup that every driver must support; scenarios that only use it

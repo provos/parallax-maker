@@ -11,6 +11,7 @@
   let fileInput: HTMLInputElement | undefined;
   let dragging = $state(false);
   let dropZoneEl: HTMLDivElement | undefined;
+  let fitEl: HTMLDivElement | undefined;
 
   function pickFile(): void {
     if (isBusy()) return;
@@ -58,6 +59,12 @@
     projectStore.view?.mainImage?.url ?? projectStore.view?.assets.input?.url,
   );
   const hasInputImage = $derived(!!projectStore.view?.assets.input);
+  // Source aspect ratio; `.image-fit` uses it to fit the whole image inside
+  // the drop-zone (never taller or wider than the available space).
+  const aspectRatio = $derived.by(() => {
+    const size = projectStore.view?.image;
+    return size && size.width > 0 && size.height > 0 ? size.width / size.height : null;
+  });
 
   /**
    * Handles a real click on the main image for segmentation (webui.py's
@@ -119,10 +126,14 @@
   // for why Dash only has wheel-zoom, and why drag-to-pan/reset buttons here
   // are a documented improvement rather than a strict parity port).
 
-  /** `.drop-zone`-relative coordinates, ignoring any current zoom/pan transform -- see viewportStore.zoomAt's own doc. */
+  /**
+   * Coordinates relative to `.image-fit` -- the untransformed box the image
+   * is fitted into, i.e. the zoom/pan transform's own origin -- ignoring any
+   * current zoom/pan transform; see viewportStore.zoomAt's own doc.
+   */
   function localPoint(clientX: number, clientY: number): { x: number; y: number } | null {
-    if (!dropZoneEl) return null;
-    const rect = dropZoneEl.getBoundingClientRect();
+    if (!fitEl) return null;
+    const rect = fitEl.getBoundingClientRect();
     return { x: clientX - rect.left, y: clientY - rect.top };
   }
 
@@ -211,9 +222,11 @@
     panEngaged = false;
   }
 
+  /** The visible drop-zone's center, in `.image-fit`-relative coordinates. */
   function zoomButtonCenter(): { x: number; y: number } {
     const rect = dropZoneEl?.getBoundingClientRect();
-    return rect ? { x: rect.width / 2, y: rect.height / 2 } : { x: 0, y: 0 };
+    if (!rect) return { x: 0, y: 0 };
+    return localPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) ?? { x: 0, y: 0 };
   }
 
   function zoomIn(): void {
@@ -308,6 +321,15 @@
          (state/viewport.svelte.ts); every descendant (image, mask canvas,
          preview overlay) inherits it, and each one's own
          `getBoundingClientRect()` automatically reflects it. -->
+    <!-- `.image-fit` is the untransformed box the image is fitted into
+         (aspect ratio preserved, as large as the drop-zone allows); zoom/pan
+         coordinates are measured relative to it (see localPoint). -->
+    <div
+      bind:this={fitEl}
+      class="image-fit"
+      class:fitted={aspectRatio !== null}
+      style={aspectRatio !== null ? `--image-aspect: ${aspectRatio};` : undefined}
+    >
     <div
       class="image-stack"
       style={`transform: translate(${viewportStore.panX}px, ${viewportStore.panY}px) scale(${viewportStore.scale}); transform-origin: 0 0;`}
@@ -328,6 +350,7 @@
       />
       <MaskCanvas />
       <PreviewOverlay />
+    </div>
     </div>
     <input
       bind:this={fileInput}
@@ -441,16 +464,23 @@
 </div>
 
 <style>
+  /* Fills the viewer column's height; the drop-zone takes whatever is left
+     after the label and tool rows, and the image is fitted inside it, so a
+     tall image can never push the page past the viewport. */
   .input-image-outer {
     display: flex;
     flex-direction: column;
-    min-height: 30rem;
+    height: 100%;
+    min-height: 0;
+    box-sizing: border-box;
   }
 
   .drop-zone {
     position: relative;
-    flex: 1;
-    min-height: 24rem;
+    flex: 1 1 0;
+    min-height: 8rem;
+    /* Size container: `.image-fit` below sizes itself in cqw/cqh. */
+    container-type: size;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -465,18 +495,34 @@
     border-color: var(--color-accent);
   }
 
+  .image-fit {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+
+  /* Contain-fit without letterboxing inside the element itself: the box
+     takes on the image's own aspect ratio at the largest size that fits
+     the drop-zone, so pixel-click math (lib/geometry.ts's
+     findPixelFromClick) can use Dash's plain ratio formula without
+     compensating for empty space on an axis. */
+  .image-fit.fitted {
+    width: min(100cqw, calc(100cqh * var(--image-aspect)));
+    height: auto;
+    aspect-ratio: var(--image-aspect);
+    flex: none;
+  }
+
   .image-stack {
     position: relative;
     width: 100%;
+    height: 100%;
   }
 
-  /* No letterboxing: the box takes on the image's own aspect ratio, so
-     pixel-click math (lib/geometry.ts's findPixelFromClick) can use Dash's
-     plain ratio formula without compensating for empty space on an axis. */
   .image-stack img {
     display: block;
     width: 100%;
-    height: auto;
+    height: 100%;
   }
 
   /* Chromium renders a "broken image" glyph for an <img> with layout space

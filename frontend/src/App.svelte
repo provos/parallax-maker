@@ -35,8 +35,15 @@
 </div>
 
 <style>
+  /* The app owns the viewport: exactly one screen tall, never a page
+     scrollbar. The main area gets whatever the header, log and footer
+     leave over, and each column fits (or scrolls) inside it. */
   .app-root {
-    min-height: 100vh;
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    /* Contains absolutely positioned descendants (e.g. `.sr-only` inputs). */
+    position: relative;
     display: flex;
     flex-direction: column;
     background-color: var(--color-bg);
@@ -47,6 +54,9 @@
     display: grid;
     grid-template-columns: 3fr 2fr;
     gap: var(--space-4);
+    grid-template-rows: minmax(0, 1fr);
+    flex: 1 1 0;
+    min-height: 0;
     padding: var(--space-2) var(--space-2) 0;
     /* Prevent a too-narrow column from forcing its content (button rows,
        slider labels, tab strips) to overflow horizontally instead of
@@ -68,6 +78,7 @@
   @media (max-width: 900px) {
     .app-main {
       grid-template-columns: 1fr;
+      grid-template-rows: minmax(0, 3fr) minmax(0, 2fr);
     }
   }
 </style>

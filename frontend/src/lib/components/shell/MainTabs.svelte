@@ -60,9 +60,19 @@
   .main-tabs {
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
 
+  /* Takes the column's remaining height; a tab whose controls don't fit
+     scrolls inside its own panel instead of growing the page. */
   .tab-content {
-    min-height: 20rem;
+    flex: 1 1 0;
+    min-height: 0;
+    overflow-y: auto;
+    /* Keeps absolutely positioned descendants (`.sr-only` file inputs)
+       inside this scroll container instead of stretching the page. */
+    position: relative;
+    display: flex;
+    flex-direction: column;
   }
 </style>

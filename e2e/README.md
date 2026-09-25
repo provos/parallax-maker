@@ -61,8 +61,9 @@ that product behavior is fixed.
 ## Driver layout
 
 The scenario files (`parallax-maker.spec.ts`, `slice-editing.spec.ts`,
-`project-export.spec.ts`, `ux-parity.spec.ts`) are frontend-neutral: they only
-call methods on a `UiDriver` (see `drivers/types.ts`) and two helper modules,
+`project-export.spec.ts`, `ux-parity.spec.ts`, `layout.spec.ts`) are
+frontend-neutral: they only call methods on a `UiDriver` (see
+`drivers/types.ts`) and the helper modules,
 never a CSS selector or `/__e2e__` URL directly:
 
 - `drivers/types.ts` defines the `UiDriver` interface — the frontend-neutral
@@ -79,6 +80,8 @@ never a CSS selector or `/__e2e__` URL directly:
   (`/__e2e__/state`, `/__e2e__/artifact(s)`, `/__e2e__/fixture/*`) through
   `page.request` only, keyed by project ID (the `appstate-*` directory name
   returned by `UiDriver.restoreFixtureState()`).
+- `helpers/layout.ts` resizes the viewport and measures page-level overflow
+  from the document itself (no frontend selectors).
 
 ### Selecting a frontend: `uiTarget`
 
