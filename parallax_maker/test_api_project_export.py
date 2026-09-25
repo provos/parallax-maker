@@ -124,7 +124,12 @@ def test_update_settings_persists_depth_model_camera_and_dark_mode(client) -> No
     assert body["changed"] is True
     assert body["settings"] == {
         "depthModel": "midas",
-        "camera": {"distance": 200.0, "focalLength": 300.0, "maxDistance": 400.0},
+        "camera": {
+            "distance": 200.0,
+            "focalLength": 300.0,
+            "maxDistance": 400.0,
+            "pitch": 0.0,
+        },
         "meshDisplacement": 33.0,
         "darkMode": False,
     }
@@ -149,6 +154,7 @@ def test_update_settings_persists_depth_model_camera_and_dark_mode(client) -> No
         "distance": 200.0,
         "focalLength": 300.0,
         "maxDistance": 400.0,
+        "pitch": 0.0,
     }
     assert restored["settings"]["meshDisplacement"] == 33.0
     assert restored["settings"]["darkMode"] is False
@@ -165,6 +171,54 @@ def test_update_settings_rejects_invalid_camera_values(client) -> None:
 
     assert response.status_code == 400
     assert response.get_json()["error"]["code"] == "invalid_request"
+
+
+def test_camera_pitch_is_optional_persisted_and_validated(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    camera = {"distance": 100.0, "focalLength": 50.0, "maxDistance": 500.0}
+
+    response = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={"camera": {**camera, "pitch": 9.5}},
+    )
+    assert response.status_code == 200
+    assert response.get_json()["settings"]["camera"]["pitch"] == 9.5
+
+    # Omitting pitch (older clients) leaves it unchanged.
+    response = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={"camera": {**camera, "focalLength": 60.0}},
+    )
+    assert response.get_json()["settings"]["camera"]["pitch"] == 9.5
+
+    client.post(f"/api/v1/projects/{project_id}/save")
+    raw = client.get(f"/api/v1/projects/{project_id}/state-file").data
+    restored = client.post(
+        "/api/v1/projects/restore",
+        data={"state": (io.BytesIO(raw), "appstate.json")},
+        content_type="multipart/form-data",
+    ).get_json()
+    assert restored["settings"]["camera"]["pitch"] == 9.5
+
+    too_steep = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={"camera": {**camera, "pitch": 61.0}},
+    )
+    assert too_steep.status_code == 400
+    assert too_steep.get_json()["error"]["code"] == "invalid_request"
+
+    # Within +-60 but too steep for a very wide lens: a client error, and
+    # nothing is changed.
+    wide_and_steep = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={"camera": {**camera, "focalLength": 5.0, "pitch": 60.0}},
+    )
+    assert wide_and_steep.status_code == 400
+    assert wide_and_steep.get_json()["error"]["code"] == "invalid_request"
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["settings"]["camera"]["pitch"] == 9.5
+    assert current["settings"]["camera"]["focalLength"] == 60.0
 
 
 # --- Export: glTF (displacement / DOF / upscaled) -------------------------------

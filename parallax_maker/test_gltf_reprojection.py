@@ -182,3 +182,38 @@ def test_displacement_never_reaches_or_passes_the_camera():
 
     with pytest.raises(ValueError):
         displace_vertices(vertices.copy(), depth_map, 1.0, camera_distance=0.0)
+
+
+@pytest.mark.parametrize("pitch", [10.0, -12.0])
+@pytest.mark.parametrize("displacement_scale", [0.0, 20.0])
+def test_pitched_scene_reprojects_onto_its_texture(tmp_path, pitch, displacement_scale):
+    width, height = 480, 360
+    cam = Camera(distance=100, max_distance=500, focal_length=50, pitch=pitch)
+    depth_map = None
+    if displacement_scale:
+        ys, xs = np.mgrid[0:height, 0:width]
+        depth_map = (255 * (0.3 + 0.7 * ys / height)).astype(np.uint8)
+
+    doc = _export_scene(
+        tmp_path,
+        width,
+        height,
+        cam,
+        [200, 30],
+        displacement_scale=displacement_scale,
+        depth_map=depth_map,
+    )
+
+    for uvs, ndc, forward in _project_cards(doc):
+        assert (forward > 0).all()
+        np.testing.assert_allclose(ndc, _expected_ndc(uvs), atol=TOLERANCE_NDC)
+
+    if not displacement_scale:
+        # Cards stay vertical in the world (orthogonal to a future ground):
+        # every vertex of a flat card has the same world z.
+        for node in doc["nodes"]:
+            if "mesh" in node:
+                primitive = doc["meshes"][node["mesh"]]["primitives"][0]
+                positions = _read_accessor(doc, primitive["attributes"]["POSITION"])
+                world = _node_matrix(node) @ np.c_[positions, np.ones(len(positions))].T
+                assert np.ptp(world[2]) == pytest.approx(0, abs=1e-3)

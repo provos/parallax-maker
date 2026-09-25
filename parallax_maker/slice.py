@@ -131,19 +131,20 @@ class ImageSlice:
         else:
             z = self._depth_to_z(self.depth, cam)
 
-            # Calculate the 3D points of the card corners
-            card_width, card_height = self._dimension_at_depth(
-                z, image_height, image_width, cam
-            )
-
-            card_corners_3d = np.array(
+            # The card is the vertical plane at depth z, cut by the reference
+            # camera's rays through the image corners (TL, TR, BR, BL). With
+            # no pitch this is the frame-filling rectangle; with pitch it is
+            # the trapezoid that still projects onto the whole image.
+            card_corners_3d = cam.backproject_to_depth(
                 [
-                    [-card_width / 2, -card_height / 2, z],
-                    [card_width / 2, -card_height / 2, z],
-                    [card_width / 2, card_height / 2, z],
-                    [-card_width / 2, card_height / 2, z],
+                    [0, 0],
+                    [image_width, 0],
+                    [image_width, image_height],
+                    [0, image_height],
                 ],
-                dtype=np.float32,
+                z,
+                image_width,
+                image_height,
             )
 
         return card_corners_3d

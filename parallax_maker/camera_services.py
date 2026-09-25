@@ -111,7 +111,11 @@ def navigate_camera(state: AppState, direction: Direction) -> NavigatedCameraRes
     camera_matrix = state.camera_matrix()
     card_corners_3d_list = state.get_cards()
     rendered = render_view(
-        state.image_slices, camera_matrix, card_corners_3d_list, camera_position
+        state.image_slices,
+        camera_matrix,
+        card_corners_3d_list,
+        camera_position,
+        camera_rotation=state.camera.rotation_world_to_camera(),
     )
     preview_image = Image.fromarray(rendered)
 

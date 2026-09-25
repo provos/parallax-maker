@@ -13,9 +13,11 @@ export type Direction = "up" | "down" | "left" | "right" | "in" | "out" | "reset
 export type Distance = number;
 export type Focallength = number;
 export type Maxdistance = number;
+export type Pitch = number | null;
 export type Distance1 = number;
 export type Focallength1 = number;
 export type Maxdistance1 = number;
+export type Pitch1 = number;
 export type Model = string;
 export type Code = string;
 export type Message = string;
@@ -166,6 +168,7 @@ export interface CameraSettingsRequest {
   distance: Distance;
   focalLength: Focallength;
   maxDistance: Maxdistance;
+  pitch?: Pitch;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -175,6 +178,7 @@ export interface CameraSettingsView {
   distance: Distance1;
   focalLength: Focallength1;
   maxDistance: Maxdistance1;
+  pitch?: Pitch1;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema

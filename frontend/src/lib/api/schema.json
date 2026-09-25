@@ -92,6 +92,20 @@
           "minimum": 0.0,
           "title": "Maxdistance",
           "type": "number"
+        },
+        "pitch": {
+          "anyOf": [
+            {
+              "maximum": 60.0,
+              "minimum": -60.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pitch"
         }
       },
       "required": [
@@ -115,6 +129,11 @@
         },
         "maxDistance": {
           "title": "Maxdistance",
+          "type": "number"
+        },
+        "pitch": {
+          "default": 0.0,
+          "title": "Pitch",
           "type": "number"
         }
       },
