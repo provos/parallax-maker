@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { screenToImage, type Rect } from './geometry';
+import { findPixelFromClick, screenToImage, type Rect } from './geometry';
 
 describe('screenToImage', () => {
   it('maps the box center to the image center for a square image in a square box', () => {
@@ -72,5 +72,43 @@ describe('screenToImage', () => {
   it('returns null for degenerate rects or images', () => {
     expect(screenToImage(0, 0, { left: 0, top: 0, width: 0, height: 100 }, 100, 100)).toBeNull();
     expect(screenToImage(0, 0, { left: 0, top: 0, width: 100, height: 100 }, 0, 100)).toBeNull();
+  });
+});
+
+describe('findPixelFromClick', () => {
+  it('maps a click through the exact ratio Dash uses (no letterboxing)', () => {
+    // rect is a clean half-scale rendering of a 320x240 image.
+    const rect: Rect = { left: 0, top: 0, width: 160, height: 120 };
+    expect(findPixelFromClick(80, 60, rect, 320, 240)).toEqual({ x: 160, y: 120 });
+    expect(findPixelFromClick(0, 0, rect, 320, 240)).toEqual({ x: 0, y: 0 });
+  });
+
+  it('offsets by the rect origin, not just the viewport origin', () => {
+    const rect: Rect = { left: 40, top: 20, width: 160, height: 120 };
+    expect(findPixelFromClick(120, 80, rect, 320, 240)).toEqual({ x: 160, y: 120 });
+  });
+
+  it('truncates towards zero, matching a sub-pixel rendered box', () => {
+    // A real browser's measured box width is rarely an exact integer; a
+    // slightly-larger-than-nominal rect shifts the scaled-back pixel down by
+    // one via truncation, exactly like the real click-through-Playwright
+    // scenarios in e2e/parallax-maker.spec.ts (e.g. requested (90, 96)
+    // arrives as (89, 95)).
+    const rect: Rect = { left: 0, top: 0, width: 160.01, height: 120.0075 };
+    const requestedX = 90 * (rect.width / 320);
+    const requestedY = 96 * (rect.height / 240);
+    expect(findPixelFromClick(requestedX, requestedY, rect, 320, 240)).toEqual({ x: 89, y: 95 });
+  });
+
+  it('returns null for a pixel outside the image (e.g. the far edge from rounding)', () => {
+    const rect: Rect = { left: 0, top: 0, width: 160, height: 120 };
+    expect(findPixelFromClick(160, 60, rect, 320, 240)).toBeNull(); // x truncates to 320
+    expect(findPixelFromClick(-1, 60, rect, 320, 240)).toBeNull();
+    expect(findPixelFromClick(80, -1, rect, 320, 240)).toBeNull();
+  });
+
+  it('returns null for degenerate rects or images', () => {
+    expect(findPixelFromClick(0, 0, { left: 0, top: 0, width: 0, height: 100 }, 100, 100)).toBeNull();
+    expect(findPixelFromClick(0, 0, { left: 0, top: 0, width: 100, height: 100 }, 0, 100)).toBeNull();
   });
 });

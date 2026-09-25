@@ -23,6 +23,14 @@ export type Depthmodel = string;
 export type Id1 = string;
 export type Numslices = number;
 export type Revision = number;
+export type Hasmask = boolean;
+export type Multipointmode = boolean;
+export type Negative = boolean;
+export type X = number;
+export type Y = number;
+export type Queuedpoints = SegmentationPoint[];
+export type Slicepixel = [unknown, unknown] | null;
+export type Slicepixeldepth = number | null;
 export type Selectedslice = number | null;
 export type Canredo = boolean;
 export type Canundo = boolean;
@@ -33,12 +41,20 @@ export type Positiveprompt = string;
 export type Version1 = number;
 export type Slices = SliceView[];
 export type Thresholds = number[];
+export type Usecheckerboard = boolean;
 export type Status = "queued" | "running" | "succeeded" | "failed";
 export type Level = string;
 export type Message1 = string;
 export type Seq = number;
 export type Entries = LogEntryView[];
 export type Next = number;
+export type Enabled = boolean;
+export type Ctrlkey = boolean;
+export type Mode = "depth" | "instance";
+export type Shiftkey = boolean;
+export type X1 = number;
+export type Y1 = number;
+export type Slice = number | null;
 export type Numslices1 = number;
 export type Baserevision = number;
 export type Values = number[];
@@ -134,11 +150,14 @@ export interface ProjectView {
   depthModel: Depthmodel;
   id: Id1;
   image?: ImageSize | null;
+  mainImage?: AssetRef | null;
   numSlices: Numslices;
   revision: Revision;
+  segmentation: SegmentationView;
   selectedSlice?: Selectedslice;
   slices: Slices;
   thresholds: Thresholds;
+  useCheckerboard?: Usecheckerboard;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -147,6 +166,30 @@ export interface ProjectView {
 export interface ProjectAssets {
   depth?: AssetRef | null;
   input?: AssetRef | null;
+}
+/**
+ * Interaction state owned by ``SegmentationService``/``AppState``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SegmentationView".
+ */
+export interface SegmentationView {
+  hasMask: Hasmask;
+  multiPointMode: Multipointmode;
+  queuedPoints: Queuedpoints;
+  slicePixel?: Slicepixel;
+  slicePixelDepth?: Slicepixeldepth;
+}
+/**
+ * One queued multi-point click; ``negative`` mirrors ``PointPolarity``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SegmentationPoint".
+ */
+export interface SegmentationPoint {
+  negative: Negative;
+  x: X;
+  y: Y;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
@@ -179,6 +222,40 @@ export interface LogEntryView {
 export interface LogsView {
   entries: Entries;
   next: Next;
+}
+/**
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "MultiPointRequest".
+ */
+export interface MultiPointRequest {
+  enabled: Enabled;
+}
+/**
+ * Body of ``POST .../segmentation/click``.
+ *
+ * ``x``/``y`` are integer source-image pixel coordinates (the client
+ * performs Dash's ``find_pixel_from_click`` truncation); ``shiftKey``/
+ * ``ctrlKey`` mirror the browser click event's modifier keys exactly like
+ * Dash's ``click_event``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SegmentationClickRequest".
+ */
+export interface SegmentationClickRequest {
+  ctrlKey: Ctrlkey;
+  mode: Mode;
+  shiftKey: Shiftkey;
+  x: X1;
+  y: Y1;
+}
+/**
+ * Body of ``PUT .../selection``; ``slice=None`` deselects.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SelectionRequest".
+ */
+export interface SelectionRequest {
+  slice: Slice;
 }
 /**
  * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema

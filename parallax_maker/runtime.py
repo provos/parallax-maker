@@ -20,6 +20,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Deque
 
+from PIL import Image
+
 from .api.jobs import Job, JobManager
 from .depth import DepthEstimationModel
 from .inpainting import InpaintingModel
@@ -97,6 +99,52 @@ class ProjectRecord:
         self._meta_lock = threading.Lock()
         self._revision = 1
         self._active_job_id: str | None = None
+
+        #: The image currently served at the ``main`` asset id, or ``None`` to
+        #: mean "show the input image" (matches ``AppState.serve_main_image``
+        #: vs. ``serve_input_image`` in Dash). In-memory only: never persisted
+        #: to the project JSON, mirroring Dash's own transient main-image src.
+        self.display_image: Image.Image | None = None
+        #: Content versions used in asset URLs, so a mutation only reloads the
+        #: images it actually changed (the project revision changes on every
+        #: mutation, including ones that leave every image untouched).
+        self.display_version = 0
+        self.input_version = 0
+        self._main_asset_lock = threading.Lock()
+        #: ``((input_version, display_version), encoded_png_bytes)``.
+        self._main_asset_cache: tuple[tuple[int, int], bytes] | None = None
+
+    def set_display_image(self, image: Image.Image | None) -> None:
+        """Set the in-memory display image (``None`` means "show the input")."""
+
+        with self._main_asset_lock:
+            if image is None and self.display_image is None:
+                return  # already showing the input; keep the URL stable
+            self.display_image = image
+            self.display_version += 1
+            self._main_asset_cache = None
+
+    def bump_input_version(self) -> None:
+        """Record that ``AppState.imgData`` was replaced (upload/restore)."""
+
+        with self._main_asset_lock:
+            self.input_version += 1
+            self._main_asset_cache = None
+
+    def main_asset_key(self) -> tuple[tuple[int, int], Image.Image | None]:
+        """The main asset's content key and display image, read atomically."""
+
+        with self._main_asset_lock:
+            return (self.input_version, self.display_version), self.display_image
+
+    def main_asset_cache(self) -> tuple[tuple[int, int], bytes] | None:
+        with self._main_asset_lock:
+            return self._main_asset_cache
+
+    def cache_main_asset(self, key: tuple[int, int], data: bytes) -> None:
+        with self._main_asset_lock:
+            if key == (self.input_version, self.display_version):
+                self._main_asset_cache = (key, data)
 
     @property
     def revision(self) -> int:

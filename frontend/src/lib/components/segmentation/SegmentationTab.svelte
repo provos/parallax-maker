@@ -41,6 +41,16 @@
   function onSliderChange(): void {
     void workflow.updateThresholds([...localValues]);
   }
+
+  // Clicking a slice thumbnail selects it, or deselects (sends `slice:
+  // null`) if it is already the selected slice -- Dash's click-to-toggle
+  // (display_slice), reproduced here since the API's selection endpoint
+  // itself is not a toggle (see ARCHITECTURE.md's segmentation endpoints).
+  function onSliceClick(index: number): void {
+    if (isBusy() || !projectStore.view) return;
+    const alreadySelected = projectStore.view.selectedSlice === index;
+    void workflow.selectSlice(alreadySelected ? null : index);
+  }
 </script>
 
 <div class="segmentation-tab" data-testid="tab-segmentation">
@@ -86,10 +96,28 @@
 
   <div class="panel slice-strip">
     {#each projectStore.view?.slices ?? [] as slice (slice.index)}
-      <div class="slice-thumb">
+      {@const selected = projectStore.view?.selectedSlice === slice.index}
+      <div
+        class="slice-thumb"
+        data-testid="slice-thumbnail-wrapper"
+        role="option"
+        tabindex="0"
+        aria-selected={selected}
+        data-selected={selected}
+        onclick={() => onSliceClick(slice.index)}
+        onkeydown={(event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            onSliceClick(slice.index);
+          }
+        }}
+      >
         <span class="depth-number">{slice.depth}</span>
         <img data-testid="slice-thumbnail" alt={`image_slice_${slice.index}`} src={slice.thumbnail.url} />
         <span class="slice-label">{`image_slice_${slice.index}`}</span>
+        {#if selected}
+          <div class="slice-overlay"></div>
+        {/if}
       </div>
     {/each}
   </div>
@@ -130,6 +158,14 @@
 
   .slice-thumb {
     position: relative;
+    cursor: pointer;
+  }
+
+  .slice-overlay {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-color: color-mix(in srgb, var(--color-success) 50%, transparent);
   }
 
   .slice-thumb img {

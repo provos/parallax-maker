@@ -13,7 +13,11 @@ import logging
 from flask import jsonify
 
 from ..inpainting_services import InpaintingServiceError
-from ..segmentation_services import SegmentationServiceError
+from ..segmentation_services import (
+    InvalidSegmentationPoint,
+    SegmentationModelFailed,
+    SegmentationServiceError,
+)
 from ..workflow_services import WorkflowNotReady
 
 logger = logging.getLogger(__name__)
@@ -97,8 +101,20 @@ def register_error_handlers(blueprint) -> None:
     def _handle_workflow_not_ready(err: WorkflowNotReady):
         return error_response(409, "not_ready", str(err))
 
+    @blueprint.errorhandler(InvalidSegmentationPoint)
+    def _handle_invalid_segmentation_point(err: InvalidSegmentationPoint):
+        # More specific than SegmentationServiceError below: a malformed/out-of-
+        # bounds point is a client input error, not a state-readiness problem.
+        return error_response(400, "invalid_request", str(err))
+
+    @blueprint.errorhandler(SegmentationModelFailed)
+    def _handle_segmentation_model_failed(err: SegmentationModelFailed):
+        return error_response(502, "provider_error", str(err))
+
     @blueprint.errorhandler(SegmentationServiceError)
     def _handle_segmentation_error(err: SegmentationServiceError):
+        # Covers SegmentationNotReady, InvalidMaskState, MultiPointModeRequired,
+        # and NoPointsQueued: all "the current state can't do this" cases.
         return error_response(409, "not_ready", str(err))
 
     @blueprint.errorhandler(InpaintingServiceError)

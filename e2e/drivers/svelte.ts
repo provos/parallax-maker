@@ -1,6 +1,6 @@
 import { expect, type Download, type Locator, type Page } from '@playwright/test';
 import { waitForImage } from '../helpers/image';
-import { fetchFixture } from '../helpers/oracle';
+import { fetchFixture, readE2EState } from '../helpers/oracle';
 import type {
   MainTab,
   Modifier,
@@ -18,9 +18,9 @@ import type {
  * the shared behavioral scenarios lives here; the scenario file itself never
  * mentions a Svelte `data-testid`.
  *
- * Only `upload-depth-slices` is supported so far: every other workflow
- * (segmentation, inpainting, export, ...) is not yet implemented in the new
- * UI (see docs/svelte-migration/PARITY.md), so those methods throw.
+ * `upload-depth-slices` and `segmentation` are supported so far: every other
+ * workflow (inpainting, export, ...) is not yet implemented in the new UI
+ * (see docs/svelte-migration/PARITY.md), so those methods throw.
  */
 export class SvelteDriver implements UiDriver {
   readonly target: UiTarget = 'svelte';
@@ -28,7 +28,7 @@ export class SvelteDriver implements UiDriver {
   constructor(private readonly page: Page) {}
 
   supports(workflow: Workflow): boolean {
-    return workflow === 'upload-depth-slices';
+    return workflow === 'upload-depth-slices' || workflow === 'segmentation';
   }
 
   // Navigation
@@ -141,34 +141,93 @@ export class SvelteDriver implements UiDriver {
     return (known.find((tab) => tab === trimmed) as MainTab | undefined) ?? null;
   }
 
+  /**
+   * The Mode Selector lives in the Svelte-only "Mode" workflow tab (not
+   * part of the shared `MainTab` type -- Dash keeps its Mode Selector
+   * inline, outside any tab). Runs `fn` with that tab visible, using real
+   * clicks (no forced actions on a hidden `<select>`), then restores
+   * whichever workflow tab was active before.
+   */
+  private async withModeTabVisible<T>(fn: () => Promise<T>): Promise<T> {
+    const tablist = '[role="tablist"][aria-label="Workflow"] [role="tab"]';
+    const active = this.page.locator(`${tablist}[aria-selected="true"]`);
+    const previousTab = (await active.count()) > 0 ? (await active.first().textContent())?.trim() : null;
+
+    if (previousTab !== 'Mode') {
+      const modeButton = this.page.getByRole('tab', { name: 'Mode', exact: true });
+      await modeButton.click();
+      await expect(modeButton).toHaveAttribute('aria-selected', 'true');
+    }
+    try {
+      return await fn();
+    } finally {
+      if (previousTab && previousTab !== 'Mode') {
+        const button = this.page.getByRole('tab', { name: previousTab, exact: true });
+        await button.click();
+        await expect(button).toHaveAttribute('aria-selected', 'true');
+      }
+    }
+  }
+
   // Segmentation
 
-  async setSegmentationMode(_mode: SegmentationMode): Promise<void> {
-    throw new Error('SvelteDriver: setSegmentationMode not implemented yet');
+  async setSegmentationMode(mode: SegmentationMode): Promise<void> {
+    await this.withModeTabVisible(async () => {
+      await this.page.getByTestId('mode-selector').selectOption({ label: mode });
+    });
   }
 
-  async expectSegmentationMode(_mode: SegmentationMode): Promise<void> {
-    throw new Error('SvelteDriver: expectSegmentationMode not implemented yet');
+  async expectSegmentationMode(mode: SegmentationMode): Promise<void> {
+    await this.withModeTabVisible(async () => {
+      const selected = this.page.getByTestId('mode-selector').locator('option:checked');
+      await expect(selected).toHaveText(mode);
+    });
   }
 
-  async clickImagePixel(_x: number, _y: number, _modifiers?: Modifier[]): Promise<void> {
-    throw new Error('SvelteDriver: clickImagePixel not implemented yet');
+  async clickImagePixel(x: number, y: number, modifiers: Modifier[] = []): Promise<void> {
+    // Same position computation as DashDriver.clickImagePixel: the main
+    // image renders at `width: 100%; height: auto` (see
+    // InputImagePanel.svelte), so this scale is the exact inverse of the
+    // backend's `find_pixel_from_click` ratio, and real click coordinates'
+    // sub-pixel rounding truncates the resulting pixel the same way on both
+    // UIs (see lib/geometry.ts's `findPixelFromClick`).
+    const image = this.mainImage();
+    const position = await image.evaluate(
+      (element: HTMLImageElement, point) => {
+        const rect = element.getBoundingClientRect();
+        const scale = Math.min(rect.width / element.naturalWidth, rect.height / element.naturalHeight);
+        return { x: point.x * scale, y: point.y * scale };
+      },
+      { x, y },
+    );
+    await image.click({ position, modifiers });
   }
 
-  async selectSlice(_projectId: string, _index: number): Promise<Locator> {
-    throw new Error('SvelteDriver: selectSlice not implemented yet');
+  async selectSlice(projectId: string, index: number): Promise<Locator> {
+    const image = this.sliceImages().nth(index);
+    await expect(image).toBeVisible();
+    const bounds = await image.boundingBox();
+    if (!bounds) throw new Error(`Slice ${index} has no clickable bounds`);
+    // The depth-number overlay covers the center and the label covers the bottom.
+    // Click the unobstructed upper-left area with normal browser hit-testing.
+    await image.click({ position: { x: bounds.width * 0.1, y: bounds.height * 0.15 } });
+    const wrapper = this.page.getByTestId('slice-thumbnail-wrapper').nth(index);
+    await expect(wrapper).toHaveAttribute('aria-selected', 'true');
+    await expect.poll(async () => (await readE2EState(this.page, projectId)).selected_slice).toBe(index);
+    return image;
   }
 
   async toggleMultiPoint(): Promise<void> {
-    throw new Error('SvelteDriver: toggleMultiPoint not implemented yet');
+    await this.page.getByTestId('multi-point').click();
   }
 
-  async expectMultiPointEnabled(_enabled: boolean): Promise<void> {
-    throw new Error('SvelteDriver: expectMultiPointEnabled not implemented yet');
+  async expectMultiPointEnabled(enabled: boolean): Promise<void> {
+    await expect(this.page.getByTestId('multi-point')).toHaveAttribute('aria-pressed', String(enabled));
   }
 
   async commitMultiPoint(): Promise<void> {
-    throw new Error('SvelteDriver: commitMultiPoint not implemented yet');
+    await this.page.getByTestId('multi-commit').click();
+    await expect(this.log()).toContainText(/Committed points/);
   }
 
   // Canvas / inpainting

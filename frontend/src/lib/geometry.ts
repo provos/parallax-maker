@@ -65,3 +65,40 @@ export function screenToImage(
     y: Math.min(Math.max(imageY, 0), naturalHeight),
   };
 }
+
+/**
+ * Convert a click's viewport (client) coordinates to integer source-image
+ * pixel coordinates, exactly like Dash's `find_pixel_from_click`/
+ * `find_pixel_from_event` (`parallax_maker/utils.py`): truncate
+ * `(clientX - rect.left) * naturalWidth / rect.width` (and the same for Y
+ * using height) -- no letterbox/aspect-ratio compensation.
+ *
+ * This assumes the element's box has the image's own aspect ratio (see
+ * InputImagePanel.svelte, which renders the main image at `width: 100%;
+ * height: auto` for exactly this reason); with letterboxing this formula
+ * would not agree with `screenToImage` above.
+ *
+ * Returns `null` when the resulting pixel falls outside the image bounds
+ * (e.g. a click landing exactly on the box's far edge due to rounding), so
+ * callers can ignore it the same way the backend would reject it with 400.
+ */
+export function findPixelFromClick(
+  clientX: number,
+  clientY: number,
+  rect: Rect,
+  naturalWidth: number,
+  naturalHeight: number,
+): ImagePoint | null {
+  if (rect.width <= 0 || rect.height <= 0 || naturalWidth <= 0 || naturalHeight <= 0) {
+    return null;
+  }
+
+  const x = Math.trunc(((clientX - rect.left) * naturalWidth) / rect.width);
+  const y = Math.trunc(((clientY - rect.top) * naturalHeight) / rect.height);
+
+  if (x < 0 || y < 0 || x >= naturalWidth || y >= naturalHeight) {
+    return null;
+  }
+
+  return { x, y };
+}

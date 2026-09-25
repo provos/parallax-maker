@@ -38,6 +38,7 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
     thresholds: [0, 85, 170, 255],
     slices: [],
     selectedSlice: null,
+    segmentation: { multiPointMode: false, queuedPoints: [], hasMask: false },
     busy: null,
     ...overrides,
   };
@@ -112,5 +113,57 @@ describe('SegmentationTab', () => {
     const [thirdUrl, thirdInit] = fetchMock.mock.calls[2] as [string, RequestInit];
     expect(thirdUrl).toBe('/api/v1/projects/appstate-test/thresholds');
     expect(JSON.parse(thirdInit.body as string)).toMatchObject({ baseRevision: 2, values: [90, 170] });
+  });
+
+  describe('slice selection', () => {
+    it('sends {slice: index} on the first click, then {slice: null} to deselect the same slice', async () => {
+      const view = makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170), makeSlice(2, 255)] });
+      projectStore.applyView(view);
+
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, { ...view, revision: 2, selectedSlice: 1, changed: true }),
+      );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(SegmentationTab);
+      const wrappers = screen.getAllByTestId('slice-thumbnail-wrapper');
+      await fireEvent.click(wrappers[1]);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [firstUrl, firstInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(firstUrl).toBe('/api/v1/projects/appstate-test/selection');
+      expect(firstInit.method).toBe('PUT');
+      expect(JSON.parse(firstInit.body as string)).toEqual({ slice: 1 });
+
+      // The applied view now reports slice 1 as selected; clicking it again
+      // must send `{slice: null}` (Dash's click-to-toggle), not `{slice: 1}`.
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(200, { ...view, revision: 3, selectedSlice: null, changed: true }),
+      );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      await fireEvent.click(wrappers[1]);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+      const [secondUrl, secondInit] = fetchMock.mock.calls[2] as [string, RequestInit];
+      expect(secondUrl).toBe('/api/v1/projects/appstate-test/selection');
+      expect(JSON.parse(secondInit.body as string)).toEqual({ slice: null });
+    });
+
+    it('marks the selected thumbnail wrapper with aria-selected and data-selected', () => {
+      const view = makeView({
+        slices: [makeSlice(0, 85), makeSlice(1, 170)],
+        selectedSlice: 1,
+      });
+      projectStore.applyView(view);
+      render(SegmentationTab);
+
+      const wrappers = screen.getAllByTestId('slice-thumbnail-wrapper');
+      expect(wrappers[0]).toHaveAttribute('aria-selected', 'false');
+      expect(wrappers[0]).toHaveAttribute('data-selected', 'false');
+      expect(wrappers[1]).toHaveAttribute('aria-selected', 'true');
+      expect(wrappers[1]).toHaveAttribute('data-selected', 'true');
+    });
   });
 });
