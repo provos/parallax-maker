@@ -20,6 +20,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Callable, Deque
 
+from PIL import Image
+
 from .api.jobs import Job, JobManager
 from .depth import DepthEstimationModel
 from .inpainting import InpaintingModel
@@ -97,6 +99,33 @@ class ProjectRecord:
         self._meta_lock = threading.Lock()
         self._revision = 1
         self._active_job_id: str | None = None
+
+        #: The image currently served at the ``main`` asset id, or ``None`` to
+        #: mean "show the input image" (matches ``AppState.serve_main_image``
+        #: vs. ``serve_input_image`` in Dash). In-memory only: never persisted
+        #: to the project JSON, mirroring Dash's own transient main-image src.
+        self.display_image: Image.Image | None = None
+        self._main_asset_lock = threading.Lock()
+        #: ``(revision, encoded_png_bytes)``, invalidated on every
+        #: ``set_display_image`` call so a stale encode is never served.
+        self._main_asset_cache: tuple[int, bytes] | None = None
+
+    def set_display_image(self, image: Image.Image | None) -> None:
+        """Set the in-memory display image (``None`` means "show the input")."""
+
+        self.display_image = image
+        with self._main_asset_lock:
+            self._main_asset_cache = None
+
+    def main_asset_cache(self) -> tuple[int, bytes] | None:
+        """Return ``(revision, bytes)`` cached by :meth:`cache_main_asset`, if any."""
+
+        with self._main_asset_lock:
+            return self._main_asset_cache
+
+    def cache_main_asset(self, revision: int, data: bytes) -> None:
+        with self._main_asset_lock:
+            self._main_asset_cache = (revision, data)
 
     @property
     def revision(self) -> int:

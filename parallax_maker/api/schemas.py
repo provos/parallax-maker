@@ -60,6 +60,24 @@ class BusyView(ApiModel):
     kind: str
 
 
+class SegmentationPoint(ApiModel):
+    """One queued multi-point click; ``negative`` mirrors ``PointPolarity``."""
+
+    x: int
+    y: int
+    negative: bool
+
+
+class SegmentationView(ApiModel):
+    """Interaction state owned by ``SegmentationService``/``AppState``."""
+
+    multi_point_mode: bool
+    queued_points: list[SegmentationPoint]
+    slice_pixel: tuple[int, int] | None = None
+    slice_pixel_depth: int | None = None
+    has_mask: bool
+
+
 class ProjectView(ApiModel):
     """Public projection of ``AppState``; never serialize PIL/NumPy/credentials."""
 
@@ -67,11 +85,14 @@ class ProjectView(ApiModel):
     revision: int
     image: ImageSize | None = None
     assets: ProjectAssets
+    main_image: AssetRef | None = None
+    use_checkerboard: bool = False
     depth_model: str
     num_slices: int
     thresholds: list[int]
     slices: list[SliceView]
     selected_slice: int | None = None
+    segmentation: SegmentationView
     busy: BusyView | None = None
 
 
@@ -115,6 +136,32 @@ class ThresholdsRequest(ApiModel):
     base_revision: int
 
 
+class SelectionRequest(ApiModel):
+    """Body of ``PUT .../selection``; ``slice=None`` deselects."""
+
+    slice: int | None
+
+
+class SegmentationClickRequest(ApiModel):
+    """Body of ``POST .../segmentation/click``.
+
+    ``x``/``y`` are integer source-image pixel coordinates (the client
+    performs Dash's ``find_pixel_from_click`` truncation); ``shiftKey``/
+    ``ctrlKey`` mirror the browser click event's modifier keys exactly like
+    Dash's ``click_event``.
+    """
+
+    x: int
+    y: int
+    mode: Literal["depth", "instance"]
+    shift_key: bool
+    ctrl_key: bool
+
+
+class MultiPointRequest(ApiModel):
+    enabled: bool
+
+
 class HealthView(ApiModel):
     ok: bool
     version: str
@@ -144,6 +191,9 @@ def public_models() -> list[type[BaseModel]]:
         DepthRequest,
         SliceCountRequest,
         ThresholdsRequest,
+        SelectionRequest,
+        SegmentationClickRequest,
+        MultiPointRequest,
     ]
 
 

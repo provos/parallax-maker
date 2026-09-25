@@ -73,13 +73,18 @@ type ProjectView = {
   revision: number;         // bumps on every mutation; used for stale-response rejection
   image: { width: number; height: number } | null;
   assets: { input: AssetRef | null; depth: AssetRef | null };
+  mainImage: AssetRef | null;   // the current display image (a segmentation preview, a
+                                 // selected slice's composite, or the input image); null
+                                 // only when there is no input image yet
+  useCheckerboard: boolean;
   depthModel: string;
   numSlices: number;
   thresholds: number[];     // numSlices + 1 boundaries
   slices: SliceView[];
   selectedSlice: number | null;
+  segmentation: SegmentationView;
   busy: { jobId: string; kind: JobKind } | null;
-  // later PRs add: segmentation, inpainting, camera, export settings
+  // later PRs add: inpainting, camera, export settings
 };
 type SliceView = {
   index: number; depth: number; version: number;
@@ -87,6 +92,13 @@ type SliceView = {
   positivePrompt: string; negativePrompt: string;
   image: AssetRef;          // raw RGBA slice
   thumbnail: AssetRef;      // checkerboard composite for display
+};
+type SegmentationView = {
+  multiPointMode: boolean;
+  queuedPoints: { x: number; y: number; negative: boolean }[];
+  slicePixel: [number, number] | null;
+  slicePixelDepth: number | null;
+  hasMask: boolean;
 };
 type AssetRef = { url: string };  // /api/v1/projects/{id}/assets/{assetId}?rev={revision}
 ```
@@ -105,9 +117,32 @@ Never serialize `AppState`, PIL/NumPy objects, model objects or credentials.
 | `PUT /api/v1/projects/{id}/thresholds` | `{values, baseRevision}` | `ProjectView` |
 | `POST /api/v1/projects/{id}/slices` | `{}` | `202 {job}` |
 | `GET /api/v1/jobs/{jobId}` | – | `{id, kind, status: queued/running/succeeded/failed, progress: 0..1, error?, project?: ProjectView}` |
-| `GET /api/v1/projects/{id}/assets/{assetId}` | – | image bytes, `Cache-Control: no-cache`, strong ETag |
+| `GET /api/v1/projects/{id}/assets/{assetId}` | – | image bytes, `Cache-Control: no-cache`, strong ETag; `assetId="main"` serves the current display image (composed/encoded on request, bytes cached by revision), falling back to the input image when nothing has set a preview |
 | `GET /api/v1/projects/{id}/logs?after={seq}` | – | `{entries: [{seq, level, message}], next}`; per-project ring buffer (replaces the Dash log pane) |
 | `GET /api/v1/health` | – | `{ok: true, version}` |
+
+### Segmentation and slice-selection endpoints (PR 3)
+
+Reproduce `webui.py`'s `click_event`/`display_slice`/`update_slices` and
+`components.py`'s `toggle_multi_point` behavior (mask operation, display image,
+and log lines) over HTTP instead of Dash callbacks; see `SegmentationService`
+in `segmentation_services.py` for the underlying command/result types.
+
+| Method & path | Body | Result |
+| --- | --- | --- |
+| `PUT /api/v1/projects/{id}/selection` | `{slice: number \| null}` | `200 ProjectView & {changed}` (sync); sets `selectedSlice`, composes the slice preview (or restores the input image when `slice` is `null`) as the `main` asset, and clears the inpainting selection like Dash's `display_slice`. Selecting the already-selected slice is a no-op (`changed: false`); the frontend sends `null` to deselect instead of Dash's click-to-toggle. An out-of-range index is `400 invalid_request`. |
+| `POST /api/v1/projects/{id}/segmentation/click` | `{x, y, mode: "depth" \| "instance", shiftKey, ctrlKey}` | `202 {job}` (kind `segmentation`); maps modifiers to `MaskOperation`/`PointPolarity` exactly like `click_event` (Shift wins over Ctrl for the operation; Ctrl alone still sends a positive point but subtracts its mask) and routes to `select_depth_point`/`select_instance_point`. `x`/`y` are source-image pixel coordinates, bounds-checked synchronously (`400 invalid_request` before a job is queued). A queued multi-point click changes neither the display image nor the log. |
+| `POST /api/v1/projects/{id}/segmentation/commit` | `{}` | `202 {job}` (kind `segmentation`); `commit_multi_point`, same display/log handling as an instance-mode click. |
+| `PUT /api/v1/projects/{id}/segmentation/multi-point` | `{enabled}` | `200 ProjectView & {changed: true}` (sync); `set_multi_point_mode`, which always clears the queue. |
+
+`SegmentationServiceError` subclasses map to: `InvalidSegmentationPoint` →
+`400 invalid_request`; `SegmentationNotReady`, `InvalidMaskState`,
+`MultiPointModeRequired`, `NoPointsQueued` → `409 not_ready`;
+`SegmentationModelFailed` → `502 provider_error`. These mostly surface as a
+failed job's sanitized `error` string rather than the request's own HTTP
+status, since both segmentation routes above run asynchronously; Dash ignores
+them silently, but the service guarantees no partial state mutation either
+way.
 
 Asset IDs are logical (`input`, `depth`, `slice-{i}`, `slice-{i}-thumb`, later
 `mask-{i}`, `candidate-{gen}-{k}`), resolved server-side; raw paths are never

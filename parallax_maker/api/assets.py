@@ -15,11 +15,16 @@ import re
 import threading
 from collections import OrderedDict
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from flask import Request, Response
+from PIL import Image
 
 from ..controller import AppState, CompositeMode
 from .errors import NotFound
+
+if TYPE_CHECKING:  # pragma: no cover - import-cycle avoidance only
+    from ..runtime import ProjectRecord
 
 _SLICE_ASSET_RE = re.compile(r"^slice-(\d+)(-thumb)?$")
 _THUMBNAIL_CACHE_SIZE = 64
@@ -86,6 +91,41 @@ def resolve_asset_path(project_dir: Path, state: AppState, asset_id: str) -> Pat
     if not path.exists():
         raise NotFound(f"slice {index} has no image on disk")
     return _contained(project_dir, path)
+
+
+def main_asset_bytes(
+    record: "ProjectRecord", project_dir: Path, state: AppState
+) -> bytes:
+    """PNG bytes for the ``main`` asset: the project's current display image.
+
+    Mirrors Dash's ``serve_main_image``/``serve_input_image`` split: when no
+    segmentation/selection interaction has produced a preview image yet (or the
+    project was just uploaded/restored/re-depth-mapped, which reset it),
+    ``record.display_image`` is ``None`` and the input image is served
+    instead. Encoded bytes are cached on the record, keyed by revision, so
+    repeated GETs at the same revision don't re-encode.
+    """
+
+    revision = record.revision
+    cached = record.main_asset_cache()
+    if cached is not None and cached[0] == revision:
+        return cached[1]
+
+    if record.display_image is not None:
+        image = record.display_image
+        if not isinstance(image, Image.Image):
+            image = Image.fromarray(image)
+        buffer = io.BytesIO()
+        image.save(buffer, format="PNG")
+        data = buffer.getvalue()
+    else:
+        if state.imgData is None:
+            raise NotFound("no input image has been uploaded yet")
+        input_path = resolve_asset_path(project_dir, state, "input")
+        data = input_path.read_bytes()
+
+    record.cache_main_asset(revision, data)
+    return data
 
 
 def slice_thumbnail(project_dir: Path, state: AppState, index: int) -> bytes:

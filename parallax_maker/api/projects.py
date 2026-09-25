@@ -19,7 +19,7 @@ from flask import Blueprint, Request, jsonify, request
 from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
-from ..controller import AppState
+from ..controller import AppState, CompositeMode
 from ..workflow_services import (
     ConfigureThresholds,
     GenerateDepth,
@@ -30,6 +30,7 @@ from ..workflow_services import (
 )
 from . import schemas
 from .assets import (
+    main_asset_bytes,
     resolve_asset_path,
     send_asset,
     send_bytes,
@@ -101,6 +102,29 @@ def _build_project_view(
         ),
     )
 
+    main_image = (
+        _asset_ref(project_id, revision, "main") if state.imgData is not None else None
+    )
+
+    segmentation = schemas.SegmentationView(
+        multi_point_mode=state.multi_point_mode,
+        queued_points=[
+            schemas.SegmentationPoint(x=point[0], y=point[1], negative=bool(negative))
+            for point, negative in state.points_selected
+        ],
+        slice_pixel=(
+            (int(state.slice_pixel[0]), int(state.slice_pixel[1]))
+            if state.slice_pixel is not None
+            else None
+        ),
+        slice_pixel_depth=(
+            int(state.slice_pixel_depth)
+            if state.slice_pixel_depth is not None
+            else None
+        ),
+        has_mask=state.slice_mask is not None,
+    )
+
     slices = [
         schemas.SliceView(
             index=index,
@@ -132,11 +156,14 @@ def _build_project_view(
         revision=revision,
         image=image,
         assets=assets,
+        main_image=main_image,
+        use_checkerboard=state.use_checkerboard,
         depth_model=depth_model,
         num_slices=state.num_slices,
         thresholds=list(state.imgThresholds or []),
         slices=slices,
         selected_slice=state.selected_slice,
+        segmentation=segmentation,
         busy=busy,
     )
 
@@ -251,6 +278,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
         state.num_slices = DEFAULT_NUM_SLICES
 
         record = runtime.projects.ensure(result.state_id)
+        record.set_display_image(None)
         record.log.append(
             f"Uploaded image ({state.imgData.width}x{state.imgData.height})"
         )
@@ -292,6 +320,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
 
         AppState.cache[state.filename] = state
         record = runtime.projects.ensure(state.filename)
+        record.set_display_image(None)
         record.bump_revision()
         record.log.append(f"Restored state from {state.filename}")
 
@@ -328,6 +357,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
                     except WorkflowUnchanged:
                         pass
                     record.log.append(f"Generated depth map using {payload.model}")
+                    record.set_display_image(None)
             finally:
                 runtime.progress_reporter.clear()
 
@@ -391,7 +421,7 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
 
     @blueprint.post("/projects/<project_id>/slices")
     def start_slices_job(project_id: str):
-        _load_state(project_id)
+        state = _load_state(project_id)
         record = runtime.projects.ensure(project_id)
 
         def run(job: Job) -> None:
@@ -400,6 +430,20 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
                     GenerateSlices(state_id=project_id)
                 )
                 record.log.append(f"Generated {result.slice_count} image slices")
+                # Mirrors Dash's update_slices: only touch the display/selection
+                # interaction state when a slice is (still) selected; otherwise
+                # leave whatever is currently displayed alone.
+                if state.selected_slice is not None:
+                    mode = (
+                        CompositeMode.CHECKERBOARD
+                        if state.use_checkerboard
+                        else CompositeMode.GRAYSCALE
+                    )
+                    composed = state.slice_image_composed(state.selected_slice, mode=mode)
+                    record.set_display_image(composed)
+                    state.slice_pixel = None
+                    state.slice_pixel_depth = None
+                    state.slice_mask = None
             job.set_progress(1.0)
 
         job = _begin_job(runtime, record, project_id, kind="slices", run=run)
@@ -417,6 +461,10 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
     def get_asset(project_id: str, asset_id: str):
         state = _load_state(project_id)
         project_dir = Path.cwd() / project_id
+        if asset_id == "main":
+            record = runtime.projects.ensure(project_id)
+            data = main_asset_bytes(record, project_dir, state)
+            return send_bytes(data, "image/png", request)
         index = thumbnail_index(asset_id)
         if index is not None:
             data = slice_thumbnail(project_dir, state, index)

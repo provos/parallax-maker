@@ -16,6 +16,7 @@ from flask import Blueprint, jsonify
 from . import schemas
 from .errors import NotFound, register_error_handlers
 from .projects import register_project_routes
+from .segmentation import register_segmentation_routes
 
 if TYPE_CHECKING:  # pragma: no cover - import-cycle avoidance only
     from ..runtime import Runtime
@@ -34,6 +35,7 @@ def create_api_blueprint(runtime: Runtime) -> Blueprint:
     blueprint = Blueprint("parallax_maker_api", __name__)
     register_error_handlers(blueprint)
     register_project_routes(blueprint, runtime)
+    register_segmentation_routes(blueprint, runtime)
 
     @blueprint.get("/health")
     def health():
