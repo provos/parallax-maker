@@ -77,11 +77,14 @@ class Job:
         """Ask this job to stop; returns whether the request was accepted.
 
         Accepted for any ``QUEUED`` job, or a ``RUNNING`` job that opted into
-        ``cancellable``. A ``RUNNING`` non-cancellable job, or any job that
-        has already reached a terminal status, rejects the request.
+        ``cancellable``. A ``RUNNING`` non-cancellable job, any job that has
+        already reached a terminal status, and a job already asked to stop
+        reject the request (matching ``JobSnapshot.cancellable``).
         """
 
         with self._lock:
+            if self._cancel_requested:
+                return False
             if self.status == JobStatus.QUEUED or (
                 self.status == JobStatus.RUNNING and self.cancellable
             ):

@@ -168,3 +168,10 @@ def test_job_manager_cancel_requests_cancellation_of_a_running_job() -> None:
 def test_job_manager_cancel_returns_none_for_an_unknown_job() -> None:
     manager = JobManager()
     assert manager.cancel("does-not-exist") is None
+
+
+def test_request_cancel_rejects_a_repeated_request() -> None:
+    job = Job(id="j", kind="inpainting", project_id="p")
+    assert job.request_cancel() is True
+    assert job.request_cancel() is False
+    assert job.snapshot().cancellable is False

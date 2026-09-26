@@ -34,7 +34,6 @@ export class ApiError extends Error {
   }
 }
 
-/** A background job reached status `failed`; carries the terminal job record. */
 /** A polled job that ended because it was cancelled (`DELETE /jobs/{id}`). */
 export class JobCancelledError extends Error {
   readonly job: Job;
@@ -46,6 +45,7 @@ export class JobCancelledError extends Error {
   }
 }
 
+/** A background job reached status `failed`; carries the terminal job record. */
 export class JobFailedError extends Error {
   readonly job: Job;
 
