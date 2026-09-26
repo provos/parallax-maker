@@ -77,6 +77,24 @@ export class SvelteDriver implements UiDriver {
     return this.page.getByTestId('slice-thumbnail');
   }
 
+  /** The layer panel lists slices nearest first; rows carry their slice index. */
+  private sliceRow(index: number): Locator {
+    return this.page.locator(`[data-testid="slice-thumbnail-wrapper"][data-slice-index="${index}"]`);
+  }
+
+  sliceImage(index: number): Locator {
+    return this.sliceRow(index).getByTestId('slice-thumbnail');
+  }
+
+  /** Per-slice actions live in the Inspector's header for the selected slice. */
+  private async ensureSelected(index: number): Promise<void> {
+    const row = this.sliceRow(index);
+    if ((await row.getAttribute('aria-selected')) !== 'true') {
+      await row.getByTestId('slice-thumbnail').click();
+      await expect(row).toHaveAttribute('aria-selected', 'true');
+    }
+  }
+
   candidateImages(): Locator {
     return this.page.getByTestId('candidate-image');
   }
@@ -241,15 +259,10 @@ export class SvelteDriver implements UiDriver {
   }
 
   async selectSlice(projectId: string, index: number): Promise<Locator> {
-    const image = this.sliceImages().nth(index);
+    const image = this.sliceImage(index);
     await expect(image).toBeVisible();
-    const bounds = await image.boundingBox();
-    if (!bounds) throw new Error(`Slice ${index} has no clickable bounds`);
-    // The depth-number overlay covers the center and the label covers the bottom.
-    // Click the unobstructed upper-left area with normal browser hit-testing.
-    await image.click({ position: { x: bounds.width * 0.1, y: bounds.height * 0.15 } });
-    const wrapper = this.page.getByTestId('slice-thumbnail-wrapper').nth(index);
-    await expect(wrapper).toHaveAttribute('aria-selected', 'true');
+    await image.click();
+    await expect(this.sliceRow(index)).toHaveAttribute('aria-selected', 'true');
     await expect.poll(async () => (await readE2EState(this.page, projectId)).selected_slice).toBe(index);
     return image;
   }
@@ -368,12 +381,14 @@ export class SvelteDriver implements UiDriver {
     await this.page.getByTestId('apply-inpainting').click();
   }
 
-  undoButton(index: number): Locator {
-    return this.page.getByTestId('slice-undo').nth(index);
+  // Undo and redo act on the selected slice (the header's buttons), so
+  // `index` must be the selected slice.
+  undoButton(_index: number): Locator {
+    return this.page.getByTestId('header-undo');
   }
 
-  redoButton(index: number): Locator {
-    return this.page.getByTestId('slice-redo').nth(index);
+  redoButton(_index: number): Locator {
+    return this.page.getByTestId('header-redo');
   }
 
   // Slice editing / mask tools
@@ -421,7 +436,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async setSliceDepth(index: number, depth: number): Promise<void> {
-    const display = this.page.getByTestId('slice-depth-display').nth(index);
+    const display = this.sliceRow(index).getByTestId('slice-depth-display');
     await expect(display).toBeVisible();
     await display.click();
     const input = this.page.getByTestId('slice-depth-input');
@@ -441,8 +456,9 @@ export class SvelteDriver implements UiDriver {
     index: number,
     file: { name: string; mimeType: string; buffer: Buffer },
   ): Promise<void> {
+    await this.ensureSelected(index);
     const before = await this.log().innerText();
-    const input = this.page.getByTestId('slice-upload-input').nth(index);
+    const input = this.page.getByTestId('slice-upload-input');
     await input.setInputFiles(file);
     await expect.poll(() => this.log().innerText()).not.toBe(before);
   }
@@ -513,7 +529,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async expectGroundSlice(index: number, isGround: boolean): Promise<void> {
-    const badge = this.page.getByTestId('slice-thumbnail-wrapper').nth(index).getByTestId('ground-badge');
+    const badge = this.sliceRow(index).getByTestId('ground-badge');
     await expect(badge).toHaveCount(isGround ? 1 : 0);
   }
 
@@ -657,8 +673,9 @@ export class SvelteDriver implements UiDriver {
   }
 
   async downloadSlice(index: number): Promise<Download> {
+    await this.ensureSelected(index);
     const downloadPromise = this.page.waitForEvent('download');
-    await this.page.getByTestId('slice-download').nth(index).click();
+    await this.page.getByTestId('slice-download').click();
     return downloadPromise;
   }
 }
