@@ -58,15 +58,18 @@ describe('uiStore', () => {
       expect(uiStore.previewed).toBe(true);
     });
 
-    it('export has no default view/tool of its own: it keeps whatever was active', () => {
+    it('export opens the Export dialog and leaves the step, panel, view and tool untouched', () => {
       uiStore.setStep('slices');
       expect(uiStore.view).toBe('input');
       expect(uiStore.tool).toBe('segment');
 
       uiStore.setStep('export');
-      expect(uiStore.step).toBe('export');
-      expect(uiStore.mainTab).toBe('Export');
-      // View/tool are untouched by a step with no STEP_DEFAULTS entry.
+      expect(uiStore.dialog).toBe('export');
+      // step/mainTab/view/tool are untouched: Export has no panel or
+      // STEP_DEFAULTS entry of its own, it just opens the dialog over
+      // whatever step you were on.
+      expect(uiStore.step).toBe('slices');
+      expect(uiStore.mainTab).toBe('Segmentation');
       expect(uiStore.view).toBe('input');
       expect(uiStore.tool).toBe('segment');
     });
@@ -144,6 +147,49 @@ describe('uiStore', () => {
     });
   });
 
+  describe('dialogs', () => {
+    it('openDialog/closeDialog set and clear the open dialog', () => {
+      expect(uiStore.dialog).toBeNull();
+      uiStore.openDialog('shortcuts');
+      expect(uiStore.dialog).toBe('shortcuts');
+      uiStore.closeDialog();
+      expect(uiStore.dialog).toBeNull();
+    });
+
+    it('openSettings defaults to the current settingsSection and opens the settings dialog', () => {
+      expect(uiStore.settingsSection).toBe('inpainting');
+      uiStore.openSettings();
+      expect(uiStore.dialog).toBe('settings');
+      expect(uiStore.settingsSection).toBe('inpainting');
+    });
+
+    it('openSettings(section) jumps to that section', () => {
+      uiStore.openSettings('appearance');
+      expect(uiStore.dialog).toBe('settings');
+      expect(uiStore.settingsSection).toBe('appearance');
+    });
+
+    it('setSettingsSection changes the section without touching the dialog', () => {
+      uiStore.setSettingsSection('depth');
+      expect(uiStore.settingsSection).toBe('depth');
+      expect(uiStore.dialog).toBeNull();
+    });
+
+    it('setStep("export") opens the export dialog over whatever step is current', () => {
+      uiStore.setStep('inpaint');
+      uiStore.setStep('export');
+      expect(uiStore.dialog).toBe('export');
+      expect(uiStore.step).toBe('inpaint');
+    });
+
+    it('any other setStep closes an open dialog', () => {
+      uiStore.openDialog('settings');
+      uiStore.setStep('depth');
+      expect(uiStore.dialog).toBeNull();
+      expect(uiStore.step).toBe('depth');
+    });
+  });
+
   describe('reset', () => {
     it('restores every default, including progress flags', () => {
       uiStore.setStep('preview'); // marks previewed
@@ -151,6 +197,8 @@ describe('uiStore', () => {
       uiStore.markExported();
       uiStore.setSegmentationMode('depth');
       uiStore.setTheme('light');
+      uiStore.openDialog('settings');
+      uiStore.setSettingsSection('appearance');
 
       uiStore.reset();
 
@@ -163,6 +211,8 @@ describe('uiStore', () => {
       expect(uiStore.exported).toBe(false);
       expect(uiStore.renderedMainUrl).toBeNull();
       expect(uiStore.theme).toBe('dark');
+      expect(uiStore.dialog).toBeNull();
+      expect(uiStore.settingsSection).toBe('inpainting');
     });
   });
 
@@ -173,6 +223,7 @@ describe('uiStore', () => {
       uiStore.markPreviewed();
       uiStore.markExported();
       uiStore.setRenderedMainUrl('/api/v1/projects/old/assets/main?v=1');
+      uiStore.openDialog('export');
 
       uiStore.resetSession();
 
@@ -184,6 +235,7 @@ describe('uiStore', () => {
       expect(uiStore.inpainted).toBe(false);
       expect(uiStore.previewed).toBe(false);
       expect(uiStore.exported).toBe(false);
+      expect(uiStore.dialog).toBeNull();
     });
   });
 });

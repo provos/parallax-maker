@@ -12,6 +12,7 @@
   import { canvasSaveStore } from '../../state/canvas.svelte';
   import { uiStore } from '../../state/ui.svelte';
   import * as workflow from '../../workflow';
+  import { registerInpaintActions } from '../../shortcuts';
 
   const view = $derived(projectStore.view);
   const selectedSlice = $derived(view?.selectedSlice ?? null);
@@ -135,13 +136,24 @@
     if (!canApply) return;
     void workflow.applyInpaintingCandidate();
   }
+
+  // Ctrl+Enter, 1 2 3 and A (lib/shortcuts.ts).
+  $effect(() =>
+    registerInpaintActions({
+      generate,
+      pick: (index) => {
+        if (index < (candidates?.images.length ?? 0)) selectCandidate(index);
+      },
+      apply,
+    }),
+  );
 </script>
 
 <div class="inpaint-panel" data-testid="tab-inpainting">
   <section class="sec">
     <div class="sec-title">
       <h3 class="label accent">Inpaint</h3>
-      <button type="button" class="btn btn-ghost btn-sm link" onclick={() => uiStore.setMainTab('Configuration')}>
+      <button type="button" class="btn btn-ghost btn-sm link" onclick={() => uiStore.openSettings('inpainting')}>
         Model settings
       </button>
     </div>
@@ -245,6 +257,7 @@
       class="btn"
       class:btn-primary={!hasCandidates}
       data-testid="generate-inpainting"
+      title="Generate three candidates (Ctrl+Enter)"
       disabled={!canGenerate}
       onclick={generate}
     >
@@ -293,6 +306,7 @@
       class="btn"
       class:btn-primary={hasCandidates}
       data-testid="apply-inpainting"
+      title="Apply the picked candidate to the slice (A)"
       disabled={!canApply}
       onclick={apply}
     >

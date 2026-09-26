@@ -1,7 +1,6 @@
 <script lang="ts">
   /**
-   * The right-hand column: the panel for the current workflow step (or
-   * Settings). All panels stay mounted and only the active one is shown:
+   * The right-hand column: the panel for the current workflow step. All panels stay mounted and only the active one is shown:
    * e2e scenarios read slider values without first switching to them.
    */
   import { uiStore, WORKFLOW_STEPS, type MainTab } from '../../state/ui.svelte';
@@ -10,15 +9,9 @@
   import InpaintPanel from '../inpainting/InpaintPanel.svelte';
   import GroundPanel from '../ground/GroundPanel.svelte';
   import PreviewPanel from '../preview/PreviewPanel.svelte';
-  import ExportTab from '../export/ExportTab.svelte';
-  import ConfigurationTab from '../config/ConfigurationTab.svelte';
   import SelectedSliceHeader from '../layers/SelectedSliceHeader.svelte';
 
-  const title = $derived(
-    uiStore.mainTab === 'Configuration'
-      ? 'Settings'
-      : (WORKFLOW_STEPS.find(({ step }) => step === uiStore.step)?.label ?? ''),
-  );
+  const title = $derived(WORKFLOW_STEPS.find(({ step }) => step === uiStore.step)?.label ?? '');
 
   const hidden = (tab: MainTab) => uiStore.mainTab !== tab;
 </script>
@@ -28,14 +21,12 @@
     <h2 class="label">{title}</h2>
   </div>
   <div class="inspector-body">
-    {#if uiStore.mainTab !== 'Configuration'}<SelectedSliceHeader />{/if}
+    <SelectedSliceHeader />
     <div class="section" class:hidden={hidden('Mode')}><ModeTab /></div>
     <div class="section" class:hidden={hidden('Segmentation')}><SegmentPanel /></div>
     <div class="section" class:hidden={hidden('Inpainting')}><InpaintPanel /></div>
     <div class="section" class:hidden={hidden('Ground')}><GroundPanel /></div>
     <div class="section" class:hidden={hidden('Preview')}><PreviewPanel /></div>
-    <div class="section" class:hidden={hidden('Export')}><ExportTab /></div>
-    <div class="section" class:hidden={hidden('Configuration')}><ConfigurationTab /></div>
   </div>
 </aside>
 
