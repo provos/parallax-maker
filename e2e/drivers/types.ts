@@ -52,6 +52,11 @@ export interface UiDriver {
 
   // Observable elements
   mainImage(): Locator;
+  /**
+   * The image as currently displayed on the canvas, whichever view shows it
+   * (its box follows zoom/pan); use it for geometry, `mainImage()` for pixels.
+   */
+  canvasImage(): Locator;
   depthImage(): Locator;
   /** Every slice thumbnail as displayed (checkerboard-composited), in no particular order. */
   sliceImages(): Locator;

@@ -5,8 +5,8 @@
  * set by the component itself via `tabindex={tab === active ? 0 : -1}`);
  * ArrowLeft/ArrowRight (and Home/End) move focus *and* activate the tab
  * ("automatic activation"), matching how a plain click already behaves here
- * (MainTabs.svelte/ViewerTabs.svelte have no separate "focus vs. select"
- * state to preserve).
+ * (ViewModeBar.svelte has no separate "focus vs. select" state to
+ * preserve). Disabled tabs are skipped.
  *
  * Dash's own tab strips (components.py's `toggle_tab_container`, CMP-17/18)
  * are plain `<label>` click targets with no keyboard support and no
@@ -21,7 +21,9 @@ export function rovingTabs(node: HTMLElement, onSelect: (index: number) => void)
   }
 
   function handleKeydown(event: KeyboardEvent): void {
-    const items = tabs();
+    const all = tabs();
+    // Disabled tabs can't be focused or selected; skip over them.
+    const items = all.filter((tab) => !(tab as HTMLButtonElement).disabled);
     if (items.length === 0) return;
     const current = items.indexOf(document.activeElement as HTMLElement);
 
@@ -47,7 +49,7 @@ export function rovingTabs(node: HTMLElement, onSelect: (index: number) => void)
 
     event.preventDefault();
     items[nextIndex].focus();
-    onSelect(nextIndex);
+    onSelect(all.indexOf(items[nextIndex]));
   }
 
   node.addEventListener('keydown', handleKeydown);

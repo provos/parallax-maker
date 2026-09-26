@@ -1,9 +1,8 @@
 <script lang="ts">
   /**
-   * Paint-canvas tools (Clear, eraser toggle, Load, brush size), shown in
-   * the tool rows under the image while the Inpainting tab is active -- the
-   * canvas itself is only interactive there (MaskCanvas.svelte). Same
-   * controls as Dash's canvas tool container (CLI-10, CLI-12, CMP-25).
+   * The Brush tool's options (Clear, eraser toggle, Load, brush size), shown
+   * in the tool options bar while the Brush tool is active -- the mask
+   * canvas is only interactive then (MaskCanvas.svelte).
    */
   import { isBusy } from '../../state/busy.svelte';
   import { maskToolsStore, BRUSH_MAX, BRUSH_MIN } from '../../state/maskTools.svelte';

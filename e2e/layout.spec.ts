@@ -40,7 +40,7 @@ for (const image of IMAGES) {
       for (const tab of TABS) {
         await ui.openTab(tab);
         expect(await pageOverflow(page), `page overflow on ${tab}`).toEqual({ vertical: 0, horizontal: 0 });
-        const box = await ui.mainImage().boundingBox();
+        const box = await ui.canvasImage().boundingBox();
         if (!box) throw new Error('Main image has no bounding box');
         expect(box.y, `main image top on ${tab}`).toBeGreaterThanOrEqual(0);
         expect(box.y + box.height, `main image bottom on ${tab}`).toBeLessThanOrEqual(viewport.height);
@@ -53,7 +53,7 @@ for (const image of IMAGES) {
       // cursor. The image is shown smaller than its source here, so one CSS
       // pixel spans several source pixels and a real click (whole CSS
       // pixels) can only land within that span.
-      const box = await ui.mainImage().boundingBox();
+      const box = await ui.canvasImage().boundingBox();
       if (!box) throw new Error('Main image has no bounding box');
       const sourcePerCssPixel = image.size[0] / box.width;
       const [x, y] = [Math.floor(image.size[0] * 0.25), Math.floor(image.size[1] * 0.8)];

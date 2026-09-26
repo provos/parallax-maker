@@ -1,6 +1,6 @@
 <script lang="ts">
   import { projectStore } from '../../state/project.svelte';
-  import { uiStore, type SegmentationMode } from '../../state/ui.svelte';
+  import { uiStore } from '../../state/ui.svelte';
   import { jobStore } from '../../state/jobs.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
@@ -9,12 +9,6 @@
   const depthOptions: Array<{ value: string; label: string }> = [
     { value: 'midas', label: 'MiDaS' },
     { value: 'dinov2', label: 'DINOv2' },
-  ];
-
-  // Same labels/values as components.py's DROPDOWN_MODE_SELECTOR.
-  const modeOptions: Array<{ value: SegmentationMode; label: string }> = [
-    { value: 'depth', label: 'Depth Map' },
-    { value: 'segment', label: 'Instance Segmentation' },
   ];
 
   // Keep the dropdown in sync with the project once it reports a model.
@@ -39,10 +33,6 @@
     // Persists on every change, regardless of whether Regenerate is ever
     // clicked - mirrors Dash's `remember_depth_model` (WEB-29) exactly.
     if (projectStore.view) void workflow.updateSettings({ depthModel: value });
-  }
-
-  function onModeChange(event: Event): void {
-    uiStore.setSegmentationMode((event.currentTarget as HTMLSelectElement).value as SegmentationMode);
   }
 
   function regenerate(): void {
@@ -91,26 +81,6 @@
     <div class="progress-bar-fill" style={`width: ${showProgress ? progressPercent : 0}%`}></div>
   </div>
 
-  <div class="mode-selector">
-    <span class="panel-label">Mode Selector</span>
-    <div class="mode-selector-row">
-      <select
-        class="select"
-        data-testid="mode-selector"
-        value={uiStore.segmentationMode}
-        onchange={onModeChange}
-      >
-        {#each modeOptions as option (option.value)}
-          <option value={option.value}>{option.label}</option>
-        {/each}
-      </select>
-      <p class="help-text">
-        Switch between depth map and instance segmentation. Depth map allows the creation of
-        slices from bands of depth based on the depth map. Instance segmentation allows the
-        creation of slices from selected objects on the image.
-      </p>
-    </div>
-  </div>
 </div>
 
 <style>
@@ -152,16 +122,4 @@
     padding: var(--space-2) 0;
   }
 
-  .mode-selector-row {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: var(--space-2);
-    align-items: start;
-  }
-
-  .help-text {
-    margin: 0;
-    font-size: 0.875rem;
-    color: var(--color-text);
-  }
 </style>

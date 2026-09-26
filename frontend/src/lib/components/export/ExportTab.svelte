@@ -121,7 +121,7 @@
   let dofEnabled = $state(false);
 
   // -- Create glTF Scene (WEB-32): renders into the 3D viewer tab (see
-  // ViewerTabs.svelte/Model3DViewer.svelte), same as Dash's own
+  // Model3DViewer.svelte), same as Dash's own
   // `gltf_create` updating the `#model-viewer` iframe - it does not, by
   // itself, switch the active viewer tab either.
   const creatingGltf = $derived(jobStore.active === 'export-gltf');

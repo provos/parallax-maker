@@ -1,12 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/svelte';
+import { flushSync } from 'svelte';
 import InputImagePanel from './InputImagePanel.svelte';
 import { projectStore } from '../../state/project.svelte';
 import { jobStore } from '../../state/jobs.svelte';
 import { logStore } from '../../state/logs.svelte';
 import { uiStore } from '../../state/ui.svelte';
-import type { ProjectView, SliceView } from '../../api/types';
-import { maskToolsStore } from '../../state/maskTools.svelte';
+import { viewportStore } from '../../state/viewport.svelte';
+import type { ProjectView } from '../../api/types';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -44,7 +45,7 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
       darkMode: false,
       camera: { distance: 100, focalLength: 100, maxDistance: 200 },
       meshDisplacement: 0,
-      depthModel: "dinov2",
+      depthModel: 'dinov2',
     },
     exports: { gltf: null, upscaled: false },
     ...overrides,
@@ -52,7 +53,7 @@ function makeView(overrides: Partial<ProjectView> = {}): ProjectView {
 }
 
 /** Gives the (jsdom) <img> a stable, non-letterboxed 320x240 box for click math. */
-function mockImageGeometry(img: HTMLImageElement): void {
+function mockImageGeometry(img: HTMLElement): void {
   vi.spyOn(img, 'getBoundingClientRect').mockReturnValue({
     left: 0,
     top: 0,
@@ -79,311 +80,241 @@ describe('InputImagePanel', () => {
     jobStore.end();
     logStore.reset();
     uiStore.reset();
+    viewportStore.reset();
   });
 
   afterEach(() => {
     vi.unstubAllGlobals();
   });
 
-  it('sends a depth-mode click with no modifiers by default', async () => {
-    projectStore.applyView(makeView());
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(202, { job: { id: 'job-1', kind: 'segmentation', status: 'queued', progress: 0 } }),
-    );
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, succeededJob(makeView({ revision: 2 }))));
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(InputImagePanel);
-    const img = screen.getByTestId('main-image') as HTMLImageElement;
-    mockImageGeometry(img);
-    await fireEvent.click(img, { clientX: 160, clientY: 120 });
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe('/api/v1/projects/appstate-test/segmentation/click');
-    expect(init.method).toBe('POST');
-    expect(JSON.parse(init.body as string)).toEqual({
-      x: 160,
-      y: 120,
-      mode: 'depth',
-      shiftKey: false,
-      ctrlKey: false,
-    });
-  });
-
-  it('sends instance mode with shiftKey when the Mode Selector is Instance Segmentation', async () => {
-    uiStore.setSegmentationMode('segment');
-    projectStore.applyView(makeView());
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(202, { job: { id: 'job-1', kind: 'segmentation', status: 'queued', progress: 0 } }),
-    );
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, succeededJob(makeView({ revision: 2 }))));
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(InputImagePanel);
-    const img = screen.getByTestId('main-image') as HTMLImageElement;
-    mockImageGeometry(img);
-    await fireEvent.click(img, { clientX: 80, clientY: 96, shiftKey: true });
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toEqual({
-      x: 80,
-      y: 96,
-      mode: 'instance',
-      shiftKey: true,
-      ctrlKey: false,
-    });
-  });
-
-  it('sends ctrlKey through untouched (not metaKey)', async () => {
-    uiStore.setSegmentationMode('segment');
-    projectStore.applyView(makeView());
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(202, { job: { id: 'job-1', kind: 'segmentation', status: 'queued', progress: 0 } }),
-    );
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, succeededJob(makeView({ revision: 2 }))));
-    fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(InputImagePanel);
-    const img = screen.getByTestId('main-image') as HTMLImageElement;
-    mockImageGeometry(img);
-    await fireEvent.click(img, { clientX: 80, clientY: 96, ctrlKey: true, metaKey: true });
-
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(JSON.parse(init.body as string)).toMatchObject({ shiftKey: false, ctrlKey: true });
-  });
-
-  it('does not send a click while busy', async () => {
-    projectStore.applyView(makeView());
-    jobStore.begin('depth');
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(InputImagePanel);
-    const img = screen.getByTestId('main-image') as HTMLImageElement;
-    mockImageGeometry(img);
-    await fireEvent.click(img, { clientX: 160, clientY: 120 });
-
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('does not send a click when there is no project', async () => {
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(InputImagePanel);
-    const img = screen.getByTestId('main-image') as HTMLImageElement;
-    mockImageGeometry(img);
-    await fireEvent.click(img, { clientX: 160, clientY: 120 });
-
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  it('ignores a click that truncates to a pixel outside the image', async () => {
-    projectStore.applyView(makeView());
-    const fetchMock = vi.fn();
-    vi.stubGlobal('fetch', fetchMock);
-
-    render(InputImagePanel);
-    const img = screen.getByTestId('main-image') as HTMLImageElement;
-    mockImageGeometry(img);
-    // clientX == rect.width truncates to naturalWidth, outside [0, naturalWidth).
-    await fireEvent.click(img, { clientX: 320, clientY: 120 });
-
-    expect(fetchMock).not.toHaveBeenCalled();
-  });
-
-  describe('Multi/Commit enablement', () => {
-    it('disables Multi in Depth Map mode even with a project loaded', () => {
+  describe('segmentation clicks (Segment tool only)', () => {
+    it('sends a depth-mode click when Select by Depth band is chosen', async () => {
+      uiStore.setTool('segment');
+      uiStore.setSegmentationMode('depth');
       projectStore.applyView(makeView());
-      render(InputImagePanel);
-      expect(screen.getByTestId('multi-point')).toBeDisabled();
-    });
-
-    it('enables Multi once Instance Segmentation mode and a project are both present', () => {
-      uiStore.setSegmentationMode('segment');
-      projectStore.applyView(makeView());
-      render(InputImagePanel);
-      expect(screen.getByTestId('multi-point')).toBeEnabled();
-    });
-
-    it('reflects multiPointMode as aria-pressed', () => {
-      uiStore.setSegmentationMode('segment');
-      projectStore.applyView(
-        makeView({ segmentation: { multiPointMode: true, queuedPoints: [], hasMask: false } }),
-      );
-      render(InputImagePanel);
-      expect(screen.getByTestId('multi-point')).toHaveAttribute('aria-pressed', 'true');
-    });
-
-    it('keeps Commit disabled without queued points, even in multi-point instance mode', () => {
-      uiStore.setSegmentationMode('segment');
-      projectStore.applyView(
-        makeView({ segmentation: { multiPointMode: true, queuedPoints: [], hasMask: false } }),
-      );
-      render(InputImagePanel);
-      expect(screen.getByTestId('multi-commit')).toBeDisabled();
-    });
-
-    it('enables Commit once points are queued in multi-point instance mode', () => {
-      uiStore.setSegmentationMode('segment');
-      projectStore.applyView(
-        makeView({
-          segmentation: {
-            multiPointMode: true,
-            queuedPoints: [{ x: 1, y: 2, negative: false }],
-            hasMask: false,
-          },
-        }),
-      );
-      render(InputImagePanel);
-      expect(screen.getByTestId('multi-commit')).toBeEnabled();
-    });
-
-    it('disables Commit outside Instance Segmentation mode even with queued points', () => {
-      projectStore.applyView(
-        makeView({
-          segmentation: {
-            multiPointMode: true,
-            queuedPoints: [{ x: 1, y: 2, negative: false }],
-            hasMask: false,
-          },
-        }),
-      );
-      render(InputImagePanel);
-      expect(screen.getByTestId('multi-commit')).toBeDisabled();
-    });
-  });
-
-  describe('Checkerboard/Invert/Feather mask tools', () => {
-    it('disables all three without a project', () => {
-      render(InputImagePanel);
-      expect(screen.getByTestId('toggle-checkerboard')).toBeDisabled();
-      expect(screen.getByTestId('invert-mask')).toBeDisabled();
-      expect(screen.getByTestId('feather-mask')).toBeDisabled();
-    });
-
-    it('enables all three with a project loaded', () => {
-      projectStore.applyView(makeView());
-      render(InputImagePanel);
-      expect(screen.getByTestId('toggle-checkerboard')).toBeEnabled();
-      expect(screen.getByTestId('invert-mask')).toBeEnabled();
-      expect(screen.getByTestId('feather-mask')).toBeEnabled();
-    });
-
-    it('reflects useCheckerboard as aria-pressed', () => {
-      projectStore.applyView(makeView({ useCheckerboard: true }));
-      render(InputImagePanel);
-      expect(screen.getByTestId('toggle-checkerboard')).toHaveAttribute('aria-pressed', 'true');
-    });
-
-    it('toggle-checkerboard PUTs the inverse of the current flag', async () => {
-      projectStore.applyView(makeView({ useCheckerboard: false }));
       const fetchMock = vi.fn();
       fetchMock.mockResolvedValueOnce(
-        jsonResponse(200, { ...makeView({ revision: 2, useCheckerboard: true }), changed: true }),
+        jsonResponse(202, { job: { id: 'job-1', kind: 'segmentation', status: 'queued', progress: 0 } }),
       );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, succeededJob(makeView({ revision: 2 }))));
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
       vi.stubGlobal('fetch', fetchMock);
 
       render(InputImagePanel);
-      await fireEvent.click(screen.getByTestId('toggle-checkerboard'));
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      await fireEvent.click(img, { clientX: 160, clientY: 120 });
 
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
       const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-      expect(url).toBe('/api/v1/projects/appstate-test/display');
-      expect(JSON.parse(init.body as string)).toEqual({ useCheckerboard: true });
+      expect(url).toBe('/api/v1/projects/appstate-test/segmentation/click');
+      expect(init.method).toBe('POST');
+      expect(JSON.parse(init.body as string)).toEqual({
+        x: 160,
+        y: 120,
+        mode: 'depth',
+        shiftKey: false,
+        ctrlKey: false,
+      });
     });
 
-    it('invert-mask POSTs .../mask/invert', async () => {
+    it('sends instance mode with shiftKey (Select by Object, the default)', async () => {
+      uiStore.setTool('segment');
+      expect(uiStore.segmentationMode).toBe('segment');
       projectStore.applyView(makeView());
       const fetchMock = vi.fn();
-      fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...makeView({ revision: 2 }), changed: true }));
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(202, { job: { id: 'job-1', kind: 'segmentation', status: 'queued', progress: 0 } }),
+      );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, succeededJob(makeView({ revision: 2 }))));
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
       vi.stubGlobal('fetch', fetchMock);
 
       render(InputImagePanel);
-      await fireEvent.click(screen.getByTestId('invert-mask'));
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      await fireEvent.click(img, { clientX: 80, clientY: 96, shiftKey: true });
 
-      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-      expect(fetchMock.mock.calls[0][0]).toBe('/api/v1/projects/appstate-test/mask/invert');
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toEqual({
+        x: 80,
+        y: 96,
+        mode: 'instance',
+        shiftKey: true,
+        ctrlKey: false,
+      });
     });
 
-    it('feather-mask logs a no-op without calling the API when there is no mask', async () => {
-      projectStore.applyView(
-        makeView({ segmentation: { multiPointMode: false, queuedPoints: [], hasMask: false } }),
+    it('sends ctrlKey through untouched (not metaKey)', async () => {
+      uiStore.setTool('segment');
+      projectStore.applyView(makeView());
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(
+        jsonResponse(202, { job: { id: 'job-1', kind: 'segmentation', status: 'queued', progress: 0 } }),
       );
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, succeededJob(makeView({ revision: 2 }))));
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      await fireEvent.click(img, { clientX: 80, clientY: 96, ctrlKey: true, metaKey: true });
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toMatchObject({ shiftKey: false, ctrlKey: true });
+    });
+
+    it('does not send a click while busy', async () => {
+      uiStore.setTool('segment');
+      projectStore.applyView(makeView());
+      jobStore.begin('depth');
       const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
 
       render(InputImagePanel);
-      await fireEvent.click(screen.getByTestId('feather-mask'));
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      await fireEvent.click(img, { clientX: 160, clientY: 120 });
 
       expect(fetchMock).not.toHaveBeenCalled();
-      expect(logStore.entries.at(-1)?.message).toBe('No mask to feather');
-    });
-  });
-
-  describe('camera navigation', () => {
-    const slice = { index: 0, depth: 0 } as unknown as SliceView;
-
-    it('is disabled until there are slices to navigate', () => {
-      projectStore.applyView(makeView());
-      render(InputImagePanel);
-      expect(screen.getByTestId('camera-up')).toBeDisabled();
-      expect(screen.getByTestId('camera-reset')).toBeDisabled();
     });
 
-    it('posts the clicked direction and shows the re-rendered view', async () => {
-      projectStore.applyView(makeView({ slices: [slice] }));
-      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-        const url = String(input);
-        if (url === '/api/v1/projects/appstate-test/camera/navigate') {
-          return jsonResponse(200, { ...makeView({ slices: [slice], mainImage: { url: '/main?v=2' } }), changed: true });
-        }
-        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
-        throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
-      });
+    it('does not send a click when there is no project', async () => {
+      uiStore.setTool('segment');
+      const fetchMock = vi.fn();
       vi.stubGlobal('fetch', fetchMock);
+
       render(InputImagePanel);
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      await fireEvent.click(img, { clientX: 160, clientY: 120 });
 
-      await fireEvent.click(screen.getByTestId('camera-left'));
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
 
-      await waitFor(() => expect(screen.getByTestId('main-image')).toHaveAttribute('src', '/main?v=2'));
-      const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/camera/navigate'));
-      expect(call![1]).toMatchObject({ method: 'POST' });
-      expect(JSON.parse(call![1]!.body as string)).toEqual({ direction: 'left' });
+    it('ignores a click that truncates to a pixel outside the image', async () => {
+      uiStore.setTool('segment');
+      projectStore.applyView(makeView());
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      // clientX == rect.width truncates to naturalWidth, outside [0, naturalWidth).
+      await fireEvent.click(img, { clientX: 320, clientY: 120 });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does nothing with the Pan tool, even with a project loaded', async () => {
+      // uiStore.reset() leaves the default tool, Pan.
+      expect(uiStore.tool).toBe('pan');
+      projectStore.applyView(makeView());
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      await fireEvent.click(img, { clientX: 160, clientY: 120 });
+
+      expect(fetchMock).not.toHaveBeenCalled();
     });
   });
 
-  describe('canvas tools', () => {
-    afterEach(() => maskToolsStore.reset());
-
-    it('sit in the tool row below the image, only on the Inpainting tab', () => {
-      projectStore.applyView(makeView());
+  describe('empty state (no input image)', () => {
+    it('shows the drop zone and choose-image affordance', () => {
       render(InputImagePanel);
-      expect(screen.queryByTestId('canvas-tools')).not.toBeInTheDocument();
-
-      uiStore.setMainTab('Inpainting');
-      return waitFor(() => {
-        const tools = screen.getByTestId('canvas-tools');
-        // Outside the zoomed image box, next to the other tool buttons.
-        expect(tools.closest('.image-stack')).toBeNull();
-        expect(tools.parentElement).toContainElement(screen.getByTestId('invert-mask'));
-      });
+      expect(screen.getByTestId('empty-state')).toBeInTheDocument();
+      expect(screen.getByTestId('choose-image')).toBeEnabled();
     });
 
+    it('choose-image opens the hidden file input', async () => {
+      render(InputImagePanel);
+      const input = screen.getByTestId('upload-image-input') as HTMLInputElement;
+      const clickSpy = vi.spyOn(input, 'click');
+      await fireEvent.click(screen.getByTestId('choose-image'));
+      expect(clickSpy).toHaveBeenCalledOnce();
+    });
+
+    it('disables choose-image while busy', () => {
+      jobStore.begin('upload');
+      render(InputImagePanel);
+      expect(screen.getByTestId('choose-image')).toBeDisabled();
+    });
+  });
+
+  describe('zoom and pan', () => {
+    it('zooms in about the cursor on an upward wheel tick', async () => {
+      projectStore.applyView(makeView());
+      render(InputImagePanel);
+      const stage = screen.getByTestId('input-image-panel');
+      const fitEl = stage.querySelector('.image-fit') as HTMLElement;
+      vi.spyOn(fitEl, 'getBoundingClientRect').mockReturnValue({
+        left: 0, top: 0, width: 320, height: 240, right: 320, bottom: 240, x: 0, y: 0, toJSON: () => ({}),
+      } as DOMRect);
+
+      expect(viewportStore.scale).toBe(1);
+      await fireEvent.wheel(stage, { clientX: 160, clientY: 120, deltaY: -100 });
+      expect(viewportStore.scale).toBeGreaterThan(1);
+    });
+
+    it('ignores wheel events without an input image', async () => {
+      render(InputImagePanel);
+      const stage = screen.getByTestId('input-image-panel');
+      await fireEvent.wheel(stage, { clientX: 160, clientY: 120, deltaY: -100 });
+      expect(viewportStore.scale).toBe(1);
+    });
+
+    it('pans on a primary-button drag past the threshold, and suppresses the click that follows', async () => {
+      projectStore.applyView(makeView());
+      uiStore.setTool('segment');
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(InputImagePanel);
+      const stage = screen.getByTestId('input-image-panel');
+      const img = screen.getByTestId('main-image') as HTMLImageElement;
+      mockImageGeometry(img);
+      Object.defineProperty(stage, 'setPointerCapture', { value: vi.fn(), configurable: true });
+      Object.defineProperty(stage, 'releasePointerCapture', { value: vi.fn(), configurable: true });
+
+      await fireEvent.pointerDown(stage, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+      // panBy reads movementX/movementY (not the clientX/clientY delta), so
+      // the fired event must carry them explicitly -- jsdom never computes
+      // mouse-movement deltas between synthetic events on its own. clientX/Y
+      // still need to move past PAN_THRESHOLD_PX to engage the drag at all.
+      await fireEvent.pointerMove(stage, { pointerId: 1, clientX: 120, clientY: 130, movementX: 20, movementY: 30 });
+      expect(viewportStore.panX).toBeCloseTo(20);
+      expect(viewportStore.panY).toBeCloseTo(30);
+      await fireEvent.pointerUp(stage, { pointerId: 1, clientX: 120, clientY: 130 });
+
+      // The drag suppresses the click the browser still fires on the <img>.
+      await fireEvent.click(img, { clientX: 120, clientY: 130 });
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+
+    it('does not engage drag-to-pan for a plain click (no movement)', async () => {
+      projectStore.applyView(makeView());
+      render(InputImagePanel);
+      const stage = screen.getByTestId('input-image-panel');
+      Object.defineProperty(stage, 'setPointerCapture', { value: vi.fn(), configurable: true });
+
+      await fireEvent.pointerDown(stage, { pointerId: 1, button: 0, clientX: 100, clientY: 100 });
+      await fireEvent.pointerUp(stage, { pointerId: 1, clientX: 100, clientY: 100 });
+      expect(viewportStore.panX).toBe(0);
+      expect(viewportStore.panY).toBe(0);
+    });
+  });
+
+  describe('brush tool - mask canvas', () => {
     it('painting on the canvas never opens the upload file chooser', async () => {
       projectStore.applyView(makeView());
-      uiStore.setMainTab('Inpainting');
+      uiStore.setTool('brush');
       render(InputImagePanel);
       const openChooser = vi.spyOn(screen.getByTestId('upload-image-input') as HTMLInputElement, 'click');
 
@@ -391,32 +322,9 @@ describe('InputImagePanel', () => {
 
       expect(openChooser).not.toHaveBeenCalled();
     });
-
-    it('drive the shared brush state and the canvas actions', async () => {
-      projectStore.applyView(makeView());
-      uiStore.setMainTab('Inpainting');
-      const clear = vi.fn(async () => {});
-      const load = vi.fn(async () => {});
-      render(InputImagePanel);
-      // The real MaskCanvas has bound its own actions; rebind test doubles.
-      maskToolsStore.bindCanvas({ clear, load });
-
-      await fireEvent.input(screen.getByTestId('brush-size'), { target: { value: '25' } });
-      expect(maskToolsStore.brushWidth).toBe(25);
-      await fireEvent.click(screen.getByTestId('canvas-erase-mode'));
-      expect(maskToolsStore.erasing).toBe(true);
-      expect(screen.getByTestId('canvas-erase-mode')).toHaveAttribute('aria-pressed', 'true');
-      // The eraser keeps its own width.
-      expect(maskToolsStore.brushWidth).toBe(60);
-
-      await fireEvent.click(screen.getByTestId('canvas-clear'));
-      await fireEvent.click(screen.getByTestId('canvas-load'));
-      expect(clear).toHaveBeenCalledOnce();
-      expect(load).toHaveBeenCalledOnce();
-    });
   });
 
-  describe('horizon line', () => {
+  describe('horizon overlay (Horizon tool only)', () => {
     const withHorizon = (row: number) =>
       makeView({
         settings: {
@@ -439,12 +347,14 @@ describe('InputImagePanel', () => {
       });
     }
 
-    it('is hidden until toggled, then sits on the horizon row', async () => {
+    it('is hidden until the Horizon tool is picked, then sits on the horizon row', () => {
       projectStore.applyView(withHorizon(120));
       render(InputImagePanel);
       expect(screen.queryByTestId('horizon-line')).not.toBeInTheDocument();
 
-      await fireEvent.click(screen.getByTestId('horizon-toggle'));
+      uiStore.setTool('horizon');
+      flushSync();
+
       const line = screen.getByTestId('horizon-line');
       expect(line).toHaveAttribute('data-row', '120');
       expect(line.style.top).toBe('50%'); // 120 of 240 rows
@@ -456,7 +366,8 @@ describe('InputImagePanel', () => {
       stubSettings(fetchMock);
       vi.stubGlobal('fetch', fetchMock);
       render(InputImagePanel);
-      await fireEvent.click(screen.getByTestId('horizon-toggle'));
+      uiStore.setTool('horizon');
+      flushSync();
 
       const line = screen.getByTestId('horizon-line');
       // The image box is 240 CSS px tall for the 240-row image.
@@ -481,7 +392,8 @@ describe('InputImagePanel', () => {
       stubSettings(fetchMock);
       vi.stubGlobal('fetch', fetchMock);
       render(InputImagePanel);
-      await fireEvent.click(screen.getByTestId('horizon-toggle'));
+      uiStore.setTool('horizon');
+      flushSync();
 
       await fireEvent.keyDown(screen.getByTestId('horizon-line'), { key: 'ArrowUp', shiftKey: true });
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());
