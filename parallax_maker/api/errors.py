@@ -82,6 +82,17 @@ class StaleRevision(ApiError):
     code = "stale_revision"
 
 
+class NotCancellable(ApiError):
+    """``DELETE /jobs/{id}`` cannot cancel this job right now.
+
+    Covers a job that already reached a terminal status, and a running job
+    that never opted into cancellation.
+    """
+
+    status_code = 409
+    code = "not_cancellable"
+
+
 class ProviderError(ApiError):
     """A depth/segmentation/inpainting provider or model call failed."""
 

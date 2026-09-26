@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import io
 import threading
+import time
 
 import cv2
 import numpy as np
@@ -272,3 +273,128 @@ def test_failed_job_reports_a_sanitized_error_and_project_stays_usable(
         f"/api/v1/projects/{project_id}/slice-count", json={"numSlices": 4}
     )
     assert retry_response.status_code == 200
+
+
+def test_job_view_has_detail_and_cancellable_fields(client) -> None:
+    view = upload_fixture_image(client)
+    project_id = view["id"]
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/depth", json={"model": "dinov2"}
+    )
+    queued_job = response.get_json()["job"]
+    assert queued_job["detail"] is None
+    # Any queued job can be cancelled, regardless of its kind.
+    assert queued_job["cancellable"] is True
+
+    job = poll_job(client, queued_job["id"])
+    assert job["status"] == "succeeded"
+    assert job["detail"] is None
+    # A finished job can no longer be cancelled.
+    assert job["cancellable"] is False
+
+
+def test_delete_unknown_job_is_404(client) -> None:
+    response = client.delete("/api/v1/jobs/does-not-exist")
+
+    assert response.status_code == 404
+    assert response.get_json()["error"]["code"] == "not_found"
+
+
+def test_delete_running_non_cancellable_job_is_409(isolated_cwd) -> None:
+    del isolated_cwd
+    event = threading.Event()
+    runtime = _blocking_runtime(event)
+    app = Flask(__name__)
+    app.register_blueprint(create_api_blueprint(runtime), url_prefix="/api/v1")
+    client = app.test_client()
+
+    try:
+        view = upload_fixture_image(client)
+        project_id = view["id"]
+
+        depth_response = client.post(
+            f"/api/v1/projects/{project_id}/depth", json={"model": "midas"}
+        )
+        job_id = depth_response.get_json()["job"]["id"]
+
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            status = client.get(f"/api/v1/jobs/{job_id}").get_json()["status"]
+            if status == "running":
+                break
+            time.sleep(0.01)
+        else:
+            raise AssertionError("depth job never reached running")
+
+        delete_response = client.delete(f"/api/v1/jobs/{job_id}")
+        assert delete_response.status_code == 409
+        assert delete_response.get_json()["error"]["code"] == "not_cancellable"
+    finally:
+        event.set()
+
+    job = poll_job(client, job_id)
+    assert job["status"] == "succeeded"
+
+
+def test_delete_queued_job_cancels_it_and_releases_the_busy_slot(
+    isolated_cwd,
+) -> None:
+    del isolated_cwd
+    event = threading.Event()
+    runtime = _blocking_runtime(event)
+    app = Flask(__name__)
+    app.register_blueprint(create_api_blueprint(runtime), url_prefix="/api/v1")
+    client = app.test_client()
+
+    try:
+        view_a = upload_fixture_image(client)
+        project_a = view_a["id"]
+        view_b = upload_fixture_image(client)
+        project_b = view_b["id"]
+
+        # Occupies the single worker thread; blocked on `event`.
+        response_a = client.post(
+            f"/api/v1/projects/{project_a}/depth", json={"model": "midas"}
+        )
+        assert response_a.status_code == 202
+        job_a_id = response_a.get_json()["job"]["id"]
+
+        # project_b's own busy slot is free, but the worker thread is still
+        # occupied running job A, so this job is left queued behind it.
+        response_b = client.post(
+            f"/api/v1/projects/{project_b}/depth", json={"model": "midas"}
+        )
+        assert response_b.status_code == 202
+        job_b = response_b.get_json()["job"]
+        assert job_b["status"] == "queued"
+        job_b_id = job_b["id"]
+
+        # project_b's busy slot was reserved synchronously (before the
+        # worker thread even sees the job), so a concurrent mutation is
+        # already rejected.
+        busy_response = client.put(
+            f"/api/v1/projects/{project_b}/slice-count", json={"numSlices": 4}
+        )
+        assert busy_response.status_code == 409
+        assert busy_response.get_json()["error"]["code"] == "busy"
+
+        delete_response = client.delete(f"/api/v1/jobs/{job_b_id}")
+        assert delete_response.status_code == 200
+        assert delete_response.get_json()["id"] == job_b_id
+    finally:
+        event.set()
+
+    job_a = poll_job(client, job_a_id)
+    assert job_a["status"] == "succeeded"
+
+    job_b_final = poll_job(client, job_b_id)
+    assert job_b_final["status"] == "cancelled"
+    assert job_b_final["project"] is not None  # like succeeded/failed jobs
+
+    # project_b's busy slot was released once its cancelled job finished
+    # unwinding through `_begin_job`'s wrapper.
+    ok_response = client.put(
+        f"/api/v1/projects/{project_b}/slice-count", json={"numSlices": 4}
+    )
+    assert ok_response.status_code == 200

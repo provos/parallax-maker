@@ -77,9 +77,7 @@
     min-height: 0;
     min-width: 0;
     display: grid;
-    /* The Inspector still hosts the pre-redesign tab bodies, which need more
-       than the design's --inspector-w; it narrows once they are rebuilt. */
-    grid-template-columns: var(--layers-w) minmax(0, 1fr) 360px;
+    grid-template-columns: var(--layers-w) minmax(0, 1fr) var(--inspector-w);
     grid-template-rows: minmax(0, 1fr);
   }
 

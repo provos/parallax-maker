@@ -211,7 +211,7 @@ class ErrorBody(ApiModel):
     error: ErrorDetail
 
 
-JobStatusLiteral = Literal["queued", "running", "succeeded", "failed"]
+JobStatusLiteral = Literal["queued", "running", "succeeded", "failed", "cancelled"]
 
 
 class JobView(ApiModel):
@@ -220,6 +220,9 @@ class JobView(ApiModel):
     status: JobStatusLiteral
     progress: float
     error: str | None = None
+    detail: str | None = None
+    #: Whether ``DELETE /jobs/{id}`` would currently succeed for this job.
+    cancellable: bool = False
     project: ProjectView | None = None
 
 

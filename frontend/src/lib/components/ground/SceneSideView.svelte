@@ -101,12 +101,12 @@
     display: block;
     width: 100%;
     height: 9rem;
-    background-color: var(--color-surface-muted);
+    background-color: var(--color-surface-raised);
     border-radius: var(--radius-md);
   }
 
   .frustum {
-    fill: var(--color-accent);
+    fill: var(--color-selection);
     opacity: 0.12;
   }
 
@@ -127,6 +127,6 @@
   }
 
   .camera {
-    fill: var(--color-accent);
+    fill: var(--color-selection);
   }
 </style>

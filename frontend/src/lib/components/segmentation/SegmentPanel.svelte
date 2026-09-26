@@ -11,6 +11,7 @@
   import { uiStore } from '../../state/ui.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
+  import JobCard from '../feedback/JobCard.svelte';
 
   const view = $derived(projectStore.view);
   const segmentation = $derived(view?.segmentation);
@@ -133,6 +134,7 @@
         Remove from selected
       </button>
     </div>
+    <JobCard kinds={['segmentation', 'multi-point']} />
   </section>
 
   <section class="sec">
@@ -199,6 +201,7 @@
           Balance
         </button>
       </div>
+      <JobCard kinds={['slices']} />
     </div>
   </section>
 

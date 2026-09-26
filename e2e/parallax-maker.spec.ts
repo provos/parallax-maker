@@ -137,11 +137,10 @@ test('point segmentation honors positive and negative points through the UI', as
     .toEqual({ enabled: true, points: [] });
 
   await ui.clickImagePixel(90, 96);
-  // The current browser-to-image transform scales the rendered click and then
-  // truncates it, so these requested positions arrive one pixel lower on each axis.
+  // Clicks land on the requested pixel whatever the fitted scale.
   await expect
     .poll(async () => (await readE2EState(page, projectId)).points_selected)
-    .toEqual([{ point: [89, 95], negative: false }]);
+    .toEqual([{ point: [90, 96], negative: false }]);
   expect((await readE2EState(page, projectId)).slice_mask).toEqual(positiveMask);
   expect(await imageHash(image)).toBe(committedImageHash);
 
@@ -149,8 +148,8 @@ test('point segmentation honors positive and negative points through the UI', as
   await expect
     .poll(async () => (await readE2EState(page, projectId)).points_selected)
     .toEqual([
-      { point: [89, 95], negative: false },
-      { point: [127, 95], negative: true },
+      { point: [90, 96], negative: false },
+      { point: [128, 96], negative: true },
     ]);
   expect((await readE2EState(page, projectId)).slice_mask).toEqual(positiveMask);
   expect(await imageHash(image)).toBe(committedImageHash);
@@ -190,12 +189,11 @@ test('a depth-band click records its pixel, depth, log, and mask', async ({ page
     .poll(async () => (await readE2EState(page, projectId)).slice_pixel)
     .not.toBeNull();
   const state = await readE2EState(page, projectId);
-  // Lock in the same rendered-coordinate truncation exercised by real clicks.
-  expect(state.slice_pixel).toEqual([15, 15]);
-  expect(state.slice_pixel_depth).toBe(1);
+  expect(state.slice_pixel).toEqual([16, 16]);
+  expect(state.slice_pixel_depth).toBe(2);
   expect(state.slice_mask.samples).toMatchObject({ '16,16': 255, '160,96': 0 });
   await expect(ui.log()).toContainText(
-    'Click event at pixel coordinates (15, 15) at depth 1',
+    'Click event at pixel coordinates (16, 16) at depth 2',
   );
 });
 

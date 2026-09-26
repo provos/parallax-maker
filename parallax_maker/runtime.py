@@ -317,6 +317,11 @@ class ProgressReporter:
     def clear(self) -> None:
         self._current = None
 
+    def detail(self, text: str | None) -> None:
+        job = self._current
+        if job is not None:
+            job.set_detail(text)
+
     def __call__(self, current: int, total: int) -> None:
         job = self._current
         if job is not None and total > 0:

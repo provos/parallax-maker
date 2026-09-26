@@ -17,6 +17,7 @@ from typing import Callable, Protocol, Sequence
 import numpy as np
 from PIL import Image
 
+from .cancellation import OperationCancelled
 from .controller import AppState
 from .inpainting import InpaintingModel, patch_image
 from .segmentation import remove_mask_from_alpha
@@ -449,9 +450,13 @@ class InpaintingService:
                 candidates = tuple(generated)
         except InpaintingServiceError:
             raise
+        except OperationCancelled:
+            raise
         except Exception as error:
+            # Name the cause (e.g. an unreachable A1111/ComfyUI server): the
+            # message reaches the UI's error toast.
             raise InpaintingModelFailed(
-                "inpainting candidate generation failed"
+                f"inpainting candidate generation failed: {error}"
             ) from error
 
         # Only replace the old selection after new candidates exist. If model

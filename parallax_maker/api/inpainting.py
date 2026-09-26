@@ -451,9 +451,13 @@ def register_inpainting_routes(blueprint: Blueprint, runtime: "Runtime") -> None
                     f"Generated {len(result.candidates)} inpainting candidates "
                     f"for slice {result.slice_index}"
                 )
-            job.set_progress(1.0)
+            # No final set_progress(1.0): on a cancellable job it would raise for
+            # a cancel that arrived after the new candidates were stored. The
+            # job reaches 1.0 when it is marked succeeded.
 
-        job = _begin_job(runtime, record, project_id, kind="inpainting", run=run)
+        job = _begin_job(
+            runtime, record, project_id, kind="inpainting", run=run, cancellable=True
+        )
         return _job_response(runtime, job)
 
     @blueprint.put("/projects/<project_id>/inpainting/selection")

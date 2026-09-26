@@ -35,6 +35,17 @@ export class ApiError extends Error {
 }
 
 /** A background job reached status `failed`; carries the terminal job record. */
+/** A polled job that ended because it was cancelled (`DELETE /jobs/{id}`). */
+export class JobCancelledError extends Error {
+  readonly job: Job;
+
+  constructor(job: Job) {
+    super('Cancelled');
+    this.name = 'JobCancelledError';
+    this.job = job;
+  }
+}
+
 export class JobFailedError extends Error {
   readonly job: Job;
 
@@ -189,6 +200,14 @@ export function startSlices(id: string, signal?: AbortSignal): Promise<{ job: Jo
 /** GET /api/v1/jobs/{jobId} */
 export function getJob(jobId: string, signal?: AbortSignal): Promise<Job> {
   return request<Job>(`/jobs/${encodeURIComponent(jobId)}`, { signal });
+}
+
+/**
+ * DELETE /api/v1/jobs/{id}: stops a queued job, or a running one that can
+ * stop safely (`Job.cancellable`); 409 otherwise.
+ */
+export function cancelJob(jobId: string, signal?: AbortSignal): Promise<Job> {
+  return request<Job>(`/jobs/${encodeURIComponent(jobId)}`, { method: 'DELETE', signal });
 }
 
 /** GET /api/v1/projects/{id}/logs?after={seq} */
@@ -805,6 +824,11 @@ export function pollJob(jobId: string, options: PollJobOptions = {}): Promise<Jo
         if (job.status === 'failed') {
           cleanup();
           reject(new JobFailedError(job));
+          return;
+        }
+        if (job.status === 'cancelled') {
+          cleanup();
+          reject(new JobCancelledError(job));
           return;
         }
         setTimeout(tick, intervalMs);

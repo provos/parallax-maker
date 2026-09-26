@@ -1,30 +1,8 @@
 <script lang="ts" module>
-  import type { JobKind } from '../../state/jobs.svelte';
-
-  const LABELS: Partial<Record<string, string>> = {
-    upload: 'Uploading image',
-    depth: 'Generating depth map',
-    slices: 'Generating slices',
-    restore: 'Restoring project',
-    segmentation: 'Segmenting',
-    'multi-point': 'Segmenting',
-    inpainting: 'Generating inpainting candidates',
-    'inpainting-mutate': 'Updating slice',
-    'slice-editing': 'Updating slices',
-    'mask-tools': 'Updating mask',
-    save: 'Saving project',
-    'export-gltf': 'Exporting glTF scene',
-    upscale: 'Upscaling textures',
-    animation: 'Rendering animation',
-    navigate: 'Rendering view',
-    probe: 'Testing connection',
-    'validate-key': 'Validating API key',
-  };
+  import { jobLabel } from '../../state/jobs.svelte';
 
   /** Human-readable label for a local job kind or a server-reported busy kind. */
-  export function activityLabel(kind: JobKind | string): string {
-    return LABELS[kind] ?? 'Working';
-  }
+  export const activityLabel = jobLabel;
 
   /** Quick operations finish before this, so they never flash the indicator. */
   export const SHOW_DELAY_MS = 250;
@@ -54,7 +32,7 @@
 <div class="activity" role="status" aria-live="polite" data-testid="activity-indicator" data-active={visible}>
   {#if visible && kind !== null}
     <span class="spinner" aria-hidden="true"></span>
-    <span class="label" data-testid="activity-label">
+    <span class="activity-label" data-testid="activity-label">
       {activityLabel(kind)}{percent > 0 ? ` ${percent}%` : '…'}
     </span>
     <span
@@ -69,6 +47,17 @@
     >
       <span class="activity-bar-fill" style={percent > 0 ? `width: ${percent}%` : undefined}></span>
     </span>
+    {#if jobStore.active && (jobStore.cancellable || jobStore.cancelling)}
+      <button
+        type="button"
+        class="btn btn-ghost btn-sm cancel"
+        data-testid="activity-cancel"
+        disabled={jobStore.cancelling}
+        onclick={() => void jobStore.cancel()}
+      >
+        {jobStore.cancelling ? 'Cancelling…' : 'Cancel'}
+      </button>
+    {/if}
   {/if}
 </div>
 
@@ -81,9 +70,14 @@
     min-width: 0;
   }
 
-  .label {
+  .activity-label {
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .cancel {
+    height: 22px;
+    font-size: 12px;
   }
 
   .spinner {

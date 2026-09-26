@@ -1,9 +1,9 @@
 <script lang="ts">
   import { projectStore } from '../../state/project.svelte';
   import { uiStore } from '../../state/ui.svelte';
-  import { jobStore } from '../../state/jobs.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
+  import JobCard from '../feedback/JobCard.svelte';
 
   // Same labels/values as components.py's DROPDOWN_DEPTH_MODEL.
   const depthOptions: Array<{ value: string; label: string }> = [
@@ -39,9 +39,6 @@
     if (isBusy() || !projectStore.view) return;
     void workflow.startDepth(uiStore.depthModel);
   }
-
-  const showProgress = $derived(jobStore.active === 'depth' || jobStore.active === 'upload');
-  const progressPercent = $derived(Math.round((showProgress ? jobStore.progress : 0) * 100));
 </script>
 
 <div class="mode-tab" data-testid="tab-mode">
@@ -77,9 +74,7 @@
     </button>
   </div>
 
-  <div class="progress-bar" data-testid="depth-progress">
-    <div class="progress-bar-fill" style={`width: ${showProgress ? progressPercent : 0}%`}></div>
-  </div>
+  <JobCard kinds={['upload', 'depth']} testId="depth-progress" />
 
 </div>
 

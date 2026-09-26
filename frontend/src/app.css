@@ -128,18 +128,6 @@
   --toolopts-h: 44px;
   --layers-w: 300px;
   --inspector-w: 328px;
-
-  /*
-   * Legacy names still used by components that predate the redesign. Each
-   * goes away when its last user is rebuilt (docs/redesign/HANDOFF.md §12).
-   */
-  --color-accent: var(--color-selection);
-  --color-accent-text: var(--color-selection-text);
-  --color-success-text: var(--color-primary-text);
-  --color-danger-strong: var(--color-danger);
-  --color-disabled-text: var(--color-text-muted);
-  --color-surface-muted: var(--color-surface-raised);
-  --color-depth-number: color-mix(in srgb, var(--color-primary) 55%, transparent);
 }
 
 html,
