@@ -12,6 +12,7 @@
   import InpaintingTab from '../inpainting/InpaintingTab.svelte';
   import ExportTab from '../export/ExportTab.svelte';
   import ConfigurationTab from '../config/ConfigurationTab.svelte';
+  import SelectedSliceHeader from '../layers/SelectedSliceHeader.svelte';
 
   const title = $derived(
     uiStore.mainTab === 'Configuration'
@@ -27,6 +28,7 @@
     <h2 class="label">{title}</h2>
   </div>
   <div class="inspector-body">
+    {#if uiStore.mainTab !== 'Configuration'}<SelectedSliceHeader />{/if}
     <div class="section" class:hidden={hidden('Mode')}><ModeTab /></div>
     <div class="section" class:hidden={hidden('Segmentation')}><SegmentationTab /></div>
     <div class="section" class:hidden={hidden('Inpainting')}><InpaintingTab /></div>

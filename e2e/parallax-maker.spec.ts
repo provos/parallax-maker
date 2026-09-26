@@ -35,7 +35,7 @@ test('upload generates deterministic depth and three real slices', async ({ ui }
   await ui.openTab('Segmentation');
   await ui.generateSlices();
   await expect(ui.sliceImages()).toHaveCount(3);
-  const slices = await ui.sliceImages().all();
+  const slices = [0, 1, 2].map((index) => ui.sliceImage(index));
   for (const image of slices) {
     expect(await imageDimensions(image)).toEqual({ width: 320, height: 240 });
   }
@@ -275,9 +275,9 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   await ui.openTab('Segmentation');
   const undo = ui.undoButton(1);
   await expect(undo).toBeEnabled();
-  expect(await imageHash(ui.sliceImages().nth(1))).not.toBe(originalHash);
+  expect(await imageHash(ui.sliceImage(1))).not.toBe(originalHash);
   await undo.click();
-  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(originalHash);
+  await expect.poll(() => imageHash(ui.sliceImage(1))).toBe(originalHash);
   // Undo restores the previous version together with its saved mask.
   await ui.openTab('Inpainting');
   await expect.poll(() => ui.maskCanvasPainted()).toBe(true);
@@ -394,12 +394,12 @@ test('erase removes painted alpha and supports undo and redo', async ({ page, ui
   expect(originalInside[3]).toBeGreaterThan(0);
 
   await ui.openTab('Segmentation');
-  const erasedHash = await imageHash(ui.sliceImages().nth(1));
+  const erasedHash = await imageHash(ui.sliceImage(1));
   expect(erasedHash).not.toBe(originalHash);
   const undo = ui.undoButton(1);
   await expect(undo).toBeEnabled();
   await undo.click();
-  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(originalHash);
+  await expect.poll(() => imageHash(ui.sliceImage(1))).toBe(originalHash);
   await expect
     .poll(async () => (await readE2EState(page, projectId)).slice_filenames[1])
     .toBe('image_slice_1.png');
@@ -407,7 +407,7 @@ test('erase removes painted alpha and supports undo and redo', async ({ page, ui
   const redo = ui.redoButton(1);
   await expect(redo).toBeEnabled();
   await redo.click();
-  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).toBe(erasedHash);
+  await expect.poll(() => imageHash(ui.sliceImage(1))).toBe(erasedHash);
   await expect
     .poll(async () => (await readE2EState(page, projectId)).slice_filenames[1])
     .toBe('image_slice_1_v2.png');

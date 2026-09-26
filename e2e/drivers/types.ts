@@ -53,8 +53,10 @@ export interface UiDriver {
   // Observable elements
   mainImage(): Locator;
   depthImage(): Locator;
-  /** Slice thumbnails as displayed (checkerboard-composited), in slice order. */
+  /** Every slice thumbnail as displayed (checkerboard-composited), in no particular order. */
   sliceImages(): Locator;
+  /** The displayed thumbnail of the slice at `index` (slice order, farthest first). */
+  sliceImage(index: number): Locator;
   /** Inpainting candidate images, in candidate order. */
   candidateImages(): Locator;
   /** Threshold handles; there are `num_slices - 1` of them. */
@@ -124,7 +126,7 @@ export interface UiDriver {
   /** Selects a candidate and waits until it is visibly selected and Apply is enabled. */
   selectCandidate(index: number): Promise<void>;
   applyCandidate(): Promise<void>;
-  /** Undo/redo controls of the slice at `index` in the slice list. */
+  /** Undo/redo controls for the slice at `index`, which must be the selected slice. */
   undoButton(index: number): Locator;
   redoButton(index: number): Locator;
 

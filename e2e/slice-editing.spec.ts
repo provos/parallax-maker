@@ -291,7 +291,7 @@ test('uploading a matching-aspect image replaces the slice content and bumps its
   requireWorkflow(ui, 'slice-editing');
   const projectId = await ui.restoreFixtureState();
   await ui.openTab('Segmentation');
-  const thumbnailBefore = await imageHash(ui.sliceImages().nth(1));
+  const thumbnailBefore = await imageHash(ui.sliceImage(1));
 
   // The 320x240 input fixture shares the slice canvas's exact aspect ratio
   // (every slice image is full-canvas size, only alpha differs), so this
@@ -308,7 +308,7 @@ test('uploading a matching-aspect image replaces the slice content and bumps its
     .poll(async () => (await readE2EState(page, projectId)).slice_filenames[1])
     .toBe('image_slice_1_v2.png');
   expect((await readE2EState(page, projectId)).slice_versions[1]).toBe(2);
-  await expect.poll(() => imageHash(ui.sliceImages().nth(1))).not.toBe(thumbnailBefore);
+  await expect.poll(() => imageHash(ui.sliceImage(1))).not.toBe(thumbnailBefore);
 
   // The fixture draws a solid red rectangle at (24,24)-(104,96); (30, 30) is
   // inside it. No resize occurred, so the uploaded pixel lands unchanged and
