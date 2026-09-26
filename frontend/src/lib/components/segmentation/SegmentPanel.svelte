@@ -399,7 +399,7 @@
 
   .g3 {
     display: grid;
-    grid-template-columns: 70px minmax(0, 1fr) 48px;
+    grid-template-columns: 70px minmax(0, 1fr) 64px;
     align-items: center;
     gap: 10px;
   }
