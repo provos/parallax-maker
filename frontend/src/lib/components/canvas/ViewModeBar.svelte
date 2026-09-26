@@ -12,6 +12,7 @@
   import { viewportStore } from '../../state/viewport.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
+  import { rovingTabs } from '../../a11y/rovingTabindex';
 
   let { onZoomIn, onZoomOut }: { onZoomIn: () => void; onZoomOut: () => void } = $props();
 
@@ -30,13 +31,19 @@
 </script>
 
 <div class="view-mode-bar" data-testid="view-mode-bar">
-  <div class="seg" role="tablist" aria-label="View mode">
+  <div
+    class="seg"
+    role="tablist"
+    aria-label="View mode"
+    use:rovingTabs={(index) => uiStore.setView(CANVAS_VIEWS[index].view)}
+  >
     {#each CANVAS_VIEWS as { view: mode, label, key } (mode)}
       <button
         type="button"
         role="tab"
         data-testid={`view-${mode}`}
         aria-selected={uiStore.view === mode}
+        tabindex={uiStore.view === mode ? 0 : -1}
         title={`${label} (${key})`}
         disabled={!available[mode]}
         onclick={() => uiStore.setView(mode)}

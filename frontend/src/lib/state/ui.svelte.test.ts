@@ -172,8 +172,11 @@ describe('uiStore', () => {
       uiStore.markInpainted();
       uiStore.markPreviewed();
       uiStore.markExported();
+      uiStore.setRenderedMainUrl('/api/v1/projects/old/assets/main?v=1');
 
       uiStore.resetSession();
+
+      expect(uiStore.renderedMainUrl).toBeNull();
 
       expect(uiStore.step).toBe('image');
       expect(uiStore.view).toBe('input');

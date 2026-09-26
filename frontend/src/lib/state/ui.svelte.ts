@@ -194,6 +194,7 @@ function createUiStore() {
       mainTab = STEP_PANELS.image;
       view = 'input';
       tool = 'pan';
+      renderedMainUrl = null;
     },
 
     get inpainted(): boolean {

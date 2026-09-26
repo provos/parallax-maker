@@ -106,6 +106,24 @@ describe('ViewModeBar', () => {
     });
   });
 
+  describe('keyboard', () => {
+    it('arrow keys move to the next available view, skipping disabled ones', async () => {
+      // Input and Depth available; Slice (no selection) and the rest (no slices) are not.
+      projectStore.applyView(makeView({ assets: { input: { url: '/input' }, depth: { url: '/depth' } } }));
+      renderBar();
+      const input = screen.getByTestId('view-input');
+      expect(input).toHaveAttribute('tabindex', '0');
+      expect(screen.getByTestId('view-depth')).toHaveAttribute('tabindex', '-1');
+
+      input.focus();
+      await fireEvent.keyDown(input, { key: 'ArrowRight' });
+      expect(uiStore.view).toBe('depth');
+
+      await fireEvent.keyDown(screen.getByTestId('view-depth'), { key: 'ArrowRight' });
+      expect(uiStore.view).toBe('input'); // wraps past the disabled tabs
+    });
+  });
+
   describe('view tab availability', () => {
     const slice = { index: 0, depth: 0 } as unknown as SliceView;
 
