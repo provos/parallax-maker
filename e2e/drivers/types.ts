@@ -107,7 +107,10 @@ export interface UiDriver {
   expectQueuedPointMarkers(points: Array<{ x: number; y: number; negative: boolean }>): Promise<void>;
 
   // Canvas / inpainting
-  /** Paints one stroke on the mask canvas and waits until the mask is persisted. */
+  /**
+   * Paints one stroke on the mask canvas and waits until the mask is
+   * persisted; fails if the stroke opens a file chooser.
+   */
   drawMaskStroke(): Promise<void>;
   /** Whether the mask canvas currently shows any painted pixel. */
   maskCanvasPainted(): Promise<boolean>;

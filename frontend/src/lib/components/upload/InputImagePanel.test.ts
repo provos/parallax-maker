@@ -381,6 +381,17 @@ describe('InputImagePanel', () => {
       });
     });
 
+    it('painting on the canvas never opens the upload file chooser', async () => {
+      projectStore.applyView(makeView());
+      uiStore.setMainTab('Inpainting');
+      render(InputImagePanel);
+      const openChooser = vi.spyOn(screen.getByTestId('upload-image-input') as HTMLInputElement, 'click');
+
+      await fireEvent.click(screen.getByTestId('mask-canvas'));
+
+      expect(openChooser).not.toHaveBeenCalled();
+    });
+
     it('drive the shared brush state and the canvas actions', async () => {
       projectStore.applyView(makeView());
       uiStore.setMainTab('Inpainting');
