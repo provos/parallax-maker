@@ -1,0 +1,1221 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Parallax Maker · interactive prototype</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&amp;family=IBM+Plex+Sans:wght@400;500;600&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#111214}
+.theme-dark{--bg0:#111214;--bg1:#18191c;--bg2:#1f2124;--bg3:#27292e;--line:#2a2d32;--line2:#383b41;--tx:#e8e9ec;--tx2:#b0b4bb;--tx3:#8d929b;--acc:#f0a13a;--accTx:#1b1206;--accSoft:#2b2419;--accTx2:#f5b865;--sel:#4c9dff;--selTx:#cfe3ff;--selSoft:#1e2a3b;--selTint:rgba(76,157,255,.5);--ok:#8fd1a8;--okSoft:#1f3a2a;--okLine:#2f5a41;--err:#ff8a80;--errSoft:#3a1d1f;--errLine:#6b2c2c;--canvas:#111214;--chk1:#26282c;--chk2:#2f3136;--float:#1c1d21;--hz:#ff8a3d;--shade:rgba(0,0,0,.55)}
+.theme-light{--bg0:#eceef1;--bg1:#f8f9fa;--bg2:#ffffff;--bg3:#eceef1;--line:#dcdfe4;--line2:#c9cdd3;--tx:#1b1d21;--tx2:#474c54;--tx3:#5d636d;--acc:#e8922a;--accTx:#1b1206;--accSoft:#fdf0dd;--accTx2:#8a4f00;--sel:#2f7de1;--selTx:#174a8c;--selSoft:#e2edfd;--selTint:rgba(47,125,225,.45);--ok:#1c7240;--okSoft:#e3f5ea;--okLine:#9fd3b3;--err:#b42727;--errSoft:#fdeaea;--errLine:#f0b4b4;--canvas:#e1e3e7;--chk1:#f4f5f7;--chk2:#e3e5e9;--float:#ffffff;--hz:#d9601a;--shade:rgba(20,22,26,.35)}
+.app{font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:13px;color:var(--tx);background:var(--bg0);outline:none}
+.ic{width:16px;height:16px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.btn{height:32px;padding:0 12px;border-radius:6px;border:1px solid var(--line2);background:var(--bg3);color:var(--tx);font:inherit;font-weight:500;display:inline-flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;box-sizing:border-box;white-space:nowrap}
+.btn:hover:not(:disabled){filter:brightness(1.12)}
+.btn:disabled{opacity:.42;cursor:default}
+.btn-primary{background:var(--acc);border-color:var(--acc);color:var(--accTx);font-weight:600}
+.btn-ghost{background:transparent;border-color:transparent;color:var(--tx2)}
+.btn-ghost:hover:not(:disabled){background:var(--bg3);filter:none}
+.btn-sel{background:var(--selSoft);border-color:var(--sel);color:var(--selTx)}
+.btn-danger{background:var(--errSoft);border-color:var(--errLine);color:var(--err)}
+.btn-sm{height:26px;padding:0 8px}
+.ibtn{width:32px;padding:0}
+.tool[aria-pressed=true]{background:var(--selSoft);border-color:var(--sel);color:var(--selTx)}
+.kbd{font-family:'IBM Plex Mono',monospace;font-size:10.5px;line-height:16px;padding:0 5px;border-radius:4px;border:1px solid var(--line2);color:var(--tx3);font-weight:500}
+.btn-primary .kbd{border-color:rgba(27,18,6,.35);color:rgba(27,18,6,.75)}
+.label{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--tx3);margin:0}
+.field{width:100%;box-sizing:border-box;background:var(--bg2);border:1px solid var(--line2);border-radius:6px;color:var(--tx);font:inherit;padding:7px 10px;resize:none}
+.field:focus,.btn:focus-visible,.seg button:focus-visible{outline:2px solid var(--sel);outline-offset:1px}
+select.field{height:32px;padding:0 8px}
+.checker{background-color:var(--chk1);background-image:linear-gradient(45deg,var(--chk2) 25%,transparent 25%,transparent 75%,var(--chk2) 75%),linear-gradient(45deg,var(--chk2) 25%,transparent 25%,transparent 75%,var(--chk2) 75%);background-size:16px 16px;background-position:0 0,8px 8px}
+.mono{font-family:'IBM Plex Mono',monospace}
+.muted{color:var(--tx2)}
+.faint{color:var(--tx3);font-size:11.5px}
+.seg{display:inline-flex;background:var(--bg2);border-radius:7px;padding:2px;gap:2px;border:1px solid var(--line)}
+.seg button{height:26px;padding:0 10px;border:none;border-radius:5px;background:transparent;color:var(--tx2);font:inherit;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
+.seg button[aria-selected=true],.seg button[aria-checked=true]{background:var(--bg3);color:var(--tx);box-shadow:0 0 0 1px var(--line2)}
+.sec{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;flex-direction:column;gap:10px}
+.row{display:flex;align-items:center;gap:8px}
+.g3{display:grid;grid-template-columns:78px minmax(0,1fr) 44px;align-items:center;gap:10px}
+.float{background:var(--float);border:1px solid var(--line);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.badge-ok{font-size:10.5px;font-weight:600;color:var(--ok);border:1px solid var(--okLine);border-radius:4px;padding:0 4px;letter-spacing:.03em}
+.badge-plan{font-size:10.5px;font-weight:600;color:var(--tx3);border:1px dashed var(--line2);border-radius:4px;padding:0 4px;letter-spacing:.03em}
+.st{height:30px;border:none;border-radius:6px;background:transparent;color:var(--tx3);font:inherit;font-weight:500;display:inline-flex;align-items:center;gap:6px;padding:0 8px;cursor:pointer}
+.st:hover{background:var(--bg3)}
+.st[data-s=done]{color:var(--ok)}
+.st[aria-current=step]{background:var(--accSoft);color:var(--accTx2);box-shadow:inset 0 0 0 1px var(--acc)}
+.stn{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;font-family:'IBM Plex Mono',monospace;border:1px solid var(--line2);box-sizing:border-box}
+.st[data-s=done] .stn{background:var(--okSoft);border-color:var(--okLine)}
+.st[aria-current=step] .stn{background:var(--acc);border-color:var(--acc);color:var(--accTx)}
+.sub{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10.5px;font-weight:600;flex-shrink:0;border:1px solid var(--line2);color:var(--tx2)}
+.sub[data-s=done]{background:var(--okSoft);border-color:var(--okLine);color:var(--ok)}
+.sub[data-s=now]{background:var(--acc);border-color:var(--acc);color:var(--accTx)}
+.lrow{height:64px;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:6px;border-radius:6px;cursor:pointer;border:none;background:transparent;color:inherit;font:inherit;text-align:left;width:100%}
+.lrow:hover{background:var(--bg3)}
+.lrow[aria-selected=true]{background:var(--selSoft);box-shadow:inset 0 0 0 1px var(--sel)}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--tx);background:var(--bg3);border-radius:4px;padding:2px 6px}
+.cand{padding:0;border:1px solid var(--line2);border-radius:6px;overflow:hidden;background:var(--bg2);height:128px;cursor:pointer;position:relative}
+.cand[aria-checked=true]{border:2px solid var(--sel)}
+.cand .kbd{position:absolute;left:4px;top:4px;background:var(--bg1)}
+.skel{height:128px;border-radius:6px;border:1px solid var(--line);background:linear-gradient(90deg,var(--bg2),var(--bg3),var(--bg2));background-size:200% 100%;animation:sh 1.3s linear infinite}
+@keyframes sh{from{background-position:200% 0}to{background-position:-200% 0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+.spin{animation:spin .9s linear infinite}
+@keyframes scan{from{top:0}to{top:100%}}
+.scan{position:absolute;left:0;right:0;height:2px;background:var(--acc);box-shadow:0 0 18px 6px rgba(240,161,58,.45);animation:scan 1.6s ease-in-out infinite alternate}
+.bar{height:4px;border-radius:2px;background:var(--bg3);overflow:hidden}
+.bar>div{height:100%;background:var(--acc);border-radius:2px}
+.hnd{position:absolute;left:12px;width:28px;height:10px;border-radius:3px;border:none;background:var(--tx2);cursor:ns-resize;padding:0}
+.hnd[data-g=true]{background:var(--okSoft);box-shadow:inset 0 0 0 2px var(--ok)}
+.hnd[aria-pressed=true]{background:var(--sel);height:12px;left:10px;width:32px}
+input[type=range]{accent-color:var(--acc);width:100%;margin:0}
+input[type=checkbox]{accent-color:var(--acc)}
+.modal-bg{position:absolute;inset:0;background:var(--shade);display:flex;align-items:center;justify-content:center;z-index:50}
+.toast{width:340px;box-sizing:border-box;padding:12px;display:flex;gap:10px;align-items:flex-start}
+.toast[data-k=error]{border-color:var(--errLine)}
+.navl{display:block;padding:6px 10px;border-radius:6px;color:var(--tx2);text-decoration:none}
+.navl:hover{background:var(--bg3);color:var(--tx)}
+</style>
+</helmet>
+<div class="app {{themeClass}}" tabIndex="0" onKeyDown="{{onKey}}" onMouseMove="{{onMove}}" onMouseUp="{{onUp}}" onMouseLeave="{{onUp}}" style="width:1440px;height:900px;display:flex;flex-direction:column;overflow:hidden;position:relative">
+
+<header style="height:48px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 12px 0 16px;background:var(--bg1);border-bottom:1px solid var(--line)">
+<div style="display:flex;align-items:center;gap:10px;width:286px">
+<svg width="22" height="22" viewBox="0 0 22 22" aria-hidden="true"><rect x="1" y="7" width="12" height="12" rx="3" fill="#4c9dff"></rect><rect x="5" y="4" width="12" height="12" rx="3" fill="none" stroke="currentColor" stroke-width="1.5"></rect><rect x="9" y="1" width="12" height="12" rx="3" fill="#f0a13a"></rect></svg>
+<span style="font-weight:600;font-size:14px">Parallax Maker</span>
+<sc-if value="{{loaded}}" hint-placeholder-val="{{true}}"><span class="muted">/ crystals.png</span></sc-if>
+</div>
+<nav aria-label="Workflow steps" style="flex-grow:1;display:flex;justify-content:center;align-items:center;gap:2px">
+<sc-for list="{{steps}}" as="s" hint-placeholder-count="7">
+<sc-if value="{{s.notFirst}}" hint-placeholder-val="{{true}}"><span style="width:12px;height:1px;background:var(--line2)"></span></sc-if>
+<button class="st" data-s="{{s.state}}" aria-current="{{s.current}}" onClick="{{s.go}}" disabled="{{s.disabled}}" title="{{s.title}}"><span class="stn">{{s.mark}}</span>{{s.label}}</button>
+</sc-for>
+</nav>
+<div style="display:flex;align-items:center;gap:4px">
+<button class="btn btn-ghost ibtn" aria-label="Undo slice change (Ctrl+Z)" title="Undo (Ctrl+Z)" onClick="{{undo}}" disabled="{{noUndo}}"><svg class="ic" viewBox="0 0 24 24"><path d="M9 14L4 9l5-5"></path><path d="M4 9h10a6 6 0 0 1 0 12h-3"></path></svg></button>
+<button class="btn btn-ghost ibtn" aria-label="Redo slice change (Ctrl+Shift+Z)" title="Redo (Ctrl+Shift+Z)" onClick="{{redo}}" disabled="{{noRedo}}"><svg class="ic" viewBox="0 0 24 24"><path d="M15 14l5-5-5-5"></path><path d="M20 9H10a6 6 0 0 0 0 12h3"></path></svg></button>
+<button class="btn btn-ghost ibtn" aria-label="Toggle light or dark mode" title="Light / dark" onClick="{{toggleTheme}}"><svg class="ic" viewBox="0 0 24 24"><path d="M20 14A8 8 0 1 1 10 4a6 6 0 0 0 10 10z"></path></svg></button>
+<button class="btn btn-ghost ibtn" aria-label="Settings (Ctrl+,)" title="Settings (Ctrl+,)" onClick="{{openSettings}}"><svg class="ic" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"></path></svg></button>
+<button class="btn btn-primary" style="margin-left:8px" onClick="{{openExport}}" disabled="{{noSlices}}"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg>Export…</button>
+</div>
+</header>
+
+<div style="flex-grow:1;display:flex;min-height:0">
+
+<aside aria-label="Layers" style="width:300px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg1);border-right:1px solid var(--line)">
+<div style="height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 8px 0 14px;border-bottom:1px solid var(--line)">
+<span class="label">Layers · {{sliceCount}}</span>
+<div style="display:flex;gap:2px">
+<button class="btn btn-ghost ibtn" aria-label="Copy slice" title="Copy slice" onClick="{{copySlice}}" disabled="{{noSel}}"><svg class="ic" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2"></rect><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"></path></svg></button>
+<button class="btn btn-ghost ibtn" aria-label="Paste slice" title="Paste slice" onClick="{{pasteSlice}}" disabled="{{noClip}}"><svg class="ic" viewBox="0 0 24 24"><rect x="6" y="4" width="12" height="17" rx="2"></rect><path d="M9 4h6v3H9z"></path></svg></button>
+<button class="btn btn-ghost ibtn" aria-label="Delete slice" title="Delete slice (Del)" onClick="{{deleteSlice}}" disabled="{{noSel}}"><svg class="ic" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"></path></svg></button>
+</div>
+</div>
+
+<sc-if value="{{noSlices}}" hint-placeholder-val="{{false}}">
+<div style="flex-grow:1;padding:28px 22px;display:flex;flex-direction:column;gap:10px;color:var(--tx2);line-height:1.5">
+<svg class="ic" viewBox="0 0 24 24" style="width:28px;height:28px;color:var(--tx3)"><path d="M12 3l9 5-9 5-9-5z"></path><path d="M3 13l9 5 9-5"></path></svg>
+<div style="font-weight:600;color:var(--tx)">No layers yet</div>
+<sc-if value="{{loaded}}" hint-placeholder-val="{{true}}"><div>Click an object on the image to select it, then press <span class="kbd">Enter</span> to make it a layer. Or split the whole image by depth in the Inspector.</div></sc-if>
+<sc-if value="{{notLoaded}}" hint-placeholder-val="{{false}}"><div>Layers appear here once you load an image and cut it into slices.</div></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{hasSlices}}" hint-placeholder-val="{{true}}">
+<div style="position:relative;flex-grow:1;min-height:0;overflow:auto">
+<div style="position:relative;height:{{listH}}px">
+<div aria-hidden="true" style="position:absolute;left:0;top:0;width:52px;bottom:0;background:var(--bg0);border-right:1px solid var(--line)"></div>
+<span class="mono" style="position:absolute;left:0;width:52px;top:4px;text-align:center;font-size:10px;color:var(--tx3)">255 near</span>
+<div ref="{{setRuler}}" style="position:absolute;left:24px;top:24px;height:{{rulerH}}px;width:4px;border-radius:2px;background:linear-gradient(180deg,var(--tx),var(--bg3))"></div>
+<span class="mono" style="position:absolute;left:0;width:52px;top:{{farLabelY}}px;text-align:center;font-size:10px;color:var(--tx3)">0 far</span>
+<svg width="60" height="{{listH}}" style="position:absolute;left:0;top:0" aria-hidden="true">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4"><path d="{{r.path}}" fill="none" stroke="{{r.stroke}}" stroke-width="1.3"></path></sc-for>
+</svg>
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+<button class="hnd" style="top:{{r.hy}}px" aria-pressed="{{r.selected}}" data-g="{{r.ground}}" aria-label="{{r.hlabel}}" title="{{r.hlabel}}" onMouseDown="{{r.startDrag}}"></button>
+</sc-for>
+<div role="listbox" aria-label="Slices, nearest first" style="position:absolute;left:58px;right:6px;top:16px;display:flex;flex-direction:column;gap:4px">
+<sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+<button role="option" class="lrow" aria-selected="{{r.selected}}" onClick="{{r.select}}">
+<div class="checker" style="width:32px;height:56px;border-radius:4px;overflow:hidden;flex-shrink:0;position:relative">
+<sc-for list="{{r.parts}}" as="p" hint-placeholder-count="1"><img src="{{p.src}}" alt="" style="position:absolute;inset:0;width:32px;height:56px;{{p.style}}"></sc-for>
+</div>
+<div style="flex-grow:1;min-width:0">
+<div class="mono" style="font-weight:500">{{r.file}}</div>
+<div style="display:flex;gap:4px;margin-top:3px;align-items:center">
+<sc-if value="{{r.ground}}" hint-placeholder-val="{{false}}"><span class="badge-ok">GROUND</span></sc-if>
+<sc-if value="{{r.inpainted}}" hint-placeholder-val="{{false}}"><span class="faint">inpainted</span></sc-if>
+<sc-if value="{{r.isRest}}" hint-placeholder-val="{{false}}"><span class="faint">rest of image</span></sc-if>
+<sc-if value="{{r.fromSam}}" hint-placeholder-val="{{false}}"><span class="faint">{{r.objLabel}}</span></sc-if>
+</div>
+</div>
+<span class="chip">{{r.depth}}</span>
+</button>
+</sc-for>
+</div>
+<p style="position:absolute;left:66px;right:12px;top:{{hintY}}px;margin:0" class="faint">Drag a handle on the ruler to change depth. <span class="kbd">[</span> <span class="kbd">]</span> previous / next layer.</p>
+</div>
+</div>
+</sc-if>
+
+<div style="border-top:1px solid var(--line);padding:6px;flex-shrink:0">
+<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;height:36px;gap:10px" onClick="{{viewInput}}" disabled="{{notLoaded}}"><span class="checker" style="width:20px;height:36px;border-radius:3px;overflow:hidden;display:block"><sc-if value="{{loaded}}" hint-placeholder-val="{{true}}"><img src="{{B.input}}" alt="" style="width:20px;height:36px;object-fit:cover;display:block"></sc-if></span><span style="flex-grow:1;text-align:left">Input image</span><span class="kbd">I</span></button>
+<button class="btn btn-ghost" style="width:100%;justify-content:flex-start;height:36px;gap:10px" onClick="{{viewDepth}}" disabled="{{noDepth}}"><span class="checker" style="width:20px;height:36px;border-radius:3px;overflow:hidden;display:block"><sc-if value="{{depthReady}}" hint-placeholder-val="{{true}}"><img src="{{B.depth}}" alt="" style="width:20px;height:36px;object-fit:cover;display:block"></sc-if></span><span style="flex-grow:1;text-align:left">Depth map · {{depthModelLabel}}</span><span class="kbd">M</span></button>
+</div>
+</aside>
+
+<main style="flex-grow:1;min-width:0;display:flex;flex-direction:column;background:var(--canvas)">
+<div style="height:40px;flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:0 10px;border-bottom:1px solid var(--line);background:var(--bg1)">
+<div role="tablist" aria-label="View mode" class="seg">
+<sc-for list="{{views}}" as="v" hint-placeholder-count="6"><button role="tab" aria-selected="{{v.on}}" onClick="{{v.go}}" disabled="{{v.disabled}}" title="{{v.title}}">{{v.label}}</button></sc-for>
+</div>
+<div style="display:flex;align-items:center;gap:4px" class="muted">
+<label style="display:flex;align-items:center;gap:6px;margin-right:8px"><input type="checkbox" checked="{{checker}}" onChange="{{toggleChecker}}">Checkerboard</label>
+<button class="btn btn-ghost ibtn" aria-label="Zoom out" onClick="{{zoomOut}}">−</button>
+<span class="mono" style="width:44px;text-align:center;font-size:12px">{{zoomPct}}%</span>
+<button class="btn btn-ghost ibtn" aria-label="Zoom in" onClick="{{zoomIn}}">+</button>
+<button class="btn btn-ghost btn-sm" onClick="{{zoomFit}}">Fit</button>
+</div>
+</div>
+
+<div style="height:44px;flex-shrink:0;display:flex;align-items:center;gap:12px;padding:0 12px;border-bottom:1px solid var(--line);background:var(--bg1)">
+<sc-if value="{{opt.none}}" hint-placeholder-val="{{false}}"><span class="faint">{{opt.noneText}}</span></sc-if>
+<sc-if value="{{opt.segment}}" hint-placeholder-val="{{false}}">
+<span class="row" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M5 4l6 15 2-6 6-2z"></path></svg>Segment</span>
+<span class="faint">Click an object · <span class="kbd">Shift</span> add point · <span class="kbd">Alt</span> remove point</span>
+<span style="flex-grow:1"></span>
+<label class="row muted" title="Place several points, then run segmentation once"><input type="checkbox" checked="{{multi}}" onChange="{{toggleMulti}}">Multi-point</label>
+<button class="btn btn-ghost btn-sm" onClick="{{clearPts}}" disabled="{{noPts}}">Clear points <span class="kbd">Esc</span></button>
+</sc-if>
+<sc-if value="{{opt.brush}}" hint-placeholder-val="{{false}}">
+<span class="row" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20c3 0 5-1.5 5-4a2.5 2.5 0 0 0-5 0"></path><path d="M9 14l10-10 1 1-10 10"></path></svg>Inpaint mask</span>
+<div role="radiogroup" aria-label="Brush mode" class="seg"><button role="radio" aria-checked="{{brushPaint}}" onClick="{{setPaint}}">Paint</button><button role="radio" aria-checked="{{brushErase}}" onClick="{{setErase}}">Erase <span class="kbd">X</span></button></div>
+<label class="row muted">Size<input type="range" min="8" max="160" value="{{brush}}" onChange="{{setBrush}}" style="width:120px"><span class="mono" style="color:var(--tx);font-size:12px;width:26px">{{brush}}</span></label>
+<span style="flex-grow:1"></span>
+<button class="btn btn-ghost btn-sm" onClick="{{loadMask}}">Load saved mask</button>
+<button class="btn btn-ghost btn-sm" onClick="{{saveMask}}" disabled="{{noMask}}">Save mask</button>
+<button class="btn btn-ghost btn-sm" onClick="{{clearMask}}" disabled="{{noMask}}">Clear</button>
+</sc-if>
+<sc-if value="{{opt.extend}}" hint-placeholder-val="{{false}}">
+<span class="row" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg>Extend canvas</span><span class="badge-plan">PLANNED</span>
+<span class="faint">Set how far to grow this slice on each side, then generate.</span>
+<span style="flex-grow:1"></span>
+<button class="btn btn-ghost btn-sm" onClick="{{extPreset}}">±96 px sides</button>
+<button class="btn btn-ghost btn-sm" onClick="{{extReset}}">Reset</button>
+</sc-if>
+<sc-if value="{{opt.horizon}}" hint-placeholder-val="{{false}}">
+<span class="row" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M3 14h18"></path><path d="M6 10l3-3 3 3 3-3 3 3"></path></svg>Horizon</span>
+<span class="faint">Drag the line to the horizon · row <span class="mono">{{horizon}}</span> · camera pitch <span class="mono">{{pitch}}°</span></span>
+<span style="flex-grow:1"></span>
+<button class="btn btn-ghost btn-sm" onClick="{{fitGround}}" disabled="{{noGround}}">Fit ground</button>
+</sc-if>
+<sc-if value="{{opt.camera}}" hint-placeholder-val="{{false}}">
+<span class="row" style="font-weight:600"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3v18M3 12h18M9 6l3-3 3 3M9 18l3 3 3-3M6 9l-3 3 3 3M18 9l3 3-3 3"></path></svg>Camera</span>
+<span class="faint">{{camHint}}</span>
+<span style="flex-grow:1"></span>
+<button class="btn btn-ghost ibtn btn-sm" aria-label="Move camera left" onClick="{{camL}}">←</button><button class="btn btn-ghost ibtn btn-sm" aria-label="Move camera up" onClick="{{camU}}">↑</button><button class="btn btn-ghost ibtn btn-sm" aria-label="Move camera down" onClick="{{camD}}">↓</button><button class="btn btn-ghost ibtn btn-sm" aria-label="Move camera right" onClick="{{camR}}">→</button>
+<button class="btn btn-ghost ibtn btn-sm" aria-label="Move camera forward" onClick="{{camIn}}">⊕</button><button class="btn btn-ghost ibtn btn-sm" aria-label="Move camera back" onClick="{{camOut}}">⊖</button>
+<button class="btn btn-ghost btn-sm" onClick="{{camReset}}">Reset</button>
+</sc-if>
+</div>
+
+<div style="flex-grow:1;position:relative;display:flex;align-items:center;justify-content:center;min-height:0;overflow:hidden" onMouseMove="{{onCanvasMove}}" onMouseDown="{{onCanvasDown}}">
+
+<sc-if value="{{showToolbar}}" hint-placeholder-val="{{true}}">
+<div role="toolbar" aria-label="Canvas tools" aria-orientation="vertical" class="float" style="position:absolute;left:12px;top:14px;display:flex;flex-direction:column;gap:2px;padding:4px;z-index:5">
+<button class="btn btn-ghost ibtn tool" aria-pressed="{{tools.pan}}" onClick="{{toolPan}}" aria-label="Pan (H)" title="Pan (H)"><svg class="ic" viewBox="0 0 24 24"><path d="M8 13V6a1.5 1.5 0 0 1 3 0v6M11 11V4.5a1.5 1.5 0 0 1 3 0V11M14 11V6a1.5 1.5 0 0 1 3 0v7a6 6 0 0 1-6 6h-1a6 6 0 0 1-5-3l-2-4a1.5 1.5 0 0 1 2.5-1.5L8 13"></path></svg></button>
+<button class="btn btn-ghost ibtn tool" aria-pressed="{{tools.segment}}" onClick="{{toolSegment}}" aria-label="Segment objects (S)" title="Segment objects (S)"><svg class="ic" viewBox="0 0 24 24"><path d="M5 4l6 15 2-6 6-2z"></path></svg></button>
+<button class="btn btn-ghost ibtn tool" aria-pressed="{{tools.brush}}" onClick="{{toolBrush}}" aria-label="Inpaint brush (B)" title="Inpaint brush (B)" disabled="{{noSel}}"><svg class="ic" viewBox="0 0 24 24"><path d="M4 20c3 0 5-1.5 5-4a2.5 2.5 0 0 0-5 0"></path><path d="M9 14l10-10 1 1-10 10"></path></svg></button>
+<button class="btn btn-ghost ibtn tool" aria-pressed="{{tools.extend}}" onClick="{{toolExtend}}" aria-label="Extend canvas, outpaint (O)" title="Extend canvas · outpaint (O) — planned" disabled="{{noSel}}"><svg class="ic" viewBox="0 0 24 24"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"></path><rect x="8" y="8" width="8" height="8" rx="1"></rect></svg></button>
+<button class="btn btn-ghost ibtn tool" aria-pressed="{{tools.horizon}}" onClick="{{toolHorizon}}" aria-label="Horizon (G)" title="Horizon (G)" disabled="{{noSlices}}"><svg class="ic" viewBox="0 0 24 24"><path d="M3 14h18"></path><path d="M6 10l3-3 3 3 3-3 3 3"></path></svg></button>
+</div>
+</sc-if>
+
+<sc-if value="{{stage.empty}}" hint-placeholder-val="{{false}}">
+<div style="width:520px;display:flex;flex-direction:column;gap:18px;align-items:center;text-align:center">
+<button onClick="{{loadImage}}" class="checker" style="width:520px;height:300px;border:2px dashed var(--line2);border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;cursor:pointer;color:var(--tx);font:inherit">
+<svg class="ic" viewBox="0 0 24 24" style="width:36px;height:36px;color:var(--tx3)"><rect x="3" y="4" width="18" height="16" rx="2"></rect><circle cx="9" cy="10" r="2"></circle><path d="M21 16l-5-5-9 9"></path></svg>
+<span style="font-size:17px;font-weight:600">Drop a photo here</span>
+<span class="muted">PNG or JPEG · one image per project</span>
+<span class="btn btn-primary" style="margin-top:6px">Choose image…</span>
+</button>
+<div class="muted">or <button class="btn btn-ghost btn-sm" style="color:var(--accTx2)" onClick="{{loadImage}}">try the example image</button> · <button class="btn btn-ghost btn-sm" onClick="{{loadState}}">load a saved project…</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{stage.work}}" hint-placeholder-val="{{true}}">
+<div ref="{{setImg}}" style="position:relative;width:{{IW}}px;height:{{IH}}px;box-shadow:0 0 0 1px var(--line);{{zoomStyle}};{{frameCursor}}">
+
+<sc-if value="{{show.checker}}" hint-placeholder-val="{{true}}"><div class="checker" style="position:absolute;inset:0"></div></sc-if>
+
+<sc-if value="{{show.input}}" hint-placeholder-val="{{false}}"><img src="{{B.input}}" alt="Input image" style="position:absolute;inset:0;width:100%;height:100%"></sc-if>
+<sc-if value="{{show.depth}}" hint-placeholder-val="{{false}}"><img src="{{B.depth}}" alt="Depth map, brighter is nearer" style="position:absolute;inset:0;width:100%;height:100%"></sc-if>
+
+<sc-if value="{{show.slice}}" hint-placeholder-val="{{false}}">
+<sc-if value="{{show.extFrame}}" hint-placeholder-val="{{false}}">
+<div class="checker" style="position:absolute;{{extFrameStyle}};border:1.5px dashed var(--acc);opacity:.95"></div>
+<sc-if value="{{show.extPreview}}" hint-placeholder-val="{{false}}"><img src="{{B.outpaint}}" alt="Outpainting preview" style="position:absolute;{{extFrameStyle}};width:auto;{{extImgStyle}}"></sc-if>
+</sc-if>
+<sc-for list="{{selParts}}" as="p" hint-placeholder-count="1"><img src="{{p.src}}" alt="" style="position:absolute;inset:0;width:100%;height:100%;{{p.style}}"></sc-for>
+<sc-if value="{{show.hoverCand}}" hint-placeholder-val="{{false}}"><img src="{{hoverCandSrc}}" alt="Candidate preview" style="position:absolute;inset:0;width:100%;height:100%"></sc-if>
+<sc-if value="{{show.preset}}" hint-placeholder-val="{{false}}"><img src="{{B.mask}}" alt="" style="position:absolute;inset:0;width:100%;height:100%"></sc-if>
+<sc-for list="{{dots}}" as="d" hint-placeholder-count="0"><span style="position:absolute;border-radius:50%;background:rgba(255,96,64,.5);pointer-events:none;{{d.style}}"></span></sc-for>
+</sc-if>
+
+<sc-if value="{{show.layers}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;inset:0;{{sceneWrap}}">
+<div style="position:absolute;inset:0;{{sceneInner}}">
+<sc-for list="{{layers}}" as="l" hint-placeholder-count="4">
+<div style="position:absolute;inset:0;{{l.style}}">
+<sc-for list="{{l.parts}}" as="p" hint-placeholder-count="1"><img src="{{p.src}}" alt="" style="position:absolute;inset:0;width:100%;height:100%;{{p.style}}"></sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{show.samMask}}" hint-placeholder-val="{{false}}"><div style="position:absolute;inset:0;background:var(--selTint);pointer-events:none;{{samMaskStyle}}"></div></sc-if>
+
+<sc-for list="{{pts}}" as="p" hint-placeholder-count="0">
+<span style="position:absolute;width:18px;height:18px;margin:-9px 0 0 -9px;border-radius:50%;border:2px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,.6);display:flex;align-items:center;justify-content:center;color:#ffffff;font-weight:700;font-size:13px;line-height:1;pointer-events:none;{{p.style}}">{{p.sym}}</span>
+</sc-for>
+
+<sc-if value="{{show.horizon}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;left:-6px;right:-6px;top:{{horizonY}}px;height:14px;margin-top:-7px;cursor:ns-resize;display:flex;align-items:center" onMouseDown="{{startHorizon}}">
+<div style="width:100%;border-top:2px dashed var(--hz)"></div>
+</div>
+<span style="position:absolute;left:8px;top:{{horizonLabelY}}px;background:var(--hz);color:#1b0d03;font-size:11.5px;font-weight:600;border-radius:4px;padding:1px 6px;pointer-events:none">Horizon · row {{horizon}} · drag</span>
+</sc-if>
+
+<sc-if value="{{show.cursor}}" hint-placeholder-val="{{false}}"><span style="position:absolute;border-radius:50%;border:1.5px solid #ffffff;box-shadow:0 0 0 1px rgba(0,0,0,.6);pointer-events:none;{{cursorStyle}}"></span></sc-if>
+
+<sc-if value="{{show.depthJob}}" hint-placeholder-val="{{false}}">
+<div style="position:absolute;inset:0;background:rgba(10,11,13,.35);overflow:hidden"><div class="scan"></div></div>
+</sc-if>
+</div>
+
+<sc-if value="{{show.samBusy}}" hint-placeholder-val="{{false}}">
+<div class="float" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 12px"><svg class="ic spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"></path></svg>Segmenting with SAM…</div>
+</sc-if>
+<sc-if value="{{show.samMiss}}" hint-placeholder-val="{{false}}">
+<div class="float" style="position:absolute;top:14px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:8px;padding:6px 12px;max-width:520px" role="status">No distinct object at that point. Click inside an object, or use <b>Split by depth</b> for the background.</div>
+</sc-if>
+
+<sc-if value="{{show.commitBar}}" hint-placeholder-val="{{false}}">
+<div class="float" role="toolbar" aria-label="Selection actions" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:6px;padding:6px 6px 6px 12px;z-index:6">
+<span style="font-weight:600;white-space:nowrap">{{selSummary}}</span>
+<span style="width:1px;height:22px;background:var(--line2);margin:0 4px"></span>
+<button class="btn btn-ghost btn-sm" aria-pressed="{{invert}}" onClick="{{toggleInvert}}" style="{{invertStyle}}">Invert</button>
+<button class="btn btn-ghost btn-sm" aria-pressed="{{feather}}" onClick="{{toggleFeather}}" style="{{featherStyle}}">Feather</button>
+<sc-if value="{{multiPending}}" hint-placeholder-val="{{false}}"><button class="btn btn-sel btn-sm" onClick="{{runMulti}}">Segment {{ptCount}} points</button></sc-if>
+<span style="width:1px;height:22px;background:var(--line2);margin:0 4px"></span>
+<button class="btn btn-sm" onClick="{{addToSel}}" disabled="{{cantAdd}}" title="Add to selected slice (Shift+Enter)">Add to {{selFile}}</button>
+<button class="btn btn-sm" onClick="{{removeFromSel}}" disabled="{{cantAdd}}" title="Remove from selected slice (Alt+Enter)">Remove from {{selFile}}</button>
+<button class="btn btn-primary" style="height:28px" onClick="{{newSlice}}" disabled="{{noSamSel}}">New slice <span class="kbd">Enter</span></button>
+</div>
+</sc-if>
+
+<sc-if value="{{show.depthJobCard}}" hint-placeholder-val="{{false}}">
+<div class="float" style="position:absolute;bottom:18px;left:50%;transform:translateX(-50%);width:380px;padding:12px 14px;display:flex;flex-direction:column;gap:8px">
+<div class="row"><svg class="ic spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"></path></svg><span style="font-weight:600">{{job.label}}</span><span style="flex-grow:1"></span><span class="mono faint">{{job.pct}}%</span></div>
+<div class="bar"><div style="width:{{job.pct}}%"></div></div>
+<div class="faint">{{job.detail}}</div>
+</div>
+</sc-if>
+
+<sc-if value="{{show.dragHint3d}}" hint-placeholder-val="{{false}}"><div class="float faint" style="position:absolute;bottom:16px;left:50%;transform:translateX(-50%);padding:6px 12px">Drag to orbit · layers are placed at their depth</div></sc-if>
+
+<div style="position:absolute;right:14px;top:14px;display:flex;flex-direction:column;gap:8px;z-index:20">
+<sc-for list="{{toasts}}" as="t" hint-placeholder-count="0">
+<div class="float toast" data-k="{{t.kind}}" role="{{t.role}}">
+<span style="width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0;background:{{t.dot}}"></span>
+<div style="flex-grow:1;display:flex;flex-direction:column;gap:4px">
+<div style="font-weight:600">{{t.title}}</div>
+<div class="muted" style="line-height:1.4">{{t.body}}</div>
+<div class="row" style="margin-top:4px">
+<sc-for list="{{t.actions}}" as="a" hint-placeholder-count="0"><button class="btn btn-sm" onClick="{{a.fn}}">{{a.label}}</button></sc-for>
+</div>
+</div>
+<button class="btn btn-ghost ibtn btn-sm" aria-label="Dismiss" onClick="{{t.close}}">×</button>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</main>
+
+<aside aria-label="Inspector" style="width:328px;flex-shrink:0;display:flex;flex-direction:column;background:var(--bg1);border-left:1px solid var(--line);min-height:0">
+
+<sc-if value="{{insp.header}}" hint-placeholder-val="{{true}}">
+<div style="padding:10px 14px;display:flex;align-items:center;gap:10px;border-bottom:1px solid var(--line);flex-shrink:0">
+<div class="checker" style="width:26px;height:46px;border-radius:4px;overflow:hidden;position:relative;flex-shrink:0"><sc-for list="{{selParts}}" as="p" hint-placeholder-count="1"><img src="{{p.src}}" alt="" style="position:absolute;inset:0;width:26px;height:46px;{{p.style}}"></sc-for></div>
+<div style="flex-grow:1;min-width:0"><div class="mono" style="font-weight:600;font-size:14px">{{selFile}}</div><div class="faint">Depth {{selDepth}} · {{selRank}}</div></div>
+<button class="btn btn-ghost ibtn" aria-label="Download slice image" title="Download slice image" onClick="{{downloadSlice}}"><svg class="ic" viewBox="0 0 24 24"><path d="M12 4v11M7 10l5 5 5-5M5 20h14"></path></svg></button>
+</div>
+</sc-if>
+
+<div style="flex-grow:1;overflow:auto;min-height:0">
+
+<sc-if value="{{insp.empty}}" hint-placeholder-val="{{false}}">
+<div class="sec" style="border:none">
+<h2 class="label">Getting started</h2>
+<p class="muted" style="margin:0;line-height:1.5">Parallax Maker turns one photo into layers at different depths, fills what the front layers hide, and exports a 3D scene or an animation.</p>
+<ol style="margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:10px">
+<sc-for list="{{guide}}" as="g" hint-placeholder-count="7"><li class="row" style="align-items:flex-start"><span class="sub">{{g.n}}</span><span><b style="font-weight:600">{{g.t}}</b><br><span class="faint">{{g.d}}</span></span></li></sc-for>
+</ol>
+<p class="faint" style="margin:0">Press <span class="kbd">?</span> any time for keyboard shortcuts.</p>
+</div>
+</sc-if>
+
+<sc-if value="{{insp.image}}" hint-placeholder-val="{{false}}">
+<div class="sec">
+<h2 class="label">Input image</h2>
+<div class="row"><img src="{{B.input}}" alt="" style="width:54px;height:96px;object-fit:cover;border-radius:4px"><div><div style="font-weight:500">crystals.png</div><div class="faint mono">480 × 856</div></div></div>
+<button class="btn" onClick="{{loadImage}}">Replace image…</button>
+</div>
+<div class="sec">
+<h2 class="label">Project</h2>
+<div class="row"><button class="btn" style="flex-grow:1" onClick="{{loadState}}">Load state…</button><button class="btn" style="flex-grow:1" onClick="{{saveState}}">Save state</button></div>
+<p class="faint" style="margin:0">State is saved automatically in an appstate folder next to where Parallax Maker runs.</p>
+</div>
+</sc-if>
+
+<sc-if value="{{insp.depth}}" hint-placeholder-val="{{false}}">
+<div class="sec">
+<h2 class="label">Depth map</h2>
+<p class="muted" style="margin:0;line-height:1.5">Brighter is nearer. Slices, the depth ruler and auto-split all read from this map.</p>
+<label for="dm" class="muted">Model</label>
+<select id="dm" class="field" value="{{depthModel}}" onChange="{{setDepthModel}}"><option value="midas">MiDaS</option><option value="dinov2">DINOv2</option></select>
+<button class="btn" onClick="{{regenDepth}}" disabled="{{busy}}">Regenerate depth map</button>
+<sc-if value="{{jobHere.depth}}" hint-placeholder-val="{{false}}"><div class="bar"><div style="width:{{job.pct}}%"></div></div><span class="faint">{{job.detail}}</span></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{insp.slices}}" hint-placeholder-val="{{false}}">
+<div class="sec">
+<div class="row"><h2 class="label" style="color:var(--accTx2)">Segment objects</h2><span style="flex-grow:1"></span><span class="faint">Segment Anything</span></div>
+<div class="row" style="align-items:flex-start"><span class="sub" data-s="{{segStep1}}">1</span><span>Click an object on the image. <span class="faint">Shift-click adds a point, Alt-click removes one.</span></span></div>
+<div class="row" style="align-items:flex-start"><span class="sub" data-s="{{segStep2}}">2</span><span>Refine: <span class="faint">Invert or Feather the mask from the bar under the image.</span></span></div>
+<div class="row" style="align-items:flex-start"><span class="sub" data-s="{{segStep3}}">3</span><span>Press <span class="kbd">Enter</span> for a new slice, or add it to the selected one.</span></div>
+<div class="row" style="padding:8px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--line)"><span class="muted" style="flex-grow:1">{{selSummary}}</span><button class="btn btn-primary btn-sm" onClick="{{newSlice}}" disabled="{{noSamSel}}">New slice</button></div>
+</div>
+<div class="sec">
+<button class="btn btn-ghost" style="justify-content:space-between;padding:0;height:22px" aria-expanded="{{splitOpen}}" onClick="{{toggleSplit}}"><span class="label">Split by depth</span><span class="faint">{{splitHint}}</span></button>
+<sc-if value="{{splitOpen}}" hint-placeholder-val="{{false}}">
+<p class="faint" style="margin:0">Cut the whole image into bands of depth. Good for backgrounds; use Segment for objects.</p>
+<div class="g3"><label for="ns" class="muted">Slices</label><input id="ns" type="range" min="2" max="10" value="{{numSlices}}" onChange="{{setNumSlices}}"><span class="mono" style="text-align:right">{{numSlices}}</span></div>
+<div class="row"><button class="btn" style="flex-grow:1" onClick="{{autoSplit}}" disabled="{{busy}}">Split image</button><button class="btn btn-ghost" onClick="{{balance}}" disabled="{{noSlices}}" title="Even out slice sizes">Balance</button></div>
+</sc-if>
+</div>
+<sc-if value="{{hasSel}}" hint-placeholder-val="{{true}}">
+<div class="sec">
+<h2 class="label">Selected slice</h2>
+<div class="g3"><label for="sd" class="muted">Depth</label><input id="sd" type="range" min="0" max="255" value="{{selDepth}}" onChange="{{setSelDepth}}"><input class="field mono" aria-label="Depth value" value="{{selDepth}}" onChange="{{setSelDepth}}" style="padding:3px 6px;text-align:right"></div>
+<div class="row"><button class="btn btn-sm" style="flex-grow:1" aria-pressed="{{selGround}}" onClick="{{toggleGround}}">{{groundBtn}}</button><button class="btn btn-sm" style="flex-grow:1" onClick="{{replaceSliceImage}}">Replace image…</button></div>
+</div>
+</sc-if>
+</sc-if>
+
+<sc-if value="{{insp.inpaint}}" hint-placeholder-val="{{false}}">
+<div class="sec">
+<div class="row"><h2 class="label" style="color:var(--accTx2)">Inpaint</h2><span style="flex-grow:1"></span><span class="faint">{{modelLabel}} · <button class="btn btn-ghost btn-sm" style="height:20px;padding:0 4px;color:var(--accTx2)" onClick="{{openSettings}}">change</button></span></div>
+<div role="tablist" aria-label="Inpaint mode" class="seg" style="align-self:stretch"><button role="tab" aria-selected="{{modeHoles}}" onClick="{{setModeHoles}}" style="flex-grow:1;justify-content:center">Fill holes</button><button role="tab" aria-selected="{{modeExtend}}" onClick="{{setModeExtend}}" style="flex-grow:1;justify-content:center">Extend edges <span class="badge-plan">PLANNED</span></button></div>
+
+<sc-if value="{{modeHoles}}" hint-placeholder-val="{{true}}">
+<div class="row"><span class="sub" data-s="{{ip1}}">1</span>Paint over the holes to fill<span style="flex-grow:1"></span><span class="faint"><span class="kbd">B</span> <span class="kbd">X</span></span></div>
+</sc-if>
+<sc-if value="{{modeExtend}}" hint-placeholder-val="{{false}}">
+<div class="row"><span class="sub" data-s="{{ip1}}">1</span>Choose how far to extend</div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px">
+<label class="muted" style="display:flex;flex-direction:column;gap:4px">Left <input type="range" min="0" max="192" step="8" value="{{ext.l}}" onChange="{{setExtL}}"><span class="mono faint">{{ext.l}} px</span></label>
+<label class="muted" style="display:flex;flex-direction:column;gap:4px">Right <input type="range" min="0" max="192" step="8" value="{{ext.r}}" onChange="{{setExtR}}"><span class="mono faint">{{ext.r}} px</span></label>
+<label class="muted" style="display:flex;flex-direction:column;gap:4px">Top <input type="range" min="0" max="192" step="8" value="{{ext.t}}" onChange="{{setExtT}}"><span class="mono faint">{{ext.t}} px</span></label>
+<label class="muted" style="display:flex;flex-direction:column;gap:4px">Bottom <input type="range" min="0" max="192" step="8" value="{{ext.b}}" onChange="{{setExtB}}"><span class="mono faint">{{ext.b}} px</span></label>
+</div>
+<p class="faint" style="margin:0">Extra room lets the camera move farther before an edge shows. Needs a new outpainting endpoint.</p>
+</sc-if>
+
+<div class="row"><span class="sub" data-s="{{ip2}}">2</span>Describe the fill</div>
+<textarea aria-label="Prompt" class="field" rows="2" value="{{prompt}}" onChange="{{setPrompt}}" placeholder="Enter a positive generative AI prompt..."></textarea>
+<textarea aria-label="Negative prompt" class="field" rows="1" value="{{neg}}" onChange="{{setNeg}}" placeholder="Enter a negative prompt..."></textarea>
+<div class="g3"><label for="stP" class="muted">Strength</label><input id="stP" type="range" min="0" max="1" step="0.01" value="{{strength}}" onChange="{{setStrength}}"><span class="mono" style="text-align:right">{{strengthTxt}}</span>
+<label for="gsP" class="muted">Guidance</label><input id="gsP" type="range" min="1" max="15" step="0.5" value="{{guidance}}" onChange="{{setGuidance}}"><span class="mono" style="text-align:right">{{guidance}}</span></div>
+<label class="row muted"><input type="checkbox" checked="{{crop}}" onChange="{{toggleCrop}}">Crop to region of interest</label>
+<sc-if value="{{genIsPrimary}}" hint-placeholder-val="{{true}}"><button class="btn btn-primary" style="height:36px" onClick="{{generate}}" disabled="{{cantGenerate}}"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>{{genLabel}} <span class="kbd">Ctrl ↵</span></button></sc-if>
+<sc-if value="{{genIsSecondary}}" hint-placeholder-val="{{false}}"><button class="btn" style="height:32px" onClick="{{generate}}" disabled="{{cantGenerate}}"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"></path></svg>Regenerate</button></sc-if>
+<sc-if value="{{modeHoles}}" hint-placeholder-val="{{true}}">
+<div class="row"><button class="btn btn-sm" style="flex-grow:1" onClick="{{quickFill}}" disabled="{{cantQuick}}" title="Fill the mask from surrounding pixels, no AI">Fill</button><button class="btn btn-sm" style="flex-grow:1" onClick="{{quickEnhance}}" disabled="{{cantQuick}}" title="Refine the slice with the AI model">Enhance</button><button class="btn btn-sm" style="flex-grow:1" onClick="{{quickErase}}" disabled="{{cantQuick}}" title="Make the masked area transparent">Erase</button></div>
+</sc-if>
+
+<sc-if value="{{jobHere.inpaint}}" hint-placeholder-val="{{false}}">
+<div style="display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg2)">
+<div class="row"><svg class="ic spin" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9"></path></svg><span style="font-weight:500">{{job.label}}</span><span style="flex-grow:1"></span><span class="mono faint">{{job.pct}}%</span></div>
+<div class="bar"><div style="width:{{job.pct}}%"></div></div>
+<div class="row"><span class="faint" style="flex-grow:1">{{job.detail}}</span><button class="btn btn-ghost btn-sm" onClick="{{cancelJob}}">Cancel</button></div>
+</div>
+</sc-if>
+
+<sc-if value="{{inpaintErr}}" hint-placeholder-val="{{false}}">
+<div role="alert" style="display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--errLine);border-radius:8px;background:var(--errSoft)">
+<div style="font-weight:600;color:var(--err)">Generation failed</div>
+<div class="muted" style="line-height:1.4">{{errText}}</div>
+<div class="row"><button class="btn btn-sm" onClick="{{generate}}">Retry</button><button class="btn btn-sm" onClick="{{openSettings}}">Open settings</button><button class="btn btn-ghost btn-sm" onClick="{{openLog}}">View log</button></div>
+</div>
+</sc-if>
+
+<div class="row" style="margin-top:2px"><span class="sub" data-s="{{ip3}}">3</span>Pick a candidate<span style="flex-grow:1"></span><span class="faint">1–3 · hover to preview</span></div>
+<div role="radiogroup" aria-label="Inpainting candidates" style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px">
+<sc-for list="{{candTiles}}" as="c" hint-placeholder-count="3">
+<sc-if value="{{c.ready}}" hint-placeholder-val="{{true}}"><button role="radio" class="cand" aria-checked="{{c.on}}" onClick="{{c.pick}}" onMouseEnter="{{c.enter}}" onMouseLeave="{{c.leave}}" aria-label="{{c.label}}"><img src="{{c.src}}" alt="" style="width:100%;height:100%;object-fit:cover;display:block;{{c.imgStyle}}"><span class="kbd">{{c.n}}</span></button></sc-if>
+<sc-if value="{{c.loading}}" hint-placeholder-val="{{false}}"><div class="skel" aria-label="Generating"></div></sc-if>
+<sc-if value="{{c.empty}}" hint-placeholder-val="{{false}}"><div style="height:128px;border-radius:6px;border:1px dashed var(--line2)"></div></sc-if>
+</sc-for>
+</div>
+<button class="btn btn-primary" style="height:36px" onClick="{{apply}}" disabled="{{noPick}}"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"></path></svg>{{applyLabel}} <span class="kbd">A</span></button>
+</div>
+</sc-if>
+
+<sc-if value="{{insp.ground}}" hint-placeholder-val="{{false}}">
+<div class="sec">
+<h2 class="label" style="color:var(--accTx2)">Ground plane</h2>
+<p class="muted" style="margin:0;line-height:1.5">One slice can lie flat as the ground, so it recedes toward the horizon instead of standing up like a card.</p>
+<div role="radiogroup" aria-label="Ground slice" style="display:flex;flex-direction:column;gap:2px">
+<sc-for list="{{groundOpts}}" as="g" hint-placeholder-count="4"><label class="row" style="padding:4px 6px;border-radius:6px;cursor:pointer"><input type="radio" name="gnd" checked="{{g.on}}" onChange="{{g.set}}"><span class="mono" style="flex-grow:1">{{g.file}}</span><span class="chip">{{g.depth}}</span></label></sc-for>
+<label class="row" style="padding:4px 6px;cursor:pointer"><input type="radio" name="gnd" checked="{{noGround}}" onChange="{{clearGround}}"><span class="muted">No ground plane</span></label>
+</div>
+<button class="btn" onClick="{{fitGround}}" disabled="{{noGround}}" title="Put the horizon on the ground's top edge and the ground under the nearest object">Fit ground to horizon</button>
+</div>
+<div class="sec">
+<h2 class="label">Horizon and distance</h2>
+<div class="row"><span class="muted" style="flex-grow:1">Horizon row</span><span class="mono">{{horizon}}</span><span class="faint">· pitch {{pitch}}°</span></div>
+<p class="faint" style="margin:0">Drag the orange line on the image.</p>
+<div class="g3"><label for="gd" class="muted">Ground dist.</label><input id="gd" type="range" min="10" max="300" value="{{groundDist}}" onChange="{{setGroundDist}}"><span class="mono" style="text-align:right">{{groundDist}}</span></div>
+<figure style="margin:0;padding:8px;border-radius:6px;background:var(--bg2);border:1px solid var(--line)">
+<svg width="280" height="118" viewBox="0 0 280 118" role="img" aria-label="Side view of the scene: camera, cards and ground">
+<path d="{{side.frustum}}" fill="var(--selSoft)" stroke="none"></path>
+<line x1="14" y1="{{side.camY}}" x2="270" y2="{{side.camY}}" stroke="var(--tx3)" stroke-dasharray="3 3"></line>
+<line x1="14" y1="{{side.camY}}" x2="270" y2="{{side.pitchY}}" stroke="var(--hz)" stroke-width="1.5"></line>
+<sc-for list="{{side.cards}}" as="c" hint-placeholder-count="4"><line x1="{{c.x}}" y1="{{c.y1}}" x2="{{c.x}}" y2="{{c.y2}}" stroke="{{c.color}}" stroke-width="2"></line></sc-for>
+<line x1="{{side.gx1}}" y1="{{side.gy}}" x2="{{side.gx2}}" y2="{{side.gy}}" stroke="var(--ok)" stroke-width="2"></line>
+<circle cx="14" cy="{{side.camY}}" r="4" fill="var(--sel)"></circle>
+</svg>
+<figcaption class="faint">Camera (blue), cards by depth, ground (green), horizon pitch (orange)</figcaption>
+</figure>
+</div>
+</sc-if>
+
+<sc-if value="{{insp.preview}}" hint-placeholder-val="{{false}}">
+<div class="sec">
+<h2 class="label" style="color:var(--accTx2)">Preview</h2>
+<div role="tablist" aria-label="Preview mode" class="seg" style="align-self:stretch"><button role="tab" aria-selected="{{v2d}}" onClick="{{viewParallax}}" style="flex-grow:1;justify-content:center">Parallax 2D</button><button role="tab" aria-selected="{{v3d}}" onClick="{{view3d}}" style="flex-grow:1;justify-content:center">3D</button></div>
+<p class="faint" style="margin:0">{{camHint}}</p>
+</div>
+<div class="sec">
+<h2 class="label">Camera</h2>
+<div class="g3"><label for="cd" class="muted">Distance</label><input id="cd" type="range" min="10" max="400" value="{{camDist}}" onChange="{{setCamDist}}"><span class="mono" style="text-align:right">{{camDist}}</span>
+<label for="md" class="muted">Max dist.</label><input id="md" type="range" min="100" max="1000" value="{{maxDist}}" onChange="{{setMaxDist}}"><span class="mono" style="text-align:right">{{maxDist}}</span>
+<label for="fl" class="muted">Focal len.</label><input id="fl" type="range" min="10" max="120" value="{{focal}}" onChange="{{setFocal}}"><span class="mono" style="text-align:right">{{focal}}</span></div>
+<p class="faint" style="margin:0">Used by the preview, the horizon pitch and the export.</p>
+</div>
+</sc-if>
+
+</div>
+
+<sc-if value="{{nextCard.show}}" hint-placeholder-val="{{true}}">
+<div style="border-top:1px solid var(--line);padding:10px 14px;display:flex;align-items:center;gap:10px;background:var(--bg2);flex-shrink:0">
+<div style="flex-grow:1"><div class="faint">Next step</div><div style="font-weight:500">{{nextCard.text}}</div></div>
+<button class="btn" style="height:30px" onClick="{{nextCard.go}}">{{nextCard.btn}} →</button>
+</div>
+</sc-if>
+</aside>
+</div>
+
+<sc-if value="{{logOpen}}" hint-placeholder-val="{{false}}">
+<div role="log" aria-label="Log" style="height:180px;flex-shrink:0;background:var(--bg1);border-top:1px solid var(--line);display:flex;flex-direction:column">
+<div class="row" style="height:32px;padding:0 8px 0 14px;border-bottom:1px solid var(--line)"><span class="label" style="flex-grow:1">Log</span><button class="btn btn-ghost btn-sm" onClick="{{clearLog}}">Clear</button><button class="btn btn-ghost ibtn btn-sm" aria-label="Close log" onClick="{{toggleLog}}">×</button></div>
+<div style="flex-grow:1;overflow:auto;padding:6px 14px;display:flex;flex-direction:column-reverse;gap:2px" class="mono">
+<sc-for list="{{logRows}}" as="l" hint-placeholder-count="3"><div style="font-size:12px;display:flex;gap:12px"><span style="color:var(--tx3)">{{l.t}}</span><span style="color:{{l.color}}">{{l.msg}}</span></div></sc-for>
+</div>
+</div>
+</sc-if>
+
+<footer style="height:28px;flex-shrink:0;display:flex;align-items:center;gap:14px;padding:0 12px;background:var(--bg1);border-top:1px solid var(--line);font-size:12px;color:var(--tx2)">
+<sc-if value="{{status.job}}" hint-placeholder-val="{{false}}">
+<span class="row" style="gap:8px"><svg class="ic spin" viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M12 3a9 9 0 1 0 9 9"></path></svg>{{job.label}}<span class="bar" style="width:120px;display:inline-block"><div style="width:{{job.pct}}%"></div></span><span class="mono">{{job.pct}}%</span><button class="btn btn-ghost btn-sm" style="height:20px" onClick="{{cancelJob}}">Cancel</button></span>
+</sc-if>
+<sc-if value="{{status.msg}}" hint-placeholder-val="{{true}}"><span style="color:{{status.color}}">{{status.text}}</span></sc-if>
+<span style="flex-grow:1"></span>
+<button class="btn btn-ghost btn-sm" style="height:22px;border:1px dashed #8b6fd6;color:#a996e6" onClick="{{toggleDemo}}" title="Prototype only — not part of the product">Prototype states ▾</button>
+<sc-if value="{{loaded}}" hint-placeholder-val="{{true}}"><span class="mono" style="font-size:11px">480 × 856</span></sc-if>
+<button class="btn btn-ghost btn-sm" style="height:22px" onClick="{{toggleLog}}" aria-pressed="{{logOpen}}"><svg class="ic" viewBox="0 0 24 24" style="width:14px;height:14px"><path d="M4 5h16v14H4z"></path><path d="M8 10l3 2-3 2M13 15h3"></path></svg>Log · {{logCount}} <span class="kbd">`</span></button>
+<button class="btn btn-ghost btn-sm" style="height:22px" onClick="{{openShortcuts}}">Shortcuts <span class="kbd">?</span></button>
+</footer>
+
+<sc-if value="{{demoOpen}}" hint-placeholder-val="{{false}}">
+<div class="float" style="position:absolute;right:210px;bottom:34px;width:230px;padding:6px;z-index:60;border:1px dashed #8b6fd6">
+<div class="faint" style="padding:4px 8px">Jump to a state (prototype only)</div>
+<sc-for list="{{demos}}" as="d" hint-placeholder-count="7"><button class="btn btn-ghost" style="width:100%;justify-content:flex-start" onClick="{{d.go}}">{{d.label}}</button></sc-for>
+</div>
+</sc-if>
+
+<sc-if value="{{exportOpen}}" hint-placeholder-val="{{false}}">
+<div class="modal-bg" onClick="{{closeExportBg}}">
+<div role="dialog" aria-modal="true" aria-labelledby="exT" class="float" style="width:640px;display:flex;flex-direction:column" onClick="{{stop}}">
+<div class="row" style="padding:14px 16px;border-bottom:1px solid var(--line)"><h2 id="exT" style="margin:0;font-size:16px;font-weight:600;flex-grow:1">Export</h2><button class="btn btn-ghost ibtn" aria-label="Close export" onClick="{{closeExport}}">×</button></div>
+<div style="display:flex;min-height:380px">
+<div role="tablist" aria-orientation="vertical" aria-label="Export type" style="width:190px;border-right:1px solid var(--line);padding:10px;display:flex;flex-direction:column;gap:4px">
+<button role="tab" class="lrow" style="height:auto;padding:10px" aria-selected="{{exGltf}}" onClick="{{exTabGltf}}"><svg class="ic" viewBox="0 0 24 24"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M4 7.5l8 4.5 8-4.5M12 12v9"></path></svg><span><b style="font-weight:600">3D scene</b><br><span class="faint">glTF for Blender, Unreal</span></span></button>
+<button role="tab" class="lrow" style="height:auto;padding:10px" aria-selected="{{exAnim}}" onClick="{{exTabAnim}}"><svg class="ic" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="2"></rect><path d="M10 9l5 3-5 3z"></path></svg><span><b style="font-weight:600">Animation</b><br><span class="faint">Parallax camera move</span></span></button>
+</div>
+<div style="flex-grow:1;padding:16px;display:flex;flex-direction:column;gap:12px">
+<sc-if value="{{exGltf}}" hint-placeholder-val="{{true}}">
+<div class="g3"><label for="xcd" class="muted">Camera dist.</label><input id="xcd" type="range" min="10" max="400" value="{{camDist}}" onChange="{{setCamDist}}"><span class="mono" style="text-align:right">{{camDist}}</span>
+<label for="xmd" class="muted">Max dist.</label><input id="xmd" type="range" min="100" max="1000" value="{{maxDist}}" onChange="{{setMaxDist}}"><span class="mono" style="text-align:right">{{maxDist}}</span>
+<label for="xfl" class="muted">Focal len.</label><input id="xfl" type="range" min="10" max="120" value="{{focal}}" onChange="{{setFocal}}"><span class="mono" style="text-align:right">{{focal}}</span>
+<label for="xmesh" class="muted">Displace</label><input id="xmesh" type="range" min="0" max="100" value="{{meshDisp}}" onChange="{{setMeshDisp}}"><span class="mono" style="text-align:right">{{meshDisp}}</span></div>
+<label class="row muted"><input type="checkbox" checked="{{dof}}" onChange="{{toggleDof}}">Support depth-of-field effect</label>
+<div class="row muted" style="padding:8px 10px;border-radius:6px;background:var(--bg2);border:1px solid var(--line)"><span style="flex-grow:1">Ground plane: <span class="mono">{{groundFile}}</span> · distance <span class="mono">{{groundDist}}</span></span><button class="btn btn-ghost btn-sm" onClick="{{goGroundFromExport}}">Edit</button></div>
+<div class="row"><button class="btn" onClick="{{upscale}}" disabled="{{busy}}" title="Upscale slice textures so you can zoom in further">Upscale textures</button><span class="faint">{{upscaleNote}}</span></div>
+<span style="flex-grow:1"></span>
+<sc-if value="{{jobHere.export}}" hint-placeholder-val="{{false}}"><div class="bar"><div style="width:{{job.pct}}%"></div></div><span class="faint">{{job.label}} · {{job.pct}}%</span></sc-if>
+<div class="row" style="justify-content:flex-end"><sc-if value="{{gltfReady}}" hint-placeholder-val="{{false}}"><span class="row" style="color:var(--ok);flex-grow:1"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"></path></svg>Scene ready · 4 cards</span><button class="btn" onClick="{{view3dFromExport}}">View in 3D</button></sc-if><button class="btn btn-primary" onClick="{{exportGltf}}" disabled="{{busy}}">{{gltfBtn}}</button></div>
+</sc-if>
+<sc-if value="{{exAnim}}" hint-placeholder-val="{{false}}">
+<div class="g3"><label for="nf" class="muted">Frames</label><input id="nf" type="range" min="10" max="300" step="10" value="{{frames}}" onChange="{{setFrames}}"><span class="mono" style="text-align:right">{{frames}}</span></div>
+<p class="faint" style="margin:0">Renders a camera move across the scene with the current camera settings. At 30 fps, {{frames}} frames is about {{seconds}} s.</p>
+<span style="flex-grow:1"></span>
+<sc-if value="{{jobHere.anim}}" hint-placeholder-val="{{false}}"><div class="bar"><div style="width:{{job.pct}}%"></div></div><span class="faint">{{job.detail}}</span></sc-if>
+<div class="row" style="justify-content:flex-end"><sc-if value="{{animReady}}" hint-placeholder-val="{{false}}"><span class="row" style="color:var(--ok);flex-grow:1"><svg class="ic" viewBox="0 0 24 24"><path d="M5 12l5 5 9-10"></path></svg>Animation rendered</span></sc-if><button class="btn btn-primary" onClick="{{exportAnim}}" disabled="{{busy}}">Render animation</button></div>
+</sc-if>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{settingsOpen}}" hint-placeholder-val="{{false}}">
+<div class="modal-bg" onClick="{{closeSettingsBg}}">
+<div role="dialog" aria-modal="true" aria-labelledby="seT" class="float" style="width:720px;height:600px;display:flex;flex-direction:column" onClick="{{stop}}">
+<div class="row" style="padding:14px 16px;border-bottom:1px solid var(--line)"><h2 id="seT" style="margin:0;font-size:16px;font-weight:600;flex-grow:1">Settings</h2><button class="btn btn-ghost ibtn" aria-label="Close settings" onClick="{{closeSettings}}">×</button></div>
+<div style="display:flex;flex-grow:1;min-height:0">
+<nav aria-label="Settings sections" style="width:170px;border-right:1px solid var(--line);padding:10px">
+<a class="navl" href="#s-inpaint">Inpainting</a><a class="navl" href="#s-depth">Depth</a><a class="navl" href="#s-masks">Masks</a><a class="navl" href="#s-slices">Slicing</a><a class="navl" href="#s-project">Project</a><a class="navl" href="#s-look">Appearance</a>
+</nav>
+<div style="flex-grow:1;overflow:auto;padding:4px 18px 18px">
+<section id="s-inpaint" style="display:flex;flex-direction:column;gap:8px;padding-top:14px">
+<h3 class="label">Inpainting</h3>
+<label for="im" class="muted">Model</label>
+<select id="im" class="field" value="{{inpaintModel}}" onChange="{{setInpaintModel}}"><option value="kandinsky">Kandinsky</option><option value="sd15">SD 1.5</option><option value="sdxl">SD XL 1.0</option><option value="sd3">StableDiffusion3</option><option value="flux">FLUX.1 Fill Dev</option><option value="a1111">Automatic1111</option><option value="comfyui">ComfyUI</option><option value="stabilityai">StabilityAI</option><option value="falfoocus">Fal.ai Foocus</option><option value="falflux">Fal.ai Flux General</option><option value="falsd">Fal.ai SD</option><option value="falsdxl">Fal.ai SDXL</option></select>
+<sc-if value="{{needsServer}}" hint-placeholder-val="{{false}}">
+<label for="srv" class="muted">A1111 / ComfyUI server address</label>
+<div class="row"><input id="srv" class="field mono" value="{{server}}" onChange="{{setServer}}"><button class="btn" onClick="{{testServer}}">Test connection</button></div>
+<span class="faint" style="color:{{serverColor}}">{{serverNote}}</span>
+</sc-if>
+<sc-if value="{{isComfy}}" hint-placeholder-val="{{false}}"><label class="muted">ComfyUI workflow</label><button class="btn" style="border-style:dashed;height:44px" onClick="{{uploadWorkflow}}">{{workflowLabel}}</button></sc-if>
+<sc-if value="{{needsKey}}" hint-placeholder-val="{{false}}">
+<label for="key" class="muted">API key (StabilityAI / Fal.ai)</label>
+<div class="row"><input id="key" type="password" class="field mono" value="{{apiKey}}" onChange="{{setKey}}"><button class="btn" onClick="{{testKey}}">Test API key</button></div>
+</sc-if>
+</section>
+<section id="s-depth" style="display:flex;flex-direction:column;gap:8px;padding-top:18px">
+<h3 class="label">Depth</h3>
+<label for="dm2" class="muted">Depth model</label>
+<select id="dm2" class="field" value="{{depthModel}}" onChange="{{setDepthModel}}"><option value="midas">MiDaS</option><option value="dinov2">DINOv2</option></select>
+</section>
+<section id="s-masks" style="display:flex;flex-direction:column;gap:8px;padding-top:18px">
+<h3 class="label">Masks</h3>
+<div class="g3"><label for="mp" class="muted">Padding</label><input id="mp" type="range" min="0" max="100" value="{{maskPad}}" onChange="{{setMaskPad}}"><span class="mono" style="text-align:right">{{maskPad}}</span>
+<label for="mb" class="muted">Blur</label><input id="mb" type="range" min="0" max="100" value="{{maskBlur}}" onChange="{{setMaskBlur}}"><span class="mono" style="text-align:right">{{maskBlur}}</span></div>
+</section>
+<section id="s-slices" style="display:flex;flex-direction:column;gap:8px;padding-top:18px">
+<h3 class="label">Slicing</h3>
+<div class="g3"><label for="ns2" class="muted">Default slices</label><input id="ns2" type="range" min="2" max="10" value="{{numSlices}}" onChange="{{setNumSlices}}"><span class="mono" style="text-align:right">{{numSlices}}</span></div>
+</section>
+<section id="s-project" style="display:flex;flex-direction:column;gap:8px;padding-top:18px">
+<h3 class="label">Project</h3>
+<div class="row"><button class="btn" onClick="{{loadState}}">Load state…</button><button class="btn" onClick="{{saveState}}">Save state</button></div>
+</section>
+<section id="s-look" style="display:flex;flex-direction:column;gap:8px;padding-top:18px">
+<h3 class="label">Appearance</h3>
+<div role="radiogroup" aria-label="Theme" class="seg" style="align-self:flex-start"><button role="radio" aria-checked="{{isDark}}" onClick="{{setDark}}">Dark</button><button role="radio" aria-checked="{{isLight}}" onClick="{{setLight}}">Light</button></div>
+</section>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{shortcutsOpen}}" hint-placeholder-val="{{false}}">
+<div class="modal-bg" onClick="{{closeShortcuts}}">
+<div role="dialog" aria-modal="true" aria-labelledby="scT" class="float" style="width:640px;padding:16px 18px;display:flex;flex-direction:column;gap:12px" onClick="{{stop}}">
+<div class="row"><h2 id="scT" style="margin:0;font-size:16px;font-weight:600;flex-grow:1">Keyboard shortcuts</h2><button class="btn btn-ghost ibtn" aria-label="Close" onClick="{{closeShortcuts}}">×</button></div>
+<div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 28px">
+<sc-for list="{{shortcuts}}" as="k" hint-placeholder-count="12"><div class="row" style="justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line)"><span class="muted">{{k.d}}</span><span class="kbd">{{k.k}}</span></div></sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+constructor(props) {
+super(props);
+this.B = {
+input: '/_blob/68914d6266177c042be19d7ebb56d380',
+depth: '/_blob/08bff8cf8ad90eb25d1a364f9ed4e516',
+slices: ['/_blob/ced6eba052bc96cb217eb6c099dea041', '/_blob/c660983aa3aaa7718fd4404b7976e90a', '/_blob/f2bd8c3b7ab8abd428daec3de330097f', '/_blob/d4d984d04246ec7f8c004cca672ede6b'],
+mask: '/_blob/1502248b2500767a88e8c0e464292152',
+cands: ['/_blob/bad3f813fea2a35dbdaf2af300cca64c', '/_blob/2bc3718ffad6273aa3f8d17922ad1176', '/_blob/ed9d8d98f98b4c940f3463a1254c9d80'],
+candS: ['/_blob/d1abbf609e9c29b301eadea5e4803f23', '/_blob/0eddb40dc597113151d7956f0d5676ee', '/_blob/4623f174c3ff2440d689147e89905bae'],
+objs: ['/_blob/572bc8fce1e7b242bd4e16cf44dbc391', '/_blob/04888c6d6f94def6322e241a1a38fe22', '/_blob/1f3c0b4d503ef01a0425435b828e25b6', '/_blob/5e79a779b8dd138b2cafd2dab3633605', '/_blob/0d14e021ba749a84a01959e5621f2445', '/_blob/8fbb1cb68a102cbd03c7c64a2e7201bc', '/_blob/a96aeb7e4f8233d78939b1f44aa743e5', '/_blob/c6d5d9e0579170ab15684d6d7250c36b', '/_blob/3c6053f95b5cac53cdc4172c68b3dc52'],
+outpaint: '/_blob/d3f5b7b7dbad6ab570c5597b0ee54f78'
+};
+this.OBJ = [
+{ name: 'rocks', depth: 160 }, { name: 'cyan crystal', depth: 37 }, { name: 'pink crystal', depth: 34 }, { name: 'orange crystal', depth: 76 },
+{ name: 'red crystal', depth: 77 }, { name: 'purple crystal', depth: 39 }, { name: 'blue crystal', depth: 99 }, { name: 'red flower', depth: 235 }, { name: 'orange flower', depth: 236 }
+];
+this.GRID = ["................................................","................................................","................................................","................................................","................................................","................................................","................................................","................................................","................................................","................................................","................................................","................................................","................................................","...........................................33...",".............11...........................3333..",".............11...........................33333.","............1111.........................333333.","............11111.......................33333333","............11111.......................33333333","............111111......................33333333","...........1111111......................33333333","...........1111111......................33333333","..........11111111......................33333333","..........111111112222222222......444...33333333","..........1111111122222222222....4444...33333333","..........1111111122222222222....4444...33333333","555.......11111111222222222222....444...33333333","5555......11111111222222222222....4444..33333333","5555......11111111222222222222....4444..33333333","55555.....11111111222222222222....4444..33333333","555555....11111111.22222222222....4444..33333333","555555....11111111.22222222222....4444.333333333","555555....11111111.22222222222....4444.333333333","555555....11111111122222222222....4444.333333333","555555....1111111112222222222.....4444.333333333","555555....1111111112222222222.....44444333333333","555555....1111111112222222222.....44444333333333","555555....1111111112222222222.....44444333333333","555555....1111111112222222222.....44444333333333","555555....1111111112222222222.....44444333333333","555555....11111111122222222222....444..333333333","55555.....11111111.22222222222....444..333333333","5555......11111111222222222222....444..333333333","5.5.......11111111222222222222....444..333333333","..........11111111222222222222...4444..333333333","..........111111112222222222222...444..333333333","..........111111112222222222222.66444..333333333","..........1111111112222222222...66644..3333333..","...........1111111122222222....66666....33......",".............11111.22.22222...6666666...........","...................2.........66666666...........",".............................666666666..........",".............................6666666............",".............................6666666............",".............................66666666...........",".............................66666666...........",".............................66666666...........","..............................6.66666...........",".................................6..............","..0.......000...................................",".0000....00000000000............................","000000..0000000000000........................7.7","000000.00000000000000000..................777777","000000000000000000000000...............777777777","000000000000000000000000...............777777777","000000000000000000000000................77777777","000000000000000000000000.................7777777","00000000000000000000000....................777..","00000000000000000000000.........................","0000000000000000000000..........................","0000000000000000000000..........................","00000000000000000000000.........................","00000000000000000000000.........................","00000000000000000000000.........................","00000000000000000000000.........................","00000000000000000000000.........................","00000000000000000000000.........................","000000000000000000000000........................","000000000000000000000000...............888......","000000000000000000000000.............888888.....","000000000000000000000000............8888888.....","0000000000000000000000000...........8888888.....","0000000000000000000000000.............888.......","0000000000000000000000000.......................","0000000000000000000000000.......................","0000000000000000000000000......................."];
+this.IW = 381; this.IH = 680; this.S = 381 / 480;
+this.RULER_H = 460;
+this.timer = null; this.done = null; this.toastSeq = 1;
+this.state = this.initial();
+}
+
+initial() {
+return {
+stage: 'empty', depthReady: false, step: 'image', tool: 'pan', view: 'input', theme: 'dark', checker: true, zoom: 1,
+slices: [], sel: null, nextN: 0, clip: null,
+pts: [], multi: false, multiPending: false, samObjs: [], samBusy: false, samMiss: false, invert: false, feather: false,
+splitOpen: false, numSlices: 4,
+brushMode: 'paint', brush: 48, dots: [], preset: false, painting: false, cursor: null,
+prompt: 'clear blue sky, soft morning haze', neg: 'crystals, flowers, text, blurry', strength: 0.8, guidance: 7.5, crop: true,
+mode: 'holes', ext: { l: 96, r: 96, t: 0, b: 0 },
+cands: 0, candKind: 'holes', pick: null, hover: null, inpaintErr: false, errText: '',
+job: null, toasts: [], log: [], logOpen: false, demoOpen: false,
+exportOpen: false, exTab: 'gltf', gltfReady: false, animReady: false, upscaled: false,
+settingsOpen: false, shortcutsOpen: false,
+cam: { x: 0, y: 0, z: 0 }, rot: -18, orbiting: false, previewed: false, exported: false,
+horizon: 516, dragH: false, dragDepth: null, groundDist: 78,
+camDist: 100, maxDist: 500, focal: 26, meshDisp: 0, dof: false, frames: 100,
+depthModel: 'dinov2', inpaintModel: 'sdxl', server: 'http://127.0.0.1:8188', serverOk: null, apiKey: '', maskPad: 50, maskBlur: 50, workflow: false
+};
+}
+
+componentWillUnmount() { if (this.timer) clearInterval(this.timer); }
+
+now() { const d = new Date(); return d.toTimeString().slice(0, 8); }
+log(msg, level) { this.setState(s => ({ log: s.log.concat([{ t: this.now(), msg: msg, level: level || 'info' }]).slice(-200) })); }
+toast(kind, title, body, actions) {
+const id = this.toastSeq++;
+this.setState(s => ({ toasts: s.toasts.filter(t => t.kind !== kind || kind === 'error').concat([{ id: id, kind: kind, title: title, body: body, actions: actions || [] }]).slice(-3) }));
+if (kind !== 'error') setTimeout(() => this.dismiss(id), 3200);
+}
+dismiss(id) { this.setState(s => ({ toasts: s.toasts.filter(t => t.id !== id) })); }
+
+startJob(kind, label, detail, dur, onDone, details) {
+if (this.state.job) return false;
+if (this.timer) clearInterval(this.timer);
+const start = Date.now();
+this.done = onDone;
+this.setState({ job: { kind: kind, label: label, detail: detail, p: 0, dur: dur, start: start, details: details || null } });
+this.timer = setInterval(() => {
+const j = this.state.job; if (!j) { clearInterval(this.timer); this.timer = null; return; }
+const p = Math.min(1, (Date.now() - j.start) / j.dur);
+let det = j.detail;
+if (j.details) { const i = Math.min(j.details.length - 1, Math.floor(p * j.details.length)); det = j.details[i]; }
+this.setState({ job: Object.assign({}, j, { p: p, detail: det }) });
+if (p >= 1) { clearInterval(this.timer); this.timer = null; const f = this.done; this.done = null; this.setState({ job: null }); if (f) f(); }
+}, 120);
+return true;
+}
+cancelJob() {
+const j = this.state.job; if (!j) return;
+if (this.timer) clearInterval(this.timer); this.timer = null; this.done = null;
+this.setState({ job: null, cands: j.kind === 'inpaint' ? 0 : this.state.cands });
+this.log('Cancelled: ' + j.label, 'warn');
+this.toast('info', 'Cancelled', j.label + ' was stopped.');
+}
+
+// ---------- slices ----------
+maskCss(objs, invert, feather) {
+if (!objs.length && !invert) return 'opacity:0;';
+if (!objs.length && invert) return '';
+const urls = objs.map(i => 'url(' + this.B.objs[i] + ')');
+let imgs = urls, comp, wk;
+if (invert) { imgs = urls.concat(['linear-gradient(#000,#000)']); comp = urls.map(() => 'exclude').concat(['add']).join(','); wk = urls.map(() => 'xor').concat(['source-over']).join(','); }
+else { comp = urls.map(() => 'add').join(','); wk = urls.map(() => 'source-over').join(','); }
+const list = imgs.join(',');
+return '-webkit-mask-image:' + list + ';mask-image:' + list + ';-webkit-mask-size:100% 100%;mask-size:100% 100%;-webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;mask-composite:' + comp + ';-webkit-mask-composite:' + wk + ';' + (feather ? 'filter:blur(3px);' : '');
+}
+restObjs(slices) { const all = []; slices.forEach(x => { if (!x.rest) (x.objs || []).forEach(o => { if (all.indexOf(o) < 0) all.push(o); }); }); return all; }
+parts(sl, slices) {
+if (sl.rest) return [{ src: this.B.input, style: this.maskCss(this.restObjs(slices), true, false) }];
+const out = [];
+if (sl.src) out.push({ src: sl.src, style: sl.cut && sl.cut.length ? this.maskCss(sl.cut, true, false) : '' });
+if (sl.objs && sl.objs.length) out.push({ src: this.B.input, style: this.maskCss(sl.objs, false, false) });
+return out;
+}
+selSlice() { const s = this.state; return s.slices.find(x => x.id === s.sel) || null; }
+updSel(fn, note) {
+this.setState(s => ({ slices: s.slices.map(x => {
+if (x.id !== s.sel) return x;
+const snap = Object.assign({}, x, { hist: undefined, fut: undefined });
+const nx = fn(Object.assign({}, x));
+nx.hist = (x.hist || []).concat([snap]).slice(-20); nx.fut = [];
+return nx;
+}) }));
+if (note) this.log(note);
+}
+autoSlices() {
+const d = [0, 40, 120, 190];
+return d.map((v, i) => ({ id: 'a' + i, file: 'image_slice_' + i, depth: v, ground: false, src: this.B.slices[i], objs: [], cut: [], inpainted: false, hist: [], fut: [] }));
+}
+autoSplit() {
+if (this.state.job) return;
+this.startJob('split', 'Splitting by depth', 'Cutting ' + this.state.numSlices + ' depth bands', 1400, () => {
+const sl = this.autoSlices();
+this.setState({ slices: sl, sel: 'a0', nextN: 4 });
+this.log('Generated ' + sl.length + ' slices from depth thresholds' + (this.state.numSlices !== 4 ? ' (prototype always makes 4)' : ''));
+this.toast('ok', 'Image split into 4 slices', 'Select a layer to inpaint it, or keep segmenting objects.');
+});
+}
+
+// ---------- SAM ----------
+hit(x, y) { const r = this.GRID[Math.max(0, Math.min(85, Math.floor(y / 10)))]; const c = r ? r[Math.max(0, Math.min(47, Math.floor(x / 10)))] : '.'; return c === '.' ? -1 : parseInt(c, 10); }
+computeSam(pts) {
+const pos = [], neg = [];
+pts.forEach(p => { if (p.obj < 0) return; (p.neg ? neg : pos).push(p.obj); });
+return pos.filter((o, i) => pos.indexOf(o) === i && neg.indexOf(o) < 0);
+}
+samClick(x, y, e) {
+const obj = this.hit(x, y);
+const add = e.shiftKey, sub = e.altKey || e.ctrlKey || e.metaKey;
+const s = this.state;
+let pts;
+if (sub) pts = s.pts.concat([{ x: x, y: y, neg: true, obj: obj }]);
+else if (add || s.multi) pts = s.pts.concat([{ x: x, y: y, neg: false, obj: obj }]);
+else pts = [{ x: x, y: y, neg: false, obj: obj }];
+if (s.multi && !add && !sub) { this.setState({ pts: pts, multiPending: true, samMiss: false }); return; }
+this.setState({ pts: pts, samBusy: true, samMiss: false });
+setTimeout(() => {
+const objs = this.computeSam(pts);
+this.setState({ samBusy: false, samObjs: objs, samMiss: obj < 0 && !sub, multiPending: false });
+if (obj < 0 && !sub) setTimeout(() => this.setState({ samMiss: false }), 3500);
+}, 550);
+}
+runMulti() {
+const pts = this.state.pts; this.setState({ samBusy: true });
+setTimeout(() => { this.setState({ samBusy: false, samObjs: this.computeSam(pts), multiPending: false }); this.log('Segmented ' + pts.length + ' points'); }, 700);
+}
+clearPts() { this.setState({ pts: [], samObjs: [], samMiss: false, multiPending: false, invert: false, feather: false }); }
+newSlice() {
+const s = this.state; const objs = s.samObjs.slice(); if (!objs.length) return;
+const depth = Math.round(objs.reduce((a, o) => a + this.OBJ[o].depth, 0) / objs.length);
+let n = s.nextN; let sl = s.slices.slice();
+const made = [];
+if (!sl.length) { sl.push({ id: 'r' + n, file: 'image_slice_' + n, depth: 0, rest: true, ground: false, objs: [], cut: [], hist: [], fut: [] }); made.push('image_slice_' + n + ' (rest of image)'); n++; }
+const id = 'n' + n;
+const names = objs.map(o => this.OBJ[o].name);
+sl.push({ id: id, file: 'image_slice_' + n, depth: s.invert ? 0 : depth, ground: false, src: null, objs: s.invert ? [] : objs, cut: [], inpainted: false, objLabel: names.join(', '), hist: [], fut: [] });
+made.push('image_slice_' + n);
+this.setState({ slices: sl, sel: id, nextN: n + 1, pts: [], samObjs: [], invert: false, feather: false });
+this.log('Created ' + made.join(' and ') + ' from ' + names.join(', '));
+this.toast('ok', 'New slice · image_slice_' + n, names.join(', ') + ' at depth ' + depth + '. Drag its handle on the ruler to adjust.');
+}
+addToSel() { const o = this.state.samObjs.slice(); const sel = this.selSlice(); if (!o.length || !sel) return; this.updSel(x => { x.objs = (x.objs || []).concat(o.filter(i => (x.objs || []).indexOf(i) < 0)); x.cut = (x.cut || []).filter(i => o.indexOf(i) < 0); return x; }, 'Added mask to ' + sel.file); this.setState({ pts: [], samObjs: [] }); }
+removeFromSel() { const o = this.state.samObjs.slice(); const sel = this.selSlice(); if (!o.length || !sel) return; this.updSel(x => { x.objs = (x.objs || []).filter(i => o.indexOf(i) < 0); if (x.src) x.cut = (x.cut || []).concat(o); return x; }, 'Removed mask from ' + sel.file); this.setState({ pts: [], samObjs: [] }); }
+
+// ---------- steps / tools ----------
+goStep(id) {
+const s = this.state;
+if (s.stage === 'empty' && id !== 'image') return;
+if (id === 'export') { this.setState({ exportOpen: true }); return; }
+const p = { step: id };
+if (id === 'image') { p.view = 'input'; p.tool = 'pan'; }
+if (id === 'depth') { p.view = 'depth'; p.tool = 'pan'; }
+if (id === 'slices') { p.view = 'input'; p.tool = 'segment'; }
+if (id === 'inpaint') { p.view = 'slice'; p.tool = s.mode === 'extend' ? 'extend' : 'brush'; if (!s.sel && s.slices.length) p.sel = this.sorted(s.slices)[s.slices.length - 1].id; }
+if (id === 'ground') { p.view = 'composite'; p.tool = 'horizon'; }
+if (id === 'preview') { p.view = 'parallax'; p.tool = 'pan'; p.previewed = true; }
+this.setState(p);
+}
+setTool(t) {
+const p = { tool: t };
+if (t === 'segment') { p.view = 'input'; p.step = 'slices'; }
+if (t === 'brush') { p.view = 'slice'; p.step = 'inpaint'; p.mode = 'holes'; }
+if (t === 'extend') { p.view = 'slice'; p.step = 'inpaint'; p.mode = 'extend'; }
+if (t === 'horizon') { if (['composite', 'input', 'depth'].indexOf(this.state.view) < 0) p.view = 'composite'; p.step = 'ground'; }
+this.setState(p);
+}
+setView(v) {
+const p = { view: v };
+if ((v === 'parallax' || v === '3d')) { p.previewed = true; }
+if (v === 'slice' && this.state.tool === 'segment') p.tool = 'pan';
+if ((v === 'parallax' || v === '3d') && this.state.step !== 'preview') p.step = 'preview';
+this.setState(p);
+}
+sorted(sl) { return sl.slice().sort((a, b) => b.depth - a.depth); }
+
+// ---------- canvas pointer ----------
+imgPt(e) { if (!this.imgEl) return null; const r = this.imgEl.getBoundingClientRect(); return { x: (e.clientX - r.left) / r.width * 480, y: (e.clientY - r.top) / r.height * 856, rx: (e.clientX - r.left) / r.width, ry: (e.clientY - r.top) / r.height, inside: e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom }; }
+canvasDown(e) {
+const s = this.state; if (s.stage !== 'work' || s.job && s.job.kind === 'depth') return;
+const p = this.imgPt(e); if (!p) return;
+if (s.view === '3d') { this.setState({ orbiting: true, orbitX: e.clientX, orbitRot: s.rot }); return; }
+if (!p.inside) return;
+if (s.tool === 'segment') { this.samClick(p.x, p.y, e); return; }
+if (s.tool === 'brush' && s.view === 'slice' && s.sel) { this.setState({ painting: true, cands: s.cands, inpaintErr: false }); this.paintAt(p.x, p.y); }
+}
+paintAt(x, y) {
+const s = this.state; const r = s.brush / 2;
+if (s.brushMode === 'erase') { this.setState({ dots: s.dots.filter(d => (d.x - x) * (d.x - x) + (d.y - y) * (d.y - y) > r * r) }); return; }
+const last = s.dots[s.dots.length - 1];
+if (last && (last.x - x) * (last.x - x) + (last.y - y) * (last.y - y) < (r * r) / 9) return;
+this.setState({ dots: s.dots.concat([{ x: x, y: y, r: r }]).slice(-900) });
+}
+move(e) {
+const s = this.state;
+if (s.dragH) { const p = this.imgPt(e); if (p) this.setState({ horizon: Math.max(0, Math.min(855, Math.round(p.y))) }); return; }
+if (s.dragDepth) { if (!this.rulerEl) return; const r = this.rulerEl.getBoundingClientRect(); const d = Math.round(255 - (e.clientY - r.top) / r.height * 255); const v = Math.max(0, Math.min(255, d)); this.setState(st => ({ slices: st.slices.map(x => x.id === st.dragDepth ? Object.assign({}, x, { depth: v }) : x) })); return; }
+if (s.orbiting) { this.setState({ rot: Math.max(-70, Math.min(70, s.orbitRot + (e.clientX - s.orbitX) * 0.35)) }); return; }
+}
+canvasMove(e) {
+const s = this.state; if (s.stage !== 'work') return;
+const p = this.imgPt(e); if (!p) return;
+if (s.view === 'parallax' && p.inside) { this.setState({ cam: { x: (p.rx - 0.5) * 2, y: (p.ry - 0.5) * 2, z: s.cam.z } }); return; }
+if (s.tool === 'brush' && s.view === 'slice') {
+this.setState({ cursor: p.inside ? { x: p.x, y: p.y } : null });
+if (s.painting && p.inside) this.paintAt(p.x, p.y);
+}
+}
+up() {
+const s = this.state;
+if (s.painting) { this.setState({ painting: false }); }
+if (s.dragH) { this.setState({ dragH: false }); this.log('Horizon set to row ' + s.horizon); }
+if (s.dragDepth) { const sl = s.slices.find(x => x.id === s.dragDepth); this.setState({ dragDepth: null }); if (sl) this.log('Set depth of ' + sl.file + ' to ' + sl.depth); }
+if (s.orbiting) this.setState({ orbiting: false });
+}
+
+// ---------- inpaint ----------
+maskPresent() { const s = this.state; return s.preset || s.dots.length > 0; }
+generate() {
+const s = this.state; const sel = this.selSlice(); if (!sel || s.job) return;
+const extend = s.mode === 'extend';
+if (!extend && !this.maskPresent()) { this.toast('info', 'Paint a mask first', 'Use the brush (B) to paint over the holes you want filled.'); return; }
+const remote = ['a1111', 'comfyui'].indexOf(s.inpaintModel) >= 0 && s.serverOk !== true;
+this.setState({ cands: 0, pick: null, inpaintErr: false, candKind: extend ? 'extend' : 'holes' });
+this.log('Inpainting ' + sel.file + ' with ' + this.modelLabel() + ': "' + s.prompt + '"');
+const steps = remote ? ['Connecting to ' + s.server + '…'] : ['Loading ' + this.modelLabel() + ' (cached)…', 'Candidate 1 of 3 · denoising', 'Candidate 2 of 3 · denoising', 'Candidate 3 of 3 · denoising'];
+this.startJob('inpaint', extend ? 'Extending ' + sel.file : 'Generating 3 candidates', steps[0], remote ? 2200 : (s.slowDemo ? 16000 : 5200), () => {
+if (remote) {
+const msg = 'Could not reach ' + (s.inpaintModel === 'comfyui' ? 'ComfyUI' : 'Automatic1111') + ' at ' + s.server + ' (connection refused).';
+this.setState({ inpaintErr: true, errText: msg + ' Start the server or pick a local model in Settings.' });
+this.log('ERROR inpainting ' + sel.file + ': ' + msg, 'error');
+this.toast('error', 'Inpainting failed', msg, [{ label: 'Retry', key: 'retry' }, { label: 'Open settings', key: 'settings' }, { label: 'View log', key: 'log' }]);
+return;
+}
+this.setState({ cands: 3, pick: 0, slowDemo: false });
+this.log('Generated 3 inpainting candidates for ' + sel.file + ' in ' + (s.slowDemo ? 16 : 5) + ' s');
+}, steps);
+}
+quick(kind) {
+const sel = this.selSlice(); if (!sel || !this.maskPresent() || this.state.job) return;
+const lab = { fill: 'Filling mask', enhance: 'Enhancing slice', erase: 'Erasing masked area' }[kind];
+this.startJob('inpaint', lab, lab + ' on ' + sel.file, 1400, () => {
+this.updSel(x => { x.inpainted = kind !== 'erase' ? true : x.inpainted; return x; }, lab.replace('ing', 'ed').replace('Filled', 'Filled') + ' · ' + sel.file);
+this.toast('ok', lab + ' done', sel.file + ' updated. Undo with Ctrl+Z.');
+});
+}
+applyCand() {
+const s = this.state; const sel = this.selSlice(); if (!sel || s.pick === null || !s.cands) return;
+if (s.candKind === 'extend') {
+this.updSel(x => { x.ext = Object.assign({}, s.ext); x.inpainted = true; return x; }, 'Extended ' + sel.file + ' by ' + s.ext.l + '/' + s.ext.r + '/' + s.ext.t + '/' + s.ext.b + ' px (l/r/t/b)');
+} else {
+const src = this.B.cands[s.pick];
+this.updSel(x => { x.src = src; x.objs = []; x.cut = []; x.inpainted = true; return x; }, 'Applied candidate ' + (s.pick + 1) + ' to ' + sel.file);
+}
+this.setState({ cands: 0, pick: null, dots: [], preset: false, hover: null });
+this.toast('ok', 'Applied to ' + sel.file, 'Next: check it in Composite, or pick another layer with [ and ].');
+}
+modelLabel() { return { kandinsky: 'Kandinsky', sd15: 'SD 1.5', sdxl: 'SD XL 1.0', sd3: 'StableDiffusion3', flux: 'FLUX.1 Fill Dev', a1111: 'Automatic1111', comfyui: 'ComfyUI', stabilityai: 'StabilityAI', falfoocus: 'Fal.ai Foocus', falflux: 'Fal.ai Flux General', falsd: 'Fal.ai SD', falsdxl: 'Fal.ai SDXL' }[this.state.inpaintModel]; }
+
+undo() { const s = this.state; this.setState({ slices: s.slices.map(x => { if (x.id !== s.sel || !x.hist || !x.hist.length) return x; const prev = x.hist[x.hist.length - 1]; const cur = Object.assign({}, x, { hist: undefined, fut: undefined }); return Object.assign({}, prev, { hist: x.hist.slice(0, -1), fut: (x.fut || []).concat([cur]) }); }) }); this.log('Undo on ' + (this.selSlice() || {}).file); }
+redo() { const s = this.state; this.setState({ slices: s.slices.map(x => { if (x.id !== s.sel || !x.fut || !x.fut.length) return x; const nx = x.fut[x.fut.length - 1]; const cur = Object.assign({}, x, { hist: undefined, fut: undefined }); return Object.assign({}, nx, { hist: (x.hist || []).concat([cur]), fut: x.fut.slice(0, -1) }); }) }); this.log('Redo on ' + (this.selSlice() || {}).file); }
+
+// ---------- load / demo ----------
+loadImage() {
+if (this.state.job) return;
+this.setState(Object.assign(this.initial(), { theme: this.state.theme, stage: 'work', step: 'depth', view: 'input', log: [{ t: this.now(), msg: 'Loaded crystals.png (480 × 856)', level: 'info' }] }));
+setTimeout(() => this.startJob('depth', 'Estimating depth · DINOv2', '', 4200, () => {
+this.setState({ depthReady: true, step: 'slices', tool: 'segment', view: 'input' });
+this.log('Depth map ready (DINOv2, 4.2 s)');
+this.toast('ok', 'Depth map ready', 'Now click objects to cut them into layers, or split the image by depth.');
+}, ['Downloading DINOv2 weights (first run only) · 1.2 of 1.3 GB', 'Loading model on GPU…', 'Running depth estimation…', 'Writing depth map…']), 50);
+}
+jump(name) {
+if (this.timer) clearInterval(this.timer); this.timer = null; this.done = null;
+const base = Object.assign(this.initial(), { theme: this.state.theme, stage: 'work', depthReady: true, log: this.state.log });
+const sl = this.autoSlices();
+if (name === 'empty') { this.setState(Object.assign(this.initial(), { theme: this.state.theme })); return; }
+if (name === 'segment') { this.setState(Object.assign(base, { slices: sl, sel: 'a2', nextN: 4, step: 'slices', tool: 'segment', view: 'input', multi: true, pts: [{ x: 430, y: 300, neg: false, obj: 3 }, { x: 362, y: 330, neg: false, obj: 4 }, { x: 330, y: 520, neg: true, obj: 6 }], samObjs: [3, 4] })); return; }
+const inp = Object.assign(base, { slices: sl, sel: 'a0', nextN: 4, step: 'inpaint', tool: 'brush', view: 'slice', preset: true });
+if (name === 'inpaint') { this.setState(Object.assign(inp, { cands: 3, pick: 1 })); return; }
+if (name === 'ground') { sl[2].ground = true; this.setState(Object.assign(base, { slices: sl, sel: 'a2', nextN: 4, step: 'ground', tool: 'horizon', view: 'composite' })); return; }
+if (name === 'export') { sl[0].src = this.B.cands[1]; sl[0].inpainted = true; sl[2].ground = true; this.setState(Object.assign(base, { slices: sl, sel: 'a0', nextN: 4, step: 'preview', view: 'parallax', previewed: true, exportOpen: true })); return; }
+if (name === 'job') { this.setState(Object.assign(inp, { slowDemo: true }), () => this.generate()); return; }
+if (name === 'error') { this.setState(Object.assign(inp, { inpaintModel: 'comfyui', serverOk: false }), () => this.generate()); return; }
+}
+
+key(e) {
+const s = this.state; const tag = (e.target && e.target.tagName) || '';
+if (tag === 'TEXTAREA' || (tag === 'INPUT' && e.target.type !== 'checkbox' && e.target.type !== 'range' && e.target.type !== 'radio')) { if (e.key === 'Enter' && (e.ctrlKey || e.metaKey) && s.step === 'inpaint') { e.preventDefault(); this.generate(); } return; }
+const k = e.key;
+if (k === 'Escape') { if (s.exportOpen || s.settingsOpen || s.shortcutsOpen || s.demoOpen) { this.setState({ exportOpen: false, settingsOpen: false, shortcutsOpen: false, demoOpen: false }); } else this.clearPts(); return; }
+if (s.exportOpen || s.settingsOpen) return;
+if (k === '?') { this.setState({ shortcutsOpen: true }); return; }
+if (k === '`') { this.setState({ logOpen: !s.logOpen }); return; }
+if (s.stage !== 'work') return;
+if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'z') { e.preventDefault(); if (e.shiftKey) this.redo(); else this.undo(); return; }
+if ((e.ctrlKey || e.metaKey) && k === 'Enter') { e.preventDefault(); this.generate(); return; }
+if ((e.ctrlKey || e.metaKey) && k === ',') { e.preventDefault(); this.setState({ settingsOpen: true }); return; }
+if ((e.ctrlKey || e.metaKey) && k.toLowerCase() === 'e') { e.preventDefault(); if (s.slices.length) this.setState({ exportOpen: true }); return; }
+if (e.ctrlKey || e.metaKey) return;
+if (k === 'Enter') { if (e.shiftKey) this.addToSel(); else if (e.altKey) this.removeFromSel(); else this.newSlice(); return; }
+const map = { h: () => this.setTool('pan'), s: () => this.setTool('segment'), b: () => s.sel && this.setTool('brush'), o: () => s.sel && this.setTool('extend'), g: () => s.slices.length && this.setTool('horizon'),
+x: () => this.setState({ brushMode: s.brushMode === 'erase' ? 'paint' : 'erase' }), i: () => this.setView('input'), m: () => this.setView('depth'), l: () => s.sel && this.setView('slice'),
+c: () => s.slices.length && this.setView('composite'), p: () => s.slices.length && this.setView(e.shiftKey ? '3d' : 'parallax'),
+'[': () => this.stepSel(1), ']': () => this.stepSel(-1), a: () => this.applyCand(), '1': () => this.pickN(0), '2': () => this.pickN(1), '3': () => this.pickN(2), Delete: () => this.delSel(), Backspace: () => this.delSel() };
+const f = map[k] || map[k.toLowerCase()]; if (f) { e.preventDefault(); f(); }
+}
+pickN(i) { if (this.state.cands > i) this.setState({ pick: i }); }
+stepSel(d) { const so = this.sorted(this.state.slices); if (!so.length) return; let i = so.findIndex(x => x.id === this.state.sel); i = Math.max(0, Math.min(so.length - 1, i < 0 ? 0 : i + d)); this.setState({ sel: so[i].id, cands: 0, pick: null, dots: [], preset: false }); }
+delSel() { const sel = this.selSlice(); if (!sel) return; const rest = this.state.slices.filter(x => x.id !== sel.id); this.setState({ slices: rest, sel: rest.length ? this.sorted(rest)[0].id : null }); this.log('Deleted ' + sel.file); this.toast('info', 'Deleted ' + sel.file, 'Use Paste if you copied it first.'); }
+
+renderVals() {
+const s = this.state; const B = this.B; const S = this.S; const IW = this.IW; const IH = this.IH;
+const sel = this.selSlice();
+const loaded = s.stage === 'work'; const hasSlices = s.slices.length > 0;
+const busy = !!s.job;
+const anyInp = s.slices.some(x => x.inpainted); const anyGround = s.slices.some(x => x.ground);
+const done = { image: loaded, depth: s.depthReady, slices: hasSlices, inpaint: anyInp, ground: anyGround, preview: s.previewed, export: s.exported };
+const stepDefs = [['image', 'Image'], ['depth', 'Depth'], ['slices', 'Slices'], ['inpaint', 'Inpaint'], ['ground', 'Ground'], ['preview', 'Preview'], ['export', 'Export']];
+const steps = stepDefs.map((d, i) => {
+const current = s.step === d[0] && !(d[0] === 'export');
+return { label: d[1], notFirst: i > 0, current: current ? 'step' : undefined, state: done[d[0]] && !current ? 'done' : 'todo', mark: done[d[0]] && !current ? '✓' : String(i + 1),
+disabled: (!loaded && i > 0) || (d[0] !== 'image' && d[0] !== 'depth' && !s.depthReady) || ((d[0] === 'inpaint' || d[0] === 'ground' || d[0] === 'preview' || d[0] === 'export') && !hasSlices),
+title: d[1] + (done[d[0]] ? ' · done' : ''), go: () => this.goStep(d[0]) };
+});
+
+// layer rows + ruler
+const so = this.sorted(s.slices);
+const RH = this.RULER_H;
+const rows = so.map((x, i) => {
+const cy = 16 + i * 68 + 32; const hy = 24 + (255 - x.depth) / 255 * RH;
+return { id: x.id, file: x.file, depth: x.depth, ground: !!x.ground, inpainted: !!x.inpainted, isRest: !!x.rest, fromSam: !!(x.objLabel), objLabel: x.objLabel || '', selected: x.id === s.sel,
+parts: this.parts(x, s.slices), hy: Math.round(hy - (x.id === s.sel ? 6 : 5)), hlabel: 'Depth of ' + x.file + ': ' + x.depth + (x.ground ? ', ground' : '') + '. Drag to change.',
+path: 'M40 ' + hy.toFixed(1) + ' C 50 ' + hy.toFixed(1) + ', 50 ' + cy + ', 60 ' + cy, stroke: x.id === s.sel ? 'var(--sel)' : (x.ground ? 'var(--ok)' : 'var(--line2)'),
+select: () => this.setState({ sel: x.id, cands: 0, pick: null, dots: [], preset: false, inpaintErr: false }),
+startDrag: (e) => { e.preventDefault(); this.setState({ dragDepth: x.id, sel: x.id }); } };
+});
+const listH = Math.max(RH + 60, 16 + so.length * 68 + 60);
+
+// views
+const vdefs = [['input', 'Input', 'I'], ['depth', 'Depth', 'M'], ['slice', 'Slice', 'L'], ['composite', 'Composite', 'C'], ['parallax', 'Parallax 2D', 'P'], ['3d', '3D', 'Shift+P']];
+const views = vdefs.map(v => ({ label: v[1], on: s.view === v[0], title: v[1] + ' (' + v[2] + ')', disabled: !loaded || (v[0] === 'depth' && !s.depthReady) || (v[0] === 'slice' && !sel) || (['composite', 'parallax', '3d'].indexOf(v[0]) >= 0 && !hasSlices), go: () => this.setView(v[0]) }));
+
+// tool options bar
+const view = s.view;
+const opt = { segment: loaded && s.tool === 'segment' && (view === 'input' || view === 'depth'), brush: loaded && s.tool === 'brush' && view === 'slice' && !!sel && s.mode === 'holes',
+extend: loaded && s.tool === 'extend' && view === 'slice' && !!sel, horizon: loaded && s.tool === 'horizon' && ['composite', 'input', 'depth'].indexOf(view) >= 0, camera: loaded && (view === 'parallax' || view === '3d') };
+opt.none = !opt.segment && !opt.brush && !opt.extend && !opt.horizon && !opt.camera;
+opt.noneText = !loaded ? 'Load an image to begin.' : (s.job && s.job.kind === 'depth' ? 'Tools unlock when the depth map is ready.' : 'Pick a tool on the left: S segment · B brush · O extend · G horizon.');
+
+// canvas layers
+const inWork = loaded;
+const show = {
+checker: s.checker && (view === 'slice' || view === 'composite' || view === 'parallax'), input: view === 'input', depth: view === 'depth', slice: view === 'slice' && !!sel,
+layers: view === 'composite' || view === 'parallax' || view === '3d', samMask: s.tool === 'segment' && (view === 'input' || view === 'depth') && s.samObjs.length > 0 || (s.tool === 'segment' && s.invert && s.samObjs.length > 0),
+horizon: s.tool === 'horizon' && ['composite', 'input', 'depth'].indexOf(view) >= 0, cursor: s.tool === 'brush' && view === 'slice' && !!s.cursor,
+depthJob: !!(s.job && s.job.kind === 'depth'), depthJobCard: !!(s.job && s.job.kind === 'depth'), samBusy: s.samBusy, samMiss: s.samMiss,
+commitBar: s.tool === 'segment' && (s.samObjs.length > 0 || s.multiPending) && !s.samBusy, hoverCand: s.hover !== null && s.cands > 0 && s.candKind === 'holes',
+preset: s.preset && view === 'slice' && s.mode === 'holes', extFrame: view === 'slice' && (s.mode === 'extend' && s.step === 'inpaint' || !!(sel && sel.ext)),
+extPreview: view === 'slice' && ((s.mode === 'extend' && s.cands > 0 && s.hover !== null) || !!(sel && sel.ext)), dragHint3d: view === '3d'
+};
+const ex = (sel && sel.ext && !(s.mode === 'extend' && s.step === 'inpaint')) ? sel.ext : s.ext;
+const extFrameStyle = 'left:' + (-ex.l * S).toFixed(1) + 'px;top:' + (-ex.t * S).toFixed(1) + 'px;right:' + (-ex.r * S).toFixed(1) + 'px;bottom:' + (-ex.b * S).toFixed(1) + 'px';
+const extImgStyle = 'height:' + (IH + (ex.t + ex.b) * S).toFixed(1) + 'px;width:' + (IW + (ex.l + ex.r) * S).toFixed(1) + 'px';
+const selParts = sel ? this.parts(sel, s.slices) : [];
+const dots = s.dots.map(d => ({ style: 'left:' + ((d.x - d.r) * S).toFixed(1) + 'px;top:' + ((d.y - d.r) * S).toFixed(1) + 'px;width:' + (d.r * 2 * S).toFixed(1) + 'px;height:' + (d.r * 2 * S).toFixed(1) + 'px' }));
+const cursorStyle = s.cursor ? 'left:' + ((s.cursor.x - s.brush / 2) * S).toFixed(1) + 'px;top:' + ((s.cursor.y - s.brush / 2) * S).toFixed(1) + 'px;width:' + (s.brush * S).toFixed(1) + 'px;height:' + (s.brush * S).toFixed(1) + 'px' : '';
+const pts = s.tool === 'segment' && (view === 'input' || view === 'depth') ? s.pts.map(p => ({ sym: p.neg ? '−' : '+', style: 'left:' + (p.x * S).toFixed(1) + 'px;top:' + (p.y * S).toFixed(1) + 'px;background:' + (p.neg ? '#e8742a' : '#2f7de1') })) : [];
+const samMaskStyle = this.maskCss(s.samObjs, s.invert, s.feather);
+
+// composite / parallax / 3d
+const far = so.slice().reverse();
+let sceneWrap = '', sceneInner = '';
+if (view === '3d') { sceneWrap = 'perspective:1300px;'; sceneInner = 'transform-style:preserve-3d;transform:rotateY(' + s.rot.toFixed(1) + 'deg) rotateX(-6deg);transition:' + (s.orbiting ? 'none' : 'transform .2s'); }
+const layers = far.map(x => {
+let st = '';
+if (view === 'parallax') { const f = (x.depth / 255) * 26 + 2; const sc = 1 + s.cam.z * (x.depth / 255) * 0.08; st = 'transform:translate(' + (-s.cam.x * f).toFixed(1) + 'px,' + (-s.cam.y * f * 0.6).toFixed(1) + 'px) scale(' + sc.toFixed(3) + ');transition:transform .08s linear'; }
+if (view === '3d') { const z = (x.depth - 128) * 1.3; st = x.ground ? 'transform:translateZ(' + z.toFixed(0) + 'px) rotateX(62deg);transform-origin:50% 100%;opacity:.95' : 'transform:translateZ(' + z.toFixed(0) + 'px);box-shadow:0 0 0 1px ' + (x.id === s.sel ? 'var(--sel)' : 'rgba(255,255,255,.15)'); }
+return { parts: this.parts(x, s.slices), style: st };
+});
+
+// selection / sam summary
+const nObj = s.samObjs.length;
+const selSummary = s.multiPending ? s.pts.length + ' points placed · not segmented yet' : (nObj ? (s.invert ? 'Everything except ' : '') + s.samObjs.map(o => this.OBJ[o].name).join(' + ') : (loaded ? 'Nothing selected yet' : ''));
+
+// candidates
+const candTiles = [0, 1, 2].map(i => {
+const ready = s.cands > i; const loading = !!(s.job && s.job.kind === 'inpaint' && s.job.label.indexOf('candidates') >= 0 || s.job && s.job.label.indexOf('Extending') === 0) && !ready;
+const extendK = s.candKind === 'extend';
+return { n: i + 1, ready: ready, loading: loading, empty: !ready && !loading, on: s.pick === i, label: 'Candidate ' + (i + 1),
+src: extendK ? B.outpaint : B.candS[i], imgStyle: extendK ? 'object-fit:cover;filter:hue-rotate(' + (i * 14 - 14) + 'deg)' : '',
+pick: () => this.setState({ pick: i }), enter: () => this.setState({ hover: i }), leave: () => this.setState({ hover: null }) };
+});
+const maskOk = this.maskPresent();
+const ip1 = s.mode === 'extend' ? ((s.ext.l + s.ext.r + s.ext.t + s.ext.b) > 0 ? 'done' : 'now') : (maskOk ? 'done' : 'now');
+const ip2 = ip1 === 'done' ? (s.cands > 0 ? 'done' : 'now') : 'todo';
+const ip3 = s.cands > 0 ? 'now' : 'todo';
+
+// ground / side view
+const groundSl = s.slices.find(x => x.ground);
+const pitch = Math.atan(((s.horizon - 428) / 856) * (36 / s.focal) ) * 180 / Math.PI;
+const camY = 52; const pitchY = camY + Math.tan(pitch * Math.PI / 180) * 256;
+const cards = so.map(x => { const X = 40 + (255 - x.depth) / 255 * 220; return { x: X.toFixed(1), y1: x.ground ? 0 : 18, y2: x.ground ? 0 : 96, color: x.id === s.sel ? 'var(--sel)' : 'var(--tx3)' }; }).filter(c => c.y2 > 0);
+const side = { camY: camY, pitchY: pitchY.toFixed(1), frustum: 'M14 ' + camY + ' L270 ' + (camY - 60) + ' L270 ' + (camY + 60) + ' Z', cards: cards,
+gx1: groundSl ? 30 : 0, gx2: groundSl ? 270 : 0, gy: Math.min(114, camY + 10 + s.groundDist * 0.35).toFixed(1) };
+const groundOpts = so.map(x => ({ file: x.file, depth: x.depth, on: !!x.ground, set: () => { this.setState(st => ({ slices: st.slices.map(y => Object.assign({}, y, { ground: y.id === x.id })) })); this.log('Ground plane set to ' + x.file); } }));
+
+// next step card
+let nextCard = { show: false };
+if (loaded && s.depthReady) {
+const nx = { image: ['Check the depth map', 'Depth', 'depth'], depth: ['Cut the image into slices', 'Slices', 'slices'], slices: hasSlices ? ['Fill holes behind the front layers', 'Inpaint', 'inpaint'] : null,
+inpaint: ['Lay the ground flat and set the horizon', 'Ground', 'ground'], ground: ['Preview the parallax', 'Preview', 'preview'], preview: ['Export a 3D scene or animation', 'Export', 'export'] }[s.step];
+if (nx) nextCard = { show: true, text: nx[0], btn: nx[1], go: () => this.goStep(nx[2]) };
+}
+
+// status bar
+const lastErr = s.log.slice().reverse().find(l => l.level === 'error');
+const last = s.log[s.log.length - 1];
+const status = { job: busy, msg: !busy && !!last, text: last ? (s.inpaintErr && lastErr ? '● ' + lastErr.msg : last.msg) : '', color: s.inpaintErr ? 'var(--err)' : 'var(--tx2)' };
+const job = s.job ? { label: s.job.label, detail: s.job.detail, pct: Math.round(s.job.p * 100) } : { label: '', detail: '', pct: 0 };
+
+const toasts = s.toasts.map(t => ({ kind: t.kind, title: t.title, body: t.body, role: t.kind === 'error' ? 'alert' : 'status', dot: t.kind === 'error' ? 'var(--err)' : (t.kind === 'ok' ? 'var(--ok)' : 'var(--sel)'),
+close: () => this.dismiss(t.id), actions: t.actions.map(a => ({ label: a.label, fn: () => { this.dismiss(t.id); if (a.key === 'retry') { this.generate(); } if (a.key === 'settings') this.setState({ settingsOpen: true }); if (a.key === 'log') this.setState({ logOpen: true }); } })) }));
+
+const insp = { empty: !loaded, image: loaded && s.step === 'image', depth: loaded && s.step === 'depth', slices: loaded && s.step === 'slices', inpaint: loaded && s.step === 'inpaint' && !!sel, ground: loaded && s.step === 'ground', preview: loaded && s.step === 'preview' };
+insp.header = loaded && !!sel && (s.step === 'inpaint' || s.step === 'slices');
+
+const noGround = !anyGround;
+const needsServer = ['a1111', 'comfyui'].indexOf(s.inpaintModel) >= 0;
+const needsKey = ['stabilityai', 'falfoocus', 'falflux', 'falsd', 'falsdxl'].indexOf(s.inpaintModel) >= 0;
+const set = (k, num) => (e) => { const v = e.target.value; const o = {}; o[k] = num ? Number(v) : v; this.setState(o); };
+const setExt = (k) => (e) => { const v = Number(e.target.value); this.setState(st => { const x = Object.assign({}, st.ext); x[k] = v; return { ext: x, cands: 0 }; }); };
+
+return {
+B: B, IW: IW, IH: IH, themeClass: 'theme-' + s.theme, isDark: s.theme === 'dark', isLight: s.theme === 'light',
+loaded: loaded, notLoaded: !loaded, stage: { empty: !loaded, work: loaded }, depthReady: s.depthReady, noDepth: !s.depthReady,
+steps: steps, views: views, opt: opt, show: show, insp: insp,
+busy: busy, job: job, jobHere: { depth: !!(s.job && s.job.kind === 'depth'), inpaint: !!(s.job && s.job.kind === 'inpaint'), export: !!(s.job && (s.job.kind === 'gltf' || s.job.kind === 'upscale')), anim: !!(s.job && s.job.kind === 'anim') },
+cancelJob: () => this.cancelJob(), status: status,
+sliceCount: s.slices.length, hasSlices: hasSlices, noSlices: !hasSlices, rows: rows, listH: listH, rulerH: RH, farLabelY: RH + 30, hintY: 16 + so.length * 68 + 10,
+setRuler: (el) => { this.rulerEl = el; }, setImg: (el) => { this.imgEl = el; },
+noSel: !sel, hasSel: !!sel, selFile: sel ? sel.file : '', selDepth: sel ? sel.depth : 0, selGround: !!(sel && sel.ground), groundBtn: sel && sel.ground ? 'Ground plane ✓' : 'Set as ground',
+selRank: sel ? (so.findIndex(x => x.id === sel.id) + 1) + ' of ' + so.length + ' from front' : '',
+noClip: !s.clip, noUndo: !(sel && sel.hist && sel.hist.length), noRedo: !(sel && sel.fut && sel.fut.length),
+depthModel: s.depthModel, depthModelLabel: s.depthModel === 'dinov2' ? 'DINOv2' : 'MiDaS',
+checker: s.checker, zoomPct: Math.round(s.zoom * 100), zoomStyle: 'transform:scale(' + s.zoom + ');transform-origin:50% 50%',
+frameCursor: s.tool === 'segment' ? 'cursor:crosshair' : (s.tool === 'brush' && view === 'slice' ? 'cursor:none' : (view === '3d' ? 'cursor:grab' : '')),
+showToolbar: loaded && view !== 'parallax' && view !== '3d', tools: { pan: s.tool === 'pan', segment: s.tool === 'segment', brush: s.tool === 'brush', extend: s.tool === 'extend', horizon: s.tool === 'horizon' },
+selParts: selParts, dots: dots, cursorStyle: cursorStyle, pts: pts, samMaskStyle: samMaskStyle, layers: layers, sceneWrap: sceneWrap, sceneInner: sceneInner,
+extFrameStyle: extFrameStyle, extImgStyle: extImgStyle, hoverCandSrc: s.hover !== null ? B.cands[s.hover] : '',
+horizon: s.horizon, horizonY: (s.horizon * S).toFixed(1), horizonLabelY: (s.horizon * S - 24).toFixed(1), pitch: pitch.toFixed(1),
+multi: s.multi, noPts: !s.pts.length, multiPending: s.multiPending, ptCount: s.pts.length, invert: s.invert, feather: s.feather,
+invertStyle: s.invert ? 'background:var(--selSoft);color:var(--selTx)' : '', featherStyle: s.feather ? 'background:var(--selSoft);color:var(--selTx)' : '',
+selSummary: selSummary, noSamSel: !nObj, cantAdd: !nObj || !sel,
+segStep1: s.pts.length ? 'done' : 'now', segStep2: nObj ? 'done' : 'todo', segStep3: nObj ? 'now' : 'todo',
+splitOpen: s.splitOpen || !hasSlices, splitHint: hasSlices ? 'show' : '', numSlices: s.numSlices,
+brush: s.brush, brushPaint: s.brushMode === 'paint', brushErase: s.brushMode === 'erase', noMask: !maskOk,
+modeHoles: s.mode === 'holes', modeExtend: s.mode === 'extend', ext: s.ext, ip1: ip1, ip2: ip2, ip3: ip3,
+prompt: s.prompt, neg: s.neg, strength: s.strength, strengthTxt: s.strength.toFixed(2), guidance: s.guidance, crop: s.crop,
+genIsPrimary: !s.cands, genIsSecondary: s.cands > 0, genLabel: s.mode === 'extend' ? 'Generate 3 extensions' : 'Generate 3 candidates',
+cantGenerate: busy || (s.mode === 'holes' && !maskOk), cantQuick: busy || !maskOk, candTiles: candTiles, noPick: s.pick === null || !s.cands || busy,
+applyLabel: s.pick !== null && s.cands ? 'Apply candidate ' + (s.pick + 1) : 'Apply candidate', inpaintErr: s.inpaintErr, errText: s.errText, modelLabel: this.modelLabel(),
+groundOpts: groundOpts, noGround: noGround, groundDist: s.groundDist, side: side, groundFile: groundSl ? groundSl.file : 'none',
+v2d: view === 'parallax', v3d: view === '3d', camHint: view === '3d' ? 'Drag on the canvas to orbit around the layers.' : 'Move the pointer over the image to move the camera, or use the arrows.',
+camDist: s.camDist, maxDist: s.maxDist, focal: s.focal, meshDisp: s.meshDisp, dof: s.dof, frames: s.frames, seconds: (s.frames / 30).toFixed(1),
+nextCard: nextCard, toasts: toasts, logOpen: s.logOpen, logCount: s.log.length,
+logRows: s.log.slice().reverse().map(l => ({ t: l.t, msg: l.msg, color: l.level === 'error' ? 'var(--err)' : (l.level === 'warn' ? 'var(--accTx2)' : 'var(--tx2)') })),
+demoOpen: s.demoOpen, demos: [['empty', 'Empty state · no image'], ['segment', 'Segmentation with click points'], ['inpaint', 'Inpainting with 3 candidates'], ['ground', 'Ground-plane setup'], ['export', 'Export dialog'], ['job', 'Long job in progress'], ['error', 'Error state']].map(d => ({ label: d[1], go: () => { this.setState({ demoOpen: false }); this.jump(d[0]); } })),
+exportOpen: s.exportOpen, exGltf: s.exTab === 'gltf', exAnim: s.exTab === 'anim', gltfReady: s.gltfReady, animReady: s.animReady, gltfBtn: s.gltfReady ? 'Download glTF' : 'Create glTF scene',
+upscaleNote: s.upscaled ? 'Textures upscaled 2×' : 'Optional · slow on CPU',
+settingsOpen: s.settingsOpen, shortcutsOpen: s.shortcutsOpen, inpaintModel: s.inpaintModel, needsServer: needsServer, isComfy: s.inpaintModel === 'comfyui', needsKey: needsKey,
+server: s.server, serverNote: s.serverOk === null ? 'Not tested yet' : (s.serverOk ? 'Connected' : 'Connection refused'), serverColor: s.serverOk === false ? 'var(--err)' : (s.serverOk ? 'var(--ok)' : 'var(--tx3)'),
+apiKey: s.apiKey, maskPad: s.maskPad, maskBlur: s.maskBlur, workflowLabel: s.workflow ? 'workflow_api.json uploaded · replace…' : 'Drag and drop or upload workflow_api.json',
+guide: [['1', 'Load a photo', 'A depth map is made automatically.'], ['2', 'Check depth', 'Pick MiDaS or DINOv2 if it looks off.'], ['3', 'Cut slices', 'Click objects to segment them, or split by depth.'], ['4', 'Inpaint', 'Fill what front layers hide; later, extend edges.'], ['5', 'Ground', 'Lay one slice flat and set the horizon.'], ['6', 'Preview', 'Move the camera in 2D or orbit in 3D.'], ['7', 'Export', 'glTF scene or an animation.']].map(g => ({ n: g[0], t: g[1], d: g[2] })),
+shortcuts: [['Segment tool', 'S'], ['Inpaint brush', 'B'], ['Brush erase on/off', 'X'], ['Extend canvas (planned)', 'O'], ['Horizon tool', 'G'], ['Pan', 'H'], ['New slice from selection', 'Enter'], ['Add to / remove from slice', 'Shift/Alt+Enter'], ['Previous / next layer', '[ ]'], ['Generate candidates', 'Ctrl+Enter'], ['Pick candidate', '1 2 3'], ['Apply candidate', 'A'], ['Views: input, depth, slice', 'I M L'], ['Views: composite, parallax, 3D', 'C P Shift+P'], ['Undo / redo slice', 'Ctrl+Z / Ctrl+Shift+Z'], ['Export', 'Ctrl+E'], ['Settings', 'Ctrl+,'], ['Log', '`'], ['Clear points / close', 'Esc'], ['This list', '?']].map(k => ({ d: k[0], k: k[1] })),
+
+onKey: (e) => this.key(e), onMove: (e) => this.move(e), onUp: () => this.up(), onCanvasMove: (e) => this.canvasMove(e), onCanvasDown: (e) => this.canvasDown(e), stop: (e) => e.stopPropagation(),
+undo: () => this.undo(), redo: () => this.redo(), toggleTheme: () => this.setState({ theme: s.theme === 'dark' ? 'light' : 'dark' }), setDark: () => this.setState({ theme: 'dark' }), setLight: () => this.setState({ theme: 'light' }),
+openSettings: () => this.setState({ settingsOpen: true }), closeSettings: () => this.setState({ settingsOpen: false }), closeSettingsBg: () => this.setState({ settingsOpen: false }),
+openExport: () => this.setState({ exportOpen: true }), closeExport: () => this.setState({ exportOpen: false }), closeExportBg: () => this.setState({ exportOpen: false }),
+openShortcuts: () => this.setState({ shortcutsOpen: true }), closeShortcuts: () => this.setState({ shortcutsOpen: false }), toggleDemo: () => this.setState({ demoOpen: !s.demoOpen }),
+toggleLog: () => this.setState({ logOpen: !s.logOpen }), openLog: () => this.setState({ logOpen: true }), clearLog: () => this.setState({ log: [] }),
+loadImage: () => this.loadImage(), loadState: () => { this.jump('export'); this.setState({ exportOpen: false, settingsOpen: false }); this.log('Restored state from appstate-VcSnXOyJ'); this.toast('ok', 'Project restored', 'appstate-VcSnXOyJ · 4 slices'); },
+saveState: () => { this.log('Saved state to appstate-VcSnXOyJ'); this.toast('ok', 'Project saved', 'appstate-VcSnXOyJ'); },
+viewInput: () => this.setView('input'), viewDepth: () => this.setView('depth'), viewParallax: () => this.setView('parallax'), view3d: () => this.setView('3d'),
+toggleChecker: () => this.setState({ checker: !s.checker }), zoomIn: () => this.setState({ zoom: Math.min(2, +(s.zoom + 0.1).toFixed(2)) }), zoomOut: () => this.setState({ zoom: Math.max(0.5, +(s.zoom - 0.1).toFixed(2)) }), zoomFit: () => this.setState({ zoom: 1 }),
+toolPan: () => this.setTool('pan'), toolSegment: () => this.setTool('segment'), toolBrush: () => this.setTool('brush'), toolExtend: () => this.setTool('extend'), toolHorizon: () => this.setTool('horizon'),
+toggleMulti: () => this.setState({ multi: !s.multi, multiPending: false }), clearPts: () => this.clearPts(), runMulti: () => this.runMulti(),
+toggleInvert: () => this.setState({ invert: !s.invert }), toggleFeather: () => this.setState({ feather: !s.feather }),
+newSlice: () => this.newSlice(), addToSel: () => this.addToSel(), removeFromSel: () => this.removeFromSel(),
+toggleSplit: () => this.setState({ splitOpen: !s.splitOpen }), setNumSlices: set('numSlices', true), autoSplit: () => this.autoSplit(),
+balance: () => { this.startJob('split', 'Balancing slices', 'Evening out slice sizes', 1000, () => { this.log('Balanced slice thresholds'); this.toast('ok', 'Slices balanced', 'Thresholds moved so each slice covers a similar area.'); }); },
+setSelDepth: (e) => { const v = Math.max(0, Math.min(255, Number(e.target.value) || 0)); this.setState(st => ({ slices: st.slices.map(x => x.id === st.sel ? Object.assign({}, x, { depth: v }) : x) })); },
+toggleGround: () => { const id = s.sel; this.setState(st => ({ slices: st.slices.map(x => Object.assign({}, x, { ground: x.id === id ? !x.ground : false })) })); this.log('Toggled ground plane on ' + (sel ? sel.file : '')); },
+clearGround: () => this.setState(st => ({ slices: st.slices.map(x => Object.assign({}, x, { ground: false })) })),
+fitGround: () => { this.setState({ horizon: 470, groundDist: 64 }); this.log('Fit ground: horizon to row 470, ground distance 64'); this.toast('ok', 'Ground fitted', 'Horizon moved to the ground’s top edge; ground placed under the nearest object.'); },
+setGroundDist: set('groundDist', true),
+replaceSliceImage: () => this.toast('info', 'Replace slice image', 'Opens a file picker to upload a new image for ' + (sel ? sel.file : 'this slice') + '.'),
+downloadSlice: () => this.toast('ok', 'Downloading ' + (sel ? sel.file : '') + '.png', 'Saved to your downloads folder.'),
+copySlice: () => { this.setState({ clip: sel }); this.log('Copied ' + (sel ? sel.file : '')); this.toast('info', 'Copied ' + (sel ? sel.file : ''), 'Paste with the paste button.'); },
+pasteSlice: () => { if (!s.clip) return; const n = s.nextN; const c = Object.assign({}, s.clip, { id: 'p' + n, file: 'image_slice_' + n, ground: false, hist: [], fut: [] }); this.setState({ slices: s.slices.concat([c]), sel: c.id, nextN: n + 1 }); this.log('Pasted as image_slice_' + n); },
+deleteSlice: () => this.delSel(),
+setPaint: () => this.setState({ brushMode: 'paint' }), setErase: () => this.setState({ brushMode: 'erase' }), setBrush: set('brush', true),
+loadMask: () => { this.setState({ preset: true }); this.log('Loaded saved mask for ' + (sel ? sel.file : '')); }, saveMask: () => { this.log('Saved mask for ' + (sel ? sel.file : '')); this.toast('ok', 'Mask saved', 'Reload it later with “Load saved mask”.'); }, clearMask: () => this.setState({ dots: [], preset: false }),
+setModeHoles: () => this.setState({ mode: 'holes', tool: 'brush', cands: 0, pick: null }), setModeExtend: () => this.setState({ mode: 'extend', tool: 'extend', cands: 0, pick: null }),
+extPreset: () => this.setState({ ext: { l: 96, r: 96, t: 0, b: 0 } }), extReset: () => this.setState({ ext: { l: 0, r: 0, t: 0, b: 0 } }),
+setExtL: setExt('l'), setExtR: setExt('r'), setExtT: setExt('t'), setExtB: setExt('b'),
+setPrompt: set('prompt'), setNeg: set('neg'), setStrength: set('strength', true), setGuidance: set('guidance', true), toggleCrop: () => this.setState({ crop: !s.crop }),
+generate: () => this.generate(), quickFill: () => this.quick('fill'), quickEnhance: () => this.quick('enhance'), quickErase: () => this.quick('erase'), apply: () => this.applyCand(),
+startHorizon: (e) => { e.preventDefault(); e.stopPropagation(); this.setState({ dragH: true }); },
+camL: () => this.setState({ cam: { x: Math.max(-1, s.cam.x - 0.25), y: s.cam.y, z: s.cam.z } }), camR: () => this.setState({ cam: { x: Math.min(1, s.cam.x + 0.25), y: s.cam.y, z: s.cam.z } }),
+camU: () => this.setState({ cam: { x: s.cam.x, y: Math.max(-1, s.cam.y - 0.25), z: s.cam.z } }), camD: () => this.setState({ cam: { x: s.cam.x, y: Math.min(1, s.cam.y + 0.25), z: s.cam.z } }),
+camIn: () => this.setState({ cam: { x: s.cam.x, y: s.cam.y, z: Math.min(3, s.cam.z + 1) } }), camOut: () => this.setState({ cam: { x: s.cam.x, y: s.cam.y, z: Math.max(-3, s.cam.z - 1) } }), camReset: () => this.setState({ cam: { x: 0, y: 0, z: 0 }, rot: -18 }),
+setCamDist: set('camDist', true), setMaxDist: set('maxDist', true), setFocal: set('focal', true), setMeshDisp: set('meshDisp', true), toggleDof: () => this.setState({ dof: !s.dof }), setFrames: set('frames', true),
+exTabGltf: () => this.setState({ exTab: 'gltf' }), exTabAnim: () => this.setState({ exTab: 'anim' }),
+goGroundFromExport: () => { this.setState({ exportOpen: false }); this.goStep('ground'); },
+view3dFromExport: () => { this.setState({ exportOpen: false }); this.setView('3d'); },
+exportGltf: () => { if (s.gltfReady) { this.toast('ok', 'Downloading scene.gltf', '4 cards · ground plane · ' + s.focal + ' mm'); this.setState({ exported: true }); this.log('Downloaded glTF scene'); return; } this.startJob('gltf', 'Creating glTF scene', 'Building cards', 3000, () => { this.setState({ gltfReady: true }); this.log('Created glTF scene (4 cards)'); }, ['Building cards…', 'Writing textures…', 'Packing scene.gltf…']); },
+upscale: () => this.startJob('upscale', 'Upscaling textures', '', 4000, () => { this.setState({ upscaled: true }); this.log('Upscaled textures 2×'); }),
+exportAnim: () => this.startJob('anim', 'Rendering animation', '', 5000, () => { this.setState({ animReady: true, exported: true }); this.log('Rendered ' + s.frames + '-frame animation'); this.toast('ok', 'Animation rendered', s.frames + ' frames · saved in the project folder.'); }, ['Frame 1 of ' + s.frames, 'Frame ' + Math.round(s.frames / 3) + ' of ' + s.frames, 'Frame ' + Math.round(s.frames * 2 / 3) + ' of ' + s.frames, 'Encoding…']),
+setDepthModel: (e) => { this.setState({ depthModel: e.target.value }); this.log('Depth model set to ' + e.target.value); },
+regenDepth: () => this.startJob('depth', 'Estimating depth · ' + (s.depthModel === 'dinov2' ? 'DINOv2' : 'MiDaS'), '', 3000, () => { this.log('Regenerated depth map'); this.toast('ok', 'Depth map updated', 'Existing slices keep their depths.'); }, ['Loading model…', 'Running depth estimation…', 'Writing depth map…']),
+setInpaintModel: (e) => { this.setState({ inpaintModel: e.target.value, serverOk: null, inpaintErr: false }); this.log('Inpainting model set to ' + e.target.value); },
+setServer: set('server'), testServer: () => { this.setState({ serverOk: s.server.indexOf('8188') < 0 }); this.log('Tested ' + s.server + ': ' + (s.server.indexOf('8188') < 0 ? 'ok' : 'connection refused'), s.server.indexOf('8188') < 0 ? 'info' : 'error'); },
+uploadWorkflow: () => { this.setState({ workflow: true }); this.log('Workflow uploaded'); }, setKey: set('apiKey'), testKey: () => this.toast(s.apiKey ? 'ok' : 'error', s.apiKey ? 'API key works' : 'API key missing', s.apiKey ? 'Authenticated.' : 'Paste a StabilityAI or Fal.ai key first.'),
+setMaskPad: set('maskPad', true), setMaskBlur: set('maskBlur', true)
+};
+}
+}
+</script>
+</body>
+</html>

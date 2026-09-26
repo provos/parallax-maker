@@ -24,7 +24,7 @@ function createLogStore() {
   // `refresh()` calls can genuinely overlap. Two overlapping calls that both
   // read the same `after` before either updates it would otherwise both
   // fetch (and append) the very same server entries, producing duplicate
-  // `seq` values and breaking `LogPanel.svelte`'s `{#each ... (entry.seq)}`
+  // `seq` values and breaking `LogDrawer.svelte`'s `{#each ... (entry.seq)}`
   // key (`each_key_duplicate`). Serialize instead: a call that arrives while
   // one is already in flight just flags a follow-up fetch, which the
   // in-flight call runs itself before returning - no overlapping requests,
@@ -71,9 +71,6 @@ function createLogStore() {
   return {
     get entries(): DisplayLogEntry[] {
       return entries;
-    },
-    get last3(): DisplayLogEntry[] {
-      return entries.slice(-3);
     },
     pushClient,
     refresh,

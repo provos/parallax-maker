@@ -3,6 +3,7 @@ import * as workflow from './workflow';
 import { projectStore } from './state/project.svelte';
 import { jobStore } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
+import { uiStore } from './state/ui.svelte';
 import type { ProjectView } from './api/types';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -52,6 +53,7 @@ describe('workflow', () => {
     projectStore.reset();
     jobStore.end();
     logStore.reset();
+    uiStore.reset();
   });
 
   afterEach(() => {
@@ -68,6 +70,10 @@ describe('workflow', () => {
       }
       if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
         return jsonResponse(200, { entries: [], next: 0 });
+      }
+      if (url === '/api/v1/projects/appstate-test/settings' && method === 'PUT') {
+        expect(JSON.parse(init!.body as string)).toEqual({ darkMode: true });
+        return jsonResponse(200, { ...makeView({ settings: { ...makeView().settings, darkMode: true } }), changed: true });
       }
       if (url === '/api/v1/projects/appstate-test/depth' && method === 'POST') {
         expect(JSON.parse(init!.body as string)).toEqual({ model: 'midas' });
@@ -95,6 +101,58 @@ describe('workflow', () => {
     expect(jobStore.active).toBeNull();
     expect(projectStore.view?.assets.depth?.url).toBe('/depth');
     expect(projectStore.view?.thresholds).toEqual([0, 85, 170, 255]);
+    expect(uiStore.step).toBe('slices');
+  });
+
+  it('a new upload starts over: session progress is cleared', async () => {
+    uiStore.markPreviewed();
+    uiStore.markExported();
+    uiStore.setStep('export');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects' && init?.method === 'POST') {
+          return jsonResponse(201, makeView({ settings: { ...makeView().settings, darkMode: true } }));
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        // Leave the depth job failing: only the reset at creation matters here.
+        return jsonResponse(500, { error: { code: 'internal', message: 'no depth in this test' } });
+      }),
+    );
+
+    await workflow.uploadImage(new File(['bytes'], 'input.png', { type: 'image/png' }), 'midas');
+
+    expect(uiStore.previewed).toBe(false);
+    expect(uiStore.exported).toBe(false);
+    expect(uiStore.step).toBe('image');
+  });
+
+  it('navigating the camera marks Preview done only when the move succeeds', async () => {
+    await workflow.navigateCamera('left');
+    expect(uiStore.previewed).toBe(false); // no project
+
+    projectStore.applyView(makeView());
+    let fail = true;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects/appstate-test/camera/navigate') {
+          return fail
+            ? jsonResponse(409, { error: { code: 'not_ready', message: 'no slices' } })
+            : jsonResponse(200, { ...makeView(), changed: true });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        throw new Error(`Unexpected fetch: ${url}`);
+      }),
+    );
+    await workflow.navigateCamera('left');
+    expect(uiStore.previewed).toBe(false);
+
+    fail = false;
+    await workflow.navigateCamera('left');
+    expect(uiStore.previewed).toBe(true);
   });
 
   it('records an ApiError message in the log store when a mutation fails', async () => {

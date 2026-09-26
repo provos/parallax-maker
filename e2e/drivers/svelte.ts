@@ -23,6 +23,14 @@ import type {
  * implemented (see docs/svelte-migration/PARITY.md); `supports()` always
  * returns `true`.
  */
+/** The workflow step whose Inspector panel is each former main tab. */
+const STEP_FOR_TAB: Record<Exclude<MainTab, 'Configuration'>, string> = {
+  Mode: 'depth',
+  Segmentation: 'slices',
+  Inpainting: 'inpaint',
+  Export: 'export',
+};
+
 export class SvelteDriver implements UiDriver {
   readonly target: UiTarget = 'svelte';
 
@@ -39,11 +47,20 @@ export class SvelteDriver implements UiDriver {
     await expect(this.page.getByRole('heading', { name: 'Parallax Maker' })).toBeVisible();
   }
 
+  /**
+   * The redesigned UI has no workflow tabs: each former tab is a workflow
+   * step's Inspector panel, and Configuration is the Settings panel.
+   */
   async openTab(tab: MainTab): Promise<void> {
-    const button = this.page.getByRole('tab', { name: tab, exact: true });
-    await expect(button).toHaveCount(1);
-    await button.click();
-    await expect(button).toHaveAttribute('aria-selected', 'true');
+    const inspector = this.page.getByTestId('inspector');
+    if (tab === 'Configuration') {
+      if ((await inspector.getAttribute('data-panel')) !== 'Configuration') {
+        await this.page.getByTestId('open-settings').click();
+      }
+    } else {
+      await this.page.getByTestId(`step-${STEP_FOR_TAB[tab]}`).click();
+    }
+    await expect(inspector).toHaveAttribute('data-panel', tab);
   }
 
   // Observable elements
@@ -136,43 +153,24 @@ export class SvelteDriver implements UiDriver {
   }
 
   private async activeMainTab(): Promise<MainTab | null> {
-    // Scoped to the workflow tablist specifically: the viewer (2D/3D) tabs
-    // also use role="tab" and are also selected by default, so a
-    // page-wide `getByRole('tab', { selected: true })` would be ambiguous.
-    const active = this.page.locator('[role="tablist"][aria-label="Workflow"] [role="tab"][aria-selected="true"]');
-    const count = await active.count();
-    if (count === 0) return null;
-    const name = await active.first().textContent();
-    const trimmed = name?.trim();
+    const panel = await this.page.getByTestId('inspector').getAttribute('data-panel');
     const known: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'];
-    return (known.find((tab) => tab === trimmed) as MainTab | undefined) ?? null;
+    return (known.find((tab) => tab === panel) as MainTab | undefined) ?? null;
   }
 
   /**
-   * The Mode Selector lives in the Svelte-only "Mode" workflow tab (not
-   * part of the shared `MainTab` type -- Dash keeps its Mode Selector
-   * inline, outside any tab). Runs `fn` with that tab visible, using real
-   * clicks (no forced actions on a hidden `<select>`), then restores
-   * whichever workflow tab was active before.
+   * The Mode Selector lives in the Depth step's Inspector panel (Dash kept
+   * it inline, outside any tab). Runs `fn` with that panel visible, using
+   * real clicks (no forced actions on a hidden `<select>`), then restores
+   * whichever panel was showing before.
    */
   private async withModeTabVisible<T>(fn: () => Promise<T>): Promise<T> {
-    const tablist = '[role="tablist"][aria-label="Workflow"] [role="tab"]';
-    const active = this.page.locator(`${tablist}[aria-selected="true"]`);
-    const previousTab = (await active.count()) > 0 ? (await active.first().textContent())?.trim() : null;
-
-    if (previousTab !== 'Mode') {
-      const modeButton = this.page.getByRole('tab', { name: 'Mode', exact: true });
-      await modeButton.click();
-      await expect(modeButton).toHaveAttribute('aria-selected', 'true');
-    }
+    const previousTab = await this.activeMainTab();
+    if (previousTab !== 'Mode') await this.openTab('Mode');
     try {
       return await fn();
     } finally {
-      if (previousTab && previousTab !== 'Mode') {
-        const button = this.page.getByRole('tab', { name: previousTab, exact: true });
-        await button.click();
-        await expect(button).toHaveAttribute('aria-selected', 'true');
-      }
+      if (previousTab && previousTab !== 'Mode') await this.openTab(previousTab);
     }
   }
 
@@ -467,7 +465,7 @@ export class SvelteDriver implements UiDriver {
   // Project / configuration
 
   async expectDarkTheme(): Promise<void> {
-    await expect(this.page.locator('#app-container')).toHaveClass(/\bdark\b/);
+    await expect(this.page.locator('html')).toHaveAttribute('data-theme', 'dark');
   }
 
   async expectSliderValue(name: SliderName, value: number): Promise<void> {

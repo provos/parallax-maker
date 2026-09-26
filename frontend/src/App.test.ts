@@ -58,7 +58,7 @@ describe('App', () => {
     uiStore.reset();
   });
 
-  it('renders the header, viewer and workflow tabs, and footer', () => {
+  it('renders the header, canvas, inspector, log and status bar', () => {
     render(App);
 
     expect(screen.getByTestId('app-title')).toHaveTextContent('Parallax Maker');
@@ -70,16 +70,16 @@ describe('App', () => {
     expect(screen.getByTestId('app-footer')).toHaveTextContent('2024 Niels Provos');
   });
 
-  it('the theme toggle switches the root dark class used by the theme tokens', async () => {
+  it('starts dark, and the theme toggle switches the data-theme the tokens key off', async () => {
     render(App);
     const root = document.documentElement;
-    const initiallyDark = root.classList.contains('dark');
+    await waitFor(() => expect(root.dataset.theme).toBe('dark'));
 
     await fireEvent.click(screen.getByTestId('theme-toggle'));
-    await waitFor(() => expect(root.classList.contains('dark')).toBe(!initiallyDark));
+    await waitFor(() => expect(root.dataset.theme).toBe('light'));
 
     await fireEvent.click(screen.getByTestId('theme-toggle'));
-    await waitFor(() => expect(root.classList.contains('dark')).toBe(initiallyDark));
+    await waitFor(() => expect(root.dataset.theme).toBe('dark'));
   });
 
   it('uploading an image creates a project, starts a depth job, and renders both images', async () => {
@@ -97,6 +97,17 @@ describe('App', () => {
       }
       if (url.startsWith(`/api/v1/projects/${projectId}/logs`)) {
         return jsonResponse(200, { entries: [], next: 0 });
+      }
+      if (url === `/api/v1/projects/${projectId}/settings` && method === 'PUT') {
+        // The new project takes on the (default dark) theme on screen.
+        expect(JSON.parse(init!.body as string)).toEqual({ darkMode: true });
+        return jsonResponse(200, {
+          ...makeView({
+            assets: { input: { url: '/api/v1/projects/appstate-e2e-test/assets/input' }, depth: null },
+            settings: { ...makeView().settings, darkMode: true },
+          }),
+          changed: true,
+        });
       }
       if (url === `/api/v1/projects/${projectId}/depth` && method === 'POST') {
         return jsonResponse(202, { job: { id: 'job-1', kind: 'depth', status: 'queued', progress: 0 } });
@@ -138,6 +149,9 @@ describe('App', () => {
         '/api/v1/projects/appstate-e2e-test/assets/depth',
       ),
     );
+    // With the depth map ready, the workflow moves on to cutting slices.
+    await waitFor(() => expect(screen.getByTestId('step-slices')).toHaveAttribute('aria-current', 'step'));
+    expect(screen.getByTestId('inspector')).toHaveAttribute('data-panel', 'Segmentation');
 
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/projects', expect.objectContaining({ method: 'POST' }));
     expect(fetchMock).toHaveBeenCalledWith(
@@ -151,8 +165,7 @@ describe('App', () => {
     render(App);
 
     const root = document.documentElement;
-    await waitFor(() => expect(root.classList.contains('dark')).toBe(true));
-    expect(screen.getByTestId('app-title').closest('.app-root')).toHaveClass('dark');
+    await waitFor(() => expect(root.dataset.theme).toBe('dark'));
   });
 
   it('toggling the theme persists it via PUT settings once a project is loaded', async () => {
@@ -186,6 +199,6 @@ describe('App', () => {
     );
     const call = fetchMock.mock.calls.find(([reqUrl]) => String(reqUrl) === `/api/v1/projects/${projectId}/settings`);
     expect(JSON.parse(call![1]!.body as string)).toEqual({ darkMode: true });
-    await waitFor(() => expect(document.documentElement.classList.contains('dark')).toBe(true));
+    await waitFor(() => expect(document.documentElement.dataset.theme).toBe('dark'));
   });
 });
