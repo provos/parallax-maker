@@ -85,6 +85,44 @@ def test_create_slice_with_no_mask_is_empty_at_default_depth(client) -> None:
     assert body["slices"][new_index]["depth"] == 127
 
 
+def test_create_slice_first_cut_creates_a_rest_slice_and_logs_it(client) -> None:
+    """On a project with no slices yet, the first mask-based create also
+    creates the farthest "rest of image" slice (SliceView.isRest), and logs
+    it - mirrors ``e2e_server``'s oracle exposing the same flag."""
+    view = upload_fixture_image(client)
+    project_id = view["id"]
+    assert view["slices"] == []
+
+    depth_job = poll_job(
+        client,
+        client.post(
+            f"/api/v1/projects/{project_id}/depth", json={"model": "midas"}
+        ).get_json()["job"]["id"],
+    )
+    assert depth_job["status"] == "succeeded"
+
+    job = _click(client, project_id, 80, 96, mode="instance")
+    assert job["status"] == "succeeded"
+
+    response = client.post(f"/api/v1/projects/{project_id}/slices/create", json={})
+
+    assert response.status_code == 200
+    body = response.get_json()
+    slices = body["slices"]
+    assert len(slices) == 2
+
+    rest_slices = [s for s in slices if s["isRest"]]
+    object_slices = [s for s in slices if not s["isRest"]]
+    assert len(rest_slices) == 1
+    assert len(object_slices) == 1
+    # Selection follows the object slice, not the rest slice.
+    assert body["selectedSlice"] == slices.index(object_slices[0])
+
+    logs = client.get(f"/api/v1/projects/{project_id}/logs").get_json()
+    messages = [entry["message"] for entry in logs["entries"]]
+    assert any("with the rest of the image" in message for message in messages)
+
+
 def test_create_slice_requires_an_uploaded_image(client) -> None:
     view = upload_fixture_image(client)
     project_id = view["id"]

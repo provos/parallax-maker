@@ -594,6 +594,12 @@ class AppState:
         if ground_index is not None:
             data["ground_plane_slice"] = ground_index
 
+        rest_index = next(
+            (i for i, s in enumerate(self.image_slices) if s.is_rest), None
+        )
+        if rest_index is not None:
+            data["rest_slice"] = rest_index
+
         # merge the camera data
         camera_dict = self._camera.to_json()
         data.update(camera_dict)
@@ -669,6 +675,10 @@ class AppState:
         ground_index = data.get("ground_plane_slice")
         if ground_index is not None and 0 <= ground_index < len(state.image_slices):
             state.image_slices[ground_index].is_ground_plane = True
+
+        rest_index = data.get("rest_slice")
+        if rest_index is not None and 0 <= rest_index < len(state.image_slices):
+            state.image_slices[rest_index].is_rest = True
 
         state.server_address = (
             data["server_address"] if "server_address" in data else None

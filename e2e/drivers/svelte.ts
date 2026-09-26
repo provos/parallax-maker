@@ -108,6 +108,14 @@ export class SvelteDriver implements UiDriver {
     }
   }
 
+  /** Split by depth is a collapsible section of the Slices panel. */
+  private async openSplitByDepth(): Promise<void> {
+    const toggle = this.page.getByTestId('split-toggle');
+    if (!(await toggle.isVisible())) await this.openTab('Segmentation');
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+  }
+
   /** Per-slice actions live in the Inspector's header for the selected slice. */
   private async ensureSelected(index: number): Promise<void> {
     const row = this.sliceRow(index);
@@ -189,6 +197,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async generateSlices(): Promise<void> {
+    await this.openSplitByDepth();
     await this.page.getByTestId('generate-slices').click();
   }
 
@@ -440,6 +449,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async balanceSlices(): Promise<void> {
+    await this.openSplitByDepth();
     await this.page.getByTestId('balance-slices').click();
   }
 

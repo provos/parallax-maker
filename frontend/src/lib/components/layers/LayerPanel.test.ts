@@ -256,6 +256,19 @@ describe('LayerPanel', () => {
     });
   });
 
+  describe('rest-of-image badge', () => {
+    it('marks the rest slice only', () => {
+      projectStore.applyView(
+        makeView({ slices: [makeSlice(0, 0, { isRest: true }), makeSlice(1, 170)] }),
+      );
+      render(LayerPanel);
+      const rest = document.querySelector('[data-testid="slice-thumbnail-wrapper"][data-slice-index="0"]') as HTMLElement;
+      const object = document.querySelector('[data-testid="slice-thumbnail-wrapper"][data-slice-index="1"]') as HTMLElement;
+      expect(rest.querySelector('[data-testid="rest-badge"]')).toHaveTextContent('rest of image');
+      expect(object.querySelector('[data-testid="rest-badge"]')).toBeNull();
+    });
+  });
+
   describe('ground badge', () => {
     it('shows GROUND only on the ground slice', () => {
       projectStore.applyView(

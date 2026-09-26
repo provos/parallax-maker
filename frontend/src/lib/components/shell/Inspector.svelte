@@ -8,7 +8,7 @@
    */
   import { uiStore, WORKFLOW_STEPS, type MainTab } from '../../state/ui.svelte';
   import ModeTab from '../depth/ModeTab.svelte';
-  import SegmentationTab from '../segmentation/SegmentationTab.svelte';
+  import SegmentPanel from '../segmentation/SegmentPanel.svelte';
   import InpaintingTab from '../inpainting/InpaintingTab.svelte';
   import ExportTab from '../export/ExportTab.svelte';
   import ConfigurationTab from '../config/ConfigurationTab.svelte';
@@ -30,7 +30,7 @@
   <div class="inspector-body">
     {#if uiStore.mainTab !== 'Configuration'}<SelectedSliceHeader />{/if}
     <div class="section" class:hidden={hidden('Mode')}><ModeTab /></div>
-    <div class="section" class:hidden={hidden('Segmentation')}><SegmentationTab /></div>
+    <div class="section" class:hidden={hidden('Segmentation')}><SegmentPanel /></div>
     <div class="section" class:hidden={hidden('Inpainting')}><InpaintingTab /></div>
     <div class="section" class:hidden={hidden('Export')}><ExportTab /></div>
     <div class="section" class:hidden={hidden('Configuration')}><ConfigurationTab /></div>

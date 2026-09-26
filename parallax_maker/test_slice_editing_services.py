@@ -86,6 +86,29 @@ def make_mask(state: AppState, *, inside=(2, 8, 5, 15), value=255) -> np.ndarray
     return mask
 
 
+def make_empty_state(tmp_path: Path) -> AppState:
+    """A state with an input image but no slices yet - the trigger for
+    creating a "rest of image" slice on the first mask-based create."""
+    state = AppState()
+    state.filename = str(tmp_path)
+    state.imgData = Image.new("RGB", (20, 10), (100, 110, 120))
+    state.image_slices = []
+    return state
+
+
+def make_custom_slice(
+    tmp_path: Path, name: str, depth: float, alpha: np.ndarray, *, rgb=(10, 20, 30)
+) -> ImageSlice:
+    """Like ``make_slice``, but with an explicit, arbitrary alpha channel."""
+    height, width = alpha.shape
+    image = np.zeros((height, width, 4), dtype=np.uint8)
+    image[:, :, :3] = rgb
+    image[:, :, 3] = alpha
+    filename = tmp_path / f"{name}.png"
+    Image.fromarray(image, mode="RGBA").save(filename)
+    return ImageSlice(image.copy(), depth=depth, filename=str(filename))
+
+
 # --- create_slice ------------------------------------------------------------
 
 
@@ -536,3 +559,289 @@ def test_set_checkerboard_requires_a_boolean(tmp_path: Path) -> None:
 
     with pytest.raises(SliceEditingNotReady):
         service.set_checkerboard(SetCheckerboard(state_id="s", enabled="yes"))  # type: ignore[arg-type]
+
+
+# --- "rest of image" slice: creation and sync -----------------------------------
+
+
+def test_create_slice_first_cut_also_creates_a_rest_slice(tmp_path: Path) -> None:
+    state = make_empty_state(tmp_path)
+    state.slice_mask = make_mask(state)
+    service, repository = make_service(state)
+
+    result = service.create_slice(CreateSlice(state_id="s"))
+
+    assert len(state.image_slices) == 2
+    rest = next(s for s in state.image_slices if s.is_rest)
+    obj = next(s for s in state.image_slices if not s.is_rest)
+    assert rest.depth == 0
+    assert result.rest_slice_filename == str(rest.filename)
+
+    # Complementary alpha: the object and rest slice exactly cover the image
+    # between them, everywhere - not just inside the (binary) mask.
+    total = obj.image[:, :, 3].astype(int) + rest.image[:, :, 3].astype(int)
+    assert np.all(total == 255)
+
+    # The rest slice's RGB comes from the input image.
+    source_rgb = np.array(state.imgData.convert("RGB"))
+    np.testing.assert_array_equal(rest.image[:, :, :3], source_rgb)
+
+    # Selection follows the object slice even though the rest slice (depth 0)
+    # may have been inserted ahead of it.
+    obj_index = state.image_slices.index(obj)
+    assert state.selected_slice == obj_index
+    assert result.slice_index == obj_index
+    assert repository.saved == [("s", JSON_ONLY)]
+
+
+def test_create_slice_without_a_mask_never_touches_the_rest_slice(
+    tmp_path: Path,
+) -> None:
+    state = make_empty_state(tmp_path)
+    assert state.slice_mask is None
+    service, _ = make_service(state)
+
+    result = service.create_slice(CreateSlice(state_id="s"))
+
+    assert result.empty is True
+    assert len(state.image_slices) == 1
+    assert result.rest_slice_filename is None
+    assert not state.image_slices[0].is_rest
+
+
+def test_create_slice_in_a_depth_split_project_does_not_add_a_rest_slice(
+    tmp_path: Path,
+) -> None:
+    """Slices already exist (as if split by depth), but none is the rest
+    slice: creating from a mask behaves exactly as it did before this
+    feature, with no rest slice added."""
+    state = make_state(tmp_path)
+    state.slice_mask = make_mask(state)
+    service, _ = make_service(state)
+
+    result = service.create_slice(CreateSlice(state_id="s"))
+
+    assert len(state.image_slices) == 3
+    assert not any(s.is_rest for s in state.image_slices)
+    assert result.rest_slice_filename is None
+
+
+def test_create_slice_second_cut_subtracts_from_the_existing_rest_slice(
+    tmp_path: Path,
+) -> None:
+    state = make_empty_state(tmp_path)
+    state.slice_mask = make_mask(state, inside=(2, 8, 5, 15))
+    service, repository = make_service(state)
+
+    service.create_slice(CreateSlice(state_id="s"))  # first cut: creates the rest
+    rest = next(s for s in state.image_slices if s.is_rest)
+    rest_filename_before = rest.filename
+    rest_alpha_before = rest.image[:, :, 3].copy()
+
+    # A second, disjoint cut.
+    state.slice_mask = make_mask(state, inside=(0, 2, 0, 5))
+    repository.saved.clear()
+    result = service.create_slice(CreateSlice(state_id="s"))
+
+    assert len(state.image_slices) == 3
+    assert result.rest_slice_filename is None  # not newly created, only updated
+    rest_after = next(s for s in state.image_slices if s.is_rest)
+    assert rest_after is rest  # same slice, new version
+    assert rest_after.filename != rest_filename_before
+
+    # The rest slice's alpha only ever decreases, and it strictly decreases
+    # somewhere (where the new object slice now covers it).
+    assert np.all(rest_after.image[:, :, 3] <= rest_alpha_before)
+    assert np.any(rest_after.image[:, :, 3] < rest_alpha_before)
+    assert repository.saved == [("s", JSON_ONLY)]
+
+
+# --- "rest of image" slice: kept in sync on delete/add-mask/remove-mask --------
+
+
+def test_delete_slice_restores_only_uncovered_pixels_and_preserves_rest_edits(
+    tmp_path: Path,
+) -> None:
+    height, width = 10, 20
+    state = AppState()
+    state.filename = str(tmp_path)
+    source_rgb = np.zeros((height, width, 3), dtype=np.uint8)
+    source_rgb[:, :, 0] = 111
+    source_rgb[:, :, 1] = 222
+    source_rgb[:, :, 2] = 33
+    state.imgData = Image.fromarray(source_rgb, mode="RGB")
+
+    # Object A (to be deleted) covers rows 0:5, cols 0:10.
+    alpha_a = np.zeros((height, width), dtype=np.uint8)
+    alpha_a[0:5, 0:10] = 255
+    object_a = make_custom_slice(tmp_path, "image_slice_1", depth=50, alpha=alpha_a)
+
+    # Object B (stays) covers a small patch that overlaps A's region.
+    alpha_b = np.zeros((height, width), dtype=np.uint8)
+    alpha_b[3:5, 5:8] = 255
+    object_b = make_custom_slice(tmp_path, "image_slice_2", depth=100, alpha=alpha_b)
+
+    # The rest slice covers everything neither A nor B does.
+    rest_alpha = np.where((alpha_a > 0) | (alpha_b > 0), 0, 255).astype(np.uint8)
+    rest_image = np.zeros((height, width, 4), dtype=np.uint8)
+    rest_image[:, :, :3] = source_rgb
+    rest_image[:, :, 3] = rest_alpha
+    # Simulate prior inpainting on the rest slice: one pixel inside the area
+    # that will be uncovered by the delete, one pixel well outside it.
+    rest_image[1, 2] = (9, 9, 9, 222)
+    rest_image[6, 1] = (7, 7, 7, 255)
+    rest_filename = tmp_path / "image_slice_0.png"
+    Image.fromarray(rest_image, mode="RGBA").save(rest_filename)
+    rest_slice = ImageSlice(rest_image.copy(), depth=0, filename=str(rest_filename))
+    rest_slice.is_rest = True
+
+    state.image_slices = [rest_slice, object_a, object_b]
+    service, repository = make_service(state)
+
+    service.delete_slice(DeleteSlice(state_id="s", slice_index=1))
+
+    assert state.image_slices == [rest_slice, object_b]
+    assert rest_slice.filename != str(rest_filename)  # a new version was saved
+
+    # (1, 2): inside A, not covered by B - made fully opaque again, keeping
+    # the partly visible "inpainted" color rather than overwriting it.
+    assert tuple(int(v) for v in rest_slice.image[1, 2]) == (9, 9, 9, 255)
+    # (0, 0): inside A, transparent on the rest - refilled from the input.
+    assert tuple(int(v) for v in rest_slice.image[0, 0]) == (111, 222, 33, 255)
+    # (4, 6): inside A, but still covered by B - left exactly as it was.
+    assert tuple(int(v) for v in rest_slice.image[4, 6]) == (111, 222, 33, 0)
+    # (6, 1): outside A entirely - the "inpainted" pixel survives untouched.
+    assert tuple(int(v) for v in rest_slice.image[6, 1]) == (7, 7, 7, 255)
+    assert repository.saved == [("s", JSON_ONLY)]
+
+
+def test_delete_slice_of_the_rest_slice_itself_removes_it(
+    tmp_path: Path,
+) -> None:
+    state = make_state(tmp_path)
+    state.image_slices[0].is_rest = True
+    service, _ = make_service(state)
+
+    service.delete_slice(DeleteSlice(state_id="s", slice_index=0))
+
+    assert len(state.image_slices) == 1
+    assert not any(s.is_rest for s in state.image_slices)
+
+
+def test_add_mask_to_slice_subtracts_the_added_area_from_the_rest(
+    tmp_path: Path,
+) -> None:
+    height, width = 10, 20
+    state = AppState()
+    state.filename = str(tmp_path)
+    state.imgData = Image.new("RGB", (width, height), (100, 110, 120))
+
+    # The object already covers a small patch; the rest covers everything else.
+    alpha_object = np.zeros((height, width), dtype=np.uint8)
+    alpha_object[0:2, 0:4] = 255
+    object_slice = make_custom_slice(tmp_path, "image_slice_1", depth=50, alpha=alpha_object)
+
+    rest_alpha = np.where(alpha_object > 0, 0, 255).astype(np.uint8)
+    rest_slice = make_custom_slice(tmp_path, "image_slice_0", depth=0, alpha=rest_alpha)
+    rest_slice.is_rest = True
+
+    state.image_slices = [rest_slice, object_slice]
+    state.selected_slice = 1
+    state.slice_mask = make_mask(state, inside=(4, 8, 10, 18))
+    service, repository = make_service(state)
+
+    original_rest_filename = rest_slice.filename
+    service.add_mask_to_slice(AddMaskToSlice(state_id="s"))
+
+    assert rest_slice.filename != original_rest_filename  # version bumped
+    # Where the object grew (the newly-added mask), the rest gives up alpha.
+    assert rest_slice.image[6, 14, 3] < 255
+    # Where the object already covered, the rest is unaffected (still zero).
+    assert rest_slice.image[0, 0, 3] == 0
+    # Far from both (outside the feathered mask's reach too), untouched.
+    assert rest_slice.image[9, 0, 3] == 255
+    assert repository.saved == [("s", JSON_ONLY)]
+
+
+def test_remove_mask_from_slice_restores_only_uncovered_pixels_into_the_rest(
+    tmp_path: Path,
+) -> None:
+    height, width = 10, 20
+    state = AppState()
+    state.filename = str(tmp_path)
+    source_rgb = np.full((height, width, 3), (50, 60, 70), dtype=np.uint8)
+    state.imgData = Image.fromarray(source_rgb, mode="RGB")
+
+    # The object covers rows 2:8, cols 2:18.
+    alpha_object = np.zeros((height, width), dtype=np.uint8)
+    alpha_object[2:8, 2:18] = 255
+    object_slice = make_custom_slice(tmp_path, "image_slice_1", depth=50, alpha=alpha_object)
+
+    # Another slice keeps covering a sub-patch of the object's area.
+    alpha_other = np.zeros((height, width), dtype=np.uint8)
+    alpha_other[4:6, 10:14] = 255
+    other_slice = make_custom_slice(tmp_path, "image_slice_2", depth=100, alpha=alpha_other)
+
+    rest_alpha = np.where(
+        (alpha_object > 0) | (alpha_other > 0), 0, 255
+    ).astype(np.uint8)
+    rest_slice = make_custom_slice(
+        tmp_path, "image_slice_0", depth=0, alpha=rest_alpha, rgb=(50, 60, 70)
+    )
+    rest_slice.is_rest = True
+
+    state.image_slices = [rest_slice, object_slice, other_slice]
+    state.selected_slice = 1
+    # Remove the mask covering the object's entire region.
+    state.slice_mask = make_mask(state, inside=(2, 8, 2, 18))
+    service, repository = make_service(state)
+
+    original_rest_filename = rest_slice.filename
+    service.remove_mask_from_slice(RemoveMaskFromSlice(state_id="s"))
+
+    assert rest_slice.filename != original_rest_filename
+    # Inside the object's region but outside the other slice: restored.
+    assert tuple(int(v) for v in rest_slice.image[2, 2]) == (50, 60, 70, 255)
+    # Inside both the object's region and the other slice: left alone.
+    assert rest_slice.image[5, 12, 3] == 0
+    # Entirely outside the object's region: untouched.
+    assert rest_slice.image[9, 19, 3] == 255
+    assert repository.saved == [("s", JSON_ONLY)]
+
+
+def test_remove_mask_from_slice_restores_a_feathered_removal_only_partly(
+    tmp_path: Path,
+) -> None:
+    height, width = 10, 20
+    state = AppState()
+    state.filename = str(tmp_path)
+    source_rgb = np.full((height, width, 3), (50, 60, 70), dtype=np.uint8)
+    state.imgData = Image.fromarray(source_rgb, mode="RGB")
+
+    alpha_object = np.zeros((height, width), dtype=np.uint8)
+    alpha_object[2:8, 2:18] = 255
+    object_slice = make_custom_slice(tmp_path, "image_slice_1", depth=50, alpha=alpha_object)
+    rest_slice = make_custom_slice(
+        tmp_path,
+        "image_slice_0",
+        depth=0,
+        alpha=(255 - alpha_object).astype(np.uint8),
+        rgb=(50, 60, 70),
+    )
+    rest_slice.is_rest = True
+
+    state.image_slices = [rest_slice, object_slice]
+    state.selected_slice = 1
+    # A feathered mask: removes only part of the object's alpha.
+    mask = np.zeros((height, width), dtype=np.uint8)
+    mask[2:8, 2:18] = 100
+    state.slice_mask = mask
+    service, _ = make_service(state)
+
+    service.remove_mask_from_slice(RemoveMaskFromSlice(state_id="s"))
+
+    remaining = int(object_slice.image[4, 4, 3])
+    assert 0 < remaining < 255
+    # The rest slice gets back exactly what the object lost.
+    assert int(rest_slice.image[4, 4, 3]) == 255 - remaining
+    assert int(rest_slice.image[0, 0, 3]) == 255

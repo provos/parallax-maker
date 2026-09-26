@@ -16,6 +16,7 @@ synchronously under ``_mutation_guard`` rather than as a background job.
 from __future__ import annotations
 
 import io
+from pathlib import Path
 from typing import TYPE_CHECKING
 
 from flask import Blueprint, request
@@ -91,6 +92,11 @@ def register_slice_editing_routes(blueprint: Blueprint, runtime: "Runtime") -> N
                 if result.empty
                 else "Created a slice from the mask"
             )
+            if result.rest_slice_filename is not None:
+                record.log.append(
+                    f"Created {Path(result.rest_slice_filename).stem} with "
+                    "the rest of the image"
+                )
             record.bump_revision()
 
         view = _build_project_view(runtime, project_id, state)

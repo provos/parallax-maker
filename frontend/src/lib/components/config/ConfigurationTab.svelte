@@ -15,13 +15,6 @@
   import HelpTooltip from '../shared/HelpTooltip.svelte';
   import { CONFIGURATION_HELP_TEXTS } from '../../helpTexts';
 
-  // Keep the slider in sync with the project once one exists (including
-  // after a restore), the same way Dash's slider reflects state.
-  $effect(() => {
-    const view = projectStore.view;
-    if (view) uiStore.setPendingNumSlices(view.numSlices);
-  });
-
   // Same options/values/default as components.py's DROPDOWN_INPAINT_MODEL.
   const inpaintModelOptions: Array<{ value: string; label: string }> = [
     { value: 'kandinsky-community/kandinsky-2-2-decoder-inpaint', label: 'Kandinsky' },
@@ -59,12 +52,6 @@
   function onBlurChange(event: Event): void {
     const value = Number((event.currentTarget as HTMLInputElement).value);
     void workflow.updateInpaintingSettings({ blur: value });
-  }
-
-  function onNumSlicesChange(event: Event): void {
-    const value = Number((event.currentTarget as HTMLInputElement).value);
-    uiStore.setPendingNumSlices(value);
-    if (projectStore.view) void workflow.updateSliceCount(value);
   }
 
   let restoreInput: HTMLInputElement | undefined;
@@ -126,26 +113,6 @@
   <div class="tab-header">
     <HelpTooltip label="Configuration" texts={CONFIGURATION_HELP_TEXTS} />
   </div>
-  <div class="field">
-    <label class="field-label" for="num-slices">Number of Slices</label>
-    <input
-      id="num-slices"
-      type="range"
-      min="2"
-      max="10"
-      step="1"
-      data-testid="num-slices"
-      value={uiStore.pendingNumSlices}
-      disabled={isBusy()}
-      onchange={onNumSlicesChange}
-    />
-    <div class="range-marks">
-      {#each Array.from({ length: 9 }, (_, i) => i + 2) as mark (mark)}
-        <span>{mark}</span>
-      {/each}
-    </div>
-  </div>
-
   <div class="field">
     <label class="field-label" for="inpainting-model">Inpainting Model</label>
     <select
@@ -316,12 +283,7 @@
     color: var(--color-text-muted);
   }
 
-  .range-marks {
-    display: flex;
-    justify-content: space-between;
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
+
 
   input[type='range'] {
     width: 100%;

@@ -14,6 +14,7 @@ class ImageSlice:
         "_depth",
         "_filename",
         "_is_ground_plane",
+        "_is_rest",
         "positive_prompt",
         "negative_prompt",
     )
@@ -30,6 +31,7 @@ class ImageSlice:
         self._depth = depth
         self._filename = filename
         self._is_ground_plane = False
+        self._is_rest = False
 
         self.positive_prompt = positive_prompt
         self.negative_prompt = negative_prompt
@@ -62,6 +64,16 @@ class ImageSlice:
         if not isinstance(value, bool):
             raise ValueError("is_ground_plane must be a boolean value")
         self._is_ground_plane = value
+
+    @property
+    def is_rest(self):
+        return self._is_rest
+
+    @is_rest.setter
+    def is_rest(self, value):
+        if not isinstance(value, bool):
+            raise ValueError("is_rest must be a boolean value")
+        self._is_rest = value
 
     @property
     def depth(self):

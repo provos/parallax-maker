@@ -58,6 +58,9 @@ class SliceView(ApiModel):
     mask: AssetRef | None = None
     #: This slice is the horizontal ground plane rather than a vertical card.
     is_ground: bool = False
+    #: This slice holds everything no object slice covers; kept in sync as
+    #: objects are cut, removed or changed. At most one slice is the rest.
+    is_rest: bool = False
 
 
 class BusyView(ApiModel):

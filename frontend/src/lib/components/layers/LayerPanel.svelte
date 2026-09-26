@@ -183,6 +183,9 @@
                   {#if slice.isGround}
                     <span class="badge-ground" data-testid="ground-badge">GROUND</span>
                   {/if}
+                  {#if slice.isRest}
+                    <span class="faint" data-testid="rest-badge">rest of image</span>
+                  {/if}
                 </div>
               </div>
               {#if editingIndex === slice.index}
@@ -352,6 +355,11 @@
     border-radius: var(--radius-sm);
     padding: 0 4px;
     letter-spacing: 0.03em;
+  }
+
+  .faint {
+    font-size: var(--text-small);
+    color: var(--color-text-muted);
   }
 
   .chip {

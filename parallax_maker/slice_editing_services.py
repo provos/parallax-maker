@@ -104,6 +104,10 @@ class CreatedSliceResult:
     slice_index: int
     empty: bool
     preview_image: Image.Image | None
+    #: Set to the new "rest of image" slice's filename when this call created
+    #: one (the first object slice cut from a project with none yet); ``None``
+    #: otherwise, including when an existing rest slice was only updated.
+    rest_slice_filename: str | None = None
 
 
 @dataclass(frozen=True)
@@ -311,10 +315,32 @@ class SliceEditingService:
                 source, state.slice_mask, num_expand=self._mask_expand
             )
 
+        # Snapshot the "rest of image" state before inserting the new object
+        # slice: whether one already exists, and whether there were any
+        # slices at all (the trigger for creating one for the first time).
+        had_slices_before = len(state.image_slices) > 0
+        existing_rest = (
+            None if empty else next((s for s in state.image_slices if s.is_rest), None)
+        )
+
         image_slice = ImageSlice(image, depth)
         index = state.add_slice(image_slice)
         state.selected_slice = index
         image_slice.save_image()
+
+        rest_slice_filename = None
+        if not empty:
+            if existing_rest is not None:
+                self._subtract_from_rest(existing_rest, image_slice)
+            elif not had_slices_before:
+                rest_slice = self._create_rest_slice(state, source, image_slice)
+                rest_slice_filename = str(rest_slice.filename)
+                # The rest slice sorts by depth (0) alongside the object
+                # slice, so the object's index may have shifted; keep the
+                # selection on the object slice itself.
+                index = state.image_slices.index(image_slice)
+                state.selected_slice = index
+
         self._states.save(command.state_id, state, self.JSON_ONLY)
 
         preview = self._refresh_selection(state)
@@ -323,15 +349,109 @@ class SliceEditingService:
             slice_index=index,
             empty=empty,
             preview_image=preview,
+            rest_slice_filename=rest_slice_filename,
         )
+
+    @staticmethod
+    def _create_rest_slice(
+        state: AppState, source: Image.Image, object_slice: ImageSlice
+    ) -> ImageSlice:
+        """Creates the farthest "rest of image" slice for the first object cut
+        from a project with no slices yet: the input image, with alpha equal
+        to 255 minus the object slice's alpha (so the two exactly cover the
+        image between them)."""
+        rest_image = np.array(source.convert("RGBA"))
+        object_alpha = object_slice.image[:, :, 3].astype(np.int16)
+        rest_image[:, :, 3] = np.clip(255 - object_alpha, 0, 255).astype(np.uint8)
+
+        rest_slice = ImageSlice(rest_image, depth=0)
+        rest_slice.is_rest = True
+        state.add_slice(rest_slice)
+        rest_slice.save_image()
+        # Log messages are the UI adapter's concern (see the module
+        # docstring); the API route logs this from `rest_slice_filename`.
+        return rest_slice
+
+    @staticmethod
+    def _find_rest_slice(state: AppState, *, exclude: ImageSlice) -> ImageSlice | None:
+        """The project's "rest of image" slice, if any - never the slice
+        being edited itself (syncing the rest slice against its own edits
+        makes no sense and it never carries the flag with itself excluded)."""
+        return next(
+            (s for s in state.image_slices if s.is_rest and s is not exclude), None
+        )
+
+    @staticmethod
+    def _subtract_from_rest(rest_slice: ImageSlice, object_slice: ImageSlice) -> None:
+        """Removes an object slice's (possibly grown) footprint from the rest
+        slice's alpha, saving a new version so the edit can be undone. RGB is
+        left untouched - it no longer shows through once alpha is zero, and
+        leaving it alone keeps any inpainting elsewhere on the slice intact."""
+        rest_alpha = rest_slice.image[:, :, 3].astype(np.int16)
+        object_alpha = object_slice.image[:, :, 3].astype(np.int16)
+        new_alpha = np.clip(np.minimum(rest_alpha, 255 - object_alpha), 0, 255).astype(
+            np.uint8
+        )
+        rest_slice.image[:, :, 3] = new_alpha
+        rest_slice.new_version()
+
+    @staticmethod
+    def _restore_uncovered_into_rest(
+        rest_slice: ImageSlice,
+        source_rgb: np.ndarray,
+        exposed_mask: np.ndarray,
+        remaining_alpha: np.ndarray,
+        other_slices,
+    ) -> bool:
+        """Gives back to the rest slice what an edit took off an object slice:
+        wherever ``exposed_mask`` is set and no slice in ``other_slices``
+        still covers the pixel, the rest alpha rises to ``255 -
+        remaining_alpha`` (the object's alpha after the edit), so a partial
+        (feathered) removal restores only the part it removed. Alpha only
+        ever rises, and RGB is filled from the input only where the rest
+        slice was fully transparent - every visible rest pixel, including
+        any inpainting, is left alone. Returns whether anything changed (and,
+        if so, saves a new version)."""
+        covered = np.zeros(exposed_mask.shape, dtype=bool)
+        for other in other_slices:
+            covered |= other.image[:, :, 3] > 0
+        rest_alpha = rest_slice.image[:, :, 3].astype(np.int16)
+        target_alpha = 255 - remaining_alpha.astype(np.int16)
+        raised = exposed_mask & ~covered & (target_alpha > rest_alpha)
+        if not np.any(raised):
+            return False
+
+        refill = raised & (rest_alpha == 0)
+        rest_slice.image[refill, 0:3] = source_rgb[refill]
+        rest_slice.image[raised, 3] = target_alpha[raised].astype(np.uint8)
+        rest_slice.new_version()
+        return True
 
     def delete_slice(self, command: DeleteSlice) -> DeletedSliceResult:
         state = self._states.load(command.state_id)
         index = self._slice_index(state, command.slice_index)
         source = self._require_image(state)
 
+        deleted_slice = state.image_slices[index]
+        rest_slice = self._find_rest_slice(state, exclude=deleted_slice)
+
         if not state.delete_slice(index):
             raise InvalidSliceIndex(f"slice index {index} is invalid")
+
+        if rest_slice is not None:
+            # Only pixels the deleted slice actually covered, and that no
+            # remaining (non-rest) slice covers either, come back; every
+            # other rest pixel - including any inpainting - is untouched.
+            exposed = deleted_slice.image[:, :, 3] > 0
+            other_slices = [s for s in state.image_slices if s is not rest_slice]
+            self._restore_uncovered_into_rest(
+                rest_slice,
+                np.array(source.convert("RGB")),
+                exposed,
+                np.zeros(exposed.shape, dtype=np.uint8),
+                other_slices,
+            )
+
         self._states.save(command.state_id, state, self.JSON_ONLY)
 
         # Mirrors delete_slice_request's own direct IMAGE.src output
@@ -347,9 +467,16 @@ class SliceEditingService:
         mask = self._require_mask(state)
         source = self._require_image(state)
 
+        object_slice = state.image_slices[index]
+        rest_slice = self._find_rest_slice(state, exclude=object_slice)
+
         merge_image = create_slice_from_mask(source, mask, num_expand=self._mask_expand)
-        blend_with_alpha(state.image_slices[index].image, merge_image)
-        filename = state.image_slices[index].new_version()
+        blend_with_alpha(object_slice.image, merge_image)
+        filename = object_slice.new_version()
+
+        if rest_slice is not None:
+            self._subtract_from_rest(rest_slice, object_slice)
+
         self._states.save(command.state_id, state, self.JSON_ONLY)
 
         preview = self._refresh_selection(state)
@@ -367,9 +494,33 @@ class SliceEditingService:
         index = self._selected_slice(state)
         mask = self._require_mask(state)
 
-        final_mask = remove_mask_from_alpha(state.image_slices[index].image, mask)
-        state.image_slices[index].image[:, :, 3] = final_mask
-        filename = state.image_slices[index].new_version()
+        object_slice = state.image_slices[index]
+        rest_slice = self._find_rest_slice(state, exclude=object_slice)
+
+        before_alpha = object_slice.image[:, :, 3].copy()
+        final_mask = remove_mask_from_alpha(object_slice.image, mask)
+        object_slice.image[:, :, 3] = final_mask
+        filename = object_slice.new_version()
+
+        if rest_slice is not None:
+            source = self._require_image(state)
+            # Where the mask actually lowered the object's alpha (only
+            # partly, for a feathered mask); restored into the rest slice
+            # only where nothing else still covers it.
+            exposed = final_mask < before_alpha
+            other_slices = [
+                s
+                for s in state.image_slices
+                if s is not object_slice and s is not rest_slice
+            ]
+            self._restore_uncovered_into_rest(
+                rest_slice,
+                np.array(source.convert("RGB")),
+                exposed,
+                final_mask,
+                other_slices,
+            )
+
         self._states.save(command.state_id, state, self.JSON_ONLY)
 
         preview = self._refresh_selection(state)

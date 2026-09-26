@@ -203,6 +203,7 @@ def _build_project_view(
             positive_prompt=image_slice.positive_prompt,
             negative_prompt=image_slice.negative_prompt,
             is_ground=image_slice.is_ground_plane,
+            is_rest=image_slice.is_rest,
             image=_asset_ref(
                 project_id, f"slice-{index}", file_version(Path(image_slice.filename))
             ),

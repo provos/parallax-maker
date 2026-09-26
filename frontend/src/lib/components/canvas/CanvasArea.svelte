@@ -13,6 +13,7 @@
   import ViewModeBar from './ViewModeBar.svelte';
   import ToolOptionsBar from './ToolOptionsBar.svelte';
   import CanvasToolbar from './CanvasToolbar.svelte';
+  import SelectionBar from './SelectionBar.svelte';
 
   let stage: ReturnType<typeof InputImagePanel> | undefined = $state();
 
@@ -40,7 +41,11 @@
     <ToolOptionsBar />
   {/if}
   <div class="stage-wrap">
-    <div class="stage" class:hidden={uiStore.view === '3d'}>
+    <div
+      class="stage"
+      class:hidden={uiStore.view === '3d'}
+      class:with-selection-bar={uiStore.tool === 'segment'}
+    >
       <InputImagePanel bind:this={stage} />
     </div>
     <div class="viewer-3d" class:hidden={uiStore.view !== '3d'} data-testid="viewer-3d">
@@ -48,6 +53,9 @@
     </div>
     {#if toolsShown}
       <CanvasToolbar />
+      {#if uiStore.tool === 'segment' && uiStore.view === 'input'}
+        <SelectionBar />
+      {/if}
     {/if}
   </div>
 </section>
@@ -81,5 +89,11 @@
   .stage {
     padding-left: 56px;
     padding-right: 56px;
+  }
+
+  /* With the Segment tool, keep the selection bar's strip clear so the bar
+     never covers the image (and the image doesn't jump when it appears). */
+  .stage.with-selection-bar {
+    padding-bottom: 60px;
   }
 </style>
