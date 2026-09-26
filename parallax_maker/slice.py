@@ -5,6 +5,7 @@ import numpy as np
 
 from .utils import filename_add_version, filename_previous_version
 from .camera import Camera
+from .scene import ground_layers
 
 
 class ImageSlice:
@@ -97,21 +98,12 @@ class ImageSlice:
             and self.filename == other.filename
         )
 
-    @staticmethod
-    def _dimension_at_depth(z: float, image_height: int, image_width: int, cam: Camera):
-        fl_px = cam.focal_length_px(image_width)
-        card_width = (image_width * (z + cam.camera_distance)) / fl_px
-        card_height = (image_height * (z + cam.camera_distance)) / fl_px
-        return card_width, card_height
-
     def _depth_to_z(self, depth: float, cam: Camera):
         return cam.max_distance * ((255 - depth) / 255.0)
 
     def create_card(self, image_height: int, image_width: int, cam: Camera):
         if self.is_ground_plane:
             # The horizontal ground quad (far edge TL/TR, near edge BR/BL).
-            from .scene import ground_layers
-
             card_corners_3d = ground_layers(self.image, cam)[0].corners
         else:
             z = self._depth_to_z(self.depth, cam)

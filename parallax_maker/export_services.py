@@ -228,7 +228,6 @@ class ExportService:
             camera_position,
             push_distance=camera_distance * command.push_distance_factor,
             num_frames=command.num_frames,
-            camera_rotation=state.camera.rotation_world_to_camera(),
             render=lambda position: render_state_view(
                 state.image_slices, state.camera, position
             ),
