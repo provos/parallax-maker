@@ -1,119 +1,20 @@
 <script lang="ts">
   /**
-   * The Export tab: Create/Export glTF Scene, Upscale Textures, the DOF
-   * checkbox, camera distance/max distance/focal length/mesh displacement
-   * sliders, and Export Animation + Number of Frames - see components.py's
-   * `make_3d_export_div`/`make_animation_export_div` and
-   * `docs/svelte-migration/reference/dash-1440-export.png` for the Dash
-   * layout this mirrors.
+   * The Export step's Inspector panel: the glTF scene (with mesh
+   * displacement and depth of field), texture upscaling, and the parallax
+   * animation. The camera itself is set in the Preview panel.
    */
   import { projectStore } from '../../state/project.svelte';
   import { jobStore } from '../../state/jobs.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
   import { triggerDownload } from '../../download';
-  import HelpTooltip from '../shared/HelpTooltip.svelte';
-  import { EXPORT_HELP_TEXTS } from '../../helpTexts';
-  import SceneSideView from './SceneSideView.svelte';
+  import { cameraDraftStore } from '../../state/cameraDraft.svelte';
+  import CameraSlider from '../shared/CameraSlider.svelte';
 
   const view = $derived(projectStore.view);
 
-  // -- Camera distance / max distance / focal length / mesh displacement.
-  // All four are read straight from the persisted settings, with a small
-  // local draft for a smooth drag (re-synced whenever the server's settings
-  // change, including our own applied response) - same pattern as
-  // SegmentationTab.svelte's threshold sliders. `CameraSettingsRequest`
-  // requires distance/focalLength/maxDistance together (see
-  // `updateSettings`'s doc comment); this always commits all four fields in
-  // one `PUT .../settings`, matching Dash's own single `remember_camera_
-  // parameters` callback, which reads all four sliders on any one's change.
-  type CameraDraft = {
-    distance: number;
-    maxDistance: number;
-    focalLength: number;
-    displacement: number;
-    groundNear: number;
-  };
-  const DEFAULT_CAMERA: CameraDraft = {
-    distance: 100,
-    maxDistance: 200,
-    focalLength: 100,
-    displacement: 0,
-    groundNear: 0,
-  };
-
-  let draft = $state<CameraDraft>({ ...DEFAULT_CAMERA });
-
-  // `onchange` fires per discrete arrow-key step (see the sliders' own doc
-  // comment above), so a fast key-repeat sequence can call `commitCamera`
-  // many times before the first `PUT .../settings` round trip lands. Per the
-  // architecture doc's "Concurrency" rule ("the UI must never send a request
-  // it knows will be rejected with 409 busy"), firing those uncoordinated
-  // and concurrently would 409 every commit but the first; instead, coalesce
-  // them the same way `logStore.refresh` coalesces overlapping calls
-  // (state/logs.svelte.ts): only one `updateSettings` call is ever in
-  // flight, later commits just flag a follow-up that reads the *latest*
-  // `draft` once the in-flight one resolves, so the final persisted value is
-  // always the last one the user actually landed on.
-  let commitInFlight = false;
-  let commitPending = false;
-
-  // Re-sync `draft` from the persisted settings whenever the project view
-  // changes (including a restore) - but never while a local edit is still
-  // being committed: `runCommit`'s own `applyView` (inside
-  // `workflow.updateSettings`) would otherwise race an in-progress key-repeat
-  // sequence, snapping `draft` back to an older, already-superseded value
-  // moments after a later key press already advanced it further (observed
-  // directly as `setSlider` getting "stuck" partway through a many-step
-  // sequence, since each snap-back fights the next arrow-key increment).
-  $effect(() => {
-    const settings = view?.settings;
-    if (!settings || commitInFlight || commitPending) return;
-    draft = {
-      distance: settings.camera.distance,
-      maxDistance: settings.camera.maxDistance,
-      focalLength: settings.camera.focalLength,
-      displacement: settings.meshDisplacement,
-      groundNear: settings.camera.groundNear ?? 0,
-    };
-  });
-
-  const hasGround = $derived(view?.slices.some((s) => s.isGround) ?? false);
-
-  function onCameraInput(field: keyof CameraDraft, event: Event): void {
-    const value = Number((event.currentTarget as HTMLInputElement).value);
-    draft = { ...draft, [field]: value };
-  }
-
-  async function runCommit(): Promise<void> {
-    if (commitInFlight) return;
-    commitInFlight = true;
-    try {
-      while (commitPending) {
-        commitPending = false;
-        // The ground must start before the max distance; keep it there when
-        // the max distance shrinks below it.
-        draft.groundNear = Math.min(draft.groundNear, Math.max(0, draft.maxDistance - 1));
-        await workflow.updateSettings({
-          camera: {
-            distance: draft.distance,
-            maxDistance: draft.maxDistance,
-            focalLength: draft.focalLength,
-            groundNear: draft.groundNear,
-          },
-          meshDisplacement: draft.displacement,
-        });
-      }
-    } finally {
-      commitInFlight = false;
-    }
-  }
-
-  function commitCamera(): void {
-    if (!view) return;
-    commitPending = true;
-    void runCommit();
-  }
+  $effect(() => cameraDraftStore.sync(view?.settings));
 
   // -- Depth of Field checkbox: purely a parameter of the next export
   // request, not a persisted setting (components.py's CHECKLIST_DOF has no
@@ -163,48 +64,19 @@
 
 </script>
 
-<div class="export-tab" data-testid="tab-export">
-  <div class="tab-header">
-    <HelpTooltip label="Export" texts={EXPORT_HELP_TEXTS} />
-  </div>
-  <div class="panel gltf-panel">
-    <div class="action-row">
-      <button
-        type="button"
-        class="btn"
-        data-testid="gltf-create"
-        disabled={isBusy() || !view}
-        onclick={createGltfScene}
-      >
-        Create glTF Scene
-      </button>
-      <button
-        type="button"
-        class="btn"
-        data-testid="gltf-export"
-        disabled={isBusy() || !view}
-        onclick={() => void exportGltfScene()}
-      >
-        Export glTF Scene
-      </button>
-      <button
-        type="button"
-        class="btn"
-        data-testid="upscale-textures"
-        disabled={isBusy() || !view}
-        onclick={upscaleTextures}
-      >
-        Upscale Textures
-      </button>
-    </div>
-
-    <div class="progress-bar" data-testid="export-progress">
-      <div
-        class="progress-bar-fill"
-        style={`width: ${(creatingGltf || upscaling) ? Math.round(jobStore.progress * 100) : 0}%`}
-      ></div>
-    </div>
-
+<div class="export-panel" data-testid="tab-export">
+  <section class="sec">
+    <h3 class="label accent">glTF scene</h3>
+    <p class="faint">Cards at their depths, for Blender, Unity or a web viewer.</p>
+    <CameraSlider
+      field="displacement"
+      label="Displacement"
+      testId="displacement"
+      min={0}
+      max={150}
+      step={5}
+      disabled={!view}
+    />
     <label class="checkbox-row">
       <input
         type="checkbox"
@@ -212,135 +84,52 @@
         checked={dofEnabled}
         onchange={(event) => (dofEnabled = (event.currentTarget as HTMLInputElement).checked)}
       />
-      Support Depth of Field Effect
+      Support depth of field
     </label>
-
-    <!--
-      The four camera/displacement sliders below deliberately do NOT disable
-      on `isBusy()` (unlike every other control in this tab): each commits on
-      every discrete change (`onchange` fires per arrow-key step, not just on
-      pointer release), matching components.py's SLIDER_CAMERA_DISTANCE/etc.,
-      which Dash never gates with a `running=` disable list either. Disabling
-      mid-flight would make a fast arrow-key sequence (e.g. `setSlider`
-      stepping many values in a row) race its own still-in-flight commit.
-    -->
-    <div class="field">
-      <label class="field-label" for="camera-distance">Camera Distance</label>
-      <input
-        id="camera-distance"
-        type="range"
-        min="0"
-        max="500"
-        step="1"
-        data-testid="camera-distance"
-        value={draft.distance}
-        disabled={!view}
-        oninput={(event) => onCameraInput('distance', event)}
-        onchange={commitCamera}
-      />
-      <span class="slider-value">{draft.distance}</span>
+    <div class="row">
+      <button
+        type="button"
+        class="btn grow"
+        data-testid="gltf-create"
+        title="Build the scene and show it in the 3D view"
+        disabled={isBusy() || !view}
+        onclick={createGltfScene}
+      >
+        Create scene
+      </button>
+      <button
+        type="button"
+        class="btn btn-primary grow"
+        data-testid="gltf-export"
+        title="Build the scene and download scene.gltf"
+        disabled={isBusy() || !view}
+        onclick={() => void exportGltfScene()}
+      >
+        Download glTF
+      </button>
     </div>
-
-    <div class="field">
-      <label class="field-label" for="max-distance">Max Distance</label>
-      <input
-        id="max-distance"
-        type="range"
-        min="0"
-        max="1000"
-        step="1"
-        data-testid="max-distance"
-        value={draft.maxDistance}
-        disabled={!view}
-        oninput={(event) => onCameraInput('maxDistance', event)}
-        onchange={commitCamera}
-      />
-      <span class="slider-value">{draft.maxDistance}</span>
-    </div>
-
-    <div class="field">
-      <label class="field-label" for="focal-length">Focal Length</label>
-      <input
-        id="focal-length"
-        type="range"
-        min="1"
-        max="500"
-        step="1"
-        data-testid="focal-length"
-        value={draft.focalLength}
-        disabled={!view}
-        oninput={(event) => onCameraInput('focalLength', event)}
-        onchange={commitCamera}
-      />
-      <span class="slider-value">{draft.focalLength}</span>
-    </div>
-
-    <div class="field">
-      <label class="field-label" for="displacement">Mesh Displacement</label>
-      <input
-        id="displacement"
-        type="range"
-        min="0"
-        max="150"
-        step="5"
-        data-testid="displacement"
-        value={draft.displacement}
-        disabled={!view}
-        oninput={(event) => onCameraInput('displacement', event)}
-        onchange={commitCamera}
-      />
-      <span class="slider-value">{draft.displacement}</span>
-    </div>
-  </div>
-
-  <div class="panel ground-panel" data-testid="ground-panel">
-    <span class="panel-label">Ground Plane</span>
-    <div class="field">
-      <label class="field-label" for="ground-distance">Ground Distance</label>
-      <input
-        id="ground-distance"
-        type="range"
-        min="0"
-        max={Math.max(0, draft.maxDistance - 1)}
-        step="1"
-        data-testid="ground-distance"
-        value={draft.groundNear}
-        disabled={!view || !hasGround}
-        oninput={(event) => onCameraInput('groundNear', event)}
-        onchange={commitCamera}
-      />
-      <span class="slider-value">{Math.round(draft.groundNear)}</span>
-    </div>
-    <p class="ground-readout" data-testid="horizon-readout">
-      {#if view?.settings.camera.horizonRow != null}
-        Horizon at row {Math.round(view.settings.camera.horizonRow)}, camera pitch
-        {(view.settings.camera.pitch ?? 0).toFixed(1)}°
-      {:else}
-        No image loaded
-      {/if}
-    </p>
-    {#if view?.sceneProfile}
-      <SceneSideView profile={view.sceneProfile} />
-    {/if}
-  </div>
-
-  <div class="panel animation-panel">
     <button
       type="button"
       class="btn"
-      data-testid="animation-export"
-      disabled={isBusy() || !view || numFrames <= 0}
-      onclick={exportAnimation}
+      data-testid="upscale-textures"
+      title="Upscale every slice texture before exporting"
+      disabled={isBusy() || !view}
+      onclick={upscaleTextures}
     >
-      Export Animation
+      Upscale textures
     </button>
-
-    <div class="progress-bar" data-testid="animation-progress">
-      <div class="progress-bar-fill" style={`width: ${animating ? Math.round(jobStore.progress * 100) : 0}%`}></div>
+    <div class="progress-bar" data-testid="export-progress" class:idle={!(creatingGltf || upscaling)}>
+      <div
+        class="progress-bar-fill"
+        style={`width: ${(creatingGltf || upscaling) ? Math.round(jobStore.progress * 100) : 0}%`}
+      ></div>
     </div>
+  </section>
 
-    <div class="field">
-      <label class="field-label" for="number-of-frames">Number of Frames</label>
+  <section class="sec">
+    <h3 class="label">Animation</h3>
+    <div class="g3">
+      <label class="muted" for="number-of-frames">Frames</label>
       <input
         id="number-of-frames"
         type="range"
@@ -352,59 +141,85 @@
         disabled={isBusy() || !view}
         oninput={(event) => (numFrames = Number((event.currentTarget as HTMLInputElement).value))}
       />
-      <span class="slider-value">{numFrames}</span>
+      <span class="mono value">{numFrames}</span>
     </div>
-  </div>
+    <button
+      type="button"
+      class="btn"
+      data-testid="animation-export"
+      disabled={isBusy() || !view || numFrames <= 0}
+      onclick={exportAnimation}
+    >
+      Export animation
+    </button>
+    <div class="progress-bar" data-testid="animation-progress" class:idle={!animating}>
+      <div class="progress-bar-fill" style={`width: ${animating ? Math.round(jobStore.progress * 100) : 0}%`}></div>
+    </div>
+  </section>
 </div>
 
 <style>
-  .export-tab {
+  .export-panel {
     display: flex;
     flex-direction: column;
-    gap: var(--space-4);
-    padding: var(--space-2);
+    margin: calc(-1 * var(--space-3)) -14px;
   }
 
-  .panel {
-    padding: var(--space-2);
-  }
-
-  .tab-header {
+  .sec {
+    padding: var(--space-3) 14px;
+    border-bottom: 1px solid var(--color-border);
     display: flex;
-    justify-content: flex-end;
-    padding: 0 var(--space-2);
+    flex-direction: column;
+    gap: 10px;
   }
 
-  .action-row {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-    margin-bottom: var(--space-2);
+  .label {
+    margin: 0;
+  }
+
+  .accent {
+    color: var(--color-primary-soft-text);
+  }
+
+  .faint {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: var(--text-small);
+  }
+
+  .muted {
+    color: var(--color-text-secondary);
   }
 
   .checkbox-row {
     display: flex;
     align-items: center;
     gap: var(--space-2);
-    margin: var(--space-2) 0;
+    color: var(--color-text-secondary);
   }
 
-  .field {
-    margin-bottom: var(--space-2);
+  .row {
+    display: flex;
+    gap: var(--space-2);
   }
 
-  input[type='range'] {
-    width: 100%;
+  .grow {
+    flex: 1 1 0;
   }
 
-  .slider-value {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
+  .g3 {
+    display: grid;
+    grid-template-columns: 96px minmax(0, 1fr) 44px;
+    align-items: center;
+    gap: 10px;
   }
 
-  .ground-readout {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    margin: 0 0 var(--space-2);
+  .value {
+    text-align: right;
+    font-size: 12px;
+  }
+
+  .progress-bar.idle {
+    visibility: hidden;
   }
 </style>

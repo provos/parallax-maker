@@ -316,6 +316,23 @@ export async function toggleGroundPlane(): Promise<void> {
   );
 }
 
+/**
+ * Makes the slice at `index` the ground plane, or (with `null`) removes the
+ * ground plane from whichever slice has it.
+ */
+export async function setGroundSlice(index: number | null): Promise<void> {
+  const view = projectStore.view;
+  if (!view) return;
+  if (index === null) {
+    const ground = view.slices.find((s) => s.isGround);
+    if (!ground) return;
+    await runSliceMutation('slice-editing', (id) => api.setGroundPlane(id, ground.index, false));
+    return;
+  }
+  if (view.slices.find((s) => s.index === index)?.isGround) return;
+  await runSliceMutation('slice-editing', (id) => api.setGroundPlane(id, index, true));
+}
+
 /** Horizon on the ground mask's top edge; ground under the nearest card's foot. */
 export async function fitGround(): Promise<void> {
   await runSliceMutation('settings', (id) => api.fitGround(id));

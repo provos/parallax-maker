@@ -106,8 +106,8 @@ describe('app shell', () => {
       ['step-depth', 'Mode'],
       ['step-slices', 'Segmentation'],
       ['step-inpaint', 'Inpainting'],
-      ['step-ground', 'Segmentation'],
-      ['step-preview', 'Export'],
+      ['step-ground', 'Ground'],
+      ['step-preview', 'Preview'],
       ['step-export', 'Export'],
     ])('%s shows the %s panel', async (testId, panel) => {
       render(AppShell);

@@ -1,15 +1,15 @@
 <script lang="ts">
   /**
    * The right-hand column: the panel for the current workflow step (or
-   * Settings). Until each step has its own panel (docs/redesign/HANDOFF.md
-   * §12), it hosts the pre-redesign tab bodies. All of them stay mounted and
-   * only the active one is shown: e2e scenarios read threshold sliders and
-   * slice thumbnails without first switching to them.
+   * Settings). All panels stay mounted and only the active one is shown:
+   * e2e scenarios read slider values without first switching to them.
    */
   import { uiStore, WORKFLOW_STEPS, type MainTab } from '../../state/ui.svelte';
   import ModeTab from '../depth/ModeTab.svelte';
   import SegmentPanel from '../segmentation/SegmentPanel.svelte';
-  import InpaintingTab from '../inpainting/InpaintingTab.svelte';
+  import InpaintPanel from '../inpainting/InpaintPanel.svelte';
+  import GroundPanel from '../ground/GroundPanel.svelte';
+  import PreviewPanel from '../preview/PreviewPanel.svelte';
   import ExportTab from '../export/ExportTab.svelte';
   import ConfigurationTab from '../config/ConfigurationTab.svelte';
   import SelectedSliceHeader from '../layers/SelectedSliceHeader.svelte';
@@ -31,7 +31,9 @@
     {#if uiStore.mainTab !== 'Configuration'}<SelectedSliceHeader />{/if}
     <div class="section" class:hidden={hidden('Mode')}><ModeTab /></div>
     <div class="section" class:hidden={hidden('Segmentation')}><SegmentPanel /></div>
-    <div class="section" class:hidden={hidden('Inpainting')}><InpaintingTab /></div>
+    <div class="section" class:hidden={hidden('Inpainting')}><InpaintPanel /></div>
+    <div class="section" class:hidden={hidden('Ground')}><GroundPanel /></div>
+    <div class="section" class:hidden={hidden('Preview')}><PreviewPanel /></div>
     <div class="section" class:hidden={hidden('Export')}><ExportTab /></div>
     <div class="section" class:hidden={hidden('Configuration')}><ConfigurationTab /></div>
   </div>

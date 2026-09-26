@@ -3,7 +3,7 @@
  * backend's per-project mutation lock with Generate/Apply/Erase/slice
  * selection, so none of those can race a not-yet-persisted request into a
  * `409 busy`: `MaskCanvas.svelte` registers a promise here on pointerup
- * (`PUT .../mask`), `InpaintingTab.svelte` registers one when a prompt
+ * (`PUT .../mask`), `InpaintPanel.svelte` registers one when a prompt
  * textarea commits (`PUT .../prompts`), and `workflow.ts`'s `selectSlice`/
  * inpainting mutation functions all call `flush()` before doing anything
  * else. This is the "explicit lifecycle" the

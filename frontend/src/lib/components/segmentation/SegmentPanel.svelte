@@ -17,7 +17,6 @@
   const hasMask = $derived(segmentation?.hasMask ?? false);
   const queued = $derived(segmentation?.queuedPoints.length ?? 0);
   const selected = $derived(view?.slices.find((s) => s.index === view.selectedSlice) ?? null);
-  const hasGround = $derived(view?.slices.some((s) => s.isGround) ?? false);
   const disabled = $derived(isBusy() || !view);
 
   // Sub-step progress: 1 click an object, 2 refine, 3 make it a slice.
@@ -243,16 +242,6 @@
           onclick={() => void workflow.toggleGroundPlane()}
         >
           {selected.isGround ? 'Ground plane' : 'Make ground plane'}
-        </button>
-        <button
-          type="button"
-          class="btn btn-sm grow"
-          data-testid="ground-fit"
-          title="Put the horizon on the ground's top edge and the ground under the nearest object"
-          disabled={isBusy() || !hasGround}
-          onclick={() => void workflow.fitGround()}
-        >
-          Fit ground
         </button>
       </div>
     </section>
