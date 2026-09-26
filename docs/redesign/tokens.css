@@ -1,0 +1,125 @@
+/*
+ * Parallax Maker redesign — design tokens.
+ * Replaces the :root / :root.dark blocks in frontend/src/app.css.
+ * Dark is the default. Set data-theme="light" on <html> for light mode.
+ * Fonts: IBM Plex Sans (400/500/600) and IBM Plex Mono (400/500).
+ */
+
+:root,
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Surfaces */
+  --color-bg: #111214;            /* app background, canvas surround */
+  --color-surface: #18191c;       /* panels: header, layers, inspector, status bar */
+  --color-surface-raised: #1f2124;/* inputs, cards, segmented-control track */
+  --color-surface-hover: #27292e; /* hover rows, secondary buttons */
+  --color-float: #1c1d21;         /* floating toolbars, toasts, dialogs */
+  --color-canvas: #111214;
+  --color-checker-1: #26282c;
+  --color-checker-2: #2f3136;
+  --color-scrim: rgb(0 0 0 / 55%);
+
+  /* Lines */
+  --color-border: #2a2d32;
+  --color-border-strong: #383b41;
+
+  /* Text */
+  --color-text: #e8e9ec;
+  --color-text-secondary: #b0b4bb;
+  --color-text-muted: #8d929b;    /* 5.5:1 on --color-surface */
+
+  /* Primary action (one per context) */
+  --color-primary: #f0a13a;
+  --color-primary-text: #1b1206;
+  --color-primary-soft: #2b2419;  /* current step background */
+  --color-primary-soft-text: #f5b865;
+
+  /* Selection (layer row, candidate, active tool, SAM mask) */
+  --color-selection: #4c9dff;
+  --color-selection-text: #cfe3ff;
+  --color-selection-soft: #1e2a3b;
+  --color-selection-tint: rgb(76 157 255 / 50%);
+
+  /* Status */
+  --color-success: #8fd1a8;       /* done steps, ground badge */
+  --color-success-soft: #1f3a2a;
+  --color-success-line: #2f5a41;
+  --color-danger: #ff8a80;
+  --color-danger-soft: #3a1d1f;
+  --color-danger-line: #6b2c2c;
+
+  /* Canvas overlays */
+  --color-horizon: #ff8a3d;
+  --color-inpaint-mask: rgb(255 96 64 / 50%);
+  --color-point-positive: #2f7de1;
+  --color-point-negative: #e8742a;
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+  --color-bg: #eceef1;
+  --color-surface: #f8f9fa;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #eceef1;
+  --color-float: #ffffff;
+  --color-canvas: #e1e3e7;
+  --color-checker-1: #f4f5f7;
+  --color-checker-2: #e3e5e9;
+  --color-scrim: rgb(20 22 26 / 35%);
+  --color-border: #dcdfe4;
+  --color-border-strong: #c9cdd3;
+  --color-text: #1b1d21;
+  --color-text-secondary: #474c54;
+  --color-text-muted: #5d636d;
+  --color-primary: #e8922a;
+  --color-primary-text: #1b1206;
+  --color-primary-soft: #fdf0dd;
+  --color-primary-soft-text: #8a4f00;
+  --color-selection: #2f7de1;
+  --color-selection-text: #174a8c;
+  --color-selection-soft: #e2edfd;
+  --color-selection-tint: rgb(47 125 225 / 45%);
+  --color-success: #1c7240;
+  --color-success-soft: #e3f5ea;
+  --color-success-line: #9fd3b3;
+  --color-danger: #b42727;
+  --color-danger-soft: #fdeaea;
+  --color-danger-line: #f0b4b4;
+  --color-horizon: #d9601a;
+  --color-inpaint-mask: rgb(230 80 50 / 45%);
+  --color-point-positive: #2f7de1;
+  --color-point-negative: #d9601a;
+}
+
+:root {
+  --font-sans: 'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+  --text-base: 13px;
+  --text-small: 11.5px;
+  --text-label: 11px;   /* uppercase, 600, letter-spacing .06em */
+  --text-title: 16px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+
+  --radius-sm: 4px;     /* chips, kbd, thumbnails */
+  --radius-md: 6px;     /* buttons, inputs, rows */
+  --radius-lg: 8px;     /* floating toolbars, cards, candidates */
+  --radius-xl: 10px;    /* dialogs */
+
+  --control-h: 32px;
+  --control-h-sm: 26px;
+  --shadow-float: 0 8px 24px rgb(0 0 0 / 30%);
+
+  /* Layout */
+  --header-h: 48px;
+  --statusbar-h: 28px;
+  --viewbar-h: 40px;
+  --toolopts-h: 44px;
+  --layers-w: 300px;
+  --inspector-w: 328px;
+}

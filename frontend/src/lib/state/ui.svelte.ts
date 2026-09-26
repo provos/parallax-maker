@@ -7,12 +7,38 @@
 
 export type ViewerTab = '2D' | '3D';
 export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Export' | 'Configuration';
+/** The workflow stepper's steps (docs/redesign/HANDOFF.md §4). */
+export type WorkflowStep = 'image' | 'depth' | 'slices' | 'inpaint' | 'ground' | 'preview' | 'export';
 export type SegmentationMode = 'depth' | 'segment';
 export type Theme = 'light' | 'dark';
 /** Highlight state of a configuration probe (Test Connection / Validate API Key). */
 export type ProbeStatus = 'success' | 'failure' | 'none';
 
 export const MAIN_TABS: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'];
+
+export const WORKFLOW_STEPS: { step: WorkflowStep; label: string }[] = [
+  { step: 'image', label: 'Image' },
+  { step: 'depth', label: 'Depth' },
+  { step: 'slices', label: 'Slices' },
+  { step: 'inpaint', label: 'Inpaint' },
+  { step: 'ground', label: 'Ground' },
+  { step: 'preview', label: 'Preview' },
+  { step: 'export', label: 'Export' },
+];
+
+/**
+ * Which of the pre-redesign tab bodies the Inspector shows for a step,
+ * until each step gets its own panel (HANDOFF.md §12).
+ */
+const STEP_PANELS: Record<WorkflowStep, MainTab> = {
+  image: 'Mode',
+  depth: 'Mode',
+  slices: 'Segmentation',
+  inpaint: 'Inpainting',
+  ground: 'Segmentation',
+  preview: 'Export',
+  export: 'Export',
+};
 
 /** Matches components.py's DROPDOWN_DEPTH_MODEL default. */
 const DEFAULT_DEPTH_MODEL = 'dinov2';
@@ -22,7 +48,14 @@ const DEFAULT_NUM_SLICES = 3;
 function createUiStore() {
   let viewerTab = $state<ViewerTab>('2D');
   let mainTab = $state<MainTab>('Mode');
-  let theme = $state<Theme>('light');
+  let step = $state<WorkflowStep>('image');
+  let theme = $state<Theme>('dark');
+  let logOpen = $state(false);
+  // Progress the stepper can't read from ProjectView (HANDOFF.md §4 "done"
+  // rules): tracked for this browser session only.
+  let inpainted = $state(false);
+  let previewed = $state(false);
+  let exported = $state(false);
   let segmentationMode = $state<SegmentationMode>('depth');
   let depthModel = $state<string>(DEFAULT_DEPTH_MODEL);
   let pendingNumSlices = $state<number>(DEFAULT_NUM_SLICES);
@@ -46,13 +79,51 @@ function createUiStore() {
     },
     setViewerTab(tab: ViewerTab): void {
       viewerTab = tab;
+      if (tab === '3D') previewed = true;
     },
 
+    /** The pre-redesign tab body the Inspector shows (see STEP_PANELS). */
     get mainTab(): MainTab {
       return mainTab;
     },
     setMainTab(tab: MainTab): void {
       mainTab = tab;
+    },
+
+    get step(): WorkflowStep {
+      return step;
+    },
+    /** Moves to a workflow step and shows that step's Inspector panel. */
+    setStep(next: WorkflowStep): void {
+      step = next;
+      mainTab = STEP_PANELS[next];
+      if (next === 'preview') previewed = true;
+    },
+
+    get logOpen(): boolean {
+      return logOpen;
+    },
+    toggleLog(): void {
+      logOpen = !logOpen;
+    },
+
+    get inpainted(): boolean {
+      return inpainted;
+    },
+    markInpainted(): void {
+      inpainted = true;
+    },
+    get previewed(): boolean {
+      return previewed;
+    },
+    markPreviewed(): void {
+      previewed = true;
+    },
+    get exported(): boolean {
+      return exported;
+    },
+    markExported(): void {
+      exported = true;
     },
 
     get theme(): Theme {
@@ -111,7 +182,12 @@ function createUiStore() {
     reset(): void {
       viewerTab = '2D';
       mainTab = 'Mode';
-      theme = 'light';
+      step = 'image';
+      theme = 'dark';
+      logOpen = false;
+      inpainted = false;
+      previewed = false;
+      exported = false;
       segmentationMode = 'depth';
       depthModel = DEFAULT_DEPTH_MODEL;
       pendingNumSlices = DEFAULT_NUM_SLICES;

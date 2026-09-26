@@ -13,8 +13,13 @@ export type RGB = readonly [number, number, number];
 export type RGBA = readonly [number, number, number, number];
 export type ImageMetadata = { width: number; height: number; hash: string };
 
+/**
+ * Waits until the image element has a fully decoded image. It need not be
+ * on screen: a UI may keep it in a view or panel that isn't showing (the
+ * redesigned UI shows the depth map only in its Depth view).
+ */
 export async function waitForImage(image: Locator): Promise<void> {
-  await expect(image).toBeVisible();
+  await expect(image).toBeAttached();
   await expect
     .poll(() =>
       image.evaluate((element: HTMLImageElement) => ({

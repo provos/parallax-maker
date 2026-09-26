@@ -3,6 +3,7 @@ import * as workflow from './workflow';
 import { projectStore } from './state/project.svelte';
 import { jobStore } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
+import { uiStore } from './state/ui.svelte';
 import type { ProjectView } from './api/types';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -52,6 +53,7 @@ describe('workflow', () => {
     projectStore.reset();
     jobStore.end();
     logStore.reset();
+    uiStore.reset();
   });
 
   afterEach(() => {
@@ -68,6 +70,10 @@ describe('workflow', () => {
       }
       if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
         return jsonResponse(200, { entries: [], next: 0 });
+      }
+      if (url === '/api/v1/projects/appstate-test/settings' && method === 'PUT') {
+        expect(JSON.parse(init!.body as string)).toEqual({ darkMode: true });
+        return jsonResponse(200, { ...makeView({ settings: { ...makeView().settings, darkMode: true } }), changed: true });
       }
       if (url === '/api/v1/projects/appstate-test/depth' && method === 'POST') {
         expect(JSON.parse(init!.body as string)).toEqual({ model: 'midas' });
@@ -95,6 +101,7 @@ describe('workflow', () => {
     expect(jobStore.active).toBeNull();
     expect(projectStore.view?.assets.depth?.url).toBe('/depth');
     expect(projectStore.view?.thresholds).toEqual([0, 85, 170, 255]);
+    expect(uiStore.step).toBe('slices');
   });
 
   it('records an ApiError message in the log store when a mutation fails', async () => {

@@ -40,8 +40,11 @@ export async function uploadImage(file: File, depthModel: string): Promise<void>
   jobStore.begin('upload');
   let projectId: string | null = null;
   try {
-    const view = await api.createProject(file);
+    let view = await api.createProject(file);
     projectId = view.id;
+    // A new project keeps the theme the user is already looking at.
+    const dark = uiStore.theme === 'dark';
+    if (view.settings.darkMode !== dark) view = await api.updateSettings(view.id, { darkMode: dark });
     projectStore.applyView(view);
   } catch (err) {
     logStore.pushClient(errorMessage(err));
@@ -51,6 +54,8 @@ export async function uploadImage(file: File, depthModel: string): Promise<void>
   jobStore.end();
   if (projectId) await refreshLogs(projectId);
   await startDepth(depthModel);
+  // The depth map is ready: the next thing to do is cut the image into slices.
+  if (projectStore.view?.assets.depth) uiStore.setStep('slices');
 }
 
 /** Starts (or restarts) the depth job for the current project and polls it to completion. */
@@ -285,6 +290,7 @@ async function runSliceMutation(
  * parallax view (Dash's `navigate_image` buttons). Deselects any slice.
  */
 export async function navigateCamera(direction: api.CameraDirection): Promise<void> {
+  uiStore.markPreviewed();
   await runSliceMutation('navigate', (id) => api.navigateCamera(id, direction));
 }
 
@@ -633,6 +639,7 @@ export async function applyInpaintingCandidate(): Promise<void> {
   try {
     const result = await api.applyInpaintingCandidate(view.id, index, candidates.generationId);
     projectStore.applyView(result);
+    uiStore.markInpainted();
   } catch (err) {
     logStore.pushClient(errorMessage(err));
   } finally {
@@ -742,6 +749,7 @@ export async function startGltfExport(dof: boolean): Promise<void> {
       onProgress: (j) => jobStore.setProgress(j.progress),
     });
     if (finished.project) projectStore.applyView(finished.project);
+    uiStore.markExported();
   } catch (err) {
     logStore.pushClient(errorMessage(err));
   } finally {
@@ -785,6 +793,7 @@ export async function startAnimationExport(frames: number): Promise<void> {
       onProgress: (j) => jobStore.setProgress(j.progress),
     });
     if (finished.project) projectStore.applyView(finished.project);
+    uiStore.markExported();
   } catch (err) {
     logStore.pushClient(errorMessage(err));
   } finally {

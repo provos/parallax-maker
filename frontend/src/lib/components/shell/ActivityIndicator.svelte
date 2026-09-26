@@ -57,31 +57,26 @@
     <span class="label" data-testid="activity-label">
       {activityLabel(kind)}{percent > 0 ? ` ${percent}%` : '…'}
     </span>
+    <span
+      class="activity-bar"
+      class:indeterminate={percent === 0}
+      data-testid="activity-bar"
+      role="progressbar"
+      aria-label={activityLabel(kind)}
+      aria-valuemin="0"
+      aria-valuemax="100"
+      aria-valuenow={percent > 0 ? percent : undefined}
+    >
+      <span class="activity-bar-fill" style={percent > 0 ? `width: ${percent}%` : undefined}></span>
+    </span>
   {/if}
 </div>
-
-{#if visible && kind !== null}
-  <div
-    class="activity-bar"
-    class:indeterminate={percent === 0}
-    data-testid="activity-bar"
-    role="progressbar"
-    aria-label={activityLabel(kind)}
-    aria-valuemin="0"
-    aria-valuemax="100"
-    aria-valuenow={percent > 0 ? percent : undefined}
-  >
-    <div class="activity-bar-fill" style={percent > 0 ? `width: ${percent}%` : undefined}></div>
-  </div>
-{/if}
 
 <style>
   .activity {
     display: flex;
     align-items: center;
-    justify-content: flex-end;
     gap: var(--space-2);
-    font-size: 0.875rem;
     white-space: nowrap;
     min-width: 0;
   }
@@ -92,29 +87,30 @@
   }
 
   .spinner {
-    width: 1rem;
-    height: 1rem;
+    width: 12px;
+    height: 12px;
     flex: none;
     border-radius: 50%;
-    border: 2px solid currentColor;
+    border: 1.6px solid currentColor;
     border-right-color: transparent;
-    animation: spin 0.8s linear infinite;
+    animation: spin 0.9s linear infinite;
   }
 
-  /* Thin bar along the bottom edge of the header (see Header.svelte). */
   .activity-bar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
+    display: inline-block;
+    flex: none;
+    width: 120px;
     height: 4px;
+    border-radius: 2px;
     overflow: hidden;
-    background-color: rgb(255 255 255 / 25%);
+    background: var(--color-surface-hover);
   }
 
   .activity-bar-fill {
+    display: block;
     height: 100%;
-    background-color: var(--color-success);
+    background: var(--color-primary);
+    border-radius: 2px;
     transition: width 0.2s ease;
   }
 
