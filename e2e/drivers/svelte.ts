@@ -114,6 +114,8 @@ export class SvelteDriver implements UiDriver {
   }
 
   async visibleCanvasPixel(x: number, y: number): Promise<number[]> {
+    // A picked candidate swaps image sources; sample only once they are decoded.
+    await waitForImage(this.mainImage());
     const [naturalWidth, naturalHeight] = await this.mainImage().evaluate((img: HTMLImageElement) => [
       img.naturalWidth,
       img.naturalHeight,

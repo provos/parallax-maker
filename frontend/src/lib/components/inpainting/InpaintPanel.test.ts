@@ -295,4 +295,29 @@ describe('InpaintPanel', () => {
       expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/selection'))).toBe(false);
     });
   });
+
+  describe('candidate preview hint', () => {
+    const withPick = (sliceIndex: number) =>
+      makeView({
+        selectedSlice: 1,
+        inpainting: {
+          ...makeView().inpainting,
+          candidates: { generationId: 'gen', sliceIndex, images: [{ url: '/c0' }, { url: '/c1' }, { url: '/c2' }] },
+          selectedCandidate: 1,
+        },
+      });
+
+    it('says which candidate the canvas shows', () => {
+      projectStore.applyView(withPick(1));
+      render(InpaintPanel);
+      expect(screen.getByTestId('candidate-preview-hint')).toHaveTextContent('Candidate 2 is shown on the canvas');
+    });
+
+    it('stays hidden when the candidates belong to another slice', () => {
+      projectStore.applyView(withPick(0));
+      render(InpaintPanel);
+      expect(screen.queryByTestId('candidate-preview-hint')).toBeNull();
+    });
+  });
 });
+
