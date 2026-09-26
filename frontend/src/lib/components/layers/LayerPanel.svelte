@@ -67,10 +67,12 @@
   function commitDepth(index: number): void {
     if (editingIndex !== index) return;
     editingIndex = null;
-    // Blank or non-integer input does not commit (it must not become 0).
+    // Blank or non-integer input does not commit (it must not become 0);
+    // anything else is clamped to the 0-255 depth range.
     const draft = depthDraft.trim();
     if (!/^-?\d+$/.test(draft)) return;
-    void workflow.setSliceDepth(index, Number.parseInt(draft, 10));
+    const depth = Math.max(0, Math.min(255, Number.parseInt(draft, 10)));
+    void workflow.setSliceDepth(index, depth);
   }
 
   function onDepthKeydown(event: KeyboardEvent): void {

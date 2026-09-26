@@ -202,6 +202,29 @@ describe('LayerPanel', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2);
     });
 
+    it.each([
+      ['300', 255],
+      ['-5', 0],
+    ])('clamps an out-of-range depth (%s) to %i', async (draft, expected) => {
+      projectStore.applyView(makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)] }));
+      const fetchMock = vi.fn();
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { ...makeView({ revision: 2 }), changed: true }));
+      fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
+      vi.stubGlobal('fetch', fetchMock);
+
+      render(LayerPanel);
+      const wrapper0 = document.querySelector('[data-testid="slice-thumbnail-wrapper"][data-slice-index="0"]') as HTMLElement;
+      await fireEvent.click(wrapper0.querySelector('[data-testid="slice-depth-display"]') as HTMLElement);
+      const input = screen.getByTestId('slice-depth-input') as HTMLInputElement;
+      await fireEvent.input(input, { target: { value: draft } });
+      await fireEvent.keyDown(input, { key: 'Enter' });
+      await fireEvent.blur(input);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+      const [, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+      expect(JSON.parse(init.body as string)).toEqual({ depth: expected });
+    });
+
     it.each(['', '  ', '12.5', 'abc'])('does not commit a blank or non-integer depth (%j)', async (draft) => {
       projectStore.applyView(makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)] }));
       const fetchMock = vi.fn();
