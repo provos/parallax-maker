@@ -57,11 +57,14 @@
   let loadToken = 0;
   let lastLoadedKey: string | null | undefined = undefined;
 
-  const interactiveNow = $derived(uiStore.mainTab === 'Inpainting');
+  // Painting is the Brush tool's job; the painted mask shows only in the
+  // views it is drawn over (the selected slice, or the working image).
+  const interactiveNow = $derived(uiStore.tool === 'brush');
+  const visibleNow = $derived(uiStore.view === 'slice' || uiStore.view === 'input');
 
-  // The brush preview is only ever meaningful while this tab is actually
-  // interactive; drop it immediately on a tab switch away rather than
-  // leaving a stale circle floating over the (now non-interactive) canvas.
+  // The brush preview is only meaningful while painting is possible; drop
+  // it as soon as another tool is picked rather than leaving a stale circle
+  // floating over the (now non-interactive) canvas.
   $effect(() => {
     if (!interactiveNow) canvasPreviewStore.clearBrush();
   });
@@ -334,6 +337,7 @@
   data-testid="mask-canvas"
   class="mask-canvas"
   class:interactive={interactiveNow}
+  class:hidden={!visibleNow}
   onclick={(event) => event.stopPropagation()}
   onpointerdown={beginStroke}
   onpointermove={moveStroke}

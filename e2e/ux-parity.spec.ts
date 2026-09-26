@@ -17,16 +17,14 @@ test('after zooming in and panning, a depth-mode click at a known source pixel l
 }) => {
   requireWorkflow(ui, 'segmentation');
   const projectId = await ui.restoreFixtureState();
-  await ui.expectSegmentationMode('Depth Map');
+  await ui.setSegmentationMode('Depth Map');
 
   // A real user zooming in before painting a precise mask is a completely
-  // natural flow, so visit the Inpainting tab first (segmentation clicks on
-  // the main image are not tab-gated: `InputImagePanel.svelte`'s
-  // `onImageClick` attaches unconditionally, so no tab switch is needed
-  // afterwards).
+  // natural flow, so visit the Inpainting step first (the click below
+  // switches back to the Segment tool; zoom/pan survives that).
   await ui.openTab('Inpainting');
 
-  const beforeZoom = await ui.mainImage().boundingBox();
+  const beforeZoom = await ui.canvasImage().boundingBox();
   if (!beforeZoom) throw new Error('Main image has no bounding box');
 
   // Each real wheel gesture is one zoom "tick" (ZOOM_FACTOR = 1.1); five
@@ -34,7 +32,7 @@ test('after zooming in and panning, a depth-mode click at a known source pixel l
   // margin for rendered-box rounding.
   for (let i = 0; i < 5; i += 1) await ui.zoomIn();
 
-  const afterZoom = await ui.mainImage().boundingBox();
+  const afterZoom = await ui.canvasImage().boundingBox();
   if (!afterZoom) throw new Error('Main image has no bounding box after zoom');
   // Zooming in must visibly enlarge the rendered box (state/viewport.svelte.ts).
   expect(afterZoom.width, 'image width grows after zooming in').toBeGreaterThan(
@@ -42,7 +40,7 @@ test('after zooming in and panning, a depth-mode click at a known source pixel l
   );
 
   await ui.panBy(35, -20);
-  const afterPan = await ui.mainImage().boundingBox();
+  const afterPan = await ui.canvasImage().boundingBox();
   if (!afterPan) throw new Error('Main image has no bounding box after pan');
 
   expect(
@@ -50,16 +48,12 @@ test('after zooming in and panning, a depth-mode click at a known source pixel l
     'panning moves the rendered image box',
   ).toBeGreaterThan(5);
 
-  // Leave the Inpainting tab before clicking: the mask canvas is the
-  // topmost (interactive) element over the image while that tab is active
-  // (MaskCanvas.svelte's `interactive` class), so a click there would hit
-  // the canvas's own paint-stroke handling instead of segmentation - not a
-  // zoom/pan concern, just normal tab-based hit-testing. The zoom/pan
-  // transform itself is unaffected by the tab switch (proven by
-  // `afterZoom`/`afterPan` being measured before this point, and
-  // re-confirmed by `finalBox` below).
+  // Leave the Inpainting step before clicking: its Brush tool makes the mask
+  // canvas the topmost (interactive) element over the image, so a click
+  // there would paint instead of segmenting. The zoom/pan transform itself
+  // is unaffected by the switch (re-confirmed by `finalBox` below).
   await ui.openTab('Segmentation');
-  const finalBox = await ui.mainImage().boundingBox();
+  const finalBox = await ui.canvasImage().boundingBox();
   if (!finalBox) throw new Error('Main image has no bounding box after switching tabs');
   expect(finalBox.width, 'zoom survives switching tabs').toBeCloseTo(afterZoom.width, 0);
 
@@ -71,7 +65,7 @@ test('after zooming in and panning, a depth-mode click at a known source pixel l
   // mapping itself (lib/geometry.ts's `findPixelFromClick`) stays exact
   // under zoom, independent of the pan gap just pinned above. The `<= 1`
   // tolerance (not exact equality) is the same real sub-pixel truncation
-  // quirk `e2e/parallax-maker.spec.ts`'s own "default depth click" scenario
+  // quirk `e2e/parallax-maker.spec.ts`'s own "depth-band click" scenario
   // pins for a *plain, unzoomed* click (a requested (16, 16) truncates to
   // (15, 15)) - a fractional zoom scale only makes that rounding harder to
   // predict exactly by hand, not any less exact in what the app itself does.
@@ -112,18 +106,18 @@ test('a reset returns the view to its original, unzoomed state', async ({ ui }) 
   await ui.restoreFixtureState();
   await ui.openTab('Inpainting');
 
-  const original = await ui.mainImage().boundingBox();
+  const original = await ui.canvasImage().boundingBox();
   if (!original) throw new Error('Main image has no bounding box');
 
   for (let i = 0; i < 5; i += 1) await ui.zoomIn();
-  const zoomed = await ui.mainImage().boundingBox();
+  const zoomed = await ui.canvasImage().boundingBox();
   if (!zoomed) throw new Error('Main image has no bounding box after zoom');
   expect(zoomed.width).toBeGreaterThan(original.width * 1.3);
 
   // The Reset button (state/viewport.svelte.ts) returns the view to its
   // original, unzoomed size exactly.
   await ui.resetZoom();
-  const reset = await ui.mainImage().boundingBox();
+  const reset = await ui.canvasImage().boundingBox();
   if (!reset) throw new Error('Main image has no bounding box after reset');
   expect(reset.width).toBeCloseTo(original.width, 0);
   expect(reset.x).toBeCloseTo(original.x, 0);

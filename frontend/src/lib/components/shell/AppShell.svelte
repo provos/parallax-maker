@@ -9,7 +9,7 @@
   import Inspector from './Inspector.svelte';
   import LogDrawer from './LogDrawer.svelte';
   import StatusBar from './StatusBar.svelte';
-  import ViewerTabs from '../upload/ViewerTabs.svelte';
+  import CanvasArea from '../canvas/CanvasArea.svelte';
   import LayerPanel from '../layers/LayerPanel.svelte';
 </script>
 
@@ -17,9 +17,7 @@
   <AppHeader />
   <main class="app-main">
     <LayerPanel />
-    <section class="canvas-area" aria-label="Canvas">
-      <ViewerTabs />
-    </section>
+    <CanvasArea />
     <Inspector />
   </main>
   <LogDrawer />
@@ -52,20 +50,6 @@
        than the design's --inspector-w; it narrows once they are rebuilt. */
     grid-template-columns: var(--layers-w) minmax(0, 1fr) 360px;
     grid-template-rows: minmax(0, 1fr);
-  }
-
-  .canvas-area {
-    min-width: 0;
-    min-height: 0;
-    display: flex;
-    flex-direction: column;
-    padding: var(--space-2) var(--space-3) 0;
-    background: var(--color-bg);
-  }
-
-  .canvas-area > :global(*) {
-    flex: 1 1 0;
-    min-height: 0;
   }
 
   /* Below the design's 1280px minimum, give the canvas more of the width. */

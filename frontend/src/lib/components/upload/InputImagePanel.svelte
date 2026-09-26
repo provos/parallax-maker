@@ -1,4 +1,16 @@
 <script lang="ts">
+  /**
+   * The canvas stage (docs/redesign/HANDOFF.md §3): the image for the
+   * current view with its overlays (mask canvas, points and ROI box,
+   * horizon line), zoom/pan, and image upload by drop or, before any image
+   * is loaded, from the empty state.
+   *
+   * Views: Input and Parallax 2D show the server's display image
+   * (`ProjectView.mainImage`: the input, a segmentation preview, the
+   * selected slice's highlight, or the latest camera render). Depth, Slice
+   * and Composite are drawn here from the project's assets.
+   */
+  import ImageUp from '@lucide/svelte/icons/image-up';
   import { projectStore } from '../../state/project.svelte';
   import { uiStore } from '../../state/ui.svelte';
   import { isBusy } from '../../state/busy.svelte';
@@ -7,16 +19,14 @@
   import * as workflow from '../../workflow';
   import MaskCanvas from '../canvas/MaskCanvas.svelte';
   import PreviewOverlay from '../canvas/PreviewOverlay.svelte';
-  import MaskToolbar from '../canvas/MaskToolbar.svelte';
   import HorizonOverlay from '../canvas/HorizonOverlay.svelte';
-  import type { CameraDirection } from '../../api/client';
 
   let fileInput: HTMLInputElement | undefined;
   let dragging = $state(false);
   let dropZoneEl: HTMLDivElement | undefined;
   let fitEl: HTMLDivElement | undefined;
 
-  function pickFile(): void {
+  export function pickFile(): void {
     if (isBusy()) return;
     fileInput?.click();
   }
@@ -47,15 +57,8 @@
     dragging = false;
   }
 
-  function onKeydown(event: KeyboardEvent): void {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      pickFile();
-    }
-  }
-
-  // The main <img> shows the current display image: a segmentation preview,
-  // a selected slice's composite, or (before any of those) the input image
+  // The display image: a segmentation preview, a selected slice's
+  // highlight, a camera render, or (before any of those) the input image
   // itself (see ProjectView.mainImage in ARCHITECTURE.md), falling back to
   // the raw input asset only if the server hasn't reported a main image yet.
   const mainImageUrl = $derived(
@@ -69,26 +72,33 @@
     return size && size.width > 0 && size.height > 0 ? size.width / size.height : null;
   });
 
+  const selectedSlice = $derived(
+    projectStore.view?.slices.find((s) => s.index === projectStore.view?.selectedSlice) ?? null,
+  );
+  // The reference render's order: the ground first, then far to near.
+  const compositeLayers = $derived(
+    [...(projectStore.view?.slices ?? [])].sort(
+      (a, b) => Number(!!b.isGround) - Number(!!a.isGround) || a.depth - b.depth || a.index - b.index,
+    ),
+  );
+  const showsMain = $derived(uiStore.view === 'input' || uiStore.view === 'parallax');
+
   /**
-   * Handles a real click on the main image for segmentation (webui.py's
-   * `click_event`). Only runs when a project with an input image exists and
-   * nothing else is in flight; a click landing outside the image (which
-   * shouldn't happen given the image fills its own box, but can at the
-   * exact far edge due to rounding) is ignored, matching the backend's own
-   * bounds check.
+   * A click on the display image with the Segment tool selects by object
+   * or by depth band at that pixel (webui.py's `click_event`). A click
+   * landing outside the image (possible at the exact far edge due to
+   * rounding) is ignored, matching the backend's own bounds check.
    *
    * Reads `event.ctrlKey` (not `metaKey`): Playwright's `Control` modifier
-   * sets `ctrlKey` on click events in Chromium on both macOS and Linux, and
-   * this must match Dash's `click_event`, which also keys off `ctrlKey`.
+   * sets `ctrlKey` on click events in Chromium on both macOS and Linux.
    *
    * `rect` is read live from `getBoundingClientRect()` at click time, which
    * already reflects the current zoom/pan CSS transform applied to
-   * `.image-stack` below -- `findPixelFromClick`'s plain ratio math needs no
-   * changes at all to stay pixel-exact under zoom/pan (see geometry.ts's
-   * `transformedRect` doc comment and its own zoom/pan unit tests).
+   * `.image-stack` below, so `findPixelFromClick`'s ratio math stays
+   * pixel-exact under zoom/pan (see geometry.ts's `transformedRect`).
    */
   function onImageClick(event: MouseEvent): void {
-    if (!hasInputImage) return; // let the click bubble to the drop-zone's pickFile
+    if (!hasInputImage) return;
     event.stopPropagation();
     if (suppressNextClick) {
       // A real drag-to-pan just ended on this same pointer sequence; treat
@@ -96,7 +106,7 @@
       suppressNextClick = false;
       return;
     }
-    if (isBusy()) return;
+    if (isBusy() || uiStore.tool !== 'segment' || uiStore.view !== 'input') return;
 
     const size = projectStore.view?.image;
     if (!size) return;
@@ -113,11 +123,9 @@
   /**
    * Chromium on macOS never fires a `click` event for a Ctrl+left-click --
    * it fires `contextmenu` instead (mousedown -> contextmenu -> mouseup, no
-   * click), which is how real trackpad users open a context menu with one
-   * mouse button. Dash works around this the same way
-   * (utility.js's `suppress_contextmenu`): treat a Ctrl-held `contextmenu`
-   * on the image as the click it would have been everywhere else, and let
-   * an un-modified right-click open the browser's context menu as normal.
+   * click). Treat a Ctrl-held `contextmenu` on the image as the click it
+   * would have been everywhere else, and let an un-modified right-click
+   * open the browser's context menu as normal.
    */
   function onImageContextMenu(event: MouseEvent): void {
     if (!event.ctrlKey) return;
@@ -125,9 +133,7 @@
     onImageClick(event);
   }
 
-  // -- Zoom/pan for the main image + mask canvas (see state/viewport.svelte.ts
-  // for why Dash only has wheel-zoom, and why drag-to-pan/reset buttons here
-  // are a documented improvement rather than a strict parity port).
+  // -- Zoom/pan for the image and its overlays (state/viewport.svelte.ts).
 
   /**
    * Coordinates relative to `.image-fit` -- the untransformed box the image
@@ -145,16 +151,15 @@
     const point = localPoint(event.clientX, event.clientY);
     if (!point) return;
     event.preventDefault();
-    // Matches Dash's handleWheel exactly: deltaY < 0 (scroll up) zooms in.
+    // deltaY < 0 (scroll up) zooms in.
     viewportStore.zoomAt(point.x, point.y, event.deltaY < 0);
   }
 
-  // Drag-to-pan: the middle mouse button always pans (works on every tab,
-  // never ambiguous with anything else); the primary button also pans, but
-  // only outside the Inpainting tab, where it instead paints on
-  // MaskCanvas.svelte -- and only once the drag has moved far enough to
-  // stop looking like a plain click, so a real Playwright `.click()` (zero
-  // movement) is never affected. A drag that *does* cross that threshold
+  // Drag-to-pan: the middle mouse button always pans; the primary button
+  // pans too, except with the Brush (it paints on MaskCanvas.svelte) or
+  // the Horizon tool (it drags the line) -- and only once the drag has
+  // moved far enough to stop looking like a plain click, so a zero-movement
+  // `.click()` is never affected. A drag that *does* cross that threshold
   // suppresses the `click` event that would otherwise still fire afterward.
   const PAN_THRESHOLD_PX = 4;
   let panPointerId: number | null = null;
@@ -165,7 +170,7 @@
   let suppressNextClick = false;
 
   function canLeftDragPan(): boolean {
-    return uiStore.mainTab !== 'Inpainting';
+    return uiStore.tool !== 'brush' && uiStore.tool !== 'horizon';
   }
 
   function onDropZonePointerDown(event: PointerEvent): void {
@@ -198,17 +203,12 @@
       if (Math.hypot(dx, dy) < PAN_THRESHOLD_PX) return;
       panEngaged = true;
       // Only a *primary*-button drag has a `click` to suppress afterward
-      // (a middle-button press never generates one at all -- only
-      // `auxclick`); setting this unconditionally would leave a stale
-      // `true` around forever after a middle-drag pan, silently swallowing
-      // the *next*, unrelated real click.
+      // (a middle-button press never generates one at all).
       if (panButton === 0) suppressNextClick = true;
       // Deferred until a real drag is detected (not on pointerdown): a
       // capturing element intercepts the browser's compatibility mouse
-      // events too (not just pointer events), which would silently steal
-      // the `click` a zero-movement press should still deliver to the
-      // <img> beneath -- capturing only once we know this is really a
-      // drag keeps a plain click completely unaffected.
+      // events too, which would steal the `click` a zero-movement press
+      // should still deliver to the <img> beneath.
       dropZoneEl?.setPointerCapture?.(event.pointerId);
     }
     viewportStore.panBy(event.movementX, event.movementY);
@@ -225,145 +225,68 @@
     panEngaged = false;
   }
 
-  /** The visible drop-zone's center, in `.image-fit`-relative coordinates. */
-  function zoomButtonCenter(): { x: number; y: number } {
+  /** The visible stage's center, in `.image-fit`-relative coordinates. */
+  function stageCenter(): { x: number; y: number } {
     const rect = dropZoneEl?.getBoundingClientRect();
     if (!rect) return { x: 0, y: 0 };
     return localPoint(rect.left + rect.width / 2, rect.top + rect.height / 2) ?? { x: 0, y: 0 };
   }
 
-  function zoomIn(): void {
-    const { x, y } = zoomButtonCenter();
+  export function zoomIn(): void {
+    const { x, y } = stageCenter();
     viewportStore.zoomInAt(x, y);
   }
 
-  function zoomOut(): void {
-    const { x, y } = zoomButtonCenter();
+  export function zoomOut(): void {
+    const { x, y } = stageCenter();
     viewportStore.zoomOutAt(x, y);
-  }
-
-  function resetZoom(): void {
-    viewportStore.reset();
-  }
-
-  // -- Camera navigation (Dash's CMP-26 `navigate_image`): moves the preview
-  // camera over the slice cards and shows the server-rendered parallax view.
-  const canNavigate = $derived((projectStore.view?.slices.length ?? 0) > 0);
-  const CAMERA_BUTTONS: { direction: CameraDirection; symbol: string; label: string }[] = [
-    { direction: 'out', symbol: '\u2296', label: 'Move camera back' },
-    { direction: 'up', symbol: '\u2191', label: 'Move camera up' },
-    { direction: 'left', symbol: '\u2190', label: 'Move camera left' },
-    { direction: 'reset', symbol: '\u25CF', label: 'Reset camera position' },
-    { direction: 'right', symbol: '\u2192', label: 'Move camera right' },
-    { direction: 'down', symbol: '\u2193', label: 'Move camera down' },
-    { direction: 'in', symbol: '\u2295', label: 'Move camera forward' },
-  ];
-
-  // The draggable horizon line (sets the camera pitch) is shown on demand.
-  let showHorizon = $state(false);
-
-  function navigate(direction: CameraDirection): void {
-    if (!canNavigate || isBusy()) return;
-    void workflow.navigateCamera(direction);
-  }
-
-  const segmentation = $derived(projectStore.view?.segmentation);
-  // Multi/Commit are only meaningful in Instance Segmentation mode with a
-  // project loaded, matching Dash's toggle_segmentation_buttons.
-  const segmentationToolsActive = $derived(
-    uiStore.segmentationMode === 'segment' && !!projectStore.view,
-  );
-  const multiPointEnabled = $derived(segmentation?.multiPointMode ?? false);
-  const canCommit = $derived(
-    segmentationToolsActive &&
-      multiPointEnabled &&
-      (segmentation?.queuedPoints.length ?? 0) > 0 &&
-      !isBusy(),
-  );
-
-  function toggleMultiPoint(): void {
-    if (!segmentationToolsActive || isBusy()) return;
-    void workflow.setMultiPointMode(!multiPointEnabled);
-  }
-
-  function commit(): void {
-    if (!canCommit) return;
-    void workflow.commitMultiPoint();
-  }
-
-  // Checkerboard/Invert/Feather are mask tools (components.py's
-  // make_segmentation_tools_container); like the rest of that row they are
-  // only gated on "a project is loaded and nothing else is in flight" -- Dash
-  // never disables these three buttons based on selection/mask state either,
-  // it just no-ops with a log message (see workflow.ts's slice-editing
-  // section, which owns the exact precondition/wording for Invert/Feather).
-  const maskToolsActive = $derived(!!projectStore.view);
-  const checkerboardOn = $derived(projectStore.view?.useCheckerboard ?? false);
-
-  function toggleCheckerboard(): void {
-    if (!maskToolsActive || isBusy()) return;
-    void workflow.toggleCheckerboard();
-  }
-
-  function invertMask(): void {
-    if (!maskToolsActive || isBusy()) return;
-    void workflow.invertMask();
-  }
-
-  function featherMask(): void {
-    if (!maskToolsActive || isBusy()) return;
-    void workflow.featherMask();
   }
 </script>
 
-<div class="input-image-outer panel">
-  <span class="panel-label">Input Image</span>
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div
+  bind:this={dropZoneEl}
+  class="stage"
+  class:dragging
+  class:pannable={hasInputImage && uiStore.tool === 'pan'}
+  data-testid="input-image-panel"
+  ondrop={onDrop}
+  ondragover={onDragOver}
+  ondragleave={onDragLeave}
+  onwheel={onWheel}
+  onpointerdown={onDropZonePointerDown}
+  onpointermove={onDropZonePointerMove}
+  onpointerup={onDropZonePointerUp}
+  onpointercancel={onDropZonePointerUp}
+>
+  <!-- `.image-fit` is the untransformed box the image is fitted into
+       (aspect ratio preserved, as large as the stage allows); zoom/pan
+       coordinates are measured relative to it (see localPoint). The
+       `.image-stack` inside carries the zoom/pan transform, which every
+       layer and overlay inherits (and each one's own
+       `getBoundingClientRect()` reflects), so lib/geometry.ts's ratio-based
+       pixel math stays correct. -->
   <div
-    bind:this={dropZoneEl}
-    class="drop-zone panel"
-    class:dragging
-    role="button"
-    tabindex="0"
-    aria-label="Upload input image"
-    data-testid="input-image-panel"
-    onclick={pickFile}
-    onkeydown={onKeydown}
-    ondrop={onDrop}
-    ondragover={onDragOver}
-    ondragleave={onDragLeave}
-    onwheel={onWheel}
-    onpointerdown={onDropZonePointerDown}
-    onpointermove={onDropZonePointerMove}
-    onpointerup={onDropZonePointerUp}
-    onpointercancel={onDropZonePointerUp}
+    bind:this={fitEl}
+    class="image-fit"
+    class:fitted={aspectRatio !== null}
+    class:hidden={!hasInputImage}
+    style={aspectRatio !== null ? `--image-aspect: ${aspectRatio};` : undefined}
   >
-    <!-- Shared box for the main image and the mask canvas overlay (same
-         size, `MaskCanvas.svelte`'s own doc comment explains why); the
-         wrapper takes on the image's rendered size exactly like the `<img>`
-         did on its own before, so lib/geometry.ts's ratio-based pixel math
-         above stays correct. `transform` implements zoom/pan
-         (state/viewport.svelte.ts); every descendant (image, mask canvas,
-         preview overlay) inherits it, and each one's own
-         `getBoundingClientRect()` automatically reflects it. -->
-    <!-- `.image-fit` is the untransformed box the image is fitted into
-         (aspect ratio preserved, as large as the drop-zone allows); zoom/pan
-         coordinates are measured relative to it (see localPoint). -->
-    <div
-      bind:this={fitEl}
-      class="image-fit"
-      class:fitted={aspectRatio !== null}
-      style={aspectRatio !== null ? `--image-aspect: ${aspectRatio};` : undefined}
-    >
     <div
       class="image-stack"
+      data-testid="canvas-image"
+      class:checker={uiStore.view === 'slice' || uiStore.view === 'composite'}
       style={`transform: translate(${viewportStore.panX}px, ${viewportStore.panY}px) scale(${viewportStore.scale}); transform-origin: 0 0;`}
     >
-      <!-- Segmentation click target: mirrors Dash's EventListener-wrapped
-           <img id="image">, which is likewise mouse-only (no keyboard
-           equivalent for "pick a pixel"). -->
+      <!-- Segmentation click target; mouse-only (no keyboard equivalent
+           for "pick a pixel"). -->
       <!-- svelte-ignore a11y_click_events_have_key_events -->
       <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
       <img
+        class="layer"
+        class:hidden={!showsMain}
+        class:segmenting={uiStore.tool === 'segment'}
         data-testid="main-image"
         alt=""
         src={mainImageUrl}
@@ -372,189 +295,79 @@
         oncontextmenu={onImageContextMenu}
         ondragstart={(event) => event.preventDefault()}
       />
+      {#if uiStore.view === 'depth' && projectStore.view?.assets.depth}
+        <img class="layer" data-testid="view-depth-image" alt="Depth map" src={projectStore.view.assets.depth.url} draggable="false" />
+      {:else if uiStore.view === 'slice'}
+        {#if selectedSlice}
+          <img class="layer" data-testid="view-slice-image" alt={`image_slice_${selectedSlice.index}`} src={selectedSlice.image.url} draggable="false" />
+        {:else}
+          <div class="layer placeholder" data-testid="view-slice-empty">Select a layer to see it on its own.</div>
+        {/if}
+      {:else if uiStore.view === 'composite'}
+        <div class="layer" data-testid="view-composite">
+          {#each compositeLayers as slice (slice.index)}
+            <img class="layer" alt="" src={slice.image.url} draggable="false" />
+          {/each}
+        </div>
+      {/if}
       <MaskCanvas />
       <PreviewOverlay />
-      {#if showHorizon}
+      {#if uiStore.tool === 'horizon'}
         <HorizonOverlay />
       {/if}
     </div>
-    </div>
-    <input
-      bind:this={fileInput}
-      type="file"
-      accept="image/*"
-      class="sr-only"
-      data-testid="upload-image-input"
-      onchange={onInputChange}
-    />
   </div>
 
-  <!-- Zoom/pan controls (state/viewport.svelte.ts): buttons zoom about the
-       viewport center; the wheel and drag-to-pan gestures live on the
-       drop-zone above. See viewport.svelte.ts's doc comment for why Dash
-       has no equivalent buttons/pan/reset of its own. -->
-  <div class="viewport-controls" data-testid="viewport-controls">
-    <button
-      type="button"
-      class="tool-btn tool-btn-icon"
-      data-testid="zoom-out"
-      aria-label="Zoom out"
-      title="Zoom out"
-      disabled={!hasInputImage}
-      onclick={zoomOut}
-    >
-      &minus;
-    </button>
-    <button
-      type="button"
-      class="tool-btn tool-btn-icon"
-      data-testid="zoom-reset"
-      aria-label="Reset zoom and pan"
-      title="Reset zoom and pan"
-      disabled={!hasInputImage}
-      onclick={resetZoom}
-    >
-      &#x27F3;
-    </button>
-    <button
-      type="button"
-      class="tool-btn tool-btn-icon"
-      data-testid="zoom-in"
-      aria-label="Zoom in"
-      title="Zoom in"
-      disabled={!hasInputImage}
-      onclick={zoomIn}
-    >
-      &plus;
-    </button>
-    <span class="zoom-level" data-testid="zoom-level">{Math.round(viewportStore.scale * 100)}%</span>
-
-    <!-- Parallax preview camera (Dash's navigation buttons, CMP-26). -->
-    <div class="camera-nav" role="group" aria-label="Parallax camera" data-testid="camera-nav">
-      <span class="group-label" aria-hidden="true">Camera</span>
-      {#each CAMERA_BUTTONS as button (button.direction)}
-        <button
-          type="button"
-          class="tool-btn tool-btn-icon"
-          data-testid={`camera-${button.direction}`}
-          aria-label={button.label}
-          title={button.label}
-          disabled={!canNavigate || isBusy()}
-          onclick={() => navigate(button.direction)}
-        >
-          {button.symbol}
-        </button>
-      {/each}
-      <button
-        type="button"
-        class="tool-btn"
-        class:tool-btn-selected={showHorizon}
-        data-testid="horizon-toggle"
-        aria-pressed={showHorizon}
-        title="Show the horizon line; drag it to set the camera pitch"
-        disabled={!hasInputImage}
-        onclick={() => (showHorizon = !showHorizon)}
-      >
-        Horizon
+  {#if !hasInputImage}
+    <div class="empty-state" data-testid="empty-state">
+      <ImageUp size={32} strokeWidth={1.4} />
+      <div class="empty-title">Drop an image here</div>
+      <div class="empty-text">A photo with clear foreground and background works best.</div>
+      <button type="button" class="btn btn-primary" data-testid="choose-image" disabled={isBusy()} onclick={pickFile}>
+        Choose image…
+      </button>
+      <button type="button" class="btn btn-ghost btn-sm" data-testid="empty-load-project" onclick={() => uiStore.setMainTab('Configuration')}>
+        or load a saved project…
       </button>
     </div>
-  </div>
+  {/if}
 
-  <!-- Tool row under the Input Image panel, same order as Dash's
-       make_segmentation_tools_container: checkerboard, Invert, Feather,
-       Multi, Commit. -->
-  <div class="tool-row">
-    <button
-      type="button"
-      class="tool-btn tool-btn-icon"
-      class:tool-btn-selected={checkerboardOn}
-      data-testid="toggle-checkerboard"
-      aria-label="Toggle checkerboard background"
-      aria-pressed={checkerboardOn}
-      title="Toggle checkerboard background"
-      disabled={!maskToolsActive || isBusy()}
-      onclick={toggleCheckerboard}
-    >
-      &#x25A6;
-    </button>
-    <button
-      type="button"
-      class="tool-btn"
-      data-testid="invert-mask"
-      title="Invert the current mask"
-      disabled={!maskToolsActive || isBusy()}
-      onclick={invertMask}
-    >
-      Invert
-    </button>
-    <button
-      type="button"
-      class="tool-btn"
-      data-testid="feather-mask"
-      title="Feather the current mask"
-      disabled={!maskToolsActive || isBusy()}
-      onclick={featherMask}
-    >
-      Feather
-    </button>
-    <button
-      type="button"
-      class="tool-btn"
-      class:tool-btn-selected={multiPointEnabled}
-      data-testid="multi-point"
-      aria-pressed={multiPointEnabled}
-      disabled={!segmentationToolsActive || isBusy()}
-      onclick={toggleMultiPoint}
-    >
-      Multi
-    </button>
-    <button
-      type="button"
-      class="tool-btn"
-      data-testid="multi-commit"
-      disabled={!canCommit}
-      onclick={commit}
-    >
-      Commit
-    </button>
-    {#if uiStore.mainTab === 'Inpainting'}
-      <!-- Paint-canvas tools; the canvas is only interactive on this tab. -->
-      <span class="divider" aria-hidden="true"></span>
-      <MaskToolbar />
-    {/if}
-  </div>
+  <input
+    bind:this={fileInput}
+    type="file"
+    accept="image/*"
+    class="sr-only"
+    data-testid="upload-image-input"
+    onchange={onInputChange}
+  />
 </div>
 
 <style>
-  /* Fills the viewer column's height; the drop-zone takes whatever is left
-     after the label and tool rows, and the image is fitted inside it, so a
-     tall image can never push the page past the viewport. */
-  .input-image-outer {
-    display: flex;
-    flex-direction: column;
-    height: 100%;
-    min-height: 0;
-    box-sizing: border-box;
-  }
-
-  .drop-zone {
+  /* Fills the canvas area; the image is fitted inside it, so a tall image
+     can never push the page past the viewport. */
+  .stage {
     position: relative;
-    flex: 1 1 0;
+    height: 100%;
     min-height: 8rem;
     /* Size container: `.image-fit` below sizes itself in cqw/cqh. */
     container-type: size;
     display: flex;
     align-items: center;
     justify-content: center;
-    cursor: pointer;
     overflow: hidden;
     /* The wheel/drag-to-pan gestures above handle zoom/pan themselves;
        without this, touch input would also try to scroll/zoom the page. */
     touch-action: none;
+    background: var(--color-canvas);
   }
 
-  .drop-zone.dragging {
-    border-color: var(--color-accent);
+  .stage.pannable {
+    cursor: grab;
+  }
+
+  .stage.dragging {
+    outline: 2px dashed var(--color-selection);
+    outline-offset: -8px;
   }
 
   .image-fit {
@@ -565,9 +378,9 @@
 
   /* Contain-fit without letterboxing inside the element itself: the box
      takes on the image's own aspect ratio at the largest size that fits
-     the drop-zone, so pixel-click math (lib/geometry.ts's
-     findPixelFromClick) can use Dash's plain ratio formula without
-     compensating for empty space on an axis. */
+     the stage, so pixel-click math (lib/geometry.ts's findPixelFromClick)
+     can use the plain ratio formula without compensating for empty space
+     on an axis. */
   .image-fit.fitted {
     width: min(100cqw, calc(100cqh * var(--image-aspect)));
     height: auto;
@@ -581,64 +394,58 @@
     height: 100%;
   }
 
-  .image-stack img {
+  .image-stack.checker {
+    background-color: var(--color-checker-1);
+    background-image:
+      linear-gradient(45deg, var(--color-checker-2) 25%, transparent 25%, transparent 75%, var(--color-checker-2) 75%),
+      linear-gradient(45deg, var(--color-checker-2) 25%, transparent 25%, transparent 75%, var(--color-checker-2) 75%);
+    background-size: 16px 16px;
+    background-position:
+      0 0,
+      8px 8px;
+  }
+
+  .layer {
+    position: absolute;
+    inset: 0;
     display: block;
     width: 100%;
     height: 100%;
   }
 
+  img.segmenting {
+    cursor: crosshair;
+  }
+
   /* Chromium renders a "broken image" glyph for an <img> with layout space
-     and no loaded resource, even with no `src` attribute at all. Hide it
-     until there is something to show, matching Dash's empty panel look. */
+     and no loaded resource, even with no `src` attribute at all. */
   .image-stack img:not([src]) {
     visibility: hidden;
   }
 
-  .tool-row {
+  .placeholder {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0 0;
+    justify-content: center;
+    color: var(--color-text-secondary);
   }
 
-
-
-
-
-
-  .viewport-controls {
+  .empty-state {
     display: flex;
-    flex-wrap: wrap;
+    flex-direction: column;
     align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-2) 0 0;
+    gap: var(--space-3);
+    color: var(--color-text-secondary);
+    text-align: center;
   }
 
-  .camera-nav {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1);
-    margin-left: var(--space-2);
-  }
-
-  .group-label {
-    font-size: 0.75rem;
+  .empty-state :global(svg) {
     color: var(--color-text-muted);
-    margin-right: var(--space-1);
   }
 
-  .divider {
-    align-self: stretch;
-    width: 1px;
-    margin: 0 var(--space-1);
-    background-color: var(--color-border-strong);
-  }
-
-  .zoom-level {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    min-width: 3rem;
+  .empty-title {
+    font-size: var(--text-title);
+    font-weight: 600;
+    color: var(--color-text);
   }
 </style>

@@ -177,10 +177,12 @@ test('point segmentation honors positive and negative points through the UI', as
   expect(negativeMask.nonzero).toBeGreaterThan(0);
 });
 
-test('default depth click records its pixel, depth, log, and mask', async ({ page, ui }) => {
+test('a depth-band click records its pixel, depth, log, and mask', async ({ page, ui }) => {
   requireWorkflow(ui, 'segmentation');
   const projectId = await ui.restoreFixtureState();
-  await ui.expectSegmentationMode('Depth Map');
+  // Object selection (Segment Anything) is the default; pick depth bands.
+  await ui.expectSegmentationMode('Instance Segmentation');
+  await ui.setSegmentationMode('Depth Map');
   await ui.openTab('Segmentation');
 
   await ui.clickImagePixel(16, 16);

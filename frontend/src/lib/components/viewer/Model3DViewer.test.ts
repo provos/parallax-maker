@@ -62,19 +62,19 @@ describe('Model3DViewer', () => {
 
   it('does not load the model-viewer module while the 2D tab is active', () => {
     render(Model3DViewer);
-    expect(uiStore.viewerTab).toBe('2D');
+    expect(uiStore.view).toBe('input');
     expect(screen.getByTestId('model-viewer-loading')).toBeInTheDocument();
     expect(loadSpy).not.toHaveBeenCalled();
   });
 
   it('lazy-loads the model-viewer module once the 3D tab is opened', async () => {
     render(Model3DViewer);
-    uiStore.setViewerTab('3D');
+    uiStore.setView('3d');
     await waitFor(() => expect(loadSpy).toHaveBeenCalled());
   });
 
   it('shows a placeholder (matching Dash\'s "No glTF file available.") before any scene has been exported', async () => {
-    uiStore.setViewerTab('3D');
+    uiStore.setView('3d');
     projectStore.applyView(makeView());
     render(Model3DViewer);
     await waitFor(() =>
@@ -83,7 +83,7 @@ describe('Model3DViewer', () => {
   });
 
   it('renders <model-viewer> pointing at the exported glTF asset once a scene exists', async () => {
-    uiStore.setViewerTab('3D');
+    uiStore.setView('3d');
     projectStore.applyView(
       makeView({ exports: { gltf: { url: '/api/v1/projects/appstate-test/export/gltf?v=1' }, upscaled: false } }),
     );

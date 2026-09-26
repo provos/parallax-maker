@@ -295,6 +295,7 @@ async function runSliceMutation(
 export async function navigateCamera(direction: api.CameraDirection): Promise<void> {
   if (await runSliceMutation('navigate', (id) => api.navigateCamera(id, direction))) {
     uiStore.markPreviewed();
+    uiStore.setRenderedMainUrl(projectStore.view?.mainImage?.url ?? null);
   }
 }
 

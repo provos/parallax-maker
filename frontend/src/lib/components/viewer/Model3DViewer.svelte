@@ -19,7 +19,7 @@
   let loadFailed = $state(false);
 
   $effect(() => {
-    if (uiStore.viewerTab !== '3D' || ready || loadFailed) return;
+    if (uiStore.view !== '3d' || ready || loadFailed) return;
     let cancelled = false;
     import('@google/model-viewer')
       .then(() => {

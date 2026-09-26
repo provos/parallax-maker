@@ -69,6 +69,10 @@ export class SvelteDriver implements UiDriver {
     return this.page.getByTestId('main-image');
   }
 
+  canvasImage(): Locator {
+    return this.page.getByTestId('canvas-image');
+  }
+
   depthImage(): Locator {
     return this.page.getByTestId('depth-image');
   }
@@ -84,6 +88,24 @@ export class SvelteDriver implements UiDriver {
 
   sliceImage(index: number): Locator {
     return this.sliceRow(index).getByTestId('slice-thumbnail');
+  }
+
+  /** Picks a canvas tool (Pan, Segment, Brush, Horizon) unless it is already active. */
+  private async ensureTool(tool: 'pan' | 'segment' | 'brush' | 'horizon'): Promise<void> {
+    const button = this.page.getByTestId(`tool-${tool}`);
+    if ((await button.getAttribute('aria-pressed')) !== 'true') {
+      await button.click();
+      await expect(button).toHaveAttribute('aria-pressed', 'true');
+    }
+  }
+
+  /** Shows a canvas view (Input, Depth, Slice, Composite, Parallax 2D, 3D). */
+  private async ensureView(view: 'input' | 'depth' | 'slice' | 'composite' | 'parallax' | '3d'): Promise<void> {
+    const tab = this.page.getByTestId(`view-${view}`);
+    if ((await tab.getAttribute('aria-selected')) !== 'true') {
+      await tab.click();
+      await expect(tab).toHaveAttribute('aria-selected', 'true');
+    }
   }
 
   /** Per-slice actions live in the Inspector's header for the selected slice. */
@@ -176,35 +198,18 @@ export class SvelteDriver implements UiDriver {
     return (known.find((tab) => tab === panel) as MainTab | undefined) ?? null;
   }
 
-  /**
-   * The Mode Selector lives in the Depth step's Inspector panel (Dash kept
-   * it inline, outside any tab). Runs `fn` with that panel visible, using
-   * real clicks (no forced actions on a hidden `<select>`), then restores
-   * whichever panel was showing before.
-   */
-  private async withModeTabVisible<T>(fn: () => Promise<T>): Promise<T> {
-    const previousTab = await this.activeMainTab();
-    if (previousTab !== 'Mode') await this.openTab('Mode');
-    try {
-      return await fn();
-    } finally {
-      if (previousTab && previousTab !== 'Mode') await this.openTab(previousTab);
-    }
-  }
-
   // Segmentation
 
+  /** The Segment tool's "Select by" option: Object (instance) or Depth band. */
   async setSegmentationMode(mode: SegmentationMode): Promise<void> {
-    await this.withModeTabVisible(async () => {
-      await this.page.getByTestId('mode-selector').selectOption({ label: mode });
-    });
+    await this.ensureTool('segment');
+    await this.page.getByTestId(mode === 'Depth Map' ? 'select-by-depth' : 'select-by-object').click();
   }
 
   async expectSegmentationMode(mode: SegmentationMode): Promise<void> {
-    await this.withModeTabVisible(async () => {
-      const selected = this.page.getByTestId('mode-selector').locator('option:checked');
-      await expect(selected).toHaveText(mode);
-    });
+    await this.ensureTool('segment');
+    const option = this.page.getByTestId(mode === 'Depth Map' ? 'select-by-depth' : 'select-by-object');
+    await expect(option).toHaveAttribute('aria-checked', 'true');
   }
 
   async clickImagePixel(x: number, y: number, modifiers: Modifier[] = []): Promise<void> {
@@ -214,6 +219,8 @@ export class SvelteDriver implements UiDriver {
     // backend's `find_pixel_from_click` ratio, and real click coordinates'
     // sub-pixel rounding truncates the resulting pixel the same way on both
     // UIs (see lib/geometry.ts's `findPixelFromClick`).
+    // Clicks select with the Segment tool, on the Input view.
+    await this.ensureTool('segment');
     const image = this.mainImage();
     const position = await image.evaluate(
       (element: HTMLImageElement, point) => {
@@ -307,6 +314,7 @@ export class SvelteDriver implements UiDriver {
    * `pointermove`/`pointerup` events the canvas actually listens for.
    */
   async drawMaskStroke(): Promise<void> {
+    await this.ensureTool('brush');
     const canvas = this.page.getByTestId('mask-canvas');
     await expect(canvas).toBeVisible();
     const box = await canvas.boundingBox();
@@ -539,18 +547,18 @@ export class SvelteDriver implements UiDriver {
   }
 
   async dragHorizonTo(row: number): Promise<void> {
-    const toggle = this.page.getByTestId('horizon-toggle');
-    if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+    await this.ensureTool('horizon');
     const line = this.page.getByTestId('horizon-line');
     await expect(line).toBeVisible();
     const lineBox = await line.boundingBox();
-    const image = this.mainImage();
-    const target = await image.evaluate(
-      (element: HTMLImageElement, sourceRow) => {
-        const rect = element.getBoundingClientRect();
-        return rect.top + (sourceRow / element.naturalHeight) * rect.height;
+    // The line spans the image box; map the source row into it.
+    const sourceHeight = await this.mainImage().evaluate((element: HTMLImageElement) => element.naturalHeight);
+    const target = await line.evaluate(
+      (element: HTMLElement, { sourceRow, height }) => {
+        const rect = (element.parentElement as HTMLElement).getBoundingClientRect();
+        return rect.top + (sourceRow / height) * rect.height;
       },
-      row,
+      { sourceRow: row, height: sourceHeight },
     );
     if (!lineBox) throw new Error('Horizon line has no bounding box');
     const x = lineBox.x + lineBox.width / 2;
@@ -565,6 +573,12 @@ export class SvelteDriver implements UiDriver {
   }
 
   async navigateCamera(direction: CameraDirection): Promise<void> {
+    // The camera pad is in the Parallax 2D view (entering it renders the
+    // reference view once; wait for that before moving on).
+    if ((await this.page.getByTestId('view-parallax').getAttribute('aria-selected')) !== 'true') {
+      await this.ensureView('parallax');
+      await expect(this.page.getByTestId(`camera-${direction}`)).toBeEnabled();
+    }
     const before = await this.log().innerText();
     await this.page.getByTestId(`camera-${direction}`).click();
     await expect.poll(async () => (await this.log().innerText()) !== before).toBe(true);
@@ -581,9 +595,11 @@ export class SvelteDriver implements UiDriver {
   }
 
   async selectDepthModel(label: string): Promise<void> {
-    await this.withModeTabVisible(async () => {
-      await this.page.getByTestId('depth-model').selectOption({ label });
-    });
+    // The depth model select is in the Depth step's panel.
+    const previousTab = await this.activeMainTab();
+    if (previousTab !== 'Mode') await this.openTab('Mode');
+    await this.page.getByTestId('depth-model').selectOption({ label });
+    if (previousTab && previousTab !== 'Mode') await this.openTab(previousTab);
   }
 
   async selectInpaintingModel(label: string): Promise<void> {
