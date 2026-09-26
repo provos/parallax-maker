@@ -11,9 +11,33 @@
   import StatusBar from './StatusBar.svelte';
   import CanvasArea from '../canvas/CanvasArea.svelte';
   import LayerPanel from '../layers/LayerPanel.svelte';
+  import ExportDialog from '../dialogs/ExportDialog.svelte';
+  import SettingsDialog from '../dialogs/SettingsDialog.svelte';
+  import ShortcutsDialog from '../dialogs/ShortcutsDialog.svelte';
+  import { handleShortcut } from '../../shortcuts';
+
+  // Keyboard shortcuts are handled on the app root, which takes focus when
+  // anything non-focusable inside it is clicked (tabindex -1), so keys reach
+  // it without a window-wide listener.
+  let root: HTMLDivElement | undefined = $state();
+  $effect(() => {
+    if (root && (document.activeElement === document.body || !document.activeElement)) root.focus({ preventScroll: true });
+  });
+
+  function onKeydown(event: KeyboardEvent): void {
+    if (handleShortcut(event)) event.preventDefault();
+  }
 </script>
 
-<div id="app-container" class="app-shell" class:app-busy={jobStore.active !== null}>
+<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_static_element_interactions -->
+<div
+  id="app-container"
+  class="app-shell"
+  class:app-busy={jobStore.active !== null}
+  tabindex="-1"
+  bind:this={root}
+  onkeydown={onKeydown}
+>
   <AppHeader />
   <main class="app-main">
     <LayerPanel />
@@ -22,6 +46,9 @@
   </main>
   <LogDrawer />
   <StatusBar />
+  <ExportDialog />
+  <SettingsDialog />
+  <ShortcutsDialog />
 </div>
 
 <style>
@@ -35,6 +62,10 @@
     flex-direction: column;
     background: var(--color-bg);
     color: var(--color-text);
+  }
+
+  .app-shell:focus {
+    outline: none;
   }
 
   .app-busy {

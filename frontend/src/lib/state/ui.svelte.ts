@@ -9,8 +9,12 @@
 export type CanvasView = 'input' | 'depth' | 'slice' | 'composite' | 'parallax' | '3d';
 /** The active canvas tool (HANDOFF.md §5). */
 export type CanvasTool = 'pan' | 'segment' | 'brush' | 'horizon';
-/** The Inspector panel shown: one per workflow step (depth and image share one), or Settings. */
-export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Ground' | 'Preview' | 'Export' | 'Configuration';
+/** The Inspector panel shown: one per workflow step (image and depth share one). */
+export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Ground' | 'Preview';
+/** The modal dialogs (HANDOFF.md §3). */
+export type DialogName = 'export' | 'settings' | 'shortcuts';
+/** The Settings dialog's sections, in nav order. */
+export type SettingsSection = 'inpainting' | 'depth' | 'masks' | 'slicing' | 'project' | 'appearance';
 /** The workflow stepper's steps (docs/redesign/HANDOFF.md §4). */
 export type WorkflowStep = 'image' | 'depth' | 'slices' | 'inpaint' | 'ground' | 'preview' | 'export';
 export type SegmentationMode = 'depth' | 'segment';
@@ -18,7 +22,7 @@ export type Theme = 'light' | 'dark';
 /** Highlight state of a configuration probe (Test Connection / Validate API Key). */
 export type ProbeStatus = 'success' | 'failure' | 'none';
 
-export const MAIN_TABS: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Ground', 'Preview', 'Export', 'Configuration'];
+export const MAIN_TABS: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Ground', 'Preview'];
 
 export const WORKFLOW_STEPS: { step: WorkflowStep; label: string }[] = [
   { step: 'image', label: 'Image' },
@@ -64,7 +68,10 @@ const TOOL_VIEWS: Record<CanvasTool, CanvasView[]> = {
   horizon: ['composite', 'input', 'depth'],
 };
 
-/** Which Inspector panel each step shows. */
+/**
+ * Which Inspector panel each step shows. Export has no panel of its own: the
+ * step opens the Export dialog over the step you were on.
+ */
 const STEP_PANELS: Record<WorkflowStep, MainTab> = {
   image: 'Mode',
   depth: 'Mode',
@@ -72,7 +79,7 @@ const STEP_PANELS: Record<WorkflowStep, MainTab> = {
   inpaint: 'Inpainting',
   ground: 'Ground',
   preview: 'Preview',
-  export: 'Export',
+  export: 'Preview',
 };
 
 /** Matches components.py's DROPDOWN_DEPTH_MODEL default. */
@@ -90,6 +97,8 @@ function createUiStore() {
   let step = $state<WorkflowStep>('image');
   let theme = $state<Theme>('dark');
   let logOpen = $state(false);
+  let dialog = $state<DialogName | null>(null);
+  let settingsSection = $state<SettingsSection>('inpainting');
   // Progress the stepper can't read from ProjectView (HANDOFF.md §4 "done"
   // rules): tracked for this browser session only.
   let inpainted = $state(false);
@@ -160,14 +169,44 @@ function createUiStore() {
     get step(): WorkflowStep {
       return step;
     },
-    /** Moves to a workflow step: its Inspector panel, default view and tool. */
+    /**
+     * Moves to a workflow step: its Inspector panel, default view and tool.
+     * Export instead opens the Export dialog and leaves the step alone.
+     */
     setStep(next: WorkflowStep): void {
+      if (next === 'export') {
+        dialog = 'export';
+        return;
+      }
+      dialog = null;
       moveToStep(next);
       const defaults = STEP_DEFAULTS[next];
       if (defaults) {
         view = defaults.view;
         tool = defaults.tool;
       }
+    },
+
+    /** The open modal dialog, if any. */
+    get dialog(): DialogName | null {
+      return dialog;
+    },
+    openDialog(name: DialogName): void {
+      dialog = name;
+    },
+    closeDialog(): void {
+      dialog = null;
+    },
+    get settingsSection(): SettingsSection {
+      return settingsSection;
+    },
+    /** Opens Settings at a section. */
+    openSettings(section: SettingsSection = settingsSection): void {
+      settingsSection = section;
+      dialog = 'settings';
+    },
+    setSettingsSection(section: SettingsSection): void {
+      settingsSection = section;
     },
 
     get logOpen(): boolean {
@@ -190,6 +229,7 @@ function createUiStore() {
       exported = false;
       step = 'image';
       mainTab = STEP_PANELS.image;
+      dialog = null;
       view = 'input';
       tool = 'pan';
       renderedMainUrl = null;
@@ -275,6 +315,8 @@ function createUiStore() {
       step = 'image';
       theme = 'dark';
       logOpen = false;
+      dialog = null;
+      settingsSection = 'inpainting';
       inpainted = false;
       previewed = false;
       exported = false;

@@ -13,7 +13,7 @@ import type {
 } from './types';
 
 // Every slider's `data-testid` equals its `SliderName` directly (see
-// ConfigurationTab.svelte/ExportTab.svelte) - unlike DashDriver, no lookup
+// the Preview/Ground/Slices panels and ExportDialog.svelte) - unlike DashDriver, no lookup
 // table of distinct DOM ids is needed.
 
 /**
@@ -24,11 +24,10 @@ import type {
  * returns `true`.
  */
 /** The workflow step whose Inspector panel is each former main tab. */
-const STEP_FOR_TAB: Record<Exclude<MainTab, 'Configuration'>, string> = {
+const STEP_FOR_TAB: Record<Exclude<MainTab, 'Configuration' | 'Export'>, string> = {
   Mode: 'depth',
   Segmentation: 'slices',
   Inpainting: 'inpaint',
-  Export: 'export',
 };
 
 /** The workflow step whose Inspector panel holds each slider. */
@@ -59,19 +58,49 @@ export class SvelteDriver implements UiDriver {
   }
 
   /**
-   * The redesigned UI has no workflow tabs: each former tab is a workflow
-   * step's Inspector panel, and Configuration is the Settings panel.
+   * The redesigned UI has no workflow tabs: Mode, Segmentation and
+   * Inpainting are workflow steps' Inspector panels, while Export and
+   * Configuration are the Export and Settings dialogs.
    */
   async openTab(tab: MainTab): Promise<void> {
-    const inspector = this.page.getByTestId('inspector');
     if (tab === 'Configuration') {
-      if ((await inspector.getAttribute('data-panel')) !== 'Configuration') {
-        await this.page.getByTestId('open-settings').click();
-      }
+      await this.openDialog('settings');
+    } else if (tab === 'Export') {
+      await this.openDialog('export');
     } else {
+      await this.closeDialogs();
       await this.page.getByTestId(`step-${STEP_FOR_TAB[tab]}`).click();
+      await expect(this.page.getByTestId('inspector')).toHaveAttribute('data-panel', tab);
     }
-    await expect(inspector).toHaveAttribute('data-panel', tab);
+  }
+
+  private openDialogs(): Locator {
+    return this.page.locator('dialog[open]');
+  }
+
+  /** Closes an open dialog (Esc), so the workspace behind it takes clicks again. */
+  private async closeDialogs(): Promise<void> {
+    if ((await this.openDialogs().count()) === 0) return;
+    await this.page.keyboard.press('Escape');
+    await expect(this.openDialogs()).toHaveCount(0);
+  }
+
+  private async openDialog(name: 'export' | 'settings'): Promise<void> {
+    const dialog = this.page.getByTestId(`${name}-dialog`);
+    if (await dialog.isVisible()) return;
+    await this.closeDialogs();
+    await this.page.getByTestId(name === 'export' ? 'step-export' : 'open-settings').click();
+    await expect(dialog).toBeVisible();
+  }
+
+  /** Opens the Export dialog on the pane (3D scene or Animation) holding `testId`. */
+  private async revealInExport(testId: string): Promise<void> {
+    await this.openDialog('export');
+    const control = this.page.getByTestId(testId);
+    if (await control.isVisible()) return;
+    const tab = ['number-of-frames', 'animation-export'].includes(testId) ? 'animation' : 'gltf';
+    await this.page.getByTestId(`export-tab-${tab}`).click();
+    await expect(control).toBeVisible();
   }
 
   // Observable elements
@@ -103,6 +132,7 @@ export class SvelteDriver implements UiDriver {
 
   /** Picks a canvas tool (Pan, Segment, Brush, Horizon) unless it is already active. */
   private async ensureTool(tool: 'pan' | 'segment' | 'brush' | 'horizon'): Promise<void> {
+    await this.closeDialogs();
     const button = this.page.getByTestId(`tool-${tool}`);
     if ((await button.getAttribute('aria-pressed')) !== 'true') {
       await button.click();
@@ -112,6 +142,7 @@ export class SvelteDriver implements UiDriver {
 
   /** Shows a canvas view (Input, Depth, Slice, Composite, Parallax 2D, 3D). */
   private async ensureView(view: 'input' | 'depth' | 'slice' | 'composite' | 'parallax' | '3d'): Promise<void> {
+    await this.closeDialogs();
     const tab = this.page.getByTestId(`view-${view}`);
     if ((await tab.getAttribute('aria-selected')) !== 'true') {
       await tab.click();
@@ -121,6 +152,7 @@ export class SvelteDriver implements UiDriver {
 
   /** Split by depth is a collapsible section of the Slices panel. */
   private async openSplitByDepth(): Promise<void> {
+    await this.closeDialogs();
     const toggle = this.page.getByTestId('split-toggle');
     if (!(await toggle.isVisible())) await this.openTab('Segmentation');
     if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
@@ -129,6 +161,7 @@ export class SvelteDriver implements UiDriver {
 
   /** Per-slice actions live in the Inspector's header for the selected slice. */
   private async ensureSelected(index: number): Promise<void> {
+    await this.closeDialogs();
     const row = this.sliceRow(index);
     if ((await row.getAttribute('aria-selected')) !== 'true') {
       await row.getByTestId('slice-thumbnail').click();
@@ -213,8 +246,10 @@ export class SvelteDriver implements UiDriver {
   }
 
   private async activeMainTab(): Promise<MainTab | null> {
+    if (await this.page.getByTestId('settings-dialog').isVisible()) return 'Configuration';
+    if (await this.page.getByTestId('export-dialog').isVisible()) return 'Export';
     const panel = await this.page.getByTestId('inspector').getAttribute('data-panel');
-    const known: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'];
+    const known: MainTab[] = ['Mode', 'Segmentation', 'Inpainting'];
     return (known.find((tab) => tab === panel) as MainTab | undefined) ?? null;
   }
 
@@ -233,6 +268,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async clickImagePixel(x: number, y: number, modifiers: Modifier[] = []): Promise<void> {
+    await this.closeDialogs();
     // Same position computation as DashDriver.clickImagePixel: the main
     // image renders at `width: 100%; height: auto` (see
     // InputImagePanel.svelte), so this scale is the exact inverse of the
@@ -259,6 +295,7 @@ export class SvelteDriver implements UiDriver {
    * same gesture Dash's own JS-03 `handleWheel` responds to.
    */
   async zoomIn(): Promise<void> {
+    await this.closeDialogs();
     const box = await this.page.getByTestId('input-image-panel').boundingBox();
     if (!box) throw new Error('Input image panel has no bounding box');
     await this.page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
@@ -271,6 +308,7 @@ export class SvelteDriver implements UiDriver {
    * always pans regardless of the active tab (see viewport.svelte.ts).
    */
   async panBy(dx: number, dy: number): Promise<void> {
+    await this.closeDialogs();
     const box = await this.page.getByTestId('input-image-panel').boundingBox();
     if (!box) throw new Error('Input image panel has no bounding box');
     const startX = box.x + box.width / 2;
@@ -282,10 +320,12 @@ export class SvelteDriver implements UiDriver {
   }
 
   async resetZoom(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('zoom-reset').click();
   }
 
   async selectSlice(projectId: string, index: number): Promise<Locator> {
+    await this.closeDialogs();
     const image = this.sliceImage(index);
     await expect(image).toBeVisible();
     await image.click();
@@ -295,6 +335,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async toggleMultiPoint(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('multi-point').click();
   }
 
@@ -303,6 +344,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async commitMultiPoint(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('multi-commit').click();
     await expect(this.log()).toContainText(/Committed points/);
   }
@@ -334,6 +376,7 @@ export class SvelteDriver implements UiDriver {
    * `pointermove`/`pointerup` events the canvas actually listens for.
    */
   async drawMaskStroke(): Promise<void> {
+    await this.closeDialogs();
     await this.ensureTool('brush');
     const canvas = this.page.getByTestId('mask-canvas');
     await expect(canvas).toBeVisible();
@@ -372,6 +415,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async fillPrompts(positive: string, negative: string): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('positive-prompt').fill(positive);
     await this.page.getByTestId('negative-prompt').fill(negative);
   }
@@ -382,23 +426,28 @@ export class SvelteDriver implements UiDriver {
   }
 
   async generateInpainting(): Promise<void> {
+    await this.closeDialogs();
     // Deliberately does not wait for candidates: scenarios assert counts themselves.
     await this.page.getByTestId('generate-inpainting').click();
   }
 
   async fillInpainting(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('fill-inpainting').click();
   }
 
   async enhance(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('enhance-inpainting').click();
   }
 
   async erase(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('erase-inpainting').click();
   }
 
   async selectCandidate(index: number): Promise<void> {
+    await this.closeDialogs();
     const candidate = this.candidateImages().nth(index);
     await candidate.click();
     await expect(candidate).toHaveAttribute('aria-selected', 'true');
@@ -406,6 +455,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async applyCandidate(): Promise<void> {
+    await this.closeDialogs();
     await this.page.getByTestId('apply-inpainting').click();
   }
 
@@ -436,35 +486,43 @@ export class SvelteDriver implements UiDriver {
   }
 
   async createSlice(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('create-slice'));
   }
 
   async deleteSlice(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('delete-slice'));
   }
 
   async addMaskToSlice(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('add-mask-to-slice'));
   }
 
   async removeMaskFromSlice(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('remove-mask-from-slice'));
   }
 
   async copySlice(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('copy-slice'));
   }
 
   async pasteSlice(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('paste-slice'));
   }
 
   async balanceSlices(): Promise<void> {
+    await this.closeDialogs();
     await this.openSplitByDepth();
     await this.page.getByTestId('balance-slices').click();
   }
 
   async setSliceDepth(index: number, depth: number): Promise<void> {
+    await this.closeDialogs();
     const display = this.sliceRow(index).getByTestId('slice-depth-display');
     await expect(display).toBeVisible();
     await display.click();
@@ -485,6 +543,7 @@ export class SvelteDriver implements UiDriver {
     index: number,
     file: { name: string; mimeType: string; buffer: Buffer },
   ): Promise<void> {
+    await this.closeDialogs();
     await this.ensureSelected(index);
     const before = await this.log().innerText();
     const input = this.page.getByTestId('slice-upload-input');
@@ -493,14 +552,17 @@ export class SvelteDriver implements UiDriver {
   }
 
   async invertMask(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('invert-mask'));
   }
 
   async featherMask(): Promise<void> {
+    await this.closeDialogs();
     await this.clickAndWaitForLogChange(this.page.getByTestId('feather-mask'));
   }
 
   async toggleCheckerboard(): Promise<void> {
+    await this.closeDialogs();
     const button = this.page.getByTestId('toggle-checkerboard');
     const wasSelected = (await button.getAttribute('aria-pressed')) === 'true';
     await button.click();
@@ -515,6 +577,11 @@ export class SvelteDriver implements UiDriver {
 
   /** Shows the step panel that holds `testId`, unless it is already visible. */
   private async revealStep(step: string, testId: string): Promise<void> {
+    if (step === 'export') {
+      await this.revealInExport(testId);
+      return;
+    }
+    await this.closeDialogs();
     if (await this.page.getByTestId(testId).isVisible()) return;
     await this.page.getByTestId(`step-${step}`).click();
     await expect(this.page.getByTestId(testId)).toBeVisible();
@@ -560,6 +627,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async toggleGroundPlane(): Promise<void> {
+    await this.closeDialogs();
     const toggle = this.page.getByTestId('ground-toggle');
     const before = await toggle.getAttribute('aria-pressed');
     await toggle.click();
@@ -604,6 +672,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async navigateCamera(direction: CameraDirection): Promise<void> {
+    await this.closeDialogs();
     // The camera pad is in the Parallax 2D view (entering it renders the
     // reference view once; wait for that before moving on).
     if ((await this.page.getByTestId('view-parallax').getAttribute('aria-selected')) !== 'true') {
@@ -634,10 +703,12 @@ export class SvelteDriver implements UiDriver {
   }
 
   async selectInpaintingModel(label: string): Promise<void> {
+    await this.openDialog('settings');
     await this.page.getByTestId('inpainting-model').selectOption({ label });
   }
 
   async setExternalServer(address: string): Promise<void> {
+    await this.openDialog('settings');
     const input = this.page.getByTestId('external-server-address');
     await input.fill(address);
     // Commits on blur (ConfigurationTab.svelte's `onchange`), same as
@@ -646,6 +717,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async testExternalConnection(): Promise<void> {
+    await this.openDialog('settings');
     await this.page.getByTestId('external-test-connection').click();
   }
 
@@ -661,12 +733,14 @@ export class SvelteDriver implements UiDriver {
   }
 
   async setApiKey(key: string): Promise<void> {
+    await this.openDialog('settings');
     const input = this.page.getByTestId('api-key');
     await input.fill(key);
     await input.press('Tab');
   }
 
   async validateApiKey(): Promise<void> {
+    await this.openDialog('settings');
     await this.page.getByTestId('validate-api-key').click();
   }
 
@@ -677,6 +751,7 @@ export class SvelteDriver implements UiDriver {
   // Project lifecycle
 
   async saveState(): Promise<void> {
+    await this.openDialog('settings');
     await this.clickAndWaitForLogChange(this.page.getByTestId('save-state'));
   }
 
@@ -698,16 +773,19 @@ export class SvelteDriver implements UiDriver {
   // Export
 
   async exportGltf(): Promise<Download> {
+    await this.revealInExport('gltf-export');
     const downloadPromise = this.page.waitForEvent('download');
     await this.page.getByTestId('gltf-export').click();
     return downloadPromise;
   }
 
   async exportAnimation(): Promise<void> {
+    await this.revealInExport('animation-export');
     await this.page.getByTestId('animation-export').click();
   }
 
   async setDofEnabled(enabled: boolean): Promise<void> {
+    await this.revealInExport('toggle-dof');
     const checkbox = this.page.getByTestId('toggle-dof');
     if ((await checkbox.isChecked()) !== enabled) {
       await checkbox.click();
@@ -716,10 +794,12 @@ export class SvelteDriver implements UiDriver {
   }
 
   async upscaleTextures(): Promise<void> {
+    await this.revealInExport('upscale-textures');
     await this.clickAndWaitForLogChange(this.page.getByTestId('upscale-textures'));
   }
 
   async downloadSlice(index: number): Promise<Download> {
+    await this.closeDialogs();
     await this.ensureSelected(index);
     const downloadPromise = this.page.waitForEvent('download');
     await this.page.getByTestId('slice-download').click();

@@ -304,7 +304,7 @@
           <div class="layer placeholder" data-testid="view-slice-empty">Select a layer to see it on its own.</div>
         {/if}
       {:else if uiStore.view === 'composite'}
-        <div class="layer" data-testid="view-composite">
+        <div class="layer" data-testid="view-composite-layers">
           {#each compositeLayers as slice (slice.index)}
             <img class="layer" alt="" src={slice.image.url} draggable="false" />
           {/each}
@@ -326,7 +326,7 @@
       <button type="button" class="btn btn-primary" data-testid="choose-image" disabled={isBusy()} onclick={pickFile}>
         Choose image…
       </button>
-      <button type="button" class="btn btn-ghost btn-sm" data-testid="empty-load-project" onclick={() => uiStore.setMainTab('Configuration')}>
+      <button type="button" class="btn btn-ghost btn-sm" data-testid="empty-load-project" onclick={() => uiStore.openSettings('project')}>
         or load a saved project…
       </button>
     </div>

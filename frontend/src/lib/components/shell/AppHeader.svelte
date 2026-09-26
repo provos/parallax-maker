@@ -77,13 +77,11 @@
     <button
       type="button"
       class="btn btn-ghost btn-icon"
-      class:btn-selected={uiStore.mainTab === 'Configuration'}
       data-testid="open-settings"
       aria-label="Settings"
-      aria-pressed={uiStore.mainTab === 'Configuration'}
-      title="Settings"
-      onclick={() =>
-        uiStore.mainTab === 'Configuration' ? uiStore.setStep(uiStore.step) : uiStore.setMainTab('Configuration')}
+      aria-haspopup="dialog"
+      title="Settings (Ctrl+,)"
+      onclick={() => uiStore.openSettings()}
     >
       <Settings size={16} strokeWidth={1.6} />
     </button>
@@ -91,8 +89,10 @@
       type="button"
       class="btn btn-primary export"
       data-testid="open-export"
+      aria-haspopup="dialog"
+      title="Export (Ctrl+E)"
       disabled={!hasSlices}
-      onclick={() => uiStore.setStep('export')}
+      onclick={() => uiStore.openDialog('export')}
     >
       <Download size={16} strokeWidth={1.6} />
       Export…

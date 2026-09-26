@@ -108,12 +108,22 @@ describe('app shell', () => {
       ['step-inpaint', 'Inpainting'],
       ['step-ground', 'Ground'],
       ['step-preview', 'Preview'],
-      ['step-export', 'Export'],
     ])('%s shows the %s panel', async (testId, panel) => {
       render(AppShell);
       await fireEvent.click(screen.getByTestId(testId));
       expect(screen.getByTestId(testId)).toHaveAttribute('aria-current', 'step');
       expect(screen.getByTestId('inspector')).toHaveAttribute('data-panel', panel);
+    });
+
+    it('step-export opens the Export dialog and leaves the current step and panel alone', async () => {
+      render(AppShell);
+      await fireEvent.click(screen.getByTestId('step-slices'));
+      await fireEvent.click(screen.getByTestId('step-export'));
+      expect(screen.getByTestId('step-slices')).toHaveAttribute('aria-current', 'step');
+      expect(screen.getByTestId('step-export')).not.toHaveAttribute('aria-current', 'step');
+      expect(screen.getByTestId('inspector')).toHaveAttribute('data-panel', 'Segmentation');
+      expect(uiStore.dialog).toBe('export');
+      expect(screen.getByTestId('export-dialog')).toHaveAttribute('open');
     });
 
     it('visiting Preview counts as done once another step is current', async () => {
@@ -131,18 +141,23 @@ describe('app shell', () => {
       expect(screen.getByTestId('project-name')).toHaveTextContent('appstate-shell');
     });
 
-    it('Settings toggles the Settings panel and back to the current step', async () => {
+    it('Settings opens over the current step, and the close button returns to the workspace', async () => {
       render(AppShell);
       await fireEvent.click(screen.getByTestId('step-inpaint'));
       await fireEvent.click(screen.getByTestId('open-settings'));
-      expect(screen.getByTestId('inspector')).toHaveAttribute('data-panel', 'Configuration');
-      expect(screen.getByTestId('open-settings')).toHaveAttribute('aria-pressed', 'true');
 
-      await fireEvent.click(screen.getByTestId('open-settings'));
+      expect(uiStore.dialog).toBe('settings');
+      expect(screen.getByTestId('settings-dialog')).toHaveAttribute('open');
+      // The Inspector behind the dialog is untouched.
       expect(screen.getByTestId('inspector')).toHaveAttribute('data-panel', 'Inpainting');
+      expect(screen.getByTestId('step-inpaint')).toHaveAttribute('aria-current', 'step');
+
+      await fireEvent.click(screen.getByTestId('settings-dialog-close'));
+      expect(uiStore.dialog).toBeNull();
+      expect(screen.getByTestId('settings-dialog')).not.toHaveAttribute('open');
     });
 
-    it('Export is disabled until there are slices, then opens the Export step', async () => {
+    it('Export is disabled until there are slices, then opens the Export dialog', async () => {
       projectStore.applyView(makeView());
       const { unmount } = render(AppShell);
       expect(screen.getByTestId('open-export')).toBeDisabled();
@@ -151,7 +166,8 @@ describe('app shell', () => {
       projectStore.applyView(makeView({ slices: [slice(0)] }));
       render(AppShell);
       await fireEvent.click(screen.getByTestId('open-export'));
-      expect(screen.getByTestId('step-export')).toHaveAttribute('aria-current', 'step');
+      expect(uiStore.dialog).toBe('export');
+      expect(screen.getByTestId('export-dialog')).toHaveAttribute('open');
     });
 
     it('undo and redo act on the selected slice and follow its history', async () => {
