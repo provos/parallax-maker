@@ -57,6 +57,11 @@ export interface UiDriver {
    * (its box follows zoom/pan); use it for geometry, `mainImage()` for pixels.
    */
   canvasImage(): Locator;
+  /**
+   * The RGBA the user sees on the canvas at source pixel (x, y), whatever
+   * the current view draws there (a screenshot, so overlays count too).
+   */
+  visibleCanvasPixel(x: number, y: number): Promise<number[]>;
   depthImage(): Locator;
   /** Every slice thumbnail as displayed (checkerboard-composited), in no particular order. */
   sliceImages(): Locator;

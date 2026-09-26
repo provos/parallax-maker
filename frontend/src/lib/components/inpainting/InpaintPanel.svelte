@@ -12,6 +12,7 @@
   import { uiStore } from '../../state/ui.svelte';
   import * as workflow from '../../workflow';
   import { registerInpaintActions } from '../../shortcuts';
+  import { candidatePreview } from '../../candidatePreview';
   import JobCard from '../feedback/JobCard.svelte';
 
   const view = $derived(projectStore.view);
@@ -105,6 +106,8 @@
   }
 
   const hasCandidates = $derived((candidates?.images.length ?? 0) > 0);
+  // The picked candidate the canvas previews (only while it belongs to the selected slice).
+  const preview = $derived(candidatePreview(view));
   const hasMask = $derived(!!view?.slices.find((s) => s.index === selectedSlice)?.mask);
 
   // Sub-step progress: 1 paint the holes, 2 describe, 3 generate and pick.
@@ -297,6 +300,11 @@
         <p class="faint">Candidates appear here after you generate.</p>
       {/each}
     </div>
+    {#if preview}
+      <p class="faint" data-testid="candidate-preview-hint">
+        Candidate {preview.candidate + 1} is shown on the canvas. Click it again to go back to the mask.
+      </p>
+    {/if}
     <button
       type="button"
       class="btn"
