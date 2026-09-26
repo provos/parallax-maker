@@ -703,9 +703,11 @@ def test_delete_slice_restores_only_uncovered_pixels_and_preserves_rest_edits(
     assert state.image_slices == [rest_slice, object_b]
     assert rest_slice.filename != str(rest_filename)  # a new version was saved
 
-    # (1, 2): inside A, not covered by B - restored from the input image,
-    # overwriting the earlier "inpainted" pixel.
-    assert tuple(int(v) for v in rest_slice.image[1, 2]) == (111, 222, 33, 255)
+    # (1, 2): inside A, not covered by B - made fully opaque again, keeping
+    # the partly visible "inpainted" color rather than overwriting it.
+    assert tuple(int(v) for v in rest_slice.image[1, 2]) == (9, 9, 9, 255)
+    # (0, 0): inside A, transparent on the rest - refilled from the input.
+    assert tuple(int(v) for v in rest_slice.image[0, 0]) == (111, 222, 33, 255)
     # (4, 6): inside A, but still covered by B - left exactly as it was.
     assert tuple(int(v) for v in rest_slice.image[4, 6]) == (111, 222, 33, 0)
     # (6, 1): outside A entirely - the "inpainted" pixel survives untouched.
@@ -713,7 +715,7 @@ def test_delete_slice_restores_only_uncovered_pixels_and_preserves_rest_edits(
     assert repository.saved == [("s", JSON_ONLY)]
 
 
-def test_delete_slice_of_the_rest_slice_itself_just_clears_the_flag(
+def test_delete_slice_of_the_rest_slice_itself_removes_it(
     tmp_path: Path,
 ) -> None:
     state = make_state(tmp_path)
@@ -805,3 +807,41 @@ def test_remove_mask_from_slice_restores_only_uncovered_pixels_into_the_rest(
     # Entirely outside the object's region: untouched.
     assert rest_slice.image[9, 19, 3] == 255
     assert repository.saved == [("s", JSON_ONLY)]
+
+
+def test_remove_mask_from_slice_restores_a_feathered_removal_only_partly(
+    tmp_path: Path,
+) -> None:
+    height, width = 10, 20
+    state = AppState()
+    state.filename = str(tmp_path)
+    source_rgb = np.full((height, width, 3), (50, 60, 70), dtype=np.uint8)
+    state.imgData = Image.fromarray(source_rgb, mode="RGB")
+
+    alpha_object = np.zeros((height, width), dtype=np.uint8)
+    alpha_object[2:8, 2:18] = 255
+    object_slice = make_custom_slice(tmp_path, "image_slice_1", depth=50, alpha=alpha_object)
+    rest_slice = make_custom_slice(
+        tmp_path,
+        "image_slice_0",
+        depth=0,
+        alpha=(255 - alpha_object).astype(np.uint8),
+        rgb=(50, 60, 70),
+    )
+    rest_slice.is_rest = True
+
+    state.image_slices = [rest_slice, object_slice]
+    state.selected_slice = 1
+    # A feathered mask: removes only part of the object's alpha.
+    mask = np.zeros((height, width), dtype=np.uint8)
+    mask[2:8, 2:18] = 100
+    state.slice_mask = mask
+    service, _ = make_service(state)
+
+    service.remove_mask_from_slice(RemoveMaskFromSlice(state_id="s"))
+
+    remaining = int(object_slice.image[4, 4, 3])
+    assert 0 < remaining < 255
+    # The rest slice gets back exactly what the object lost.
+    assert int(rest_slice.image[4, 4, 3]) == 255 - remaining
+    assert int(rest_slice.image[0, 0, 3]) == 255

@@ -400,21 +400,30 @@ class SliceEditingService:
         rest_slice: ImageSlice,
         source_rgb: np.ndarray,
         exposed_mask: np.ndarray,
+        remaining_alpha: np.ndarray,
         other_slices,
     ) -> bool:
-        """Restores input pixels into the rest slice wherever ``exposed_mask``
-        is set and no slice in ``other_slices`` still covers that pixel.
-        Every other rest pixel - including any inpainting - is left alone.
-        Returns whether anything changed (and, if so, saves a new version)."""
+        """Gives back to the rest slice what an edit took off an object slice:
+        wherever ``exposed_mask`` is set and no slice in ``other_slices``
+        still covers the pixel, the rest alpha rises to ``255 -
+        remaining_alpha`` (the object's alpha after the edit), so a partial
+        (feathered) removal restores only the part it removed. Alpha only
+        ever rises, and RGB is filled from the input only where the rest
+        slice was fully transparent - every visible rest pixel, including
+        any inpainting, is left alone. Returns whether anything changed (and,
+        if so, saves a new version)."""
         covered = np.zeros(exposed_mask.shape, dtype=bool)
         for other in other_slices:
             covered |= other.image[:, :, 3] > 0
-        uncovered = exposed_mask & ~covered
-        if not np.any(uncovered):
+        rest_alpha = rest_slice.image[:, :, 3].astype(np.int16)
+        target_alpha = 255 - remaining_alpha.astype(np.int16)
+        raised = exposed_mask & ~covered & (target_alpha > rest_alpha)
+        if not np.any(raised):
             return False
 
-        rest_slice.image[uncovered, 0:3] = source_rgb[uncovered]
-        rest_slice.image[uncovered, 3] = 255
+        refill = raised & (rest_alpha == 0)
+        rest_slice.image[refill, 0:3] = source_rgb[refill]
+        rest_slice.image[raised, 3] = target_alpha[raised].astype(np.uint8)
         rest_slice.new_version()
         return True
 
@@ -436,7 +445,11 @@ class SliceEditingService:
             exposed = deleted_slice.image[:, :, 3] > 0
             other_slices = [s for s in state.image_slices if s is not rest_slice]
             self._restore_uncovered_into_rest(
-                rest_slice, np.array(source.convert("RGB")), exposed, other_slices
+                rest_slice,
+                np.array(source.convert("RGB")),
+                exposed,
+                np.zeros(exposed.shape, dtype=np.uint8),
+                other_slices,
             )
 
         self._states.save(command.state_id, state, self.JSON_ONLY)
@@ -491,16 +504,21 @@ class SliceEditingService:
 
         if rest_slice is not None:
             source = self._require_image(state)
-            # The area the mask actually removed coverage from; restored into
-            # the rest slice only where nothing else still covers it.
-            exposed = (mask > 0) & (before_alpha > 0)
+            # Where the mask actually lowered the object's alpha (only
+            # partly, for a feathered mask); restored into the rest slice
+            # only where nothing else still covers it.
+            exposed = final_mask < before_alpha
             other_slices = [
                 s
                 for s in state.image_slices
                 if s is not object_slice and s is not rest_slice
             ]
             self._restore_uncovered_into_rest(
-                rest_slice, np.array(source.convert("RGB")), exposed, other_slices
+                rest_slice,
+                np.array(source.convert("RGB")),
+                exposed,
+                final_mask,
+                other_slices,
             )
 
         self._states.save(command.state_id, state, self.JSON_ONLY)
