@@ -281,4 +281,20 @@ describe('ToolOptionsBar', () => {
       expect(JSON.parse(call![1]!.body as string)).toEqual({ direction: 'left' });
     });
   });
+
+  describe('Horizon tool', () => {
+    beforeEach(() => uiStore.setTool('horizon'));
+
+    it('offers Fit ground only once a ground slice exists', () => {
+      projectStore.applyView(makeView({ slices: [{ index: 0, depth: 0 } as unknown as SliceView] }));
+      const { unmount } = render(ToolOptionsBar);
+      expect(screen.queryByTestId('options-fit-ground')).toBeNull();
+      unmount();
+
+      projectStore.applyView(makeView({ slices: [{ index: 0, depth: 0, isGround: true } as unknown as SliceView] }));
+      render(ToolOptionsBar);
+      expect(screen.getByTestId('options-fit-ground')).toBeEnabled();
+    });
+  });
 });
+

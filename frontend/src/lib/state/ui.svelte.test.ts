@@ -46,7 +46,7 @@ describe('uiStore', () => {
       uiStore.setStep('ground');
       expect(uiStore.view).toBe('composite');
       expect(uiStore.tool).toBe('horizon');
-      expect(uiStore.mainTab).toBe('Segmentation');
+      expect(uiStore.mainTab).toBe('Ground');
     });
 
     it('preview -> Parallax view, Pan tool, and marks the session as previewed', () => {
@@ -54,7 +54,7 @@ describe('uiStore', () => {
       uiStore.setStep('preview');
       expect(uiStore.view).toBe('parallax');
       expect(uiStore.tool).toBe('pan');
-      expect(uiStore.mainTab).toBe('Export');
+      expect(uiStore.mainTab).toBe('Preview');
       expect(uiStore.previewed).toBe(true);
     });
 

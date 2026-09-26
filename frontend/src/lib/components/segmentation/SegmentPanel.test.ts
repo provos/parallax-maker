@@ -326,7 +326,7 @@ describe('SegmentPanel', () => {
     });
 
     describe('ground plane', () => {
-      it('marks the selected slice as the ground and fits it', async () => {
+      it('marks the selected slice as the ground plane (Fit ground now lives in GroundPanel)', async () => {
         const ground = { ...makeSlice(1, 170), isGround: true };
         projectStore.applyView(
           makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)], selectedSlice: 1 }),
@@ -339,9 +339,6 @@ describe('SegmentPanel', () => {
               changed: true,
             });
           }
-          if (url === '/api/v1/projects/appstate-test/ground/fit') {
-            return jsonResponse(200, { ...makeView({ slices: [makeSlice(0, 85), ground] }), changed: true });
-          }
           if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
           throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
         });
@@ -350,37 +347,13 @@ describe('SegmentPanel', () => {
 
         expect(screen.getByTestId('ground-toggle')).toHaveAttribute('aria-pressed', 'false');
         expect(screen.getByTestId('ground-toggle')).toHaveTextContent('Make ground plane');
-        expect(screen.getByTestId('ground-fit')).toBeDisabled();
+        expect(screen.queryByTestId('ground-fit')).toBeNull();
         await fireEvent.click(screen.getByTestId('ground-toggle'));
 
         await waitFor(() => expect(screen.getByTestId('ground-toggle')).toHaveAttribute('aria-pressed', 'true'));
         expect(screen.getByTestId('ground-toggle')).toHaveTextContent('Ground plane');
         const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/slices/1/ground'));
         expect(JSON.parse(call![1]!.body as string)).toEqual({ isGround: true });
-
-        await waitFor(() => expect(screen.getByTestId('ground-fit')).toBeEnabled());
-        await fireEvent.click(screen.getByTestId('ground-fit'));
-        await waitFor(() =>
-          expect(fetchMock).toHaveBeenCalledWith(
-            '/api/v1/projects/appstate-test/ground/fit',
-            expect.objectContaining({ method: 'POST' }),
-          ),
-        );
-      });
-
-      it('disables Fit ground until a ground slice exists', () => {
-        projectStore.applyView(
-          makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)], selectedSlice: 1 }),
-        );
-        render(SegmentPanel);
-        expect(screen.getByTestId('ground-fit')).toBeDisabled();
-      });
-
-      it('enables Fit ground once a ground slice exists', () => {
-        const ground = { ...makeSlice(1, 170), isGround: true };
-        projectStore.applyView(makeView({ slices: [makeSlice(0, 85), ground], selectedSlice: 0 }));
-        render(SegmentPanel);
-        expect(screen.getByTestId('ground-fit')).toBeEnabled();
       });
     });
   });

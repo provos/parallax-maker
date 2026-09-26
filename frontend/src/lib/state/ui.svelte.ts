@@ -9,7 +9,8 @@
 export type CanvasView = 'input' | 'depth' | 'slice' | 'composite' | 'parallax' | '3d';
 /** The active canvas tool (HANDOFF.md §5). */
 export type CanvasTool = 'pan' | 'segment' | 'brush' | 'horizon';
-export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Export' | 'Configuration';
+/** The Inspector panel shown: one per workflow step (depth and image share one), or Settings. */
+export type MainTab = 'Mode' | 'Segmentation' | 'Inpainting' | 'Ground' | 'Preview' | 'Export' | 'Configuration';
 /** The workflow stepper's steps (docs/redesign/HANDOFF.md §4). */
 export type WorkflowStep = 'image' | 'depth' | 'slices' | 'inpaint' | 'ground' | 'preview' | 'export';
 export type SegmentationMode = 'depth' | 'segment';
@@ -17,7 +18,7 @@ export type Theme = 'light' | 'dark';
 /** Highlight state of a configuration probe (Test Connection / Validate API Key). */
 export type ProbeStatus = 'success' | 'failure' | 'none';
 
-export const MAIN_TABS: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Export', 'Configuration'];
+export const MAIN_TABS: MainTab[] = ['Mode', 'Segmentation', 'Inpainting', 'Ground', 'Preview', 'Export', 'Configuration'];
 
 export const WORKFLOW_STEPS: { step: WorkflowStep; label: string }[] = [
   { step: 'image', label: 'Image' },
@@ -63,17 +64,14 @@ const TOOL_VIEWS: Record<CanvasTool, CanvasView[]> = {
   horizon: ['composite', 'input', 'depth'],
 };
 
-/**
- * Which of the pre-redesign tab bodies the Inspector shows for a step,
- * until each step gets its own panel (HANDOFF.md §12).
- */
+/** Which Inspector panel each step shows. */
 const STEP_PANELS: Record<WorkflowStep, MainTab> = {
   image: 'Mode',
   depth: 'Mode',
   slices: 'Segmentation',
   inpaint: 'Inpainting',
-  ground: 'Segmentation',
-  preview: 'Export',
+  ground: 'Ground',
+  preview: 'Preview',
   export: 'Export',
 };
 
@@ -108,7 +106,7 @@ function createUiStore() {
   let apiKeyStatus = $state<ProbeStatus>('none');
   // "Crop to region of interest" (components.py's CHECKLIST_REGION_OF_INTEREST,
   // defaults checked): purely client-side UI state in Dash too, read by both
-  // InpaintingTab.svelte (display only there -- generation always passes
+  // InpaintPanel.svelte (display only there -- generation always passes
   // crop=True regardless, see its own comment) and MaskCanvas.svelte (which
   // sends it as the mask-save request's `cropToRegion` flag, gating whether
   // the server computes a bounding box for PreviewOverlay.svelte's ROI-box
@@ -151,7 +149,7 @@ function createUiStore() {
       if (toolStep) moveToStep(toolStep);
     },
 
-    /** The pre-redesign tab body the Inspector shows (see STEP_PANELS). */
+    /** The Inspector panel shown (see STEP_PANELS). */
     get mainTab(): MainTab {
       return mainTab;
     },

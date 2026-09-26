@@ -24,6 +24,7 @@
   const queued = $derived(segmentation?.queuedPoints.length ?? 0);
   const objectMode = $derived(uiStore.segmentationMode === 'segment');
   const canNavigate = $derived((view?.slices.length ?? 0) > 0);
+  const hasGround = $derived(view?.slices.some((s) => s.isGround) ?? false);
 
   const CAMERA_BUTTONS: { direction: CameraDirection; label: string; icon: typeof ArrowUp }[] = [
     { direction: 'left', label: 'Move camera left', icon: ArrowLeft },
@@ -144,6 +145,18 @@
       </span>
     {/if}
     <span class="hint">Drag the line to where the ground meets the sky.</span>
+    {#if hasGround}
+      <button
+        type="button"
+        class="btn btn-sm"
+        data-testid="options-fit-ground"
+        title="Put the horizon on the ground's top edge and the ground under the nearest object"
+        disabled={isBusy()}
+        onclick={() => void workflow.fitGround()}
+      >
+        Fit ground
+      </button>
+    {/if}
   {:else}
     <span class="hint">Drag to pan · scroll to zoom</span>
   {/if}

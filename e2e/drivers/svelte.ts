@@ -31,6 +31,17 @@ const STEP_FOR_TAB: Record<Exclude<MainTab, 'Configuration'>, string> = {
   Export: 'export',
 };
 
+/** The workflow step whose Inspector panel holds each slider. */
+const STEP_FOR_SLIDER: Record<SliderName, string> = {
+  'num-slices': 'slices',
+  'camera-distance': 'preview',
+  'max-distance': 'preview',
+  'focal-length': 'preview',
+  'ground-distance': 'ground',
+  displacement: 'export',
+  'number-of-frames': 'export',
+};
+
 export class SvelteDriver implements UiDriver {
   readonly target: UiTarget = 'svelte';
 
@@ -502,6 +513,13 @@ export class SvelteDriver implements UiDriver {
     await expect(this.page.locator('html')).toHaveAttribute('data-theme', 'dark');
   }
 
+  /** Shows the step panel that holds `testId`, unless it is already visible. */
+  private async revealStep(step: string, testId: string): Promise<void> {
+    if (await this.page.getByTestId(testId).isVisible()) return;
+    await this.page.getByTestId(`step-${step}`).click();
+    await expect(this.page.getByTestId(testId)).toBeVisible();
+  }
+
   async expectSliderValue(name: SliderName, value: number): Promise<void> {
     const input = this.page.getByTestId(name);
     await expect(input).toHaveValue(String(value));
@@ -511,12 +529,14 @@ export class SvelteDriver implements UiDriver {
    * Native `<input type=range>` elements (unlike Dash's rc-slider) have no
    * `aria-valuestep` quirk to work around, but the same "step directly from
    * the current value, never via Home" rationale from DashDriver.setSlider
-   * still applies here (ExportTab.svelte's camera/displacement sliders are
-   * committed together - see its own doc comment), so this mirrors that
+   * still applies here (the camera/displacement sliders are committed
+   * together - see state/cameraDraft.svelte.ts), so this mirrors that
    * driver's technique with real keyboard events (`ArrowRight`/`ArrowLeft`)
    * rather than any synthetic value assignment.
    */
   async setSlider(name: SliderName, value: number): Promise<void> {
+    if (name === 'num-slices') await this.openSplitByDepth();
+    else await this.revealStep(STEP_FOR_SLIDER[name], name);
     const input = this.page.getByTestId(name);
     await input.focus();
     const min = Number(await input.getAttribute('min'));
@@ -552,6 +572,7 @@ export class SvelteDriver implements UiDriver {
   }
 
   async fitGround(): Promise<void> {
+    await this.revealStep('ground', 'ground-fit');
     await this.page.getByTestId('ground-fit').click();
     await expect(this.log()).toContainText('Fitted the ground plane');
   }
