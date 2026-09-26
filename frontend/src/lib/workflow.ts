@@ -42,6 +42,7 @@ export async function uploadImage(file: File, depthModel: string): Promise<void>
   try {
     let view = await api.createProject(file);
     projectId = view.id;
+    uiStore.resetSession();
     // A new project keeps the theme the user is already looking at.
     const dark = uiStore.theme === 'dark';
     if (view.settings.darkMode !== dark) view = await api.updateSettings(view.id, { darkMode: dark });
@@ -269,16 +270,18 @@ export async function setMultiPointMode(enabled: boolean): Promise<void> {
 async function runSliceMutation(
   kind: Parameters<typeof jobStore.begin>[0],
   call: (id: string) => Promise<Awaited<ReturnType<typeof api.createSlice>>>,
-): Promise<void> {
+): Promise<boolean> {
   const view = projectStore.view;
-  if (!view) return;
+  if (!view) return false;
 
   jobStore.begin(kind);
   try {
     const result = await call(view.id);
     projectStore.applyView(result);
+    return true;
   } catch (err) {
     logStore.pushClient(errorMessage(err));
+    return false;
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -290,8 +293,9 @@ async function runSliceMutation(
  * parallax view (Dash's `navigate_image` buttons). Deselects any slice.
  */
 export async function navigateCamera(direction: api.CameraDirection): Promise<void> {
-  uiStore.markPreviewed();
-  await runSliceMutation('navigate', (id) => api.navigateCamera(id, direction));
+  if (await runSliceMutation('navigate', (id) => api.navigateCamera(id, direction))) {
+    uiStore.markPreviewed();
+  }
 }
 
 /**
@@ -457,6 +461,7 @@ export async function restoreProject(file: File): Promise<void> {
   try {
     const view = await api.restoreProject(file);
     logStore.reset();
+    uiStore.resetProgress();
     projectStore.applyView(view);
     await refreshLogs(view.id);
   } catch (err) {

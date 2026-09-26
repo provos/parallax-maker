@@ -107,6 +107,21 @@ function createUiStore() {
       logOpen = !logOpen;
     },
 
+    /** Forgets this session's progress (a different project is now loaded). */
+    resetProgress(): void {
+      inpainted = false;
+      previewed = false;
+      exported = false;
+    },
+    /** A new project: forget progress and start over at the first step. */
+    resetSession(): void {
+      inpainted = false;
+      previewed = false;
+      exported = false;
+      step = 'image';
+      mainTab = STEP_PANELS.image;
+    },
+
     get inpainted(): boolean {
       return inpainted;
     },
