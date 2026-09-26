@@ -324,11 +324,17 @@
   });
 </script>
 
+<!-- A stroke ends in a `click`; keep it from reaching the drop zone behind
+     the image, whose click opens the upload file chooser. The canvas only
+     receives clicks while it is interactive (pointer-events). -->
+<!-- svelte-ignore a11y_click_events_have_key_events -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
 <canvas
   bind:this={canvasEl}
   data-testid="mask-canvas"
   class="mask-canvas"
   class:interactive={interactiveNow}
+  onclick={(event) => event.stopPropagation()}
   onpointerdown={beginStroke}
   onpointermove={moveStroke}
   onpointerup={(event) => void endStroke(event)}

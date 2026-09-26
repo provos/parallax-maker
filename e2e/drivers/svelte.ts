@@ -301,11 +301,21 @@ export class SvelteDriver implements UiDriver {
     const box = await canvas.boundingBox();
     if (!box) throw new Error('Canvas has no bounding box');
 
-    await this.page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.45);
-    await this.page.mouse.down();
-    await this.page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.55, { steps: 10 });
-    await this.page.mouse.up();
-    await expect(this.log()).toContainText(/Saved mask for slice/);
+    // A stroke must never reach the upload drop zone behind the canvas
+    // (headless Chromium opens its file chooser silently).
+    let fileChooserOpened = false;
+    const onFileChooser = () => (fileChooserOpened = true);
+    this.page.on('filechooser', onFileChooser);
+    try {
+      await this.page.mouse.move(box.x + box.width * 0.4, box.y + box.height * 0.45);
+      await this.page.mouse.down();
+      await this.page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.55, { steps: 10 });
+      await this.page.mouse.up();
+      await expect(this.log()).toContainText(/Saved mask for slice/);
+    } finally {
+      this.page.off('filechooser', onFileChooser);
+    }
+    expect(fileChooserOpened, 'painting opened the upload file chooser').toBe(false);
   }
 
   async maskCanvasPainted(): Promise<boolean> {
