@@ -95,6 +95,7 @@ export type Canundo = boolean;
 export type Depth = number;
 export type Index1 = number;
 export type Isground = boolean;
+export type Isrest = boolean;
 export type Negativeprompt2 = string;
 export type Positiveprompt2 = string;
 export type Version1 = number;
@@ -506,6 +507,7 @@ export interface SliceView {
   image: AssetRef;
   index: Index1;
   isGround?: Isground;
+  isRest?: Isrest;
   mask?: AssetRef | null;
   negativePrompt: Negativeprompt2;
   positivePrompt: Positiveprompt2;

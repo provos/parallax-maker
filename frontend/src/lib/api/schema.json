@@ -1350,6 +1350,11 @@
           "title": "Isground",
           "type": "boolean"
         },
+        "isRest": {
+          "default": false,
+          "title": "Isrest",
+          "type": "boolean"
+        },
         "mask": {
           "anyOf": [
             {

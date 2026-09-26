@@ -1,3 +1,4 @@
+import json
 import numpy as np
 import unittest
 from unittest.mock import mock_open, patch, MagicMock
@@ -673,6 +674,40 @@ class TestBalanceSlicesDepths(unittest.TestCase):
             [s.depth for s in self.state.image_slices],
             [0, 63, 127, 191, 255],
         )
+
+
+class TestRestSlicePersistence(unittest.TestCase):
+    """The "rest of image" flag is persisted the same way ``is_ground_plane``
+    is: a ``rest_slice`` index written only when present, restored on load,
+    and simply absent (never inferred) for state files predating it."""
+
+    def test_rest_flag_survives_a_json_round_trip(self):
+        state = AppState()
+        state.filename = str(Path.cwd() / "appstate-rest-test")
+        state.imgThresholds = [0, 128, 255]
+        state.image_slices = [
+            ImageSlice(depth=0, filename=f"{state.filename}/image_slice_0.png"),
+            ImageSlice(depth=128, filename=f"{state.filename}/image_slice_1.png"),
+        ]
+        state.image_slices[0].is_rest = True
+
+        restored = AppState.from_json(state.to_json())
+        self.assertEqual([s.is_rest for s in restored.image_slices], [True, False])
+
+    def test_a_state_file_predating_the_flag_loads_with_no_rest_slice(self):
+        state = AppState()
+        state.filename = str(Path.cwd() / "appstate-rest-test-legacy")
+        state.imgThresholds = [0, 128, 255]
+        state.image_slices = [
+            ImageSlice(depth=0, filename=f"{state.filename}/image_slice_0.png"),
+            ImageSlice(depth=128, filename=f"{state.filename}/image_slice_1.png"),
+        ]
+        state.image_slices[0].is_rest = True
+
+        data = json.loads(state.to_json())
+        del data["rest_slice"]
+        legacy = AppState.from_json(json.dumps(data))
+        self.assertFalse(any(s.is_rest for s in legacy.image_slices))
 
 
 if __name__ == "__main__":

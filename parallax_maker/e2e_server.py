@@ -208,6 +208,10 @@ def _register_routes(app, fixture_root: Path) -> None:
                     (i for i, s in enumerate(state.image_slices) if s.is_ground_plane),
                     None,
                 ),
+                "rest_slice": next(
+                    (i for i, s in enumerate(state.image_slices) if s.is_rest),
+                    None,
+                ),
                 "mesh_displacement": state.mesh_displacement,
             }
         )
