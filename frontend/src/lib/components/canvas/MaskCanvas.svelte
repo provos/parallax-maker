@@ -21,6 +21,7 @@
    */
   import { projectStore } from '../../state/project.svelte';
   import { uiStore } from '../../state/ui.svelte';
+  import { candidatePreview } from '../../candidatePreview';
   import { isBusy } from '../../state/busy.svelte';
   import { logStore } from '../../state/logs.svelte';
   import { canvasSaveStore } from '../../state/canvas.svelte';
@@ -59,8 +60,11 @@
 
   // Painting is the Brush tool's job; the painted mask shows only in the
   // views it is drawn over (the selected slice, or the working image).
-  const interactiveNow = $derived(uiStore.tool === 'brush');
-  const visibleNow = $derived(uiStore.view === 'slice' || uiStore.view === 'input');
+  // While a picked candidate is previewed, the mask steps aside so the
+  // filled-in area can be inspected (and can't be painted over unseen).
+  const previewing = $derived(candidatePreview(projectStore.view) !== null);
+  const interactiveNow = $derived(uiStore.tool === 'brush' && !previewing);
+  const visibleNow = $derived((uiStore.view === 'slice' || uiStore.view === 'input') && !previewing);
 
   // The brush preview is only meaningful while painting is possible; drop
   // it as soon as another tool is picked rather than leaving a stale circle

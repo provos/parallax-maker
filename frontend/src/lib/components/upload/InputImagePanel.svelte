@@ -10,6 +10,7 @@
    * selected slice's highlight, or the latest camera render). Depth, Slice
    * and Composite are drawn here from the project's assets.
    */
+  import { candidatePreview } from '../../candidatePreview';
   import ImageUp from '@lucide/svelte/icons/image-up';
   import { projectStore } from '../../state/project.svelte';
   import { uiStore } from '../../state/ui.svelte';
@@ -82,6 +83,10 @@
     ),
   );
   const showsMain = $derived(uiStore.view === 'input' || uiStore.view === 'parallax');
+  // A picked inpainting candidate stands in for its slice on the canvas.
+  const preview = $derived(candidatePreview(projectStore.view));
+  const sliceUrl = (slice: { index: number; image: { url: string } }): string =>
+    preview && preview.sliceIndex === slice.index ? preview.url : slice.image.url;
 
   /**
    * A click on the display image with the Segment tool selects by object
@@ -299,14 +304,21 @@
         <img class="layer" data-testid="view-depth-image" alt="Depth map" src={projectStore.view.assets.depth.url} draggable="false" />
       {:else if uiStore.view === 'slice'}
         {#if selectedSlice}
-          <img class="layer" data-testid="view-slice-image" alt={`image_slice_${selectedSlice.index}`} src={selectedSlice.image.url} draggable="false" />
+          <img
+            class="layer"
+            data-testid="view-slice-image"
+            data-candidate={preview?.sliceIndex === selectedSlice.index ? preview.candidate : undefined}
+            alt={`image_slice_${selectedSlice.index}`}
+            src={sliceUrl(selectedSlice)}
+            draggable="false"
+          />
         {:else}
           <div class="layer placeholder" data-testid="view-slice-empty">Select a layer to see it on its own.</div>
         {/if}
       {:else if uiStore.view === 'composite'}
         <div class="layer" data-testid="view-composite-layers">
           {#each compositeLayers as slice (slice.index)}
-            <img class="layer" alt="" src={slice.image.url} draggable="false" />
+            <img class="layer" alt="" src={sliceUrl(slice)} draggable="false" />
           {/each}
         </div>
       {/if}

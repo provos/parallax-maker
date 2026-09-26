@@ -297,6 +297,11 @@
         <p class="faint">Candidates appear here after you generate.</p>
       {/each}
     </div>
+    {#if selectedCandidate !== null && hasCandidates}
+      <p class="faint" data-testid="candidate-preview-hint">
+        Candidate {selectedCandidate + 1} is shown on the canvas. Click it again to go back to the mask.
+      </p>
+    {/if}
     <button
       type="button"
       class="btn"

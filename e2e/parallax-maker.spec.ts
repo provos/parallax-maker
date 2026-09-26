@@ -266,7 +266,18 @@ test('painted mask drives three checkerboard candidates, apply, and undo', async
   expect(candidateOutside).toEqual(originalOutside);
 
   expect(await ui.maskCanvasPainted()).toBe(true);
+  // Picking a candidate previews it on the canvas, in place of the slice and
+  // its painted mask, so each one can be inspected before applying it.
+  const nearest = (rgba: number[], palette: number[][]) =>
+    Math.min(...palette.map((color) => Math.max(...color.map((value, i) => Math.abs(rgba[i] - value)))));
+  await ui.selectCandidate(0);
+  await expect
+    .poll(async () => nearest(await ui.visibleCanvasPixel(...inside), [[0, 255, 255], [255, 0, 255]]))
+    .toBeLessThanOrEqual(24);
   await ui.selectCandidate(1);
+  await expect
+    .poll(async () => nearest(await ui.visibleCanvasPixel(...inside), [[255, 128, 0], [0, 64, 255]]))
+    .toBeLessThanOrEqual(24);
   await ui.applyCandidate();
   await expect(ui.log()).toContainText(/Inpainting applied to slice 1/);
   // The applied version has no mask; the canvas must not keep showing the old stroke.

@@ -113,6 +113,32 @@ export class SvelteDriver implements UiDriver {
     return this.page.getByTestId('canvas-image');
   }
 
+  async visibleCanvasPixel(x: number, y: number): Promise<number[]> {
+    const [naturalWidth, naturalHeight] = await this.mainImage().evaluate((img: HTMLImageElement) => [
+      img.naturalWidth,
+      img.naturalHeight,
+    ]);
+    const png = await this.canvasImage().screenshot();
+    return this.page.evaluate(
+      async ({ data, x, y, naturalWidth, naturalHeight }) => {
+        const shot = new Image();
+        shot.src = `data:image/png;base64,${data}`;
+        await shot.decode();
+        const canvas = document.createElement('canvas');
+        canvas.width = shot.width;
+        canvas.height = shot.height;
+        const context = canvas.getContext('2d');
+        if (!context) throw new Error('No 2D context');
+        context.drawImage(shot, 0, 0);
+        // Sample the center of the source pixel in screenshot pixels.
+        const px = Math.floor(((x + 0.5) * shot.width) / naturalWidth);
+        const py = Math.floor(((y + 0.5) * shot.height) / naturalHeight);
+        return Array.from(context.getImageData(px, py, 1, 1).data);
+      },
+      { data: png.toString('base64'), x, y, naturalWidth, naturalHeight },
+    );
+  }
+
   depthImage(): Locator {
     return this.page.getByTestId('depth-image');
   }

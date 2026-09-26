@@ -7,7 +7,7 @@ import { jobStore } from '../../state/jobs.svelte';
 import { logStore } from '../../state/logs.svelte';
 import { uiStore } from '../../state/ui.svelte';
 import { viewportStore } from '../../state/viewport.svelte';
-import type { ProjectView } from '../../api/types';
+import type { ProjectView, SliceView } from '../../api/types';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -398,6 +398,61 @@ describe('InputImagePanel', () => {
       await fireEvent.keyDown(screen.getByTestId('horizon-line'), { key: 'ArrowUp', shiftKey: true });
       await waitFor(() => expect(fetchMock).toHaveBeenCalled());
       expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).camera.horizonRow).toBe(110);
+    });
+  });
+
+  describe('inpainting candidate preview', () => {
+    const slice = (index: number) =>
+      ({ index, depth: 10 * index, image: { url: `/slice-${index}` }, thumbnail: { url: `/t-${index}` } }) as unknown as SliceView;
+    const withCandidates = (selectedCandidate: number | null, selectedSlice = 1): ProjectView =>
+      makeView({
+        slices: [slice(0), slice(1)],
+        selectedSlice,
+        inpainting: {
+          ...makeView().inpainting,
+          candidates: {
+            generationId: 'gen',
+            sliceIndex: 1,
+            images: [{ url: '/cand-0' }, { url: '/cand-1' }, { url: '/cand-2' }],
+          },
+          selectedCandidate,
+        },
+      });
+
+    beforeEach(() => uiStore.setView('slice'));
+
+    it('shows the picked candidate in place of the slice and hides the mask', () => {
+      projectStore.applyView(withCandidates(2));
+      render(InputImagePanel);
+      expect(screen.getByTestId('view-slice-image')).toHaveAttribute('src', '/cand-2');
+      expect(screen.getByTestId('view-slice-image')).toHaveAttribute('data-candidate', '2');
+      expect(screen.getByTestId('mask-canvas')).toHaveClass('hidden');
+    });
+
+    it('shows the slice and its mask again when no candidate is picked', () => {
+      projectStore.applyView(withCandidates(2));
+      render(InputImagePanel);
+      projectStore.applyView(withCandidates(null));
+      flushSync();
+      expect(screen.getByTestId('view-slice-image')).toHaveAttribute('src', '/slice-1');
+      expect(screen.getByTestId('mask-canvas')).not.toHaveClass('hidden');
+    });
+
+    it("ignores candidates of a slice that isn't selected", () => {
+      projectStore.applyView(withCandidates(0, 0));
+      render(InputImagePanel);
+      expect(screen.getByTestId('view-slice-image')).toHaveAttribute('src', '/slice-0');
+      expect(screen.getByTestId('mask-canvas')).not.toHaveClass('hidden');
+    });
+
+    it('swaps the candidate into the composite view', () => {
+      uiStore.setView('composite');
+      projectStore.applyView(withCandidates(1));
+      render(InputImagePanel);
+      const sources = [...screen.getByTestId('view-composite-layers').querySelectorAll('img')].map((img) =>
+        img.getAttribute('src'),
+      );
+      expect(sources).toEqual(['/slice-0', '/cand-1']);
     });
   });
 });
