@@ -37,7 +37,7 @@ def poll_job(client, job_id: str, timeout: float = 60.0, interval: float = 0.02)
         response = client.get(f"/api/v1/jobs/{job_id}")
         assert response.status_code == 200, response.get_json()
         last = response.get_json()
-        if last["status"] in ("succeeded", "failed"):
+        if last["status"] in ("succeeded", "failed", "cancelled"):
             return last
         time.sleep(interval)
     raise AssertionError(f"job {job_id} did not reach a terminal status: {last}")

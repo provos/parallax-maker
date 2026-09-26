@@ -9,7 +9,7 @@
   import { cameraDraftStore } from '../../state/cameraDraft.svelte';
   import * as workflow from '../../workflow';
   import CameraSlider from '../shared/CameraSlider.svelte';
-  import SceneSideView from '../export/SceneSideView.svelte';
+  import SceneSideView from './SceneSideView.svelte';
 
   const view = $derived(projectStore.view);
   // Nearest first, like the layer panel.

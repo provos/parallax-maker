@@ -14,6 +14,7 @@
   import ToolOptionsBar from './ToolOptionsBar.svelte';
   import CanvasToolbar from './CanvasToolbar.svelte';
   import SelectionBar from './SelectionBar.svelte';
+  import ToastStack from '../feedback/ToastStack.svelte';
 
   let stage: ReturnType<typeof InputImagePanel> | undefined = $state();
 
@@ -57,6 +58,7 @@
         <SelectionBar />
       {/if}
     {/if}
+    <ToastStack />
   </div>
 </section>
 

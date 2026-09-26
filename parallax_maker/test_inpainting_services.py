@@ -10,6 +10,7 @@ import numpy as np
 from PIL import Image
 import pytest
 
+from .cancellation import OperationCancelled
 from .controller import AppState
 from .inpainting_services import (
     ApplyInpaintingCandidate,
@@ -329,6 +330,35 @@ def test_generation_reuses_equal_pipeline_and_wraps_model_failures(
         service.generate_candidates(generate_command(InpaintingMode.PAINT))
     assert isinstance(exc_info.value.__cause__, RuntimeError)
     assert str(exc_info.value.__cause__) == "model exploded"
+    assert state.selected_inpainting == 1
+
+
+def test_generate_candidates_propagates_cancellation_unwrapped(
+    tmp_path: Path,
+) -> None:
+    """A cancelled generation must not be wrapped as ``InpaintingModelFailed``
+    and must leave ``state.selected_inpainting`` exactly as it found it - the
+    API route (``api/inpainting.py``) only replaces the stored candidate set
+    *after* this call returns successfully, so leaving the previous
+    selection alone here is what keeps that stored set intact too.
+    """
+
+    state = make_state(tmp_path)
+    service, _ = make_service(state, patcher=lambda image, mask: image)
+    save_mask(service)
+    state.selected_inpainting = 1
+
+    def cancelling_progress(fraction: float) -> None:
+        if fraction >= 1 / 3:
+            raise OperationCancelled("job cancelled")
+
+    command = replace(
+        generate_command(InpaintingMode.PAINT), progress=cancelling_progress
+    )
+
+    with pytest.raises(OperationCancelled):
+        service.generate_candidates(command)
+
     assert state.selected_inpainting == 1
 
 

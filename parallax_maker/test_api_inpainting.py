@@ -428,6 +428,30 @@ def test_paint_generate_three_candidates_and_composition(client) -> None:
     assert outside == tuple(int(c) for c in raw_before[MASK_OUTSIDE[1], MASK_OUTSIDE[0]])
 
 
+def test_generate_job_is_cancellable_while_queued_or_running(client) -> None:
+    """``inpainting`` generation is currently the only job kind that opts
+    into ``DELETE /jobs/{id}`` cancellation.
+    """
+
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _select_slice(client, project_id, 1)
+    _save_mask(client, project_id, 1)
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/slices/1/inpainting/generate",
+        json={"mode": "paint", "positivePrompt": "", "negativePrompt": ""},
+    )
+    assert response.status_code == 202
+    queued_job = response.get_json()["job"]
+    assert queued_job["cancellable"] is True
+
+    job = poll_job(client, queued_job["id"])
+    assert job["status"] == "succeeded"
+    assert job["detail"] is None
+    assert job["cancellable"] is False
+
+
 def test_generation_failure_persists_prompts_and_keeps_state_unchanged(isolated_cwd) -> None:
     del isolated_cwd
     runtime = _failing_inpainting_runtime()

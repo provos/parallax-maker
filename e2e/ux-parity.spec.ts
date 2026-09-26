@@ -64,11 +64,7 @@ test('after zooming in and panning, a depth-mode click at a known source pixel l
   // of whether the pan above actually took effect - proving the pixel
   // mapping itself (lib/geometry.ts's `findPixelFromClick`) stays exact
   // under zoom, independent of the pan gap just pinned above. The `<= 1`
-  // tolerance (not exact equality) is the same real sub-pixel truncation
-  // quirk `e2e/parallax-maker.spec.ts`'s own "depth-band click" scenario
-  // pins for a *plain, unzoomed* click (a requested (16, 16) truncates to
-  // (15, 15)) - a fractional zoom scale only makes that rounding harder to
-  // predict exactly by hand, not any less exact in what the app itself does.
+  // tolerance allows for the fractional zoom scale's sub-pixel rounding.
   await ui.clickImagePixel(160, 120);
   await expect
     .poll(async () => (await readE2EState(page, projectId)).slice_pixel)

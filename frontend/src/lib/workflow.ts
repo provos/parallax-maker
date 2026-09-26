@@ -9,7 +9,7 @@
  */
 
 import * as api from './api/client';
-import { ApiError } from './api/client';
+import { ApiError, JobCancelledError, JobFailedError } from './api/client';
 import type {
   InpaintingGenerateMode,
   InpaintingSettingsRequest,
@@ -17,15 +17,70 @@ import type {
   SegmentationMode,
 } from './api/types';
 import { projectStore } from './state/project.svelte';
-import { jobStore } from './state/jobs.svelte';
+import { jobStore, jobLabel, type JobKind } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
 import { canvasSaveStore } from './state/canvas.svelte';
 import { uiStore } from './state/ui.svelte';
+import { toastStore, type ToastAction } from './state/toasts.svelte';
 
 function errorMessage(err: unknown): string {
   if (err instanceof ApiError) return err.message;
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+const FAILURE_TITLES: Partial<Record<JobKind, string>> = {
+  upload: 'Upload failed',
+  depth: 'Depth map failed',
+  slices: 'Split by depth failed',
+  restore: 'Loading the project failed',
+  segmentation: 'Segmentation failed',
+  'multi-point': 'Segmentation failed',
+  inpainting: 'Generation failed',
+  'inpainting-mutate': 'Inpainting failed',
+  save: 'Saving failed',
+  'export-gltf': 'glTF export failed',
+  upscale: 'Upscaling failed',
+  animation: 'Animation failed',
+  'workflow-upload': 'Workflow upload failed',
+  probe: 'Connection test failed',
+  'validate-key': 'API key check failed',
+};
+
+/** Job kinds whose failures usually come down to the inpainting settings. */
+const SETTINGS_KINDS: JobKind[] = ['inpainting', 'inpainting-mutate', 'upscale', 'probe', 'validate-key', 'workflow-upload'];
+
+function openLog(): void {
+  if (!uiStore.logOpen) uiStore.toggleLog();
+}
+
+/**
+ * Reports a failed operation (HANDOFF.md §9): a log line (which also turns
+ * the status bar red) plus a persistent error toast with Retry (when given),
+ * Open settings (for inpainting-related jobs) and View log. A cancelled job
+ * only gets a short info toast. Call it inside the operation's `catch`,
+ * while `jobStore.active` still names the job.
+ */
+function reportError(err: unknown, retry?: () => void): void {
+  const kind = jobStore.active;
+  if (err instanceof JobCancelledError) {
+    // The server logs the cancellation itself.
+    if (err.job.project) projectStore.applyView(err.job.project);
+    toastStore.info('Cancelled', jobLabel(err.job.kind));
+    return;
+  }
+  if (err instanceof JobFailedError && err.job.project) projectStore.applyView(err.job.project);
+  const message = errorMessage(err);
+  logStore.pushClient(message);
+  const actions: ToastAction[] = [];
+  if (retry) actions.push({ label: 'Retry', run: retry });
+  if (kind && SETTINGS_KINDS.includes(kind)) {
+    actions.push({ label: 'Open settings', run: () => uiStore.openSettings('inpainting') });
+  }
+  actions.push({ label: 'View log', run: openLog });
+  const title = (kind && FAILURE_TITLES[kind]) ?? 'Something went wrong';
+  toastStore.error(title, message, actions);
+  if (kind) jobStore.fail({ kind, title, message, actions });
 }
 
 async function refreshLogs(projectId: string): Promise<void> {
@@ -48,7 +103,7 @@ export async function uploadImage(file: File, depthModel: string): Promise<void>
     if (view.settings.darkMode !== dark) view = await api.updateSettings(view.id, { darkMode: dark });
     projectStore.applyView(view);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
     jobStore.end();
     return;
   }
@@ -68,11 +123,12 @@ export async function startDepth(model: string): Promise<void> {
   try {
     const { job } = await api.startDepth(projectId, model);
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
+    toastStore.success('Depth map ready');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(projectId);
@@ -88,11 +144,12 @@ export async function generateSlices(): Promise<void> {
   try {
     const { job } = await api.startSlices(projectId);
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
+    toastStore.success('Image split into slices');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(projectId);
@@ -125,7 +182,7 @@ export async function updateThresholds(values: number[]): Promise<void> {
     }
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -142,7 +199,7 @@ export async function updateSliceCount(numSlices: number): Promise<void> {
     const result = await api.setSliceCount(view.id, numSlices);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -170,7 +227,7 @@ export async function selectSlice(slice: number | null): Promise<void> {
     const result = await api.updateSelection(view.id, slice);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -199,11 +256,11 @@ export async function clickSegmentation(
   try {
     const { job } = await api.segmentationClick(projectId, { x, y, mode, shiftKey, ctrlKey });
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(projectId);
@@ -219,11 +276,11 @@ export async function commitMultiPoint(): Promise<void> {
   try {
     const { job } = await api.segmentationCommit(projectId);
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(projectId);
@@ -240,7 +297,7 @@ export async function setMultiPointMode(enabled: boolean): Promise<void> {
     const result = await api.setMultiPointMode(view.id, enabled);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -280,7 +337,7 @@ async function runSliceMutation(
     projectStore.applyView(result);
     return true;
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
     return false;
   } finally {
     jobStore.end();
@@ -482,8 +539,9 @@ export async function restoreProject(file: File): Promise<void> {
     uiStore.resetProgress();
     projectStore.applyView(view);
     await refreshLogs(view.id);
+    toastStore.success('Project loaded');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
   }
@@ -522,7 +580,7 @@ export async function saveMask(
     projectStore.applyView(result);
     return result.boundingBox;
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
     return null;
   } finally {
     await refreshLogs(view.id);
@@ -537,7 +595,7 @@ export async function deleteMask(index: number): Promise<void> {
     const result = await api.deleteInpaintingMask(view.id, index);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     await refreshLogs(view.id);
   }
@@ -560,7 +618,7 @@ export async function updateInpaintingPrompts(
     const result = await api.updateInpaintingPrompts(view.id, index, positivePrompt, negativePrompt);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     await refreshLogs(view.id);
   }
@@ -581,7 +639,7 @@ export async function updateInpaintingSettings(settings: InpaintingSettingsReque
     const result = await api.updateInpaintingSettings(view.id, settings);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -613,11 +671,12 @@ export async function generateInpainting(
       negativePrompt,
     });
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
+    toastStore.success('Candidates ready', 'Pick one and apply it.');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err, () => void generateInpainting(mode, positivePrompt, negativePrompt));
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -637,7 +696,7 @@ export async function selectInpaintingCandidate(generationId: string, candidate:
     const result = await api.updateInpaintingSelection(view.id, generationId, candidate);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -663,8 +722,9 @@ export async function applyInpaintingCandidate(): Promise<void> {
     const result = await api.applyInpaintingCandidate(view.id, index, candidates.generationId);
     projectStore.applyView(result);
     uiStore.markInpainted();
+    toastStore.success('Candidate applied');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -687,7 +747,7 @@ export async function eraseInpainting(): Promise<void> {
     const result = await api.eraseInpainting(view.id, index);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -716,8 +776,9 @@ export async function saveProject(): Promise<void> {
   try {
     const result = await api.saveProject(view.id);
     projectStore.applyView(result);
+    toastStore.success('Project saved');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -740,7 +801,7 @@ export async function updateSettings(settings: ProjectSettingsRequest): Promise<
     const result = await api.updateSettings(view.id, settings);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -769,12 +830,13 @@ export async function startGltfExport(dof: boolean): Promise<void> {
   try {
     const { job } = await api.startGltfExport(view.id, dof);
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
     uiStore.markExported();
+    toastStore.success('glTF scene ready');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -789,11 +851,12 @@ export async function startUpscaleExport(): Promise<void> {
   try {
     const { job } = await api.startUpscaleExport(view.id);
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
+    toastStore.success('Textures upscaled');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -813,12 +876,13 @@ export async function startAnimationExport(frames: number): Promise<void> {
   try {
     const { job } = await api.startAnimationExport(view.id, frames);
     const finished = await api.pollJob(job.id, {
-      onProgress: (j) => jobStore.setProgress(j.progress),
+      onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
     uiStore.markExported();
+    toastStore.success('Animation rendered');
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -834,7 +898,7 @@ export async function uploadInpaintingWorkflow(file: File): Promise<void> {
     const result = await api.uploadInpaintingWorkflow(view.id, file);
     projectStore.applyView(result);
   } catch (err) {
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
     await refreshLogs(view.id);
@@ -856,7 +920,7 @@ export async function probeExternalServer(model: string, serverAddress: string):
     logStore.pushClient(result.message, result.ok ? 'info' : 'error');
   } catch (err) {
     uiStore.setExternalConnectionStatus('failure');
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
   }
@@ -876,7 +940,7 @@ export async function probeApiKey(model: string, apiKey: string): Promise<void> 
     logStore.pushClient(result.message, result.ok ? 'info' : 'error');
   } catch (err) {
     uiStore.setApiKeyStatus('failure');
-    logStore.pushClient(errorMessage(err));
+    reportError(err);
   } finally {
     jobStore.end();
   }

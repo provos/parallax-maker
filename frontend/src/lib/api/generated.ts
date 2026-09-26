@@ -56,6 +56,8 @@ export type Model2 = string;
 export type Padding1 = number;
 export type Selectedcandidate = number | null;
 export type Strength1 = number;
+export type Cancellable = boolean;
+export type Detail = string | null;
 export type Error = string | null;
 export type Id = string;
 export type Kind1 = string;
@@ -102,7 +104,7 @@ export type Version1 = number;
 export type Slices = SliceView[];
 export type Thresholds = number[];
 export type Usecheckerboard = boolean;
-export type Status = "queued" | "running" | "succeeded" | "failed";
+export type Status = "queued" | "running" | "succeeded" | "failed" | "cancelled";
 export type Level = string;
 export type Message1 = string;
 export type Seq = number;
@@ -364,6 +366,8 @@ export interface JobRef {
  * via the `definition` "JobView".
  */
 export interface JobView {
+  cancellable?: Cancellable;
+  detail?: Detail;
   error?: Error;
   id: Id;
   kind: Kind1;

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/svelte';
+import { render, screen, fireEvent } from '@testing-library/svelte';
 import { flushSync } from 'svelte';
 import ActivityIndicator, { SHOW_DELAY_MS } from './ActivityIndicator.svelte';
 import { jobStore } from '../../state/jobs.svelte';
 import { projectStore } from '../../state/project.svelte';
+import * as api from '../../api/client';
 
 describe('ActivityIndicator', () => {
   beforeEach(() => {
@@ -11,7 +12,9 @@ describe('ActivityIndicator', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     jobStore.end();
+    jobStore.clearError();
     projectStore.reset();
     vi.useRealTimers();
   });
@@ -51,5 +54,31 @@ describe('ActivityIndicator', () => {
     flushSync();
     advance(1000);
     expect(screen.queryByTestId('activity-label')).not.toBeInTheDocument();
+  });
+
+  it('shows activity-cancel only once the job is cancellable, and clicking it cancels via the API', async () => {
+    const cancelJobSpy = vi.spyOn(api, 'cancelJob').mockResolvedValue({
+      id: 'job-1',
+      kind: 'depth',
+      status: 'cancelled',
+      progress: 0.4,
+    });
+    render(ActivityIndicator);
+    jobStore.begin('depth');
+    flushSync();
+    advance(SHOW_DELAY_MS);
+    expect(screen.queryByTestId('activity-cancel')).not.toBeInTheDocument();
+
+    jobStore.track({ id: 'job-1', kind: 'depth', status: 'running', progress: 0.4, cancellable: true });
+    flushSync();
+    const cancelButton = screen.getByTestId('activity-cancel');
+    expect(cancelButton).toHaveTextContent('Cancel');
+
+    await fireEvent.click(cancelButton);
+    expect(cancelJobSpy).toHaveBeenCalledWith('job-1');
+
+    flushSync();
+    expect(screen.getByTestId('activity-cancel')).toHaveTextContent('Cancelling…');
+    expect(screen.getByTestId('activity-cancel')).toBeDisabled();
   });
 });

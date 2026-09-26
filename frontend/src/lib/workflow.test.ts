@@ -1,9 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { waitFor } from '@testing-library/svelte';
 import * as workflow from './workflow';
 import { projectStore } from './state/project.svelte';
 import { jobStore } from './state/jobs.svelte';
 import { logStore } from './state/logs.svelte';
 import { uiStore } from './state/ui.svelte';
+import { toastStore } from './state/toasts.svelte';
 import type { ProjectView } from './api/types';
 
 function jsonResponse(status: number, body: unknown): Response {
@@ -52,8 +54,10 @@ describe('workflow', () => {
   beforeEach(() => {
     projectStore.reset();
     jobStore.end();
+    jobStore.clearError();
     logStore.reset();
     uiStore.reset();
+    toastStore.reset();
   });
 
   afterEach(() => {
@@ -443,6 +447,162 @@ describe('workflow', () => {
       fetchMock.mockResolvedValueOnce(jsonResponse(200, { entries: [], next: 0 }));
       await workflow.balanceSlices();
       expect(fetchMock.mock.calls[2][0]).toBe('/api/v1/projects/appstate-test/slices/balance');
+    });
+  });
+
+  describe('reportError / toasts / cancellation', () => {
+    it('a failed depth job shows an error toast with a View log action and records jobStore.lastError', async () => {
+      projectStore.applyView(makeView());
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (url === '/api/v1/projects/appstate-test/depth' && method === 'POST') {
+          return jsonResponse(202, { job: { id: 'job-e', kind: 'depth', status: 'queued', progress: 0 } });
+        }
+        if (url === '/api/v1/jobs/job-e') {
+          return jsonResponse(200, {
+            id: 'job-e',
+            kind: 'depth',
+            status: 'failed',
+            progress: 0.5,
+            error: 'model exploded',
+          });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
+          return jsonResponse(200, { entries: [], next: 0 });
+        }
+        throw new Error(`Unexpected fetch: ${method} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await workflow.startDepth('midas');
+
+      const errorToast = toastStore.toasts.at(-1);
+      expect(errorToast).toMatchObject({ kind: 'error', title: 'Depth map failed', message: 'model exploded' });
+      // depth is not an inpainting-settings kind and startDepth passes no retry.
+      expect(errorToast?.actions.map((a) => a.label)).toEqual(['View log']);
+      expect(jobStore.lastError).toMatchObject({
+        kind: 'depth',
+        title: 'Depth map failed',
+        message: 'model exploded',
+      });
+    });
+
+    it('a failed inpainting generation offers Retry and Open settings; Retry re-issues the generate POST', async () => {
+      projectStore.applyView(makeView({ selectedSlice: 0 }));
+      let generateCalls = 0;
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (url === '/api/v1/projects/appstate-test/slices/0/inpainting/generate' && method === 'POST') {
+          generateCalls += 1;
+          const jobId = generateCalls === 1 ? 'job-a' : 'job-b';
+          return jsonResponse(202, { job: { id: jobId, kind: 'inpainting', status: 'queued', progress: 0 } });
+        }
+        if (url === '/api/v1/jobs/job-a') {
+          return jsonResponse(200, {
+            id: 'job-a',
+            kind: 'inpainting',
+            status: 'failed',
+            progress: 1,
+            error: 'model exploded',
+          });
+        }
+        if (url === '/api/v1/jobs/job-b') {
+          return jsonResponse(200, {
+            id: 'job-b',
+            kind: 'inpainting',
+            status: 'succeeded',
+            progress: 1,
+            project: makeView({ selectedSlice: 0 }),
+          });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
+          return jsonResponse(200, { entries: [], next: 0 });
+        }
+        throw new Error(`Unexpected fetch: ${method} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await workflow.generateInpainting('paint', 'a prompt', '');
+
+      const errorToast = toastStore.toasts.at(-1);
+      expect(errorToast).toMatchObject({ kind: 'error', title: 'Generation failed', message: 'model exploded' });
+      expect(errorToast?.actions.map((a) => a.label)).toEqual(['Retry', 'Open settings', 'View log']);
+      expect(jobStore.lastError?.kind).toBe('inpainting');
+      expect(generateCalls).toBe(1);
+
+      const retry = errorToast!.actions.find((a) => a.label === 'Retry')!;
+      retry.run();
+
+      await waitFor(() => expect(generateCalls).toBe(2));
+      await waitFor(() => expect(jobStore.active).toBeNull());
+    });
+
+    it('a cancelled inpainting job shows only an info toast and clears no error', async () => {
+      projectStore.applyView(makeView({ selectedSlice: 0 }));
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (url === '/api/v1/projects/appstate-test/slices/0/inpainting/generate' && method === 'POST') {
+          return jsonResponse(202, { job: { id: 'job-c', kind: 'inpainting', status: 'queued', progress: 0 } });
+        }
+        if (url === '/api/v1/jobs/job-c') {
+          return jsonResponse(200, {
+            id: 'job-c',
+            kind: 'inpainting',
+            status: 'cancelled',
+            progress: 0.5,
+            project: makeView({ selectedSlice: 0, revision: 2 }),
+          });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
+          return jsonResponse(200, { entries: [], next: 0 });
+        }
+        throw new Error(`Unexpected fetch: ${method} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await workflow.generateInpainting('paint', '', '');
+
+      expect(toastStore.toasts).toHaveLength(1);
+      expect(toastStore.toasts[0]).toMatchObject({
+        kind: 'info',
+        title: 'Cancelled',
+        message: 'Generating inpainting candidates',
+      });
+      expect(jobStore.lastError).toBeNull();
+      expect(projectStore.view?.revision).toBe(2);
+    });
+
+    it('startDepth shows a success toast once the job succeeds', async () => {
+      projectStore.applyView(makeView());
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (url === '/api/v1/projects/appstate-test/depth' && method === 'POST') {
+          return jsonResponse(202, { job: { id: 'job-d', kind: 'depth', status: 'queued', progress: 0 } });
+        }
+        if (url === '/api/v1/jobs/job-d') {
+          return jsonResponse(200, {
+            id: 'job-d',
+            kind: 'depth',
+            status: 'succeeded',
+            progress: 1,
+            project: makeView(),
+          });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
+          return jsonResponse(200, { entries: [], next: 0 });
+        }
+        throw new Error(`Unexpected fetch: ${method} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await workflow.startDepth('midas');
+
+      expect(toastStore.toasts).toHaveLength(1);
+      expect(toastStore.toasts[0]).toMatchObject({ kind: 'success', title: 'Depth map ready' });
     });
   });
 });

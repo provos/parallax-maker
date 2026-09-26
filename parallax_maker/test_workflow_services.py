@@ -183,6 +183,133 @@ def test_generate_depth_requires_an_input_image() -> None:
     assert repository.saves == []
 
 
+class RecordingDetailReporter:
+    """A ``progress_reporter``-shaped double that also records ``detail`` calls."""
+
+    def __init__(self) -> None:
+        self.details: list[str | None] = []
+        self.progress_calls: list[tuple[int, int]] = []
+
+    def __call__(self, current: int, total: int) -> None:
+        self.progress_calls.append((current, total))
+
+    def detail(self, text: str | None) -> None:
+        self.details.append(text)
+
+
+class LazyLoadingStubDepthModel:
+    """Mimics ``DepthEstimationModel``'s ``model is None until load_model()``
+    contract, without the real model classes' heavyweight dependencies.
+    """
+
+    def __init__(self, model: str) -> None:
+        self.model_name = model
+        self.model: str | None = None
+        self.load_calls = 0
+
+    def __eq__(self, other: object) -> bool:
+        return (
+            isinstance(other, LazyLoadingStubDepthModel)
+            and self.model_name == other.model_name
+        )
+
+    def load_model(self) -> None:
+        self.load_calls += 1
+        self.model = "loaded"
+
+
+def test_generate_depth_reports_and_clears_loading_detail() -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.imgData = Image.new("RGB", (2, 2), "navy")
+    repository = RecordingStateRepository(state)
+    reporter = RecordingDetailReporter()
+    created: list[LazyLoadingStubDepthModel] = []
+
+    def factory(model: str) -> LazyLoadingStubDepthModel:
+        instance = LazyLoadingStubDepthModel(model)
+        created.append(instance)
+        return instance
+
+    def depth_generator(image, model, progress_callback=None):
+        # By the time depth generation itself runs, the model must already
+        # be loaded and the "loading" detail must already be cleared.
+        assert model.model == "loaded"
+        assert reporter.details[-1] is None
+        return np.zeros((2, 2), dtype=np.uint8)
+
+    service = WorkflowService(
+        repository,
+        depth_model_factory=factory,
+        depth_generator=depth_generator,
+        progress_reporter=reporter,
+    )
+
+    service.generate_depth(GenerateDepth("appstate-test", "dinov2"))
+
+    assert created[0].load_calls == 1
+    assert reporter.details == [
+        "Loading the depth model (the first run downloads its weights)",
+        None,
+    ]
+
+
+def test_generate_depth_clears_loading_detail_even_if_load_model_fails() -> None:
+    state = AppState()
+    state.filename = "appstate-test"
+    state.imgData = Image.new("RGB", (2, 2), "navy")
+    repository = RecordingStateRepository(state)
+    reporter = RecordingDetailReporter()
+
+    class FailingStubDepthModel(LazyLoadingStubDepthModel):
+        def load_model(self) -> None:
+            raise RuntimeError("boom")
+
+    def unexpected_dependency(*args, **kwargs):
+        raise AssertionError("depth generation must not run after a load failure")
+
+    service = WorkflowService(
+        repository,
+        depth_model_factory=lambda model: FailingStubDepthModel(model),
+        depth_generator=unexpected_dependency,
+        progress_reporter=reporter,
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        service.generate_depth(GenerateDepth("appstate-test", "dinov2"))
+
+    assert reporter.details[-1] is None
+
+
+def test_generate_depth_loading_tolerates_a_plain_function_progress_reporter() -> None:
+    """``self._progress_reporter`` may be a plain callable with no ``detail``
+    attribute at all (e.g. ``runtime.ProgressReporter.__call__`` bound as a
+    function, or any of this module's other tests' fakes); the loading-detail
+    step must be a no-op rather than an ``AttributeError`` in that case.
+    """
+
+    state = AppState()
+    state.filename = "appstate-test"
+    state.imgData = Image.new("RGB", (2, 2), "navy")
+    repository = RecordingStateRepository(state)
+
+    def plain_progress_reporter(current: int, total: int) -> None:
+        pass
+
+    service = WorkflowService(
+        repository,
+        depth_model_factory=LazyLoadingStubDepthModel,
+        depth_generator=lambda image, model, progress_callback=None: np.zeros(
+            (2, 2), dtype=np.uint8
+        ),
+        progress_reporter=plain_progress_reporter,
+    )
+
+    service.generate_depth(GenerateDepth("appstate-test", "dinov2"))
+
+    assert state.depth_estimation_model.model == "loaded"
+
+
 def test_configure_thresholds_uses_injected_analyzer_without_saving() -> None:
     state = AppState()
     state.filename = "appstate-test"

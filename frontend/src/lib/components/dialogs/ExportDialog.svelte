@@ -6,7 +6,6 @@
    * texture upscaling, Create / Download glTF) and the animation.
    */
   import { projectStore } from '../../state/project.svelte';
-  import { jobStore } from '../../state/jobs.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import * as workflow from '../../workflow';
   import { triggerDownload } from '../../download';
@@ -14,6 +13,7 @@
   import { uiStore } from '../../state/ui.svelte';
   import CameraSlider from '../shared/CameraSlider.svelte';
   import Dialog from '../shared/Dialog.svelte';
+  import JobCard from '../feedback/JobCard.svelte';
   import Box from '@lucide/svelte/icons/box';
   import Clapperboard from '@lucide/svelte/icons/clapperboard';
   import Check from '@lucide/svelte/icons/check';
@@ -36,7 +36,6 @@
   // Model3DViewer.svelte), same as Dash's own
   // `gltf_create` updating the `#model-viewer` iframe - it does not, by
   // itself, switch the active viewer tab either.
-  const creatingGltf = $derived(jobStore.active === 'export-gltf');
 
   function createGltfScene(): void {
     if (!view || isBusy()) return;
@@ -54,7 +53,6 @@
   }
 
   // -- Upscale Textures (WEB-27).
-  const upscaling = $derived(jobStore.active === 'upscale');
 
   function upscaleTextures(): void {
     if (!view || isBusy()) return;
@@ -67,7 +65,6 @@
   // setting (components.py's SLIDER_NUM_FRAMES has no "remember" callback).
   let numFrames = $state(100);
   const seconds = $derived((numFrames / 30).toFixed(1));
-  const animating = $derived(jobStore.active === 'animation');
 
   function exportAnimation(): void {
     if (!view || isBusy() || numFrames <= 0) return;
@@ -149,12 +146,7 @@
         {#if view?.exports.upscaled}<span class="faint">Textures upscaled</span>{/if}
       </div>
       <span class="spacer"></span>
-      <div class="progress-bar" data-testid="export-progress" class:idle={!(creatingGltf || upscaling)}>
-        <div
-          class="progress-bar-fill"
-          style={`width: ${(creatingGltf || upscaling) ? Math.round(jobStore.progress * 100) : 0}%`}
-        ></div>
-      </div>
+      <JobCard kinds={['export-gltf', 'upscale']} testId="export-progress" />
       <div class="row end">
         {#if gltfReady}
           <span class="ready grow"><Check size={16} strokeWidth={1.6} /> Scene ready</span>
@@ -204,9 +196,7 @@
         about {seconds} s.
       </p>
       <span class="spacer"></span>
-      <div class="progress-bar" data-testid="animation-progress" class:idle={!animating}>
-        <div class="progress-bar-fill" style={`width: ${animating ? Math.round(jobStore.progress * 100) : 0}%`}></div>
-      </div>
+      <JobCard kinds={['animation']} testId="animation-progress" />
       <div class="row end">
         <button
           type="button"
@@ -345,7 +335,4 @@
     font-size: 12px;
   }
 
-  .progress-bar.idle {
-    visibility: hidden;
-  }
 </style>

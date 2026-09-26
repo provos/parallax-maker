@@ -176,6 +176,23 @@ class WorkflowService:
         if depth_model != state.depth_estimation_model:
             state.depth_estimation_model = depth_model
 
+        report_detail = getattr(self._progress_reporter, "detail", None)
+        if not callable(report_detail):
+            report_detail = None
+        if (
+            hasattr(state.depth_estimation_model, "load_model")
+            and getattr(state.depth_estimation_model, "model", None) is None
+        ):
+            if report_detail is not None:
+                report_detail(
+                    "Loading the depth model (the first run downloads its weights)"
+                )
+            try:
+                state.depth_estimation_model.load_model()
+            finally:
+                if report_detail is not None:
+                    report_detail(None)
+
         state.depthMapData = self._depth_generator(
             np.array(image),
             model=state.depth_estimation_model,

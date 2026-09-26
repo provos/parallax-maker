@@ -18,6 +18,7 @@ from flask import Blueprint, Request, jsonify, request
 from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
+from ..cancellation import OperationCancelled
 from ..controller import AppState, CompositeMode
 from ..ground_services import scene_profile
 from ..project_services import (
@@ -43,7 +44,7 @@ from .assets import (
     slice_thumbnail,
     thumbnail_index,
 )
-from .errors import Busy, InvalidRequest, NotFound, StaleRevision
+from .errors import Busy, InvalidRequest, NotCancellable, NotFound, StaleRevision
 from .jobs import Job
 
 if TYPE_CHECKING:  # pragma: no cover - import-cycle avoidance only
@@ -327,7 +328,7 @@ def _job_view(runtime: Runtime, job: Job) -> schemas.JobView:
 
     job = job.snapshot()
     project = None
-    if job.status in (JobStatus.SUCCEEDED, JobStatus.FAILED):
+    if job.status in (JobStatus.SUCCEEDED, JobStatus.FAILED, JobStatus.CANCELLED):
         try:
             state = AppState.from_cache(job.project_id)
         except (FileNotFoundError, NotADirectoryError):
@@ -341,6 +342,8 @@ def _job_view(runtime: Runtime, job: Job) -> schemas.JobView:
         status=job.status.value,
         progress=job.progress,
         error=job.error,
+        detail=job.detail,
+        cancellable=job.cancellable,
         project=project,
     )
 
@@ -372,7 +375,13 @@ def _mutation_guard(record: ProjectRecord) -> Iterator[None]:
 
 
 def _begin_job(
-    runtime: Runtime, record: ProjectRecord, project_id: str, *, kind: str, run
+    runtime: Runtime,
+    record: ProjectRecord,
+    project_id: str,
+    *,
+    kind: str,
+    run,
+    cancellable: bool = False,
 ) -> Job:
     reserved_id = uuid4().hex
     if not record.try_begin_job(reserved_id):
@@ -380,7 +389,13 @@ def _begin_job(
 
     def wrapped(job: Job) -> None:
         try:
+            # A job cancelled while still queued never gets to run its work,
+            # but must still release the busy slot/bump the revision below.
+            job.raise_if_cancelled()
             run(job)
+        except OperationCancelled:
+            record.log.append(f"{kind} cancelled", level="info")
+            raise
         except Exception as exc:
             record.log.append(f"{kind} failed: {exc}", level="error")
             raise
@@ -389,7 +404,9 @@ def _begin_job(
             record.bump_revision()
             record.end_job()
 
-    return runtime.jobs.submit(kind, project_id, wrapped, job_id=reserved_id)
+    return runtime.jobs.submit(
+        kind, project_id, wrapped, job_id=reserved_id, cancellable=cancellable
+    )
 
 
 def _parse_json_body(req: Request, model_cls):
@@ -592,6 +609,16 @@ def register_project_routes(blueprint: Blueprint, runtime: Runtime) -> None:
         job = runtime.jobs.get(job_id)
         if job is None:
             raise NotFound(f"unknown job: {job_id}")
+        payload = _job_view(runtime, job).model_dump(mode="json", by_alias=True)
+        return jsonify(payload), 200
+
+    @blueprint.delete("/jobs/<job_id>")
+    def cancel_job(job_id: str):
+        job = runtime.jobs.get(job_id)
+        if job is None:
+            raise NotFound(f"unknown job: {job_id}")
+        if not job.request_cancel():
+            raise NotCancellable(f"job {job_id} cannot be cancelled right now")
         payload = _job_view(runtime, job).model_dump(mode="json", by_alias=True)
         return jsonify(payload), 200
 

@@ -490,8 +490,8 @@
   }
 
   .text-input.status-failure {
-    border-color: var(--color-danger-strong);
-    background-color: color-mix(in srgb, var(--color-danger-strong) 15%, transparent);
+    border-color: var(--color-danger);
+    background-color: color-mix(in srgb, var(--color-danger) 15%, transparent);
   }
 
   .upload-btn {

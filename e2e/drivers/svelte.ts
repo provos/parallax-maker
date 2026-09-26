@@ -269,12 +269,11 @@ export class SvelteDriver implements UiDriver {
 
   async clickImagePixel(x: number, y: number, modifiers: Modifier[] = []): Promise<void> {
     await this.closeDialogs();
-    // Same position computation as DashDriver.clickImagePixel: the main
-    // image renders at `width: 100%; height: auto` (see
-    // InputImagePanel.svelte), so this scale is the exact inverse of the
-    // backend's `find_pixel_from_click` ratio, and real click coordinates'
-    // sub-pixel rounding truncates the resulting pixel the same way on both
-    // UIs (see lib/geometry.ts's `findPixelFromClick`).
+    // The image is fitted into the stage, so this scale is the inverse of
+    // lib/geometry.ts's `findPixelFromClick` ratio. Aim at the pixel's
+    // center, not its top-left corner: a corner click can round into the
+    // neighbouring pixel depending on the fitted scale (i.e. the window and
+    // column widths).
     // Clicks select with the Segment tool, on the Input view.
     await this.ensureTool('segment');
     const image = this.mainImage();
@@ -282,7 +281,7 @@ export class SvelteDriver implements UiDriver {
       (element: HTMLImageElement, point) => {
         const rect = element.getBoundingClientRect();
         const scale = Math.min(rect.width / element.naturalWidth, rect.height / element.naturalHeight);
-        return { x: point.x * scale, y: point.y * scale };
+        return { x: (point.x + 0.5) * scale, y: (point.y + 0.5) * scale };
       },
       { x, y },
     );

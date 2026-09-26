@@ -7,12 +7,12 @@
    */
   import { untrack } from 'svelte';
   import { projectStore } from '../../state/project.svelte';
-  import { jobStore } from '../../state/jobs.svelte';
   import { isBusy } from '../../state/busy.svelte';
   import { canvasSaveStore } from '../../state/canvas.svelte';
   import { uiStore } from '../../state/ui.svelte';
   import * as workflow from '../../workflow';
   import { registerInpaintActions } from '../../shortcuts';
+  import JobCard from '../feedback/JobCard.svelte';
 
   const view = $derived(projectStore.view);
   const selectedSlice = $derived(view?.selectedSlice ?? null);
@@ -72,8 +72,6 @@
   // -- Generate / Fill / Enhance / Erase.
 
   const canGenerate = $derived(hasSlice && !isBusy());
-  const generating = $derived(jobStore.active === 'inpainting');
-  const progressPercent = $derived(Math.round((generating ? jobStore.progress : 0) * 100));
 
   function generate(): void {
     if (!canGenerate) return;
@@ -275,9 +273,7 @@
       </button>
     </div>
 
-    <div class="progress-bar" data-testid="inpainting-progress" class:idle={!generating}>
-      <div class="progress-bar-fill" style={`width: ${generating ? progressPercent : 0}%`}></div>
-    </div>
+    <JobCard kinds={['inpainting', 'inpainting-mutate']} testId="inpainting-progress" />
   </section>
 
   <section class="sec">
@@ -475,9 +471,6 @@
     flex: 1 1 0;
   }
 
-  .progress-bar.idle {
-    visibility: hidden;
-  }
 
   .candidates {
     display: grid;

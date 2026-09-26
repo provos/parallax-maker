@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { ApiError, JobFailedError, getJob, health, pollJob } from './client';
+import { ApiError, JobCancelledError, JobFailedError, cancelJob, getJob, health, pollJob } from './client';
 
 function jsonResponse(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), {
@@ -118,5 +118,38 @@ describe('pollJob', () => {
 
     await getJob('job-3');
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/jobs/job-3', expect.objectContaining({ method: 'GET' }));
+  });
+
+  it('rejects with a JobCancelledError when the job is cancelled', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(
+        jsonResponse(200, { id: 'job-4', kind: 'depth', status: 'cancelled', progress: 0.3 }),
+      );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const cancelled = pollJob('job-4', { intervalMs: 0 });
+    await expect(cancelled).rejects.toBeInstanceOf(JobCancelledError);
+    await expect(cancelled).rejects.toMatchObject({
+      job: { id: 'job-4', status: 'cancelled' },
+    });
+  });
+});
+
+describe('cancelJob', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('issues a DELETE to /api/v1/jobs/{id}', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(jsonResponse(200, { id: 'job-5', kind: 'depth', status: 'cancelled', progress: 0.2 }));
+    vi.stubGlobal('fetch', fetchMock);
+
+    const job = await cancelJob('job-5');
+
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/jobs/job-5', expect.objectContaining({ method: 'DELETE' }));
+    expect(job.status).toBe('cancelled');
   });
 });

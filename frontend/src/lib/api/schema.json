@@ -584,6 +584,23 @@
     "JobView": {
       "additionalProperties": false,
       "properties": {
+        "cancellable": {
+          "default": false,
+          "title": "Cancellable",
+          "type": "boolean"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Detail"
+        },
         "error": {
           "anyOf": [
             {
@@ -624,7 +641,8 @@
             "queued",
             "running",
             "succeeded",
-            "failed"
+            "failed",
+            "cancelled"
           ],
           "title": "Status",
           "type": "string"
