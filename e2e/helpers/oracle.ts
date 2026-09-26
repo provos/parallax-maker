@@ -30,6 +30,8 @@ export type E2EState = {
   thresholds: number[];
   slice_count: number;
   mesh_displacement: number;
+  camera: { distance: number; focal_length: number; max_distance: number; pitch: number; ground_near: number };
+  ground_slice: number | null;
   slice_mask: E2EMaskStats;
   slice_pixel: [number, number] | null;
   slice_pixel_depth: number | null;

@@ -404,4 +404,77 @@ describe('InputImagePanel', () => {
       expect(load).toHaveBeenCalledOnce();
     });
   });
+
+  describe('horizon line', () => {
+    const withHorizon = (row: number) =>
+      makeView({
+        settings: {
+          darkMode: false,
+          camera: { distance: 100, focalLength: 50, maxDistance: 500, pitch: 0, groundNear: 0, horizonRow: row },
+          meshDisplacement: 0,
+          depthModel: 'dinov2',
+        },
+      });
+
+    function stubSettings(fetchMock: ReturnType<typeof vi.fn>) {
+      fetchMock.mockImplementation(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects/appstate-test/settings') {
+          const body = JSON.parse(init!.body as string);
+          return jsonResponse(200, { ...withHorizon(body.camera.horizonRow), changed: true });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
+      });
+    }
+
+    it('is hidden until toggled, then sits on the horizon row', async () => {
+      projectStore.applyView(withHorizon(120));
+      render(InputImagePanel);
+      expect(screen.queryByTestId('horizon-line')).not.toBeInTheDocument();
+
+      await fireEvent.click(screen.getByTestId('horizon-toggle'));
+      const line = screen.getByTestId('horizon-line');
+      expect(line).toHaveAttribute('data-row', '120');
+      expect(line.style.top).toBe('50%'); // 120 of 240 rows
+    });
+
+    it('dragging commits the new horizon row', async () => {
+      projectStore.applyView(withHorizon(120));
+      const fetchMock = vi.fn();
+      stubSettings(fetchMock);
+      vi.stubGlobal('fetch', fetchMock);
+      render(InputImagePanel);
+      await fireEvent.click(screen.getByTestId('horizon-toggle'));
+
+      const line = screen.getByTestId('horizon-line');
+      // The image box is 240 CSS px tall for the 240-row image.
+      vi.spyOn(line.parentElement!, 'getBoundingClientRect').mockReturnValue({
+        left: 0, top: 0, width: 320, height: 240, right: 320, bottom: 240, x: 0, y: 0, toJSON: () => ({}),
+      } as DOMRect);
+      line.setPointerCapture = () => {};
+      await fireEvent.pointerDown(line, { pointerId: 1, button: 0, clientY: 120 });
+      await fireEvent.pointerMove(line, { pointerId: 1, clientY: 180 });
+      expect(line).toHaveAttribute('data-row', '180');
+      await fireEvent.pointerUp(line, { pointerId: 1, clientY: 180 });
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      const body = JSON.parse(fetchMock.mock.calls[0][1]!.body as string);
+      expect(body.camera).toEqual({ distance: 100, focalLength: 50, maxDistance: 500, horizonRow: 180 });
+      await waitFor(() => expect(screen.getByTestId('horizon-line')).toHaveAttribute('data-row', '180'));
+    });
+
+    it('arrow keys nudge the horizon', async () => {
+      projectStore.applyView(withHorizon(120));
+      const fetchMock = vi.fn();
+      stubSettings(fetchMock);
+      vi.stubGlobal('fetch', fetchMock);
+      render(InputImagePanel);
+      await fireEvent.click(screen.getByTestId('horizon-toggle'));
+
+      await fireEvent.keyDown(screen.getByTestId('horizon-line'), { key: 'ArrowUp', shiftKey: true });
+      await waitFor(() => expect(fetchMock).toHaveBeenCalled());
+      expect(JSON.parse(fetchMock.mock.calls[0][1]!.body as string).camera.horizonRow).toBe(110);
+    });
+  });
 });

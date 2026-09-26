@@ -13,12 +13,13 @@ export type Direction = "up" | "down" | "left" | "right" | "in" | "out" | "reset
 export type Distance = number;
 export type Focallength = number;
 export type Groundnear = number | null;
+export type Horizonrow = number | null;
 export type Maxdistance = number;
 export type Pitch = number | null;
 export type Distance1 = number;
 export type Focallength1 = number;
 export type Groundnear1 = number;
-export type Horizonrow = number | null;
+export type Horizonrow1 = number | null;
 export type Maxdistance1 = number;
 export type Pitch1 = number;
 export type Model = string;
@@ -65,6 +66,18 @@ export type Upscaled = boolean;
 export type Id1 = string;
 export type Numslices = number;
 export type Revision = number;
+export type Cameraz = number;
+export type Bottom = number;
+export type Index = number;
+export type Top = number;
+export type Z = number;
+export type Cards = ProfileCardView[];
+export type Backdroptop = number | null;
+export type Farz = number;
+export type Height1 = number;
+export type Nearz = number;
+export type Halffov = number;
+export type Pitch2 = number;
 export type Hasmask = boolean;
 export type Multipointmode = boolean;
 export type Negative = boolean;
@@ -80,7 +93,7 @@ export type Meshdisplacement = number;
 export type Canredo = boolean;
 export type Canundo = boolean;
 export type Depth = number;
-export type Index = number;
+export type Index1 = number;
 export type Isground = boolean;
 export type Negativeprompt2 = string;
 export type Positiveprompt2 = string;
@@ -173,6 +186,7 @@ export interface CameraSettingsRequest {
   distance: Distance;
   focalLength: Focallength;
   groundNear?: Groundnear;
+  horizonRow?: Horizonrow;
   maxDistance: Maxdistance;
   pitch?: Pitch;
 }
@@ -184,7 +198,7 @@ export interface CameraSettingsView {
   distance: Distance1;
   focalLength: Focallength1;
   groundNear?: Groundnear1;
-  horizonRow?: Horizonrow;
+  horizonRow?: Horizonrow1;
   maxDistance: Maxdistance1;
   pitch?: Pitch1;
 }
@@ -374,6 +388,7 @@ export interface ProjectView {
   mainImage?: AssetRef | null;
   numSlices: Numslices;
   revision: Revision;
+  sceneProfile?: SceneProfileView | null;
   segmentation: SegmentationView;
   selectedSlice?: Selectedslice;
   settings: ProjectSettingsView;
@@ -398,6 +413,42 @@ export interface ProjectAssets {
 export interface ProjectExportsView {
   gltf?: AssetRef | null;
   upscaled?: Upscaled;
+}
+/**
+ * The scene seen from the side, for the UI's side view.
+ *
+ * World units, camera at ``(y=0, z=cameraZ)``; y points *down* (a card's
+ * ``top`` is its smaller y). See ``ground_services.scene_profile``.
+ *
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "SceneProfileView".
+ */
+export interface SceneProfileView {
+  cameraZ: Cameraz;
+  cards: Cards;
+  ground?: ProfileGroundView | null;
+  halfFov: Halffov;
+  pitch: Pitch2;
+}
+/**
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProfileCardView".
+ */
+export interface ProfileCardView {
+  bottom: Bottom;
+  index: Index;
+  top: Top;
+  z: Z;
+}
+/**
+ * This interface was referenced by `ParallaxMakerApi`'s JSON-Schema
+ * via the `definition` "ProfileGroundView".
+ */
+export interface ProfileGroundView {
+  backdropTop?: Backdroptop;
+  farZ: Farz;
+  height: Height1;
+  nearZ: Nearz;
 }
 /**
  * Interaction state owned by ``SegmentationService``/``AppState``.
@@ -453,7 +504,7 @@ export interface SliceView {
   canUndo: Canundo;
   depth: Depth;
   image: AssetRef;
-  index: Index;
+  index: Index1;
   isGround?: Isground;
   mask?: AssetRef | null;
   negativePrompt: Negativeprompt2;

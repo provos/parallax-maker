@@ -80,7 +80,7 @@ test('camera and displacement slider changes persist to JSON and survive a resto
   // any explicit "Save State" click.
   await expect
     .poll(async () => (await readE2EState(page, projectId)).camera)
-    .toEqual({ distance: 200, focal_length: 300, max_distance: 250 });
+    .toMatchObject({ distance: 200, focal_length: 300, max_distance: 250 });
   await expect.poll(async () => (await readE2EState(page, projectId)).mesh_displacement).toBe(40);
 
   // Save State lives under the Configuration tab (make_configuration_div).
@@ -96,7 +96,7 @@ test('camera and displacement slider changes persist to JSON and survive a resto
   await ui.expectSliderValue('focal-length', 300);
   await ui.expectSliderValue('max-distance', 250);
   await ui.expectSliderValue('displacement', 40);
-  expect((await readE2EState(page, projectId)).camera).toEqual({
+  expect((await readE2EState(page, projectId)).camera).toMatchObject({
     distance: 200,
     focal_length: 300,
     max_distance: 250,

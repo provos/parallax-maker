@@ -19,6 +19,7 @@ from PIL import Image, UnidentifiedImageError
 from pydantic import ValidationError
 
 from ..controller import AppState, CompositeMode
+from ..ground_services import scene_profile
 from ..project_services import (
     InvalidProjectFile,
     ProjectDirectoryNotFound,
@@ -281,6 +282,32 @@ def _build_project_view(
         busy=busy,
         settings=settings,
         exports=exports,
+        scene_profile=_build_scene_profile(state),
+    )
+
+
+def _build_scene_profile(state: AppState) -> schemas.SceneProfileView | None:
+    profile = scene_profile(state)
+    if profile is None:
+        return None
+    return schemas.SceneProfileView(
+        camera_z=profile.camera_z,
+        pitch=profile.pitch,
+        half_fov=profile.half_fov,
+        cards=[
+            schemas.ProfileCardView(index=c.index, z=c.z, top=c.top, bottom=c.bottom)
+            for c in profile.cards
+        ],
+        ground=(
+            schemas.ProfileGroundView(
+                height=profile.ground.height,
+                near_z=profile.ground.near_z,
+                far_z=profile.ground.far_z,
+                backdrop_top=profile.ground.backdrop_top,
+            )
+            if profile.ground is not None
+            else None
+        ),
     )
 
 

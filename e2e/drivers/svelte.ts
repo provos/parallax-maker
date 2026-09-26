@@ -497,6 +497,49 @@ export class SvelteDriver implements UiDriver {
     }
   }
 
+  async toggleGroundPlane(): Promise<void> {
+    const toggle = this.page.getByTestId('ground-toggle');
+    const before = await toggle.getAttribute('aria-pressed');
+    await toggle.click();
+    await expect(toggle).not.toHaveAttribute('aria-pressed', before ?? 'false');
+  }
+
+  async expectGroundSlice(index: number, isGround: boolean): Promise<void> {
+    const badge = this.page.getByTestId('slice-thumbnail-wrapper').nth(index).getByTestId('ground-badge');
+    await expect(badge).toHaveCount(isGround ? 1 : 0);
+  }
+
+  async fitGround(): Promise<void> {
+    await this.page.getByTestId('ground-fit').click();
+    await expect(this.log()).toContainText('Fitted the ground plane');
+  }
+
+  async dragHorizonTo(row: number): Promise<void> {
+    const toggle = this.page.getByTestId('horizon-toggle');
+    if ((await toggle.getAttribute('aria-pressed')) !== 'true') await toggle.click();
+    const line = this.page.getByTestId('horizon-line');
+    await expect(line).toBeVisible();
+    const lineBox = await line.boundingBox();
+    const image = this.mainImage();
+    const target = await image.evaluate(
+      (element: HTMLImageElement, sourceRow) => {
+        const rect = element.getBoundingClientRect();
+        return rect.top + (sourceRow / element.naturalHeight) * rect.height;
+      },
+      row,
+    );
+    if (!lineBox) throw new Error('Horizon line has no bounding box');
+    const x = lineBox.x + lineBox.width / 2;
+    await this.page.mouse.move(x, lineBox.y + lineBox.height / 2);
+    await this.page.mouse.down();
+    await this.page.mouse.move(x, target, { steps: 8 });
+    await this.page.mouse.up();
+    // Committed: the server's horizon row now matches (within a CSS pixel's worth of rows).
+    await expect
+      .poll(async () => Math.abs(Number(await line.getAttribute('data-row')) - row))
+      .toBeLessThanOrEqual(3);
+  }
+
   async navigateCamera(direction: CameraDirection): Promise<void> {
     const before = await this.log().innerText();
     await this.page.getByTestId(`camera-${direction}`).click();

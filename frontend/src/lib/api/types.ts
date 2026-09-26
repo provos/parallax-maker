@@ -40,6 +40,7 @@ export type {
   ProjectSettingsRequest,
   ProjectSettingsView,
   ProjectView,
+  SceneProfileView,
   SegmentationClickRequest,
   SegmentationPoint,
   SegmentationView,

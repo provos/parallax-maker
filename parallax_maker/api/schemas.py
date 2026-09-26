@@ -148,6 +148,34 @@ class ProjectExportsView(ApiModel):
     upscaled: bool = False
 
 
+class ProfileCardView(ApiModel):
+    index: int
+    z: float
+    top: float
+    bottom: float
+
+
+class ProfileGroundView(ApiModel):
+    height: float
+    near_z: float
+    far_z: float
+    backdrop_top: float | None = None
+
+
+class SceneProfileView(ApiModel):
+    """The scene seen from the side, for the UI's side view.
+
+    World units, camera at ``(y=0, z=cameraZ)``; y points *down* (a card's
+    ``top`` is its smaller y). See ``ground_services.scene_profile``.
+    """
+
+    camera_z: float
+    pitch: float
+    half_fov: float
+    cards: list[ProfileCardView]
+    ground: ProfileGroundView | None = None
+
+
 class ProjectView(ApiModel):
     """Public projection of ``AppState``; never serialize PIL/NumPy/credentials."""
 
@@ -168,6 +196,7 @@ class ProjectView(ApiModel):
     busy: BusyView | None = None
     settings: ProjectSettingsView
     exports: ProjectExportsView
+    scene_profile: SceneProfileView | None = None
 
 
 class ErrorDetail(ApiModel):
@@ -316,6 +345,9 @@ class CameraSettingsRequest(ApiModel):
     max_distance: float = Field(ge=0.0)
     #: Optional (older clients omit it): upward tilt in degrees.
     ground_near: float | None = Field(default=None, ge=0.0)
+    #: Alternative to ``pitch``: the image row the horizon should be on (the
+    #: server converts it with the requested focal length).
+    horizon_row: float | None = None
     pitch: float | None = Field(
         default=None, ge=-MAX_PITCH_DEGREES, le=MAX_PITCH_DEGREES
     )

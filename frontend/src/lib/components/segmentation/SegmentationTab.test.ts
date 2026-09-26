@@ -347,4 +347,52 @@ describe('SegmentationTab', () => {
       expect((init.body as FormData).get('image')).toBe(file);
     });
   });
+
+  describe('ground plane', () => {
+    it('marks the selected slice as the ground, shows the badge, and fits it', async () => {
+      const ground = { ...makeSlice(1, 170), isGround: true };
+      projectStore.applyView(
+        makeView({ slices: [makeSlice(0, 85), makeSlice(1, 170)], selectedSlice: 1 }),
+      );
+      const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        if (url === '/api/v1/projects/appstate-test/slices/1/ground') {
+          return jsonResponse(200, {
+            ...makeView({ slices: [makeSlice(0, 85), ground], selectedSlice: 1 }),
+            changed: true,
+          });
+        }
+        if (url === '/api/v1/projects/appstate-test/ground/fit') {
+          return jsonResponse(200, { ...makeView({ slices: [makeSlice(0, 85), ground] }), changed: true });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) return jsonResponse(200, { entries: [], next: 0 });
+        throw new Error(`Unexpected fetch: ${init?.method ?? 'GET'} ${url}`);
+      });
+      vi.stubGlobal('fetch', fetchMock);
+      render(SegmentationTab);
+
+      expect(screen.queryByTestId('ground-badge')).not.toBeInTheDocument();
+      expect(screen.getByTestId('ground-fit')).toBeDisabled();
+      await fireEvent.click(screen.getByTestId('ground-toggle'));
+
+      await waitFor(() => expect(screen.getByTestId('ground-badge')).toBeInTheDocument());
+      const call = fetchMock.mock.calls.find(([url]) => String(url).endsWith('/slices/1/ground'));
+      expect(JSON.parse(call![1]!.body as string)).toEqual({ isGround: true });
+      expect(screen.getByTestId('ground-toggle')).toHaveAttribute('aria-pressed', 'true');
+
+      await fireEvent.click(screen.getByTestId('ground-fit'));
+      await waitFor(() =>
+        expect(fetchMock).toHaveBeenCalledWith(
+          '/api/v1/projects/appstate-test/ground/fit',
+          expect.objectContaining({ method: 'POST' }),
+        ),
+      );
+    });
+
+    it('needs a selected slice to toggle', () => {
+      projectStore.applyView(makeView({ slices: [makeSlice(0, 85)] }));
+      render(SegmentationTab);
+      expect(screen.getByTestId('ground-toggle')).toBeDisabled();
+    });
+  });
 });

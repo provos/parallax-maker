@@ -201,7 +201,13 @@ def _register_routes(app, fixture_root: Path) -> None:
                     "distance": state.camera.camera_distance,
                     "focal_length": state.camera.focal_length,
                     "max_distance": state.camera.max_distance,
+                    "pitch": state.camera.pitch,
+                    "ground_near": state.camera.ground_near,
                 },
+                "ground_slice": next(
+                    (i for i, s in enumerate(state.image_slices) if s.is_ground_plane),
+                    None,
+                ),
                 "mesh_displacement": state.mesh_displacement,
             }
         )

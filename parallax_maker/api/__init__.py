@@ -18,6 +18,7 @@ from .camera import register_camera_routes
 from .configuration import register_configuration_routes
 from .errors import NotFound, register_error_handlers
 from .export import register_export_routes
+from .ground import register_ground_routes
 from .inpainting import register_inpainting_routes
 from .project import register_project_lifecycle_routes
 from .projects import register_project_routes
@@ -44,6 +45,7 @@ def create_api_blueprint(runtime: Runtime) -> Blueprint:
     register_segmentation_routes(blueprint, runtime)
     register_slice_editing_routes(blueprint, runtime)
     register_camera_routes(blueprint, runtime)
+    register_ground_routes(blueprint, runtime)
     register_inpainting_routes(blueprint, runtime)
     register_project_lifecycle_routes(blueprint, runtime)
     register_export_routes(blueprint, runtime)
