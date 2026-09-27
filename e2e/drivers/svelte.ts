@@ -825,6 +825,23 @@ export class SvelteDriver implements UiDriver {
     await this.clickAndWaitForLogChange(this.page.getByTestId('upscale-textures'));
   }
 
+  async view3dScene(): Promise<{ url: string; materials: number }> {
+    await this.ensureView('3d');
+    const viewer = this.page.getByTestId('model-viewer');
+    await expect(viewer).toBeVisible({ timeout: 30_000 });
+    const handle = await this.page.waitForFunction(
+      () => {
+        type ModelViewer = HTMLElement & { loaded?: boolean; src?: string; model?: { materials: unknown[] } };
+        const element = document.querySelector('[data-testid="model-viewer"]') as ModelViewer | null;
+        if (!element?.loaded || !element.model || !element.src) return null;
+        return { url: element.src, materials: element.model.materials.length };
+      },
+      undefined,
+      { timeout: 30_000 },
+    );
+    return (await handle.jsonValue()) as { url: string; materials: number };
+  }
+
   async downloadSlice(index: number): Promise<Download> {
     await this.closeDialogs();
     await this.ensureSelected(index);

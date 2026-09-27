@@ -148,6 +148,9 @@ class ProjectExportsView(ApiModel):
     """Content-versioned export availability (PARITY.md "Export/Render")."""
 
     gltf: AssetRef | None = None
+    #: The glTF export was built from an earlier version of the scene (slices,
+    #: camera or displacement changed since), or predates this check.
+    gltf_stale: bool = False
     upscaled: bool = False
 
 

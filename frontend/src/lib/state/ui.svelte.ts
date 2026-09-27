@@ -104,6 +104,9 @@ function createUiStore() {
   let inpainted = $state(false);
   let previewed = $state(false);
   let exported = $state(false);
+  // Depth of field for glTF exports: chosen in the Export dialog and reused
+  // when the 3D view rebuilds a stale scene.
+  let exportDof = $state(false);
   // Segment Anything (object) selection is the main way to make slices.
   let segmentationMode = $state<SegmentationMode>('segment');
   let depthModel = $state<string>(DEFAULT_DEPTH_MODEL);
@@ -253,6 +256,12 @@ function createUiStore() {
     markExported(): void {
       exported = true;
     },
+    get exportDof(): boolean {
+      return exportDof;
+    },
+    setExportDof(value: boolean): void {
+      exportDof = value;
+    },
 
     get theme(): Theme {
       return theme;
@@ -320,6 +329,7 @@ function createUiStore() {
       inpainted = false;
       previewed = false;
       exported = false;
+      exportDof = false;
       segmentationMode = 'segment';
       depthModel = DEFAULT_DEPTH_MODEL;
       pendingNumSlices = DEFAULT_NUM_SLICES;

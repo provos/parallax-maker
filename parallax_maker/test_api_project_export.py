@@ -283,6 +283,131 @@ def test_gltf_export_with_dof_uses_mask_alpha_mode(client) -> None:
     assert scene["materials"][0]["alphaCutoff"] == 0.5
 
 
+# --- Export: glTF staleness (gltfStale / model_source.json sidecar) ------------
+
+
+def test_gltf_export_is_not_stale_and_records_dof_right_after_export(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+
+    job = _export_gltf(client, project_id, dof=True)
+    assert job["project"]["exports"]["gltf"] is not None
+    assert job["project"]["exports"]["gltfStale"] is False
+
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["exports"]["gltf"] is not None
+    assert current["exports"]["gltfStale"] is False
+
+    sidecar = json.loads((Path(project_id) / "model_source.json").read_text())
+    assert sidecar["dof"] is True
+    assert isinstance(sidecar["fingerprint"], str) and sidecar["fingerprint"]
+
+
+def test_gltf_export_records_dof_false_when_not_requested(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+
+    _export_gltf(client, project_id, dof=False)
+
+    sidecar = json.loads((Path(project_id) / "model_source.json").read_text())
+    assert sidecar["dof"] is False
+
+
+def test_gltf_stale_becomes_true_after_changing_a_slice_depth(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _export_gltf(client, project_id)
+
+    depth_response = client.put(
+        f"/api/v1/projects/{project_id}/slices/0/depth", json={"depth": 5}
+    )
+    assert depth_response.status_code == 200
+    assert depth_response.get_json()["exports"]["gltfStale"] is True
+
+    # ... and the project view keeps reporting it stale afterwards, too.
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["exports"]["gltfStale"] is True
+
+
+def test_gltf_stale_becomes_true_after_changing_the_camera(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _export_gltf(client, project_id)
+
+    camera = view["settings"]["camera"]
+    settings_response = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={
+            "camera": {
+                "distance": camera["distance"],
+                "focalLength": camera["focalLength"] + 25.0,
+                "maxDistance": camera["maxDistance"],
+            }
+        },
+    )
+    assert settings_response.status_code == 200
+    assert settings_response.get_json()["exports"]["gltfStale"] is True
+
+
+def test_gltf_stale_becomes_true_after_changing_the_camera_pitch(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _export_gltf(client, project_id)
+
+    camera = view["settings"]["camera"]
+    settings_response = client.put(
+        f"/api/v1/projects/{project_id}/settings",
+        json={
+            "camera": {
+                "distance": camera["distance"],
+                "focalLength": camera["focalLength"],
+                "maxDistance": camera["maxDistance"],
+                "pitch": 5.0,
+            }
+        },
+    )
+    assert settings_response.status_code == 200
+    assert settings_response.get_json()["exports"]["gltfStale"] is True
+
+
+def test_gltf_stale_becomes_true_after_rewriting_a_slice_file(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _export_gltf(client, project_id)
+
+    # Re-inpaint-style rewrite of a slice file in place: same filename, new
+    # bytes (different mtime/size), without touching the in-memory state.
+    slice_path = Path(project_id) / "image_slice_0.png"
+    assert slice_path.exists()
+    Image.new("RGBA", (7, 7), (9, 9, 9, 255)).save(slice_path)
+
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["exports"]["gltfStale"] is True
+
+
+def test_gltf_without_a_sidecar_is_stale(client) -> None:
+    view = _restore_fixture(client)
+    project_id = view["id"]
+    _export_gltf(client, project_id)
+
+    (Path(project_id) / "model_source.json").unlink()
+
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["exports"]["gltf"] is not None
+    assert current["exports"]["gltfStale"] is True
+
+
+def test_no_gltf_export_reports_gltf_none_and_not_stale(client) -> None:
+    from ._api_test_helpers import upload_fixture_image
+
+    view = upload_fixture_image(client)
+    project_id = view["id"]
+
+    current = client.get(f"/api/v1/projects/{project_id}").get_json()
+    assert current["exports"]["gltf"] is None
+    assert current["exports"]["gltfStale"] is False
+
+
 class _FakeUpscaler:
     """Deterministic 2x nearest-neighbour upscaler (mirrors
     ``e2e_support.fakes.FakeUpscaler``, reimplemented here since

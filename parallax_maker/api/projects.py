@@ -20,6 +20,7 @@ from pydantic import ValidationError
 
 from ..cancellation import OperationCancelled
 from ..controller import AppState, CompositeMode
+from ..export_services import gltf_export_is_stale
 from ..ground_services import scene_profile
 from ..project_services import (
     InvalidProjectFile,
@@ -259,6 +260,9 @@ def _build_project_view(
             )
             if gltf_path.exists()
             else None
+        ),
+        gltf_stale=(
+            gltf_path.exists() and gltf_export_is_stale(state, Path(project_id))
         ),
         upscaled=any(
             Path(state.upscaled_filename(index)).exists()

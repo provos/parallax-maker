@@ -605,4 +605,82 @@ describe('workflow', () => {
       expect(toastStore.toasts[0]).toMatchObject({ kind: 'success', title: 'Depth map ready' });
     });
   });
+
+  describe('startGltfExport', () => {
+    function stubGltfFetch(succeed: boolean) {
+      return vi.fn(async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+        const url = String(input);
+        const method = init?.method ?? 'GET';
+        if (url === '/api/v1/projects/appstate-test/export/gltf' && method === 'POST') {
+          return jsonResponse(202, { job: { id: 'job-gltf', kind: 'export-gltf', status: 'queued', progress: 0 } });
+        }
+        if (url === '/api/v1/jobs/job-gltf') {
+          return succeed
+            ? jsonResponse(200, {
+                id: 'job-gltf',
+                kind: 'export-gltf',
+                status: 'succeeded',
+                progress: 1,
+                project: makeView({
+                  revision: 2,
+                  exports: {
+                    gltf: { url: '/api/v1/projects/appstate-test/export/gltf?v=1' },
+                    gltfStale: false,
+                    upscaled: false,
+                  },
+                }),
+              })
+            : jsonResponse(200, { id: 'job-gltf', kind: 'export-gltf', status: 'failed', progress: 1, error: 'boom' });
+        }
+        if (url.startsWith('/api/v1/projects/appstate-test/logs')) {
+          return jsonResponse(200, { entries: [], next: 0 });
+        }
+        throw new Error(`Unexpected fetch: ${method} ${url}`);
+      });
+    }
+
+    it('a plain (non-preview) export marks the project exported and toasts success', async () => {
+      projectStore.applyView(makeView());
+      vi.stubGlobal('fetch', stubGltfFetch(true));
+
+      const ok = await workflow.startGltfExport(true);
+
+      expect(ok).toBe(true);
+      expect(uiStore.exported).toBe(true);
+      expect(toastStore.toasts.at(-1)).toMatchObject({ kind: 'success', title: 'glTF scene ready' });
+      expect(projectStore.view?.exports.gltf?.url).toBe('/api/v1/projects/appstate-test/export/gltf?v=1');
+    });
+
+    it('a preview export (3D view auto-rebuild) applies the result but does not mark exported or toast', async () => {
+      projectStore.applyView(makeView());
+      vi.stubGlobal('fetch', stubGltfFetch(true));
+
+      const ok = await workflow.startGltfExport(false, { preview: true });
+
+      expect(ok).toBe(true);
+      expect(uiStore.exported).toBe(false);
+      expect(toastStore.toasts).toHaveLength(0);
+      expect(projectStore.view?.exports.gltf?.url).toBe('/api/v1/projects/appstate-test/export/gltf?v=1');
+    });
+
+    it('a failed preview export resolves false and still does not mark exported', async () => {
+      projectStore.applyView(makeView());
+      vi.stubGlobal('fetch', stubGltfFetch(false));
+
+      const ok = await workflow.startGltfExport(false, { preview: true });
+
+      expect(ok).toBe(false);
+      expect(uiStore.exported).toBe(false);
+    });
+
+    it('without a project, resolves false and makes no request', async () => {
+      const fetchMock = vi.fn();
+      vi.stubGlobal('fetch', fetchMock);
+
+      const ok = await workflow.startGltfExport(false, { preview: true });
+
+      expect(ok).toBe(false);
+      expect(fetchMock).not.toHaveBeenCalled();
+    });
+  });
 });

@@ -12,12 +12,15 @@ from PIL import Image
 
 from .controller import AppState
 from .export_services import (
+    GLTF_SOURCE_FILE,
     ExportGltf,
     ExportNotReady,
     ExportService,
     InvalidSliceIndex,
     RenderAnimation,
     UpscaleTextures,
+    gltf_export_is_stale,
+    gltf_scene_fingerprint,
 )
 from .slice import ImageSlice
 
@@ -93,14 +96,18 @@ def test_export_gltf_without_displacement_writes_a_scene(tmp_path, monkeypatch):
     assert scene["asset"]["version"] == "2.0"
     assert len(scene["meshes"]) == 2
     assert len(scene["images"]) == 2
-    assert all(image["uri"].startswith("data:image/png;base64,") for image in scene["images"])
+    assert all(
+        image["uri"].startswith("data:image/png;base64,") for image in scene["images"]
+    )
     # No displacement: each card is an un-subdivided flat quad (4 corners).
     # accessors[1] is the first mesh's POSITION accessor (see create_card:
     # tex-coord accessor is appended before the vertex accessor).
     assert scene["accessors"][1]["count"] == 4
 
 
-def test_export_gltf_with_displacement_generates_missing_depth_maps(tmp_path, monkeypatch):
+def test_export_gltf_with_displacement_generates_missing_depth_maps(
+    tmp_path, monkeypatch
+):
     monkeypatch.chdir(tmp_path)
     state = make_state(tmp_path, "appstate-gltf-displaced")
     Path(state.filename).mkdir()
@@ -151,6 +158,98 @@ def test_export_gltf_requires_at_least_one_slice(tmp_path, monkeypatch):
 
     with pytest.raises(ExportNotReady):
         service.export_gltf(ExportGltf(state_id=state.filename))
+
+
+# --- gltf staleness fingerprint ---------------------------------------------------
+
+
+def test_export_gltf_writes_a_fingerprint_sidecar_recording_dof(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state = make_state(tmp_path, "appstate-gltf-sidecar")
+    Path(state.filename).mkdir()
+    service = make_service(state)
+
+    service.export_gltf(
+        ExportGltf(state_id=state.filename, displacement_scale=0.0, support_dof=True)
+    )
+
+    sidecar_path = Path(state.filename) / GLTF_SOURCE_FILE
+    assert sidecar_path.exists()
+    sidecar = json.loads(sidecar_path.read_text())
+    assert sidecar["dof"] is True
+    assert sidecar["fingerprint"] == gltf_scene_fingerprint(state, 0.0)
+    assert not gltf_export_is_stale(state, Path(state.filename))
+
+
+def test_export_gltf_records_dof_false_when_not_requested(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state = make_state(tmp_path, "appstate-gltf-sidecar-nodof")
+    Path(state.filename).mkdir()
+    service = make_service(state)
+
+    service.export_gltf(
+        ExportGltf(state_id=state.filename, displacement_scale=0.0, support_dof=False)
+    )
+
+    sidecar = json.loads((Path(state.filename) / GLTF_SOURCE_FILE).read_text())
+    assert sidecar["dof"] is False
+
+
+def test_gltf_export_is_stale_without_a_sidecar(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state = make_state(tmp_path, "appstate-gltf-no-sidecar")
+    Path(state.filename).mkdir()
+
+    # No export has happened yet, so there is no sidecar at all.
+    assert gltf_export_is_stale(state, Path(state.filename))
+
+
+def test_gltf_export_is_stale_after_a_slice_depth_change(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state = make_state(tmp_path, "appstate-gltf-depth-change")
+    Path(state.filename).mkdir()
+    service = make_service(state)
+
+    service.export_gltf(ExportGltf(state_id=state.filename, displacement_scale=0.0))
+    assert not gltf_export_is_stale(state, Path(state.filename))
+
+    state.image_slices[0].depth = 200
+
+    assert gltf_export_is_stale(state, Path(state.filename))
+
+
+def test_gltf_export_is_stale_after_rewriting_a_slice_file(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    state = make_state(tmp_path, "appstate-gltf-file-rewrite")
+    Path(state.filename).mkdir()
+    service = make_service(state)
+
+    service.export_gltf(ExportGltf(state_id=state.filename, displacement_scale=0.0))
+    assert not gltf_export_is_stale(state, Path(state.filename))
+
+    # Rewrite the first slice's file in place (same name, different content -
+    # e.g. a re-inpaint): mtime/size change even though nothing on the
+    # in-memory ``state`` object was touched.
+    filename = Path(state.image_slices[0].filename)
+    image = Image.new("RGBA", (10, 10), (1, 2, 3, 255))
+    image.save(filename)
+
+    assert gltf_export_is_stale(state, Path(state.filename))
+
+
+def test_gltf_scene_fingerprint_changes_with_camera_and_displacement(
+    tmp_path, monkeypatch
+):
+    monkeypatch.chdir(tmp_path)
+    state = make_state(tmp_path, "appstate-gltf-fingerprint")
+    Path(state.filename).mkdir()
+
+    baseline = gltf_scene_fingerprint(state, 0.0)
+
+    assert gltf_scene_fingerprint(state, 10.0) != baseline
+
+    state.camera.pitch = 5.0
+    assert gltf_scene_fingerprint(state, 0.0) != baseline
 
 
 # --- upscale_textures ------------------------------------------------------------
