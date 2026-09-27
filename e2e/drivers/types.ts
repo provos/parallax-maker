@@ -226,4 +226,9 @@ export interface UiDriver {
   upscaleTextures(): Promise<void>;
   /** Clicks a slice thumbnail's download icon and returns the resulting browser download. */
   downloadSlice(index: number): Promise<Download>;
+  /**
+   * Opens the 3D view and waits until it shows a loaded scene: the glTF URL
+   * it loaded and the number of materials in it (one per slice).
+   */
+  view3dScene(): Promise<{ url: string; materials: number }>;
 }

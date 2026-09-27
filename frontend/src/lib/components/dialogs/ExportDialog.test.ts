@@ -199,6 +199,45 @@ describe('ExportTab', () => {
     });
   });
 
+  describe('Scene ready', () => {
+    it('is hidden without an export', () => {
+      projectStore.applyView(makeView());
+      render(ExportTab);
+      expect(screen.queryByText('Scene ready')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('export-view-3d')).not.toBeInTheDocument();
+    });
+
+    it('is hidden when the export exists but is stale', () => {
+      projectStore.applyView(
+        makeView({
+          exports: {
+            gltf: { url: '/api/v1/projects/appstate-test/export/gltf?v=1' },
+            gltfStale: true,
+            upscaled: false,
+          },
+        }),
+      );
+      render(ExportTab);
+      expect(screen.queryByText('Scene ready')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('export-view-3d')).not.toBeInTheDocument();
+    });
+
+    it('is shown when the export exists and matches the current scene', () => {
+      projectStore.applyView(
+        makeView({
+          exports: {
+            gltf: { url: '/api/v1/projects/appstate-test/export/gltf?v=1' },
+            gltfStale: false,
+            upscaled: false,
+          },
+        }),
+      );
+      render(ExportTab);
+      expect(screen.getByText('Scene ready')).toBeInTheDocument();
+      expect(screen.getByTestId('export-view-3d')).toBeInTheDocument();
+    });
+  });
+
   describe('View in 3D', () => {
     it('is absent until the scene has been exported', () => {
       projectStore.applyView(makeView());
@@ -262,13 +301,15 @@ describe('ExportTab', () => {
     });
   });
 
-  it('toggles the DOF checkbox locally without persisting anything', async () => {
+  it('the DOF checkbox writes uiStore.exportDof (shared with the 3D view auto-rebuild)', async () => {
     projectStore.applyView(makeView());
     render(ExportTab);
     const checkbox = screen.getByTestId('toggle-dof') as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
+    expect(uiStore.exportDof).toBe(false);
     await fireEvent.click(checkbox);
     expect(checkbox.checked).toBe(true);
+    expect(uiStore.exportDof).toBe(true);
   });
 
   it('Export glTF Scene starts the export job and then triggers a real <a download> click, not window.open', async () => {

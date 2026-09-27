@@ -64,6 +64,7 @@ export type Kind1 = string;
 export type Progress = number;
 export type Clipboard = boolean;
 export type Depthmodel = string;
+export type Gltfstale = boolean;
 export type Upscaled = boolean;
 export type Id1 = string;
 export type Numslices = number;
@@ -417,6 +418,7 @@ export interface ProjectAssets {
  */
 export interface ProjectExportsView {
   gltf?: AssetRef | null;
+  gltfStale?: Gltfstale;
   upscaled?: Upscaled;
 }
 /**

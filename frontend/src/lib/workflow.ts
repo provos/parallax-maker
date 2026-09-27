@@ -822,10 +822,18 @@ export async function toggleDarkMode(): Promise<void> {
   await updateSettings({ darkMode: next === 'dark' });
 }
 
-/** Starts a glTF export job (`POST .../export/gltf`) and polls it to completion. */
-export async function startGltfExport(dof: boolean): Promise<void> {
+/**
+ * Starts a glTF export job (`POST .../export/gltf`) and polls it to
+ * completion. `preview` is the 3D view rebuilding a stale scene: no toast,
+ * and it does not count as the user exporting. Resolves to whether it
+ * succeeded.
+ */
+export async function startGltfExport(
+  dof: boolean,
+  { preview = false }: { preview?: boolean } = {},
+): Promise<boolean> {
   const view = projectStore.view;
-  if (!view) return;
+  if (!view) return false;
   jobStore.begin('export-gltf');
   try {
     const { job } = await api.startGltfExport(view.id, dof);
@@ -833,10 +841,14 @@ export async function startGltfExport(dof: boolean): Promise<void> {
       onProgress: (j) => jobStore.track(j),
     });
     if (finished.project) projectStore.applyView(finished.project);
-    uiStore.markExported();
-    toastStore.success('glTF scene ready');
+    if (!preview) {
+      uiStore.markExported();
+      toastStore.success('glTF scene ready');
+    }
+    return true;
   } catch (err) {
     reportError(err);
+    return false;
   } finally {
     jobStore.end();
     await refreshLogs(view.id);

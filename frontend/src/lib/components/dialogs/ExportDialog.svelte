@@ -23,14 +23,14 @@
 
   const view = $derived(projectStore.view);
   const ground = $derived(view?.slices.find((s) => s.isGround) ?? null);
-  const gltfReady = $derived(!!view?.exports.gltf);
+  const gltfReady = $derived(!!view?.exports.gltf && !view.exports.gltfStale);
 
   $effect(() => cameraDraftStore.sync(view?.settings));
 
-  // -- Depth of Field checkbox: purely a parameter of the next export
-  // request, not a persisted setting (components.py's CHECKLIST_DOF has no
-  // "remember" callback of its own).
-  let dofEnabled = $state(false);
+  // -- Depth of Field checkbox: a parameter of export requests, not a
+  // persisted setting; kept in uiStore so the 3D view's automatic rebuild
+  // uses it too.
+  const dofEnabled = $derived(uiStore.exportDof);
 
   // -- Create glTF Scene (WEB-32): renders into the 3D viewer tab (see
   // Model3DViewer.svelte), same as Dash's own
@@ -47,7 +47,7 @@
   // `<a download>` click (not `window.open`), per the migration task.
   async function exportGltfScene(): Promise<void> {
     if (!view || isBusy()) return;
-    await workflow.startGltfExport(dofEnabled);
+    if (!(await workflow.startGltfExport(dofEnabled))) return;
     const url = projectStore.view?.exports.gltf?.url;
     if (url) triggerDownload(url, 'scene.gltf');
   }
@@ -115,7 +115,7 @@
           type="checkbox"
           data-testid="toggle-dof"
           checked={dofEnabled}
-          onchange={(event) => (dofEnabled = (event.currentTarget as HTMLInputElement).checked)}
+          onchange={(event) => uiStore.setExportDof((event.currentTarget as HTMLInputElement).checked)}
         />
         Support depth-of-field effect
       </label>

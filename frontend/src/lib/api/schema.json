@@ -866,6 +866,11 @@
           ],
           "default": null
         },
+        "gltfStale": {
+          "default": false,
+          "title": "Gltfstale",
+          "type": "boolean"
+        },
         "upscaled": {
           "default": false,
           "title": "Upscaled",

@@ -19,6 +19,8 @@ original whenever ``AppState.upscaled_filename`` exists for that slice.
 
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
@@ -39,6 +41,65 @@ DEPTH_MAP_FINAL_BLUR = 50
 #: Matches webui.py's export_animation's own hardcoded push-distance factor
 #: (webui.py:1497's ``push_distance=camera_distance * 0.75``).
 DEFAULT_PUSH_DISTANCE_FACTOR = 0.75
+
+
+#: Next to ``AppState.MODEL_FILE``: the fingerprint of the scene the glTF
+#: file was built from, so a stale export can be told apart from a current one.
+GLTF_SOURCE_FILE = "model_source.json"
+
+
+def _file_version(path: Path) -> list[int] | None:
+    try:
+        stat = path.stat()
+    except OSError:
+        return None
+    return [stat.st_mtime_ns, stat.st_size]
+
+
+def gltf_scene_fingerprint(state: AppState, displacement_scale: float) -> str:
+    """A digest of everything a glTF export of ``state`` is built from.
+
+    The slices (file identity, depth, ground flag), their upscaled textures and
+    - when displaced - depth maps, the camera, and the displacement. Any edit
+    that changes the exported scene changes the fingerprint.
+    """
+    slices = []
+    for index, image_slice in enumerate(state.image_slices):
+        slices.append(
+            {
+                "file": str(image_slice.filename),
+                "version": _file_version(Path(image_slice.filename)),
+                "depth": image_slice.depth,
+                "ground": image_slice.is_ground_plane,
+                "upscaled": _file_version(Path(state.upscaled_filename(index))),
+                "depthMap": (
+                    _file_version(Path(state.depth_filename(index)))
+                    if displacement_scale > 0
+                    else None
+                ),
+            }
+        )
+    source = {
+        "slices": slices,
+        "camera": state.camera.to_json(),
+        "displacement": displacement_scale,
+    }
+    encoded = json.dumps(source, sort_keys=True, default=float).encode()
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def gltf_export_is_stale(state: AppState, state_dir: Path) -> bool:
+    """Whether ``state_dir``'s glTF export no longer matches ``state``.
+
+    An export without a recorded fingerprint (made before fingerprints were
+    recorded) counts as stale.
+    """
+    try:
+        recorded = json.loads((state_dir / GLTF_SOURCE_FILE).read_text())
+    except (OSError, ValueError):
+        return True
+    current = gltf_scene_fingerprint(state, state.mesh_displacement)
+    return recorded.get("fingerprint") != current
 
 
 class ExportServiceError(Exception):
@@ -177,6 +238,10 @@ class ExportService:
             displacement_scale=command.displacement_scale,
             inline_images=command.inline_images,
             support_dof=command.support_dof,
+        )
+        fingerprint = gltf_scene_fingerprint(state, command.displacement_scale)
+        (Path(command.state_id) / GLTF_SOURCE_FILE).write_text(
+            json.dumps({"fingerprint": fingerprint, "dof": command.support_dof})
         )
 
         return ExportedGltfResult(

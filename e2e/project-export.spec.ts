@@ -179,6 +179,22 @@ test('external server connection test highlights success when the fake probe suc
   await ui.expectExternalConnectionStatus('success');
 });
 
+// --- 3D view: a stale glTF export is rebuilt before it is shown ------------------
+
+test('the 3D view rebuilds the glTF scene after the slices change', async ({ ui }) => {
+  requireWorkflow(ui, 'export');
+  await ui.restoreFixtureState();
+
+  // No export yet: entering the 3D view builds one with every slice.
+  const first = await ui.view3dScene();
+  expect(first.materials).toBe(3);
+
+  // Editing a slice makes that export stale; the view must not keep showing it.
+  await ui.setSliceDepth(1, 120);
+  await expect.poll(async () => (await ui.view3dScene()).url).not.toBe(first.url);
+  expect((await ui.view3dScene()).materials).toBe(3);
+});
+
 // --- Export: glTF with displacement > 0 -----------------------------------------
 
 test('glTF export with displacement produces a subdivided, non-flat mesh', async ({ ui }) => {
